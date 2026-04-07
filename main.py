@@ -1,3 +1,4 @@
+        await self._stop_bot(); logger.info("[BiliBot] 已停用")
 """
 AstrBot Plugin - Bilibili Bot v0.2.0
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
@@ -12,7 +13,7 @@ from astrbot.api import logger, AstrBotConfig
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_bot"
-DATA_DIR = str(get_astrbot_data_path() / "plugin_data" / PLUGIN_NAME)
+DATA_DIR = os.path.join(get_astrbot_data_path(), "plugin_data", PLUGIN_NAME)
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
 AFFECTION_FILE = os.path.join(DATA_DIR, "affection.json")
 SCHEDULE_FILE = os.path.join(DATA_DIR, "schedule_today.json")
