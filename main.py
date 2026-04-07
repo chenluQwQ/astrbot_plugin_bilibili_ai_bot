@@ -1,4 +1,3 @@
-        await self._stop_bot(); logger.info("[BiliBot] 已停用")
 """
 AstrBot Plugin - Bilibili Bot v0.2.0
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
