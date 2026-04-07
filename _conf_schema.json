@@ -139,5 +139,21 @@
     "description": "Cookie检查间隔（小时）",
     "type": "int",
     "default": 6
+  },
+
+  "USE_ASTRBOT_PERSONA": {
+    "description": "使用AstrBot自带人设（关闭则用下方自定义提示词）",
+    "type": "bool",
+    "default": true
+  },
+  "CUSTOM_SYSTEM_PROMPT": {
+    "description": "自定义系统提示词（仅在不使用AstrBot人设时生效）",
+    "type": "text",
+    "default": "你是一个B站UP主的AI助手，负责回复评论。回复要简短自然，像真人一样，不要太官方。"
+  },
+  "REPLY_MAX_TOKENS": {
+    "description": "回复最大token数",
+    "type": "int",
+    "default": 300
   }
 }

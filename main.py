@@ -696,15 +696,18 @@ class BiliBiliBot(Star):
 
                 logger.info(f"[BiliBot] 新评论: {username}({mid}): {content}")
 
-                # TODO: 调用 LLM 生成回复
-                # 这里需要接入 AstrBot 的 LLM provider
-                # ai_reply = await self._generate_reply(content, mid, username)
-                ai_reply = None
+                # 生成AI回复
+                ai_reply = await self._generate_reply(content, mid, username)
 
                 if ai_reply:
-                    # TODO: 发送回复
-                    # success = self._send_reply(oid, rpid, comment_type, ai_reply)
-                    pass
+                    success = self._send_reply(oid, rpid, comment_type, ai_reply)
+                    if success:
+                        logger.info(f"[BiliBot] 回复成功: {username} <- {ai_reply[:50]}")
+                        count += 1
+                    else:
+                        logger.warning(f"[BiliBot] 回复发送失败: {username}")
+                else:
+                    logger.warning(f"[BiliBot] 生成回复失败，跳过: {username}")
 
                 replied.add(rpid)
                 count += 1
@@ -714,6 +717,79 @@ class BiliBiliBot(Star):
 
         except Exception as e:
             logger.error(f"[BiliBot] 轮询出错: {e}")
+
+    # ================================================================
+    #  LLM 回复生成
+    # ================================================================
+
+    def _get_system_prompt(self) -> str:
+        """获取系统提示词：AstrBot人设或自定义"""
+        if self.config.get("USE_ASTRBOT_PERSONA", True):
+            # 尝试获取 AstrBot 配置的人设
+            try:
+                personas = self.context.provider_manager.personas
+                if personas:
+                    # 用第一个人设
+                    return personas[0].prompt
+            except Exception:
+                pass
+        # 用自定义提示词
+        return self.config.get(
+            "CUSTOM_SYSTEM_PROMPT",
+            "你是一个B站UP主的AI助手，负责回复评论。回复要简短自然，像真人一样，不要太官方。",
+        )
+
+    async def _generate_reply(self, content: str, mid: str, username: str) -> str | None:
+        """调用 AstrBot 的 LLM provider 生成回复"""
+        try:
+            provider = self.context.get_using_provider()
+            if not provider:
+                logger.error("[BiliBot] 没有可用的 LLM provider")
+                return None
+
+            system_prompt = self._get_system_prompt()
+
+            # 构建提示
+            owner_name = self.config.get("OWNER_NAME", "") or "主人"
+            is_owner = str(mid) == str(self.config.get("OWNER_MID", ""))
+
+            prompt = (
+                f"B站用户「{username}」"
+                f"{'（这是{owner_name}）' if is_owner else ''}"
+                f"在你的视频下评论了：\n"
+                f"「{content}」\n\n"
+                f"请回复这条评论。要求：简短自然（50字以内），像真人而不是AI，"
+                f"不要用emoji过多，不要太官方。只输出回复内容，不要加引号或前缀。"
+            )
+
+            max_tokens = self.config.get("REPLY_MAX_TOKENS", 300)
+
+            resp = await provider.text_chat(
+                prompt=prompt,
+                session_id=f"bili_reply_{mid}",
+                contexts=[],
+                system_prompt=system_prompt,
+            )
+
+            if resp:
+                # 兼容不同版本的 AstrBot 响应格式
+                reply_text = None
+                if hasattr(resp, 'completion_text') and resp.completion_text:
+                    reply_text = resp.completion_text
+                elif hasattr(resp, 'result_chain') and resp.result_chain:
+                    # 从 MessageChain 提取文本
+                    for comp in resp.result_chain.chain:
+                        if hasattr(comp, 'text') and comp.text:
+                            reply_text = comp.text
+                            break
+
+                if reply_text:
+                    reply = reply_text.strip().strip('"').strip("'")
+                    return reply if reply else None
+
+        except Exception as e:
+            logger.error(f"[BiliBot] LLM 回复生成失败: {e}\n{traceback.format_exc()}")
+        return None
 
     # ================================================================
     #  B站 API 基础操作（后续填充）
