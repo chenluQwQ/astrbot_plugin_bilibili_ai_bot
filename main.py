@@ -87,16 +87,18 @@ class BiliBiliBot(Star):
     # ===== Embedding =====
     def _get_embed_client(self):
         if self._embed_client is None:
-            api_key = self.config.get("SILICON_API_KEY","")
+            api_key = self.config.get("EMBED_API_KEY","")
             if not api_key: return None
             from openai import OpenAI
-            self._embed_client = OpenAI(api_key=api_key, base_url="https://api.siliconflow.cn/v1")
+            base_url = self.config.get("EMBED_API_BASE","https://api.siliconflow.cn/v1")
+            self._embed_client = OpenAI(api_key=api_key, base_url=base_url)
         return self._embed_client
     def _get_embedding(self, text):
         client = self._get_embed_client()
         if not client: return None
         try:
-            resp = client.embeddings.create(model="BAAI/bge-m3", input=text)
+            embed_model = self.config.get("EMBED_MODEL","BAAI/bge-m3")
+            resp = client.embeddings.create(model=embed_model, input=text)
             return resp.data[0].embedding
         except Exception as e:
             logger.error(f"[BiliBot] Embedding 失败: {e}"); return None

@@ -31,11 +31,20 @@
     "type": "string",
     "default": ""
   },
-  "SILICON_API_KEY": {
-    "description": "SiliconFlow API Key（记忆向量化用，免费）",
+  "EMBED_API_KEY": {
+    "description": "Embedding API Key",
     "type": "string",
-    "default": "",
-    "hint": "从 siliconflow.cn 获取，用于 bge-m3 embedding"
+    "default": ""
+  },
+  "EMBED_API_BASE": {
+    "description": "Embedding API Base URL",
+    "type": "string",
+    "default": "https://api.siliconflow.cn/v1"
+  },
+  "EMBED_MODEL": {
+    "description": "Embedding 模型名称",
+    "type": "string",
+    "default": "BAAI/bge-m3"
   },
   "ENABLE_REPLY": {
     "description": "启用评论自动回复",
