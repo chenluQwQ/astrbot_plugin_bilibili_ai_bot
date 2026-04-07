@@ -1,4 +1,4 @@
-requests>=2.28
-cryptography>=41.0
 qrcode>=7.4
 Pillow>=9.0
+requests>=2.28
+cryptography>=41.0
