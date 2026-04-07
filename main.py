@@ -50,7 +50,7 @@ MAX_SEMANTIC_RESULTS = 3
 USER_MEMORY_COMPRESS_THRESHOLD = 20
 USER_MEMORY_KEEP_RECENT = 5
 
-@register("astrbot_plugin_bilibili_bot","chenluQwQ","B站 AI Bot — 自动回复评论、主动看视频、发动态","0.2.0","https://github.com/chenluQwQ/astrbot_plugin_bilibili_bot")
+@register("astrbot_plugin_bilibili_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像","0.2.0","https://github.com/chenluQwQ/astrbot_plugin_bilibili_bot")
 class BiliBiliBot(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)

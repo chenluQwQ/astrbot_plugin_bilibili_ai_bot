@@ -54,12 +54,14 @@
   "ENABLE_PROACTIVE": {
     "description": "启用主动看视频/评论",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "ENABLE_DYNAMIC": {
     "description": "启用自动发动态",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "ENABLE_AFFECTION": {
     "description": "启用好感度系统",
@@ -85,17 +87,20 @@
   "PROACTIVE_VIDEO_COUNT": {
     "description": "每天主动看几个视频",
     "type": "int",
-    "default": 3
+    "default": 3,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_COMMENT_COUNT": {
     "description": "每天主动评论几条",
     "type": "int",
-    "default": 2
+    "default": 2,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_TIMES_COUNT": {
     "description": "每天触发几次主动行为",
     "type": "int",
-    "default": 2
+    "default": 2,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "SLEEP_START": {
     "description": "休眠开始时间（0-23）",
@@ -110,32 +115,38 @@
   "PROACTIVE_LIKE": {
     "description": "主动点赞",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_COIN": {
     "description": "主动投币",
     "type": "bool",
-    "default": false
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_FAV": {
     "description": "主动收藏",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_FOLLOW": {
     "description": "主动关注UP主",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_COMMENT": {
     "description": "主动评论",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "PROACTIVE_FOLLOW_UIDS": {
     "description": "特别关注的UP主UID列表（逗号分隔）",
     "type": "string",
-    "default": ""
+    "default": "",
+    "hint": "⚠️ 尚未实现，将在后续版本支持"
   },
   "COOKIE_AUTO_REFRESH": {
     "description": "Cookie过期自动刷新",
