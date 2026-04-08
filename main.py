@@ -348,16 +348,16 @@ class BiliBiliBot(Star):
         old_opinions = evo.get("opinions", [])
         sp = self._get_system_prompt()
         on = self.config.get("OWNER_NAME","") or "主人"
-        prompt = f"""现在是睡前反思时间。请根据你最近的互动经历，思考自己有没有发生什么变化。
+        default_evolve_prompt = """现在是睡前反思时间。请根据你最近的互动经历，思考自己有没有发生什么变化。
 
 【之前已经发生的变化】
-{json.dumps(old_traits[-5:], ensure_ascii=False) if old_traits else "暂无"}
+{old_traits}
 
 【当前说话习惯】
-{json.dumps(old_habits, ensure_ascii=False) if old_habits else "暂无"}
+{old_habits}
 
 【当前对事物的看法】
-{json.dumps(old_opinions, ensure_ascii=False) if old_opinions else "暂无"}
+{old_opinions}
 
 【最近的互动记录】
 {recent_texts}
@@ -371,6 +371,15 @@ class BiliBiliBot(Star):
 
 请以JSON格式回复：
 {{"new_trait": "新的变化描述（没有就留空）", "trigger": "什么触发了这个变化", "speech_habits": ["当前所有说话习惯，含旧的，最多5条"], "opinions": ["当前所有看法，含旧的，最多5条"], "reflection": "一句话的睡前感想"}}"""
+        custom_prompt = self.config.get("EVOLVE_PROMPT", "").strip()
+        tpl = custom_prompt if custom_prompt else default_evolve_prompt
+        prompt = tpl.format(
+            old_traits=json.dumps(old_traits[-5:], ensure_ascii=False) if old_traits else "暂无",
+            old_habits=json.dumps(old_habits, ensure_ascii=False) if old_habits else "暂无",
+            old_opinions=json.dumps(old_opinions, ensure_ascii=False) if old_opinions else "暂无",
+            recent_texts=recent_texts,
+            owner_name=on
+        )
         for attempt in range(3):
             try:
                 text = await self._llm_call(prompt, system_prompt=sp, max_tokens=1024)
