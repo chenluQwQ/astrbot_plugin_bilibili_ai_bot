@@ -1120,11 +1120,11 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
     async def cmd_toggle(self, event: AstrMessageEvent):
         parts = event.message_str.strip().split(maxsplit=1)
         if len(parts)<2:
-            tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
+            tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
             lines = ["可切换功能："] + [f"  {n} ({'✅' if self.config.get(k,True) else '❌'})" for n,k in tm.items()] + ["","用法: /bili开关 回复"]
             yield event.plain_result("\n".join(lines)); return
         name=parts[1].strip()
-        tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
+        tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
         key=tm.get(name)
         if not key: yield event.plain_result(f"❌ 不认识：{name}"); return
         cur=self.config.get(key,True); self.config[key]=not cur; self.config.save_config()
@@ -1201,9 +1201,146 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         for uid,info in bl.items():
             lines.append(f"UID:{uid} | {info.get('reason','未知')} | {info.get('time','')}")
         yield event.plain_result("\n".join(lines))
+    @filter.command("bili性格")
+    async def cmd_personality(self, event: AstrMessageEvent):
+        """查看性格演化记录。用法: /bili性格"""
+        evo = self._load_json(PERSONALITY_FILE, {})
+        if not evo:
+            yield event.plain_result("🌱 还没有性格演化记录"); return
+        lines = ["🌱 性格演化", "━━━━━━━━━━━━"]
+        traits = evo.get("evolved_traits", [])
+        if traits:
+            lines.append("【成长变化】")
+            for i, t in enumerate(traits, 1):
+                lines.append(f"  {i}. [{t.get('time','')}] {t.get('change','')}")
+                if t.get("trigger"): lines.append(f"     ↳ 触发：{t['trigger']}")
+        habits = evo.get("speech_habits", [])
+        if habits:
+            lines.append("【说话习惯】")
+            for i, h in enumerate(habits, 1): lines.append(f"  {i}. {h}")
+        opinions = evo.get("opinions", [])
+        if opinions:
+            lines.append("【对事物的看法】")
+            for i, o in enumerate(opinions, 1): lines.append(f"  {i}. {o}")
+        ref = evo.get("last_reflection", "")
+        if ref: lines.append(f"\n💭 最近反思：{ref}")
+        lines.append(f"\n📅 上次演化：{evo.get('last_evolve','未知')} | 版本：v{evo.get('version',0)}")
+        yield event.plain_result("\n".join(lines))
+
+    @filter.command("bili性格编辑")
+    async def cmd_personality_edit(self, event: AstrMessageEvent):
+        """手动添加/编辑性格。用法:
+        /bili性格编辑 习惯 <内容> — 添加说话习惯
+        /bili性格编辑 看法 <内容> — 添加看法
+        /bili性格编辑 变化 <内容> — 添加成长变化"""
+        parts = event.message_str.strip().split(maxsplit=2)
+        if len(parts) < 3:
+            yield event.plain_result("用法：\n/bili性格编辑 习惯 <内容>\n/bili性格编辑 看法 <内容>\n/bili性格编辑 变化 <内容>"); return
+        category, content = parts[1].strip(), parts[2].strip()
+        evo = self._load_json(PERSONALITY_FILE, {})
+        if not evo: evo = {"version":0,"last_evolve":"","evolved_traits":[],"speech_habits":[],"opinions":[],"last_reflection":""}
+        if category == "习惯":
+            evo.setdefault("speech_habits", []).append(content)
+            evo["speech_habits"] = evo["speech_habits"][-5:]
+            yield event.plain_result(f"✅ 已添加说话习惯：{content}")
+        elif category == "看法":
+            evo.setdefault("opinions", []).append(content)
+            evo["opinions"] = evo["opinions"][-5:]
+            yield event.plain_result(f"✅ 已添加看法：{content}")
+        elif category == "变化":
+            evo.setdefault("evolved_traits", []).append({"time": datetime.now().strftime("%Y-%m-%d"), "change": content, "trigger": "手动添加"})
+            evo["evolved_traits"] = evo["evolved_traits"][-10:]
+            yield event.plain_result(f"✅ 已添加成长变化：{content}")
+        else:
+            yield event.plain_result("❌ 类别不对，可选：习惯、看法、变化"); return
+        evo["version"] = evo.get("version", 0) + 1
+        self._save_json(PERSONALITY_FILE, evo)
+
+    @filter.command("bili性格删除")
+    async def cmd_personality_delete(self, event: AstrMessageEvent):
+        """删除性格演化条目。用法:
+        /bili性格删除 习惯 <序号>
+        /bili性格删除 看法 <序号>
+        /bili性格删除 变化 <序号>"""
+        parts = event.message_str.strip().split(maxsplit=2)
+        if len(parts) < 3:
+            yield event.plain_result("用法：/bili性格删除 <习惯|看法|变化> <序号>"); return
+        category, idx_str = parts[1].strip(), parts[2].strip()
+        if not idx_str.isdigit():
+            yield event.plain_result("❌ 序号必须是数字"); return
+        idx = int(idx_str) - 1
+        evo = self._load_json(PERSONALITY_FILE, {})
+        if not evo:
+            yield event.plain_result("🌱 没有演化记录"); return
+        key_map = {"习惯": "speech_habits", "看法": "opinions", "变化": "evolved_traits"}
+        key = key_map.get(category)
+        if not key:
+            yield event.plain_result("❌ 类别不对，可选：习惯、看法、变化"); return
+        items = evo.get(key, [])
+        if idx < 0 or idx >= len(items):
+            yield event.plain_result(f"❌ 序号超范围（1-{len(items)}）"); return
+        removed = items.pop(idx)
+        evo["version"] = evo.get("version", 0) + 1
+        self._save_json(PERSONALITY_FILE, evo)
+        desc = removed.get("change", removed) if isinstance(removed, dict) else removed
+        yield event.plain_result(f"✅ 已删除：{desc}")
+
+    @filter.command("bili日志")
+    async def cmd_daily_log(self, event: AstrMessageEvent):
+        """查看今天的视频观看和评论日志。用法: /bili日志 [日期YYYY-MM-DD]"""
+        parts = event.message_str.strip().split(maxsplit=1)
+        target_date = parts[1].strip() if len(parts) >= 2 else datetime.now().strftime("%Y-%m-%d")
+        # 观看日志
+        wl = self._load_json(WATCH_LOG_FILE, [])
+        today_watch = [l for l in wl if l.get("time", "").startswith(target_date)]
+        # 评论日志
+        pl = self._load_json(PROACTIVE_LOG_FILE, [])
+        today_comment = [l for l in pl if l.get("time", "").startswith(target_date)]
+        if not today_watch and not today_comment:
+            yield event.plain_result(f"📋 {target_date} 没有主动行为记录"); return
+        lines = [f"📋 {target_date} 主动行为日志", "━━━━━━━━━━━━"]
+        if today_watch:
+            lines.append(f"\n🎬 看了 {len(today_watch)} 个视频：")
+            for i, w in enumerate(today_watch, 1):
+                score = w.get("score", "?")
+                actions = " ".join(w.get("actions", [])) or "无互动"
+                lines.append(f"  {i}. 「{w.get('title','?')[:30]}」")
+                lines.append(f"     UP:{w.get('up_name','?')} | {score}分 | {w.get('mood','?')}")
+                if w.get("review"): lines.append(f"     📝 {w['review'][:60]}")
+                lines.append(f"     {actions}")
+        if today_comment:
+            lines.append(f"\n💬 发了 {len(today_comment)} 条评论：")
+            for i, c in enumerate(today_comment, 1):
+                lines.append(f"  {i}. 「{c.get('title','?')[:30]}」")
+                lines.append(f"     💬 {c.get('comment','?')[:80]}")
+        yield event.plain_result("\n".join(lines))
+
+    @filter.command("bili永久记忆")
+    async def cmd_permanent_memory(self, event: AstrMessageEvent):
+        """查看/删除永久记忆。用法: /bili永久记忆 | /bili永久记忆 删除 <序号>"""
+        parts = event.message_str.strip().split(maxsplit=2)
+        perm = self._load_json(PERMANENT_MEMORY_FILE, [])
+        if len(parts) >= 3 and parts[1] == "删除":
+            idx_str = parts[2].strip()
+            if not idx_str.isdigit():
+                yield event.plain_result("❌ 序号必须是数字"); return
+            idx = int(idx_str) - 1
+            if idx < 0 or idx >= len(perm):
+                yield event.plain_result(f"❌ 序号超范围（1-{len(perm)}）"); return
+            removed = perm.pop(idx)
+            self._save_json(PERMANENT_MEMORY_FILE, perm)
+            yield event.plain_result(f"✅ 已删除永久记忆：{removed.get('text','')[:50]}"); return
+        if not perm:
+            yield event.plain_result("💎 还没有永久记忆"); return
+        lines = [f"💎 永久记忆（{len(perm)}/20）", "━━━━━━━━━━━━"]
+        for i, p in enumerate(perm, 1):
+            lines.append(f"  {i}. [{p.get('time','?')}] {p.get('text','')[:80]}")
+        lines.append("\n删除用: /bili永久记忆 删除 <序号>")
+        yield event.plain_result("\n".join(lines))
+
     @filter.command("bili帮助")
     async def cmd_help(self, event: AstrMessageEvent):
-        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili启动 — 启动\n/bili停止 — 停止\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录")
+        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili启动 — 启动\n/bili停止 — 停止\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili永久记忆 — 查看/删除永久记忆\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录")
 
     # ===== QQ↔B站 记忆互通 =====
     @filter.command("bili绑定")
