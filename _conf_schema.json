@@ -48,12 +48,12 @@
   "EMBED_API_BASE": {
     "description": "Embedding API Base URL",
     "type": "string",
-    "default": "https://api.siliconflow.cn/v1"
+    "default": ""
   },
   "EMBED_MODEL": {
     "description": "Embedding 模型名称",
     "type": "string",
-    "default": "BAAI/bge-m3"
+    "default": ""
   },
   "VIDEO_VISION_API_KEY": {
     "description": "视频分析 视觉模型 API Key（分析视频封面+内容）",
@@ -64,7 +64,7 @@
   "VIDEO_VISION_API_BASE": {
     "description": "视频分析 视觉模型 API Base URL",
     "type": "string",
-    "default": "https://api.siliconflow.cn/v1"
+    "default": ""
   },
   "VIDEO_VISION_MODEL": {
     "description": "视频分析 视觉模型名称",
@@ -81,7 +81,7 @@
   "IMAGE_VISION_API_BASE": {
     "description": "图片识别 视觉模型 API Base URL",
     "type": "string",
-    "default": "https://api.siliconflow.cn/v1"
+    "default": ""
   },
   "IMAGE_VISION_MODEL": {
     "description": "图片识别 视觉模型名称",
