@@ -9,6 +9,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import Image, Plain
 from astrbot.api import logger, AstrBotConfig
+from astrbot.api.provider import ProviderRequest, LLMResponse
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_bot"
@@ -23,6 +24,10 @@ USER_PROFILE_FILE = os.path.join(DATA_DIR, "user_profiles.json")
 MILESTONE_FILE = os.path.join(DATA_DIR, "milestones.json")
 SECURITY_LOG_FILE = os.path.join(DATA_DIR, "security_log.json")
 VIDEO_MEMORY_FILE = os.path.join(DATA_DIR, "video_memory.json")
+BINDING_FILE = os.path.join(DATA_DIR, "qq_bili_bindings.json")
+QQ_MEMORY_FILE = os.path.join(DATA_DIR, "qq_memory.json")
+
+BILI_MENTION_KEYWORDS = ["b站", "B站", "阿b", "阿B", "啊b", "啊B", "bil", "bili", "bilibili", "小破站", "哔哩哔哩"]
 
 BILI_NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 BILI_REPLY_URL = "https://api.bilibili.com/x/v2/reply/add"
@@ -225,6 +230,9 @@ class BiliBiliBot(Star):
         return [m["text"] for m in docs]
     def _get_user_semantic_memories(self, user_id, query_text):
         um = [m for m in self._memory if m.get("user_id")==str(user_id) and not m.get("text","").startswith("[记忆压缩]") and "embedding" in m]
+        # 也搜QQ记忆
+        qq_mem = self._load_json(QQ_MEMORY_FILE, [])
+        um += [m for m in qq_mem if m.get("user_id")==str(user_id) and "embedding" in m]
         if not um: return []
         qe = self._get_embedding(query_text)
         if not qe: return []
@@ -232,7 +240,11 @@ class BiliBiliBot(Star):
         scored.sort(reverse=True)
         return [t for s,t in scored[:MAX_SEMANTIC_RESULTS] if s>0.6]
     def _search_memories(self, query_text, limit=5, source=None):
-        cands = self._memory
+        cands = list(self._memory)
+        # 合并QQ记忆
+        if source != "bilibili":
+            qq_mem = self._load_json(QQ_MEMORY_FILE, [])
+            cands += qq_mem
         if source: cands = [m for m in cands if m.get("source")==source]
         cands = [m for m in cands if "embedding" in m]
         if not cands: return []
@@ -605,7 +617,82 @@ class BiliBiliBot(Star):
         yield event.plain_result("\n".join(lines))
     @filter.command("bili帮助")
     async def cmd_help(self, event: AstrMessageEvent):
-        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili启动 — 启动\n/bili停止 — 停止\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录")
+        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili启动 — 启动\n/bili停止 — 停止\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录")
+
+    # ===== QQ↔B站 记忆互通 =====
+    @filter.command("bili绑定")
+    async def cmd_bind(self, event: AstrMessageEvent):
+        """绑定QQ与B站UID: /bili绑定 12345"""
+        parts = event.message_str.strip().split()
+        if len(parts) < 2:
+            yield event.plain_result("用法：/bili绑定 <B站UID>"); return
+        bili_uid = parts[1].strip()
+        if not bili_uid.isdigit():
+            yield event.plain_result("⚠️ B站UID应为数字"); return
+        qq_id = str(event.get_sender_id())
+        bindings = self._load_json(BINDING_FILE, {})
+        bindings[qq_id] = bili_uid
+        self._save_json(BINDING_FILE, bindings)
+        yield event.plain_result(f"✅ 已绑定 QQ:{qq_id} ↔ B站UID:{bili_uid}")
+    @filter.command("bili解绑")
+    async def cmd_unbind(self, event: AstrMessageEvent):
+        """解除QQ与B站绑定"""
+        qq_id = str(event.get_sender_id())
+        bindings = self._load_json(BINDING_FILE, {})
+        if qq_id not in bindings:
+            yield event.plain_result("⚠️ 你还没有绑定B站UID"); return
+        del bindings[qq_id]
+        self._save_json(BINDING_FILE, bindings)
+        yield event.plain_result("✅ 已解除绑定")
+
+    @filter.on_llm_request()
+    async def inject_bili_memory(self, event: AstrMessageEvent, req: ProviderRequest):
+        """QQ对话提到B站相关关键词时，注入B站侧的永久记忆"""
+        try:
+            msg = event.message_str or ""
+            if not any(kw in msg.lower() for kw in BILI_MENTION_KEYWORDS):
+                return
+            qq_id = str(event.get_sender_id())
+            bindings = self._load_json(BINDING_FILE, {})
+            if qq_id not in bindings:
+                return
+            perm = self._load_json(PERMANENT_MEMORY_FILE, [])
+            bili_memories = [p for p in perm if p.get("source") == "bilibili"]
+            if not bili_memories:
+                return
+            mem_text = "\n".join([f"[{p.get('time','?')}] {p['text']}" for p in bili_memories[-10:]])
+            req.system_prompt += f"\n\n【B站侧记忆（该用户已绑定B站UID:{bindings[qq_id]}）】\n{mem_text}"
+            logger.debug(f"[BiliBot] QQ→B站记忆注入：{len(bili_memories)}条")
+        except Exception as e:
+            logger.error(f"[BiliBot] 记忆注入失败: {e}")
+
+    @filter.on_llm_response()
+    async def capture_qq_memory(self, event: AstrMessageEvent, resp: LLMResponse):
+        """抓取QQ对话，存入qq_memory.json供B站侧语义检索"""
+        try:
+            qq_id = str(event.get_sender_id())
+            bindings = self._load_json(BINDING_FILE, {})
+            if qq_id not in bindings:
+                return
+            user_msg = (event.message_str or "").strip()
+            ai_reply = (resp.completion_text or "").strip() if resp and resp.completion_text else ""
+            if not user_msg or len(user_msg) < 5 or not ai_reply:
+                return
+            if user_msg.startswith("/"):
+                return
+            now = datetime.now().strftime("%Y-%m-%d %H:%M")
+            username = event.get_sender_name() or qq_id
+            bili_uid = bindings[qq_id]
+            text = f"[QQ|{now}] {username}说：{user_msg[:100]} | 回复：{ai_reply[:100]}"
+            emb = self._get_embedding(text)
+            rec = {"rpid": f"qq_{int(datetime.now().timestamp())}","thread_id":"qq","user_id":bili_uid,"time":now,"text":text,"source":"qq"}
+            if emb: rec["embedding"] = emb
+            qq_mem = self._load_json(QQ_MEMORY_FILE, [])
+            qq_mem.append(rec)
+            self._save_json(QQ_MEMORY_FILE, qq_mem)
+            logger.debug(f"[BiliBot] QQ记忆存入: {text[:50]}")
+        except Exception as e:
+            logger.error(f"[BiliBot] QQ记忆捕获失败: {e}")
 
     # ===== 后台任务 =====
     async def _auto_start(self):
@@ -712,9 +799,7 @@ class BiliBiliBot(Star):
                         await self._send_reply(oid,rpid,ct,"我不想和你说话了。"); await self._block_user(int(mid))
                         logger.info(f"[BiliBot] 🚫 拉黑 {username}"); replied.add(rpid); self._save_json(REPLIED_FILE,list(replied)); continue
                 if imp or uf: self._update_user_profile(mid, impression=imp or None, new_facts=uf or None)
-                if pm:
-                    perm=self._load_json(PERMANENT_MEMORY_FILE,[])
-                    if len(perm)<20: perm.append({"text":pm,"time":datetime.now().strftime("%Y-%m-%d %H:%M")}); self._save_json(PERMANENT_MEMORY_FILE,perm)
+                # 永久记忆判断逻辑待重写，暂不存入
                 logger.info(f"[BiliBot] 💬 {username}: {ai_reply[:50]}")
                 success=await self._send_reply(oid,rpid,ct,ai_reply)
                 if success:
