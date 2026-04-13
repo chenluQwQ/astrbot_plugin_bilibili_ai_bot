@@ -218,7 +218,7 @@
     "default": false
   },
   "WEB_PANEL_PORT": {
-    "description": "Web面板端口 -还在修缮，预计几天内解决问题",
+    "description": "Web面板端口 -还在修缮，目前并非完全效果",
     "type": "int",
     "default": 5001
   },
