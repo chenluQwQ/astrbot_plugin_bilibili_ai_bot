@@ -1,6 +1,6 @@
 """
-AstrBot Plugin - Bilibili Bot v0.2.0
-自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
+AstrBot Plugin - Bilibili Bot v1.0
+自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、Web管理面板。
 """
 import io, os, re, time, json, math, random, asyncio, hashlib, base64, aiohttp, traceback
 from datetime import datetime, timedelta
@@ -31,6 +31,9 @@ PROACTIVE_LOG_FILE = os.path.join(DATA_DIR, "proactive_log.json")
 EXTERNAL_MEMORY_FILE = os.path.join(DATA_DIR, "external_memory.json")
 COMMENTED_FILE = os.path.join(DATA_DIR, "commented_videos.json")
 WATCH_LOG_FILE = os.path.join(DATA_DIR, "watch_log.json")
+DYNAMIC_LOG_FILE = os.path.join(DATA_DIR, "dynamic_log.json")
+DYNAMIC_SCHEDULE_FILE = os.path.join(DATA_DIR, "dynamic_schedule.json")
+TEMP_IMAGE_DIR = os.path.join(DATA_DIR, "temp_images")
 
 BILI_MENTION_KEYWORDS = ["b站", "B站", "阿b", "阿B", "啊b", "啊B", "bil", "bili", "bilibili", "小破站", "哔哩哔哩"]
 
@@ -42,6 +45,9 @@ BILI_COOKIE_REFRESH_URL = "https://passport.bilibili.com/x/passport-login/web/co
 BILI_COOKIE_CONFIRM_URL = "https://passport.bilibili.com/x/passport-login/web/confirm/refresh"
 BILI_QR_GENERATE_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"
 BILI_QR_POLL_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll"
+BILI_DYNAMIC_TEXT_URL = "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create"
+BILI_DYNAMIC_IMAGE_URL = "https://api.bilibili.com/x/dynamic/feed/create/dyn"
+BILI_UPLOAD_IMAGE_URL = "https://api.bilibili.com/x/dynamic/feed/draw/upload_bfs"
 
 MIXIN_KEY_ENC_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
 
@@ -59,6 +65,15 @@ THREAD_COMPRESS_THRESHOLD = 8
 MAX_SEMANTIC_RESULTS = 3
 USER_MEMORY_COMPRESS_THRESHOLD = 20
 USER_MEMORY_KEEP_RECENT = 5
+
+DEFAULT_DYNAMIC_TOPICS = [
+    "针对今天的某个热点新闻，用你的风格讽刺或点评一下",
+    "看到了什么社会现象，冷冷地吐槽一下",
+    "分享今天的日常，比如深夜还在干什么、天气、心情",
+    "结合现在的时间和天气，说说此刻的感受",
+    "像写日记一样，记录今天一个小小的瞬间或想法",
+    "对某个互联网现象发表一句毒舌但精准的评价",
+]
 
 @register("astrbot_plugin_bilibili_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化","0.3.0","https://github.com/chenluQwQ/astrbot_plugin_bilibili_bot")
 class BiliBiliBot(Star):
@@ -81,11 +96,25 @@ class BiliBiliBot(Star):
         self._llm_cooldown_until = 0
         self._retry_counts: dict = {}
         self._proactive_times, self._proactive_triggered = [], set()
+        self._dynamic_task = None
+        self._dynamic_times, self._dynamic_triggered = [], set()
+        self._web_panel = None
         if self._has_cookie():
             asyncio.create_task(self._auto_start())
+        if self.config.get("ENABLE_WEB_PANEL", False):
+            asyncio.create_task(self._start_web_panel())
 
     # ===== 工具 =====
-    def _ensure_data_dir(self): os.makedirs(DATA_DIR, exist_ok=True)
+    def _ensure_data_dir(self): os.makedirs(DATA_DIR, exist_ok=True); os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
+    async def _start_web_panel(self):
+        try:
+            from .web_panel import WebPanel
+            port = self.config.get("WEB_PANEL_PORT", 5001)
+            password = self.config.get("WEB_PANEL_PASSWORD", "admin123")
+            self._web_panel = WebPanel(self, port=port, password=password)
+            await self._web_panel.start()
+        except Exception as e:
+            logger.error(f"[BiliBot] Web面板启动失败: {e}")
     def _has_cookie(self): return bool(self.config.get("SESSDATA", ""))
     def _headers(self):
         return {"Cookie": f"SESSDATA={self.config.get('SESSDATA','')}; bili_jct={self.config.get('BILI_JCT','')}; DedeUserID={self.config.get('DEDE_USER_ID','')}", "User-Agent": USER_AGENT, "Referer": "https://www.bilibili.com"}
@@ -791,6 +820,249 @@ UP主：{video_info.get('owner_name','未知')}
         }
         self._save_json(SCHEDULE_FILE, schedule)
 
+    # ===== 动态发布功能 =====
+    def _get_image_gen_config(self):
+        """获取图片生成模型配置"""
+        api_key = self.config.get("IMAGE_GEN_API_KEY", "") or self.config.get("VIDEO_VISION_API_KEY", "")
+        base_url = self.config.get("IMAGE_GEN_API_BASE", "https://openrouter.ai/api/v1")
+        model = self.config.get("IMAGE_GEN_MODEL", "black-forest-labs/flux-schnell")
+        return api_key, base_url, model
+
+    async def _generate_image(self, prompt):
+        """用图片模型生成图片，返回本地文件路径"""
+        api_key, base_url, model = self._get_image_gen_config()
+        if not api_key:
+            logger.warning("[BiliBot] 图片生成模型未配置")
+            return None
+        styled_prompt = f"anime style illustration, not photorealistic, soft lighting, beautiful colors: {prompt}"
+        url = f"{base_url}/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {"model": model, "messages": [{"role": "user", "content": styled_prompt}], "modalities": ["image"]}
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as r:
+                    if r.status != 200:
+                        logger.error(f"[BiliBot] 图片生成HTTP错误: {r.status}")
+                        return None
+                    data = await r.json()
+            if "error" in data:
+                logger.error(f"[BiliBot] 图片生成API错误: {data['error']}")
+                return None
+            message = data.get("choices", [{}])[0].get("message", {})
+            images = message.get("images", [])
+            if images:
+                img_item = images[0]
+                if isinstance(img_item, dict):
+                    img_url = img_item.get("url", "") or img_item.get("b64_json", "") or (img_item.get("image_url", {}) or {}).get("url", "")
+                else:
+                    img_url = str(img_item)
+                if img_url.startswith("data:image"):
+                    img_b64 = img_url.split(",", 1)[1]
+                    img_data = base64.b64decode(img_b64)
+                    save_path = os.path.join(TEMP_IMAGE_DIR, f"dynamic_{int(time.time())}.png")
+                    with open(save_path, "wb") as f: f.write(img_data)
+                    logger.info(f"[BiliBot] 🖼️ 图片生成成功（{len(img_data)//1024}KB）")
+                    return save_path
+            content = message.get("content", "")
+            if isinstance(content, str) and "data:image" in content:
+                match = re.search(r'data:image/\w+;base64,([A-Za-z0-9+/=]+)', content)
+                if match:
+                    img_data = base64.b64decode(match.group(1))
+                    save_path = os.path.join(TEMP_IMAGE_DIR, f"dynamic_{int(time.time())}.png")
+                    with open(save_path, "wb") as f: f.write(img_data)
+                    logger.info(f"[BiliBot] 🖼️ 图片生成成功（{len(img_data)//1024}KB）")
+                    return save_path
+            logger.warning("[BiliBot] 图片生成返回无图片")
+            return None
+        except Exception as e:
+            logger.error(f"[BiliBot] 图片生成异常: {e}")
+            return None
+
+    async def _generate_dynamic_content(self):
+        """生成动态文案和可选的图片描述"""
+        perm = self._load_json(PERMANENT_MEMORY_FILE, [])
+        perm_section = ""
+        if perm:
+            perm_section = "\n【你的自我认知】\n" + "\n".join([p["text"] for p in perm[-20:]])
+        history_log = self._load_json(DYNAMIC_LOG_FILE, [])
+        history_section = ""
+        if history_log:
+            recent_dynamics = [h.get("text", "") for h in history_log[-10:] if h.get("text")]
+            if recent_dynamics:
+                history_section = "\n【最近发过的动态（不要重复类似内容）】\n" + "\n".join([f"- {d[:50]}..." if len(d) > 50 else f"- {d}" for d in recent_dynamics])
+        now = datetime.now()
+        hour = now.hour
+        if hour < 6: time_hint = "现在是深夜/凌晨"
+        elif hour < 12: time_hint = "现在是上午"
+        elif hour < 18: time_hint = "现在是下午"
+        else: time_hint = "现在是晚上"
+        custom_topics = self.config.get("DYNAMIC_TOPICS", [])
+        topics = custom_topics if custom_topics and isinstance(custom_topics, list) else DEFAULT_DYNAMIC_TOPICS
+        topic = random.choice(topics)
+        sp = self._get_system_prompt()
+        prompt = f"""{sp}{perm_section}
+
+{time_hint}，你想发一条B站动态。主题方向：{topic}{history_section}
+
+风格要求：
+- 说话自然有网感，像真人发的动态
+- 结合当前时间（{time_hint}）写出真实感
+- 不要和最近发过的动态内容重复或相似
+
+请以JSON格式回复：
+{{"text": "动态文案（50-150字，自然随意）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
+
+注意：动态文案要有个性，不要像AI写的。不是每次都需要图片。"""
+        try:
+            text = await self._llm_call(prompt, max_tokens=500)
+            if not text: return None
+            text = text.replace("```json", "").replace("```", "").strip()
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                match = re.search(r'\{.*\}', text, re.DOTALL)
+                if match:
+                    try: return json.loads(match.group())
+                    except: pass
+            logger.warning(f"[BiliBot] 动态内容JSON解析失败: {text[:100]}")
+            return None
+        except Exception as e:
+            logger.error(f"[BiliBot] 生成动态内容失败: {e}")
+            return None
+
+    async def _upload_image_to_bilibili(self, image_path):
+        """上传图片到B站图床"""
+        try:
+            with open(image_path, "rb") as f: img_data = f.read()
+            form = aiohttp.FormData()
+            form.add_field('file_up', img_data, filename='image.png', content_type='image/png')
+            form.add_field('category', 'daily')
+            form.add_field('csrf', self.config.get("BILI_JCT", ""))
+            headers = {"Cookie": self._headers()["Cookie"], "User-Agent": USER_AGENT, "Referer": "https://www.bilibili.com"}
+            async with aiohttp.ClientSession() as s:
+                async with s.post(BILI_UPLOAD_IMAGE_URL, headers=headers, data=form, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    result = await r.json()
+            if result.get("code") == 0:
+                img_info = result["data"]
+                logger.info("[BiliBot] 📤 图片上传成功")
+                return {"img_src": img_info["image_url"], "img_width": img_info["image_width"], "img_height": img_info["image_height"], "img_size": os.path.getsize(image_path) / 1024}
+            else:
+                logger.warning(f"[BiliBot] 图片上传失败: {result}")
+                return None
+        except Exception as e:
+            logger.error(f"[BiliBot] 图片上传异常: {e}")
+            return None
+
+    async def _post_dynamic_text(self, text):
+        """发送纯文字动态"""
+        data = {"dynamic_id": 0, "type": 4, "rid": 0, "content": text, "up_choose_comment": 0, "up_close_comment": 0,
+                "extension": '{"emoji_type":1,"from":{"emoji_type":1},"flag_cfg":{}}', "at_uids": "", "ctrl": "[]",
+                "csrf_token": self.config.get("BILI_JCT", ""), "csrf": self.config.get("BILI_JCT", "")}
+        try:
+            result, _ = await self._http_post(BILI_DYNAMIC_TEXT_URL, data=data)
+            if result.get("code") == 0:
+                logger.info("[BiliBot] ✅ 纯文字动态发送成功")
+                return True
+            else:
+                logger.warning(f"[BiliBot] 动态发送失败: {result}")
+                return False
+        except Exception as e:
+            logger.error(f"[BiliBot] 动态发送异常: {e}")
+            return False
+
+    async def _post_dynamic_with_image(self, text, img_info):
+        """发送带图片的动态"""
+        params = {"csrf": self.config.get("BILI_JCT", "")}
+        payload = {"dyn_req": {"content": {"contents": [{"raw_text": text, "type": 1, "biz_id": ""}]}, "pics": [img_info], "scene": 2}}
+        try:
+            headers = {**self._headers(), "Content-Type": "application/json"}
+            async with aiohttp.ClientSession() as s:
+                async with s.post(BILI_DYNAMIC_IMAGE_URL, params=params, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    result = await r.json()
+            if result.get("code") == 0:
+                logger.info("[BiliBot] ✅ 带图动态发送成功")
+                return True
+            else:
+                logger.warning(f"[BiliBot] 带图动态失败: {result}，尝试纯文字...")
+                return await self._post_dynamic_text(text)
+        except Exception as e:
+            logger.error(f"[BiliBot] 带图动态异常: {e}，尝试纯文字...")
+            return await self._post_dynamic_text(text)
+
+    async def _run_dynamic(self):
+        """执行一次动态发布"""
+        logger.info("[BiliBot] 📢 开始发布动态...")
+        log = self._load_json(DYNAMIC_LOG_FILE, [])
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_posts = [l for l in log if l.get("time", "").startswith(today)]
+        max_daily = self.config.get("DYNAMIC_DAILY_COUNT", 1)
+        if len(today_posts) >= max_daily:
+            logger.info(f"[BiliBot] 今天已发 {len(today_posts)} 条动态，跳过")
+            return
+        logger.info("[BiliBot] 🤔 正在想要发什么...")
+        content = await self._generate_dynamic_content()
+        if not content:
+            logger.error("[BiliBot] ❌ 生成动态内容失败")
+            return
+        text = content.get("text", "")
+        need_image = content.get("need_image", False)
+        image_prompt = content.get("image_prompt", "")
+        logger.info(f"[BiliBot] 📝 文案：{text[:50]}...")
+        logger.info(f"[BiliBot] 🖼️ 需要图片：{need_image}")
+        success = False
+        if need_image and image_prompt:
+            logger.info(f"[BiliBot] 🎨 生图提示：{image_prompt[:50]}...")
+            local_path = await self._generate_image(image_prompt)
+            if local_path:
+                img_info = await self._upload_image_to_bilibili(local_path)
+                if img_info:
+                    success = await self._post_dynamic_with_image(text, img_info)
+                else:
+                    success = await self._post_dynamic_text(text)
+                try: os.remove(local_path)
+                except: pass
+            else:
+                success = await self._post_dynamic_text(text)
+        else:
+            success = await self._post_dynamic_text(text)
+        if success:
+            log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "text": text, "has_image": need_image and bool(image_prompt), "image_prompt": image_prompt if need_image else ""})
+            self._save_json(DYNAMIC_LOG_FILE, log[-100:])
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            short_text = text[:60] if len(text) > 60 else text
+            self._memory.append({"rpid": f"dynamic_{int(time.time())}", "thread_id": "dynamic", "user_id": "self", "time": now_str, "text": f"[{now_str}] Bot发了一条动态：{short_text}", "source": "bilibili"})
+            self._save_json(MEMORY_FILE, self._memory)
+            logger.info("[BiliBot] 🎉 动态发布完成！")
+        else:
+            logger.error("[BiliBot] ❌ 动态发布失败")
+
+    def _generate_dynamic_schedule(self):
+        """生成每日动态发布时间表"""
+        n_times = self.config.get("DYNAMIC_TIMES_COUNT", 1)
+        times = sorted(random.sample(range(10, 23), min(n_times, 12)))
+        times = [(h, random.randint(0, 59)) for h in times]
+        schedule = {"date": datetime.now().strftime("%Y-%m-%d"), "dynamic_times": [f"{h}:{m:02d}" for h, m in times], "dynamic_triggered": []}
+        self._save_json(DYNAMIC_SCHEDULE_FILE, schedule)
+        return times, set()
+
+    def _load_or_generate_dynamic_schedule(self):
+        """加载或生成动态发布时间表"""
+        try:
+            schedule = self._load_json(DYNAMIC_SCHEDULE_FILE, {})
+            if schedule.get("date") == datetime.now().strftime("%Y-%m-%d"):
+                times = []
+                for t in schedule.get("dynamic_times", []):
+                    h, m = t.split(":"); times.append((int(h), int(m)))
+                triggered = set(schedule.get("dynamic_triggered", []))
+                return times, triggered
+        except: pass
+        return self._generate_dynamic_schedule()
+
+    def _save_dynamic_schedule_state(self, times, triggered):
+        """保存动态调度状态"""
+        schedule = {"date": datetime.now().strftime("%Y-%m-%d"), "dynamic_times": [f"{h}:{m:02d}" for h, m in times], "dynamic_triggered": list(triggered)}
+        self._save_json(DYNAMIC_SCHEDULE_FILE, schedule)
+
     async def _get_up_latest_video(self, mid):
         try:
             params = await self.sign_wbi_params({"mid": mid, "ps": 1, "pn": 1, "order": "pubdate"})
@@ -1105,14 +1377,15 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         mc=len(self._memory); pc=len(self._load_json(USER_PROFILE_FILE,{})); pmc=len(self._load_json(PERMANENT_MEMORY_FILE,[]))
         evo=self._load_json(PERSONALITY_FILE,{}); evo_ver=evo.get("version",0); evo_last=evo.get("last_evolve","从未")
         wl=self._load_json(WATCH_LOG_FILE,[]); today_watched=len([l for l in wl if l.get("time","").startswith(datetime.now().strftime("%Y-%m-%d"))])
+        dl=self._load_json(DYNAMIC_LOG_FILE,[]); today_dynamic=len([l for l in dl if l.get("time","").startswith(datetime.now().strftime("%Y-%m-%d"))])
         lines = [
-            f"📺 BiliBot v0.3.0 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot v1.0 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"🎭 心情:{mood} | 🌱性格v{evo_ver}（{evo_last[:10]}）",
-            f"📹 今日已看:{today_watched}个视频",
+            f"📹 今日已看:{today_watched}个视频 | 📝动态:{today_dynamic}条",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
-            f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'}",
+            f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'}",
             f"视频视觉:{'✅' if self.config.get('VIDEO_VISION_API_KEY','') else '❌'} 图片识别:{'✅' if self.config.get('IMAGE_VISION_API_KEY','') else '❌'}"
         ]
         yield event.plain_result("\n".join(lines))
@@ -1347,9 +1620,31 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         lines.append("\n删除用: /bili永久记忆 删除 <序号>")
         yield event.plain_result("\n".join(lines))
 
+    @filter.command("bili动态")
+    async def cmd_dynamic(self, event: AstrMessageEvent):
+        """手动发布动态"""
+        if not self._has_cookie():
+            yield event.plain_result("❌ 请先 /bili登录"); return
+        yield event.plain_result("📢 正在发布动态...")
+        await self._run_dynamic()
+        yield event.plain_result("📢 动态发布流程已完成，请查看日志")
+
+    @filter.command("bili动态日志")
+    async def cmd_dynamic_log(self, event: AstrMessageEvent):
+        """查看动态发布日志"""
+        log = self._load_json(DYNAMIC_LOG_FILE, [])
+        if not log:
+            yield event.plain_result("📝 还没有动态记录"); return
+        lines = ["📝 最近动态记录", "━━━━━━━━━━━━"]
+        for i, l in enumerate(log[-10:], 1):
+            img = "🖼️" if l.get("has_image") else "📄"
+            lines.append(f"{i}. [{l.get('time','')}] {img}")
+            lines.append(f"   {l.get('text','')[:60]}...")
+        yield event.plain_result("\n".join(lines))
+
     @filter.command("bili帮助")
     async def cmd_help(self, event: AstrMessageEvent):
-        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili启动 — 启动\n/bili停止 — 停止\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili永久记忆 — 查看/删除永久记忆\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录")
+        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili启动 — 启动\n/bili停止 — 停止\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili动态日志 — 动态记录\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录")
 
     # ===== QQ↔B站 记忆互通 =====
     @filter.command("bili绑定")
@@ -1439,6 +1734,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         self._running=False
         if self._task: self._task.cancel(); self._task=None
         if self._proactive_task and not self._proactive_task.done(): self._proactive_task.cancel(); self._proactive_task=None
+        if self._dynamic_task and not self._dynamic_task.done(): self._dynamic_task.cancel(); self._dynamic_task=None
         logger.info("[BiliBot] 停止")
     async def _main_loop(self):
         logger.info("[BiliBot] 主循环开始")
@@ -1468,6 +1764,24 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                                 self._proactive_triggered.add(key)
                                 self._save_schedule_state(self._proactive_times, self._proactive_triggered)
                                 logger.info(f"[BiliBot] 🎯 触发主动视频（{key}）")
+                # 动态发布调度
+                if self.config.get("ENABLE_DYNAMIC", False):
+                    now_dt = datetime.now()
+                    today_str = now_dt.strftime("%Y-%m-%d")
+                    sched = self._load_json(DYNAMIC_SCHEDULE_FILE, {})
+                    if sched.get("date") != today_str:
+                        self._dynamic_times, self._dynamic_triggered = self._generate_dynamic_schedule()
+                        logger.info(f"[BiliBot] 📅 动态时间：{[f'{h}:{m:02d}' for h,m in self._dynamic_times]}")
+                    elif not self._dynamic_times:
+                        self._dynamic_times, self._dynamic_triggered = self._load_or_generate_dynamic_schedule()
+                    for dh, dm in self._dynamic_times:
+                        key = f"{dh}:{dm:02d}"
+                        if key not in self._dynamic_triggered and (now_dt.hour > dh or (now_dt.hour == dh and now_dt.minute >= dm)):
+                            if self._dynamic_task is None or self._dynamic_task.done():
+                                self._dynamic_task = asyncio.create_task(self._run_dynamic())
+                                self._dynamic_triggered.add(key)
+                                self._save_dynamic_schedule_state(self._dynamic_times, self._dynamic_triggered)
+                                logger.info(f"[BiliBot] 📢 触发动态发布（{key}）")
                 if self.config.get("ENABLE_REPLY",True): await self._poll_and_reply()
                 await asyncio.sleep(self.config.get("POLL_INTERVAL",20))
             except asyncio.CancelledError: break
@@ -1576,4 +1890,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         except Exception as e: logger.error(f"[BiliBot] 轮询出错: {e}\n{traceback.format_exc()}")
 
     async def terminate(self):
-        await self._stop_bot(); logger.info("[BiliBot] 已停用")
+        await self._stop_bot()
+        if self._web_panel:
+            await self._web_panel.stop()
+        logger.info("[BiliBot] 已停用")

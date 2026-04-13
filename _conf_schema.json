@@ -89,6 +89,23 @@
     "default": "",
     "hint": "如 google/gemma-3-27b-it 等"
   },
+  "IMAGE_GEN_API_KEY": {
+    "description": "图片生成 API Key（动态配图用）",
+    "type": "string",
+    "default": "",
+    "hint": "留空则复用 VIDEO_VISION_API_KEY"
+  },
+  "IMAGE_GEN_API_BASE": {
+    "description": "图片生成 API Base URL",
+    "type": "string",
+    "default": "https://openrouter.ai/api/v1"
+  },
+  "IMAGE_GEN_MODEL": {
+    "description": "图片生成模型名称",
+    "type": "string",
+    "default": "black-forest-labs/flux-schnell",
+    "hint": "支持 Flux 系列模型"
+  },
   "ENABLE_REPLY": {
     "description": "启用评论自动回复",
     "type": "bool",
@@ -175,8 +192,40 @@
   "ENABLE_DYNAMIC": {
     "description": "启用自动发动态",
     "type": "bool",
-    "default": false,
-    "hint": "⚠️ 尚未实现，将在后续版本支持"
+    "default": false
+  },
+  "DYNAMIC_TIMES_COUNT": {
+    "description": "每天触发几次动态发布",
+    "type": "int",
+    "default": 1,
+    "hint": "建议 1-3 次"
+  },
+  "DYNAMIC_DAILY_COUNT": {
+    "description": "每天最多发几条动态",
+    "type": "int",
+    "default": 1,
+    "hint": "防止刷屏"
+  },
+  "DYNAMIC_TOPICS": {
+    "description": "动态主题池（每行一个）",
+    "type": "list",
+    "default": [],
+    "hint": "留空使用默认主题池"
+  },
+  "ENABLE_WEB_PANEL": {
+    "description": "启用Web管理面板",
+    "type": "bool",
+    "default": false
+  },
+  "WEB_PANEL_PORT": {
+    "description": "Web面板端口",
+    "type": "int",
+    "default": 5001
+  },
+  "WEB_PANEL_PASSWORD": {
+    "description": "Web面板登录密码",
+    "type": "string",
+    "default": "admin123"
   },
   "POLL_INTERVAL": {
     "description": "评论轮询间隔（秒）",
