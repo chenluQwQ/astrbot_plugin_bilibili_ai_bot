@@ -85,6 +85,11 @@ class BiliBiliBot(Star):
         self._first_poll = not os.path.exists(REPLIED_FILE)
         self._replied_at = set(self._load_json(REPLIED_AT_FILE, []))
         self._affection = self._load_json(AFFECTION_FILE, {})
+        # 主人好感固定100
+        owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
+        if owner_mid:
+            self._affection[owner_mid] = 100
+            self._save_json(AFFECTION_FILE, self._affection)
         self._memory = [self._normalize_memory_entry(m) for m in self._load_json(MEMORY_FILE, []) if isinstance(m, dict)]
         self._embed_client = None
         self._video_vision_client = None
@@ -1436,6 +1441,8 @@ UP主：{video_info.get('owner_name','未知')}
                     play = int(v.get("play", v.get("stat", {}).get("view", 0)) or 0)
                     if play >= MIN_VIEWS:
                         videos.append({"bvid": v.get("bvid",""), "title": v.get("title",""), "desc": v.get("description", v.get("desc","")), "up_name": v.get("author", v.get("owner",{}).get("name","")), "up_mid": v.get("mid", v.get("owner",{}).get("mid",0)), "pubdate": v.get("pubdate", v.get("create", v.get("created",0))), "pic": v.get("pic",""), "view": play})
+            else:
+                logger.warning(f"[BiliBot] 热榜API返回非0: code={d['code']} tid={tid}")
         except Exception as e: logger.warning(f"[BiliBot] 热榜API失败: {e}")
         if len(videos) < 5:
             try:
@@ -1445,6 +1452,8 @@ UP主：{video_info.get('owner_name','未知')}
                         play = int(v.get("stat",{}).get("view",0) or 0)
                         if play >= MIN_VIEWS:
                             videos.append({"bvid": v["bvid"], "title": v["title"], "desc": v.get("desc",""), "up_name": v["owner"]["name"], "up_mid": v["owner"]["mid"], "pubdate": v.get("pubdate",0), "pic": v.get("pic",""), "view": play})
+                else:
+                    logger.warning(f"[BiliBot] newlist API返回非0: code={d['code']} tid={tid}")
             except Exception as e: logger.warning(f"[BiliBot] newlist API失败: {e}")
         seen = set(); unique = []
         for v in videos:
@@ -1739,22 +1748,18 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         commented_videos = set(self._load_json(COMMENTED_FILE, []))
         watched_bvids = set(commented_videos)
         for entry in watch_log: watched_bvids.add(entry.get("bvid",""))
-        min_pubdate = int(datetime(2025, 1, 1).timestamp())
+        min_pubdate_hot = int(datetime(datetime.now().year, 1, 1).timestamp())
         target_videos = []
-        # 1. 特别关心的UP主
+        # 1. 特别关心的UP主（不限日期）
         special_mids = self.config.get("PROACTIVE_FOLLOW_UIDS", [])
         for mid in special_mids:
             video = await self._get_up_latest_video(mid)
             if video and video["bvid"] not in watched_bvids:
-                pubdate = video.get("pubdate", 0)
-                if isinstance(pubdate, str):
-                    try: pubdate = int(pubdate)
-                    except: pubdate = 0
-                if pubdate >= min_pubdate:
-                    target_videos.insert(0, video)
-                    logger.info(f"[BiliBot] ⭐ 特别关心：{video['up_name']} - {video['title']}")
-        # 2. 关注的UP主
+                target_videos.insert(0, video)
+                logger.info(f"[BiliBot] ⭐ 特别关心：{video['up_name']} - {video['title']}")
+        # 2. 关注的UP主（只取今天更新的）
         following_mids = await self.get_followings()
+        logger.info(f"[BiliBot] 📡 关注列表：{len(following_mids)} 个UP主")
         today = datetime.now().date()
         for mid in following_mids:
             video = await self._get_up_latest_video(mid)
@@ -1764,12 +1769,10 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                 if isinstance(pubdate, str):
                     try: pubdate = int(pubdate)
                     except: pubdate = 0
-                if pubdate < min_pubdate: continue
-                is_today = pubdate and datetime.fromtimestamp(pubdate).date() == today
-                if is_today:
-                    target_videos.insert(0, video)
+                if pubdate and datetime.fromtimestamp(pubdate).date() == today:
+                    target_videos.append(video)
                     logger.info(f"[BiliBot] 🔔 今日更新：{video['up_name']} - {video['title']}")
-        # 3. 分区热门
+        # 3. 分区热门（只取今年的）
         tids = list(self.PREFERRED_TIDS); random.shuffle(tids)
         for tid in tids:
             if len(target_videos) >= daily_watch + 5: break
@@ -1780,8 +1783,9 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                     if isinstance(pubdate, str):
                         try: pubdate = int(pubdate)
                         except: pubdate = 0
-                    if pubdate >= min_pubdate: target_videos.append(v)
+                    if pubdate >= min_pubdate_hot: target_videos.append(v)
         # 去重 + 随机
+        logger.info(f"[BiliBot] 📊 视频来源统计：特别关注={len(special_mids)}个UP | 关注列表={len(following_mids)}个UP | 收集到={len(target_videos)}个视频")
         seen = set(); unique = []
         for v in target_videos:
             if v["bvid"] not in seen: seen.add(v["bvid"]); unique.append(v)
@@ -2535,35 +2539,42 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         uf = result.get("user_facts", [])
         pm = result.get("permanent_memory", "")
         if self.config.get("ENABLE_AFFECTION", True):
-            mx = 100 if self._is_owner(mid) else 99
-            ns = max(0, min(mx, cs + sd))
-            self._affection[str(mid)] = ns
-            self._save_json(AFFECTION_FILE, self._affection)
-            ds = f"+{sd}" if sd >= 0 else str(sd)
-            logger.info(f"[BiliBot] 💛 {cs}→{ns}（{ds}）| {LEVEL_NAMES[self._get_level(ns, mid)]}")
-            mm = self._check_milestone(mid, cs, ns, username)
-            if mm:
-                ai_reply = mm
-            should_block = False
-            if ns <= -30:
-                should_block = True
-            if sd <= -3:
-                bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
-                bc[mid] = bc.get(mid, 0) + 1
-                self._save_json(os.path.join(DATA_DIR, "block_count.json"), bc)
-                if bc[mid] >= 5:
-                    should_block = True
-                self._log_security_event("negative", mid, username, content, f"{cs}→{ns}({ds})")
+            if self._is_owner(mid):
+                # 主人好感固定100，不变
+                ns = 100
+                self._affection[str(mid)] = ns
+                self._save_json(AFFECTION_FILE, self._affection)
+                logger.info(f"[BiliBot] 💛 主人💖 固定100分")
             else:
-                bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
-                if mid in bc:
-                    bc[mid] = 0
+                mx = 99
+                ns = max(0, min(mx, cs + sd))
+                self._affection[str(mid)] = ns
+                self._save_json(AFFECTION_FILE, self._affection)
+                ds = f"+{sd}" if sd >= 0 else str(sd)
+                logger.info(f"[BiliBot] 💛 {cs}→{ns}（{ds}）| {LEVEL_NAMES[self._get_level(ns, mid)]}")
+                mm = self._check_milestone(mid, cs, ns, username)
+                if mm:
+                    ai_reply = mm
+                should_block = False
+                if ns <= -30:
+                    should_block = True
+                if sd <= -3:
+                    bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
+                    bc[mid] = bc.get(mid, 0) + 1
                     self._save_json(os.path.join(DATA_DIR, "block_count.json"), bc)
-            if should_block and not self._is_owner(mid):
-                await self._send_reply(oid, rpid, comment_type, "我不想和你说话了。")
-                await self._block_user(int(mid))
-                logger.info(f"[BiliBot] 🚫 拉黑 {username}")
-                return False
+                    if bc[mid] >= 5:
+                        should_block = True
+                    self._log_security_event("negative", mid, username, content, f"{cs}→{ns}({ds})")
+                else:
+                    bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
+                    if mid in bc:
+                        bc[mid] = 0
+                        self._save_json(os.path.join(DATA_DIR, "block_count.json"), bc)
+                if should_block:
+                    await self._send_reply(oid, rpid, comment_type, "我不想和你说话了。")
+                    await self._block_user(int(mid))
+                    logger.info(f"[BiliBot] 🚫 拉黑 {username}")
+                    return False
         if imp or uf:
             self._update_user_profile(mid, username=username, impression=imp or None, new_facts=uf or None)
         if pm:
