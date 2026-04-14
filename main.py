@@ -96,6 +96,7 @@ class BiliBiliBot(Star):
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._web_panel = None
+        self._processed_comments = set()  # 内存级去重：(oid, rpid) 防重复回复
         self._log_environment_warnings()
         if self._has_cookie():
             asyncio.create_task(self._auto_start())
@@ -2530,6 +2531,15 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         if self.config.get("COOKIE_AUTO_REFRESH",True):
             ok,msg=await self.refresh_cookie(); logger.info(f"[BiliBot] 刷新{'成功' if ok else '失败'}: {msg}")
     async def _apply_reply_result(self, *, mid, username, content, oid, rpid, comment_type, thread_id, result):
+        # 内存级去重：防止两个轮询对同一条评论重复回复
+        dedup_key = str(rpid)
+        if dedup_key in self._processed_comments:
+            logger.info(f"[BiliBot] ⏭️ rpid={rpid} 已处理过，跳过重复回复")
+            return False
+        self._processed_comments.add(dedup_key)
+        # 防止集合无限增长
+        if len(self._processed_comments) > 2000:
+            self._processed_comments = set(list(self._processed_comments)[-1000:])
         cs = self._affection.get(str(mid), 0)
         ai_reply = result["reply"]
         sd = result.get("score_delta", 1)
@@ -2602,7 +2612,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             for item in items:
                 if count>=mr: break
                 r=item.get("item",{}); rpid=str(r.get("source_id",""))
-                if rpid in replied: continue
+                if rpid in replied or rpid in self._processed_comments: continue
                 mid=str(item.get("user",{}).get("mid","")); username=item.get("user",{}).get("nickname","")
                 content=r.get("source_content",""); oid=r.get("subject_id",0); ct=r.get("business_id",1)
                 thread_id=str(r.get("root_id") or rpid)
@@ -2684,7 +2694,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                 comment_type = source.get("business_id", 1)
                 thread_id = str(source.get("root_id") or rpid or at_id)
                 # 如果回复轮询已经处理过这条rpid，跳过
-                if rpid and rpid in replied:
+                if rpid and (rpid in replied or rpid in self._processed_comments):
                     self._replied_at.add(at_id)
                     self._save_json(REPLIED_AT_FILE, list(self._replied_at))
                     continue
