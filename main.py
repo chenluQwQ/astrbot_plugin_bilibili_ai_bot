@@ -1408,7 +1408,7 @@ UP主：{video_info.get('owner_name','未知')}
         msg = event.message_str or ""
         if not await self._should_trigger_proactive_from_text(msg):
             return
-        self._proactive_task = asyncio.create_task(self._run_proactive())
+        self._proactive_task = asyncio.create_task(self._run_proactive(max_watch=1))
         trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
         trigger_log.append({
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1734,20 +1734,20 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             return d.get("code") == 0
         except: return False
 
-    async def _run_proactive(self):
+    async def _run_proactive(self, max_watch=None):
         """主动刷B站：看视频、评价、点赞/投币/收藏/关注/评论"""
         try:
-            await self._run_proactive_inner()
+            await self._run_proactive_inner(max_watch=max_watch)
         except asyncio.CancelledError:
             logger.info("[BiliBot] 主动看视频任务被取消")
         except Exception as e:
             logger.error(f"[BiliBot] 主动看视频任务异常退出: {e}\n{traceback.format_exc()}")
 
-    async def _run_proactive_inner(self):
+    async def _run_proactive_inner(self, max_watch=None):
         env = self._get_environment_status()
         if not env["features"]["proactive_video_media"]:
             logger.warning("[BiliBot] 当前环境不满足视频媒体分析条件，将回退为纯文本视频分析。")
-        daily_watch = self.config.get("PROACTIVE_VIDEO_COUNT", 3)
+        daily_watch = max_watch if max_watch is not None else self.config.get("PROACTIVE_VIDEO_COUNT", 3)
         daily_comment = self.config.get("PROACTIVE_COMMENT_COUNT", 2)
         watch_log = self._load_json(WATCH_LOG_FILE, [])
         today_str = datetime.now().strftime("%Y-%m-%d")
@@ -1996,7 +1996,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         if self._proactive_task is not None and not self._proactive_task.done():
             yield event.plain_result("⏳ 已有主动看视频任务在运行")
             return
-        self._proactive_task = asyncio.create_task(self._run_proactive())
+        self._proactive_task = asyncio.create_task(self._run_proactive(max_watch=1))
         trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
         trigger_log.append({
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2013,7 +2013,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             return "主动看视频功能当前未开启。请先使用 /bili开关 主动 开启。"
         if self._proactive_task is not None and not self._proactive_task.done():
             return "已有主动看视频任务正在运行，无需重复触发。"
-        self._proactive_task = asyncio.create_task(self._run_proactive())
+        self._proactive_task = asyncio.create_task(self._run_proactive(max_watch=1))
         trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
         trigger_log.append({
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
