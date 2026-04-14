@@ -1734,26 +1734,29 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             return d.get("code") == 0
         except: return False
 
-    async def _run_proactive(self, max_watch=None):
+    async def _run_proactive(self, max_watch=None, max_comment=None):
         """主动刷B站：看视频、评价、点赞/投币/收藏/关注/评论"""
         try:
-            await self._run_proactive_inner(max_watch=max_watch)
+            await self._run_proactive_inner(max_watch=max_watch, max_comment=max_comment)
         except asyncio.CancelledError:
             logger.info("[BiliBot] 主动看视频任务被取消")
         except Exception as e:
             logger.error(f"[BiliBot] 主动看视频任务异常退出: {e}\n{traceback.format_exc()}")
 
-    async def _run_proactive_inner(self, max_watch=None):
+    async def _run_proactive_inner(self, max_watch=None, max_comment=None):
         env = self._get_environment_status()
         if not env["features"]["proactive_video_media"]:
             logger.warning("[BiliBot] 当前环境不满足视频媒体分析条件，将回退为纯文本视频分析。")
-        daily_watch = max_watch if max_watch is not None else self.config.get("PROACTIVE_VIDEO_COUNT", 3)
-        daily_comment = self.config.get("PROACTIVE_COMMENT_COUNT", 2)
+        is_manual = max_watch is not None
+        daily_watch = max_watch if is_manual else self.config.get("PROACTIVE_VIDEO_COUNT", 3)
+        daily_comment = max_comment if max_comment is not None else random.randint(1, 3)
         watch_log = self._load_json(WATCH_LOG_FILE, [])
         today_str = datetime.now().strftime("%Y-%m-%d")
-        today_watched = [l for l in watch_log if l.get("time","").startswith(today_str)]
-        if len(today_watched) >= daily_watch:
-            logger.info(f"[BiliBot] 今天已看 {len(today_watched)} 个视频，不再刷"); return
+        # 手动触发不受今日上限限制；定时只计定时的
+        if not is_manual:
+            today_watched = [l for l in watch_log if l.get("time","").startswith(today_str) and not l.get("manual")]
+            if len(today_watched) >= daily_watch:
+                logger.info(f"[BiliBot] 今天已看 {len(today_watched)} 个视频，不再刷"); return
         logger.info(f"[BiliBot] 🎯 主动刷B站 | 目标：看 {daily_watch} 个视频，评论 {daily_comment} 条")
         external_memory = self._load_json(EXTERNAL_MEMORY_FILE, {})
         commented_videos = set(self._load_json(COMMENTED_FILE, []))
@@ -1833,7 +1836,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             evaluation = await self._evaluate_video(analysis_info, video_description)
             if not evaluation:
                 logger.warning("[BiliBot] 评价失败，跳过互动")
-                watch_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title",""), "up_name": video.get("up_name",""), "score": 0, "mood": "未知", "comment": "评价失败", "review": "", "actions": [], "pic": video.get("pic","")})
+                watch_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title",""), "up_name": video.get("up_name",""), "score": 0, "mood": "未知", "comment": "评价失败", "review": "", "actions": [], "pic": video.get("pic",""), "manual": is_manual})
                 self._save_json(WATCH_LOG_FILE, watch_log[-200:]); watched_bvids.add(bvid); watch_count += 1; continue
             score = evaluation.get("score", 5)
             comment = evaluation.get("comment", "")
@@ -1885,7 +1888,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                     if await self._follow_user(video["up_mid"]):
                         actions.append("➕关注"); logger.info(f"[BiliBot] ➕ 关注了 {video.get('up_name','')}")
             # 保存观影日记
-            log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title",""), "up_name": video.get("up_name",""), "up_mid": str(video.get("up_mid","")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic","")}
+            log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title",""), "up_name": video.get("up_name",""), "up_mid": str(video.get("up_mid","")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic",""), "manual": is_manual}
             watch_log.append(log_entry); self._save_json(WATCH_LOG_FILE, watch_log[-200:])
             memory_text = (
                 f"[{log_entry['time']}] Bot看了视频《{video.get('title','')}》"
