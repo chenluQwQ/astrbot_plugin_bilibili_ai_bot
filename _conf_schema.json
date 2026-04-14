@@ -70,7 +70,7 @@
   "VIDEO_VISION_API_BASE": {
     "description": "视频分析 视觉模型 API Base URL",
     "type": "string",
-    "default": "https://api.siliconflow.cn/v1"
+    "default": ""
   },
   "VIDEO_VISION_MODEL": {
     "description": "视频分析 视觉模型名称",
@@ -93,7 +93,7 @@
   "IMAGE_VISION_API_BASE": {
     "description": "图片识别 视觉模型 API Base URL",
     "type": "string",
-    "default": "https://api.siliconflow.cn/v1"
+    "default": ""
   },
   "IMAGE_VISION_MODEL": {
     "description": "图片识别 视觉模型名称",
@@ -110,13 +110,13 @@
   "IMAGE_GEN_API_BASE": {
     "description": "图片生成 API Base URL",
     "type": "string",
-    "default": "https://openrouter.ai/api/v1"
+    "default": ""
   },
   "IMAGE_GEN_MODEL": {
     "description": "图片生成模型名称",
     "type": "string",
-    "default": "black-forest-labs/flux-schnell",
-    "hint": "支持 Flux 系列模型"
+    "default": "",
+    "hint": "如 Flux 系列模型"
   },
   "ENABLE_REPLY": {
     "description": "启用评论自动回复",
