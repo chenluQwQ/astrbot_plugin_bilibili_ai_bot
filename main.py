@@ -53,6 +53,7 @@ from .core.config import (
     SCHEDULE_FILE,
     SECURITY_LOG_FILE,
     TEMP_IMAGE_DIR,
+    TEMP_VIDEO_DIR,
     THREAD_COMPRESS_THRESHOLD,
     USER_AGENT,
     USER_MEMORY_COMPRESS_THRESHOLD,
@@ -62,7 +63,6 @@ from .core.config import (
     WATCH_LOG_FILE,
 )
 
-TEMP_VIDEO_DIR = os.path.join(DATA_DIR, "temp_videos")
 
 
 _astrbot_site_packages = os.path.join(
@@ -107,6 +107,8 @@ class BiliBiliBot(Star):
         os.makedirs(DATA_DIR, exist_ok=True)
         os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
         os.makedirs(TEMP_VIDEO_DIR, exist_ok=True)
+        # 启动时清理上次残留的临时文件
+        self._cleanup_temp_files()
     async def _start_web_panel(self):
         try:
             from .web_panel import WebPanel
@@ -118,7 +120,12 @@ class BiliBiliBot(Star):
             logger.error(f"[BiliBot] Web面板启动失败: {e}")
     def _has_cookie(self): return bool(self.config.get("SESSDATA", ""))
     def _headers(self):
-        return {"Cookie": f"SESSDATA={self.config.get('SESSDATA','')}; bili_jct={self.config.get('BILI_JCT','')}; DedeUserID={self.config.get('DEDE_USER_ID','')}", "User-Agent": USER_AGENT, "Referer": "https://www.bilibili.com"}
+        return {
+            "Cookie": f"SESSDATA={self.config.get('SESSDATA','')}; bili_jct={self.config.get('BILI_JCT','')}; DedeUserID={self.config.get('DEDE_USER_ID','')}",
+            "User-Agent": USER_AGENT,
+            "Referer": "https://www.bilibili.com",
+            "Accept-Encoding": "gzip, deflate",
+        }
     def _load_json(self, path, default=None):
         if default is None: default = {}
         try:
@@ -215,18 +222,48 @@ class BiliBiliBot(Star):
             return True
         return self._normalize_memory_entry(memory).get("memory_type") in set(memory_types)
 
-    async def _http_get(self, url, headers=None, params=None, timeout=10):
-        async with aiohttp.ClientSession() as s:
-            async with s.get(url, headers=headers or self._headers(), params=params, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
-                return await r.json(content_type=None), r
-    async def _http_post(self, url, headers=None, data=None, timeout=10):
-        async with aiohttp.ClientSession() as s:
-            async with s.post(url, headers=headers or self._headers(), data=data, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
-                return await r.json(content_type=None), r
-    async def _http_get_text(self, url, headers=None, params=None, timeout=10):
-        async with aiohttp.ClientSession() as s:
-            async with s.get(url, headers=headers or self._headers(), params=params, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
-                return await r.text(), r
+    async def _http_get(self, url, headers=None, params=None, timeout=10, retries=2):
+        last_err = None
+        for i in range(retries + 1):
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.get(url, headers=headers or self._headers(), params=params, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
+                        return await r.json(content_type=None), r
+            except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError) as e:
+                last_err = e
+                if i < retries:
+                    await asyncio.sleep(0.5 * (i + 1))
+                    continue
+                raise
+        raise last_err
+    async def _http_post(self, url, headers=None, data=None, timeout=10, retries=2):
+        last_err = None
+        for i in range(retries + 1):
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.post(url, headers=headers or self._headers(), data=data, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
+                        return await r.json(content_type=None), r
+            except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError) as e:
+                last_err = e
+                if i < retries:
+                    await asyncio.sleep(0.5 * (i + 1))
+                    continue
+                raise
+        raise last_err
+    async def _http_get_text(self, url, headers=None, params=None, timeout=10, retries=2):
+        last_err = None
+        for i in range(retries + 1):
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.get(url, headers=headers or self._headers(), params=params, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
+                        return await r.text(), r
+            except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError) as e:
+                last_err = e
+                if i < retries:
+                    await asyncio.sleep(0.5 * (i + 1))
+                    continue
+                raise
+        raise last_err
     async def _run_process(self, *args, timeout=300):
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -1172,6 +1209,14 @@ UP主：{video_info.get('owner_name','未知')}
 
     async def _run_dynamic(self):
         """执行一次动态发布"""
+        try:
+            await self._run_dynamic_inner()
+        except asyncio.CancelledError:
+            logger.info("[BiliBot] 动态发布任务被取消")
+        except Exception as e:
+            logger.error(f"[BiliBot] 动态发布任务异常退出: {e}\n{traceback.format_exc()}")
+
+    async def _run_dynamic_inner(self):
         logger.info("[BiliBot] 📢 开始发布动态...")
         log = self._load_json(DYNAMIC_LOG_FILE, [])
         today = datetime.now().strftime("%Y-%m-%d")
@@ -1620,7 +1665,11 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         try:
             d, _ = await self._http_get("https://api.bilibili.com/x/v3/fav/folder/created/list-all", params={"up_mid": self.config.get("DEDE_USER_ID",""), "type": 2})
             if d["code"] != 0: return False
-            fav_id = d["data"]["list"][0]["id"]
+            fav_list = d.get("data", {}).get("list") or []
+            if not fav_list:
+                logger.warning("[BiliBot] 收藏夹列表为空，无法收藏")
+                return False
+            fav_id = fav_list[0]["id"]
             d2, _ = await self._http_post("https://api.bilibili.com/x/v3/fav/resource/deal", data={"rid": aid, "type": 2, "add_media_ids": fav_id, "csrf": self.config.get("BILI_JCT","")})
             return d2.get("code") == 0
         except: return False
@@ -1633,6 +1682,14 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
 
     async def _run_proactive(self):
         """主动刷B站：看视频、评价、点赞/投币/收藏/关注/评论"""
+        try:
+            await self._run_proactive_inner()
+        except asyncio.CancelledError:
+            logger.info("[BiliBot] 主动看视频任务被取消")
+        except Exception as e:
+            logger.error(f"[BiliBot] 主动看视频任务异常退出: {e}\n{traceback.format_exc()}")
+
+    async def _run_proactive_inner(self):
         env = self._get_environment_status()
         if not env["features"]["proactive_video_media"]:
             logger.warning("[BiliBot] 当前环境不满足视频媒体分析条件，将回退为纯文本视频分析。")
@@ -1916,7 +1973,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
         return "已在后台触发一次主动看B站视频流程。稍后可用 /bili日志 查看结果。"
     @filter.llm_tool(name="bili_watch_videos")
-    async def tool_bili_watch_videos(self, event: AstrMessageEvent):
+    async def tool_bili_watch_videos(self, event: AstrMessageEvent, **kwargs):
         """触发一次主动看B站视频流程。
 
         当用户明确要求你去看看/刷刷/随机看一些B站视频时使用。
@@ -2012,7 +2069,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             return f"没有找到与「{query}」相关的记忆。"
         return "\n".join([f"{i}. {r}" for i, r in enumerate(results, 1)])
     @filter.llm_tool(name="bili_search_memory")
-    async def tool_bili_search_memory(self, event: AstrMessageEvent, query: str, memory_type: str = "", source: str = ""):
+    async def tool_bili_search_memory(self, event: AstrMessageEvent, query: str, memory_type: str = "", source: str = "", **kwargs):
         """搜索插件记忆，在回答和B站经历、视频、动态、跨平台互动相关的问题时使用。
 
         Args:
@@ -2083,6 +2140,37 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         for uid,info in bl.items():
             lines.append(f"UID:{uid} | {info.get('reason','未知')} | {info.get('time','')}")
         yield event.plain_result("\n".join(lines))
+    @filter.command("bili清理")
+    async def cmd_cleanup(self, event: AstrMessageEvent):
+        """清理临时文件和过期数据。用法: /bili清理 [all]"""
+        parts = event.message_str.strip().split(maxsplit=1)
+        full_clean = len(parts) >= 2 and parts[1].strip() == "all"
+        # 清理临时文件
+        self._cleanup_temp_files()
+        msg_lines = ["🗑️ 清理完成：", "  ✅ 临时图片/视频/二维码已清理"]
+        if full_clean:
+            # 清理过大的日志文件
+            for log_file, max_entries, label in [
+                (SECURITY_LOG_FILE, 200, "安全日志"),
+                (PROACTIVE_TRIGGER_LOG_FILE, 100, "主动触发日志"),
+                (WATCH_LOG_FILE, 100, "观影日志"),
+                (DYNAMIC_LOG_FILE, 50, "动态日志"),
+            ]:
+                data = self._load_json(log_file, [])
+                if isinstance(data, list) and len(data) > max_entries:
+                    self._save_json(log_file, data[-max_entries:])
+                    msg_lines.append(f"  ✅ {label}：{len(data)}→{max_entries}条")
+            # 清理过期的 replied.json（只保留最近2000条）
+            replied = self._load_json(REPLIED_FILE, [])
+            if isinstance(replied, list) and len(replied) > 2000:
+                self._save_json(REPLIED_FILE, replied[-2000:])
+                msg_lines.append(f"  ✅ 已回复记录：{len(replied)}→2000条")
+            msg_lines.append("")
+            msg_lines.append("💡 提示：如需完全重置，手动删除 plugin_data/astrbot_plugin_bilibili_ai_bot 目录")
+        else:
+            msg_lines.append("")
+            msg_lines.append("💡 /bili清理 all ← 同时压缩日志文件")
+        yield event.plain_result("\n".join(msg_lines))
     @filter.command("bili性格")
     async def cmd_personality(self, event: AstrMessageEvent):
         """查看性格演化记录。用法: /bili性格"""
@@ -2244,7 +2332,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
 
     @filter.command("bili帮助")
     async def cmd_help(self, event: AstrMessageEvent):
-        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili计划 — 查看今日主动/动态时间\n/bili启动 — 启动\n/bili停止 — 停止\n/bili主动 — 立刻触发一次主动看视频\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili动态日志 — 动态记录\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录\n💡 直接在聊天里让 Bot 去随机看B站视频，也会尝试触发一次主动看视频")
+        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili计划 — 查看今日主动/动态时间\n/bili启动 — 启动\n/bili停止 — 停止\n/bili主动 — 立刻触发一次主动看视频\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili动态日志 — 动态记录\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili清理 — 清理临时文件\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录\n💡 直接在聊天里让 Bot 去随机看B站视频，也会尝试触发一次主动看视频")
 
     # ===== QQ↔B站 记忆互通 =====
     @filter.command("bili绑定")
@@ -2579,4 +2667,33 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         await self._stop_bot()
         if self._web_panel:
             await self._web_panel.stop()
+        self._cleanup_temp_files()
         logger.info("[BiliBot] 已停用")
+
+    def _cleanup_temp_files(self):
+        """清理临时图片和视频文件"""
+        cleaned = 0
+        for temp_dir in (TEMP_IMAGE_DIR, TEMP_VIDEO_DIR):
+            if not os.path.isdir(temp_dir):
+                continue
+            for name in os.listdir(temp_dir):
+                fp = os.path.join(temp_dir, name)
+                try:
+                    if os.path.isfile(fp):
+                        os.remove(fp)
+                        cleaned += 1
+                    elif os.path.isdir(fp):
+                        shutil.rmtree(fp)
+                        cleaned += 1
+                except OSError:
+                    pass
+        # 清理登录二维码
+        qr_path = os.path.join(DATA_DIR, "login_qr.png")
+        if os.path.exists(qr_path):
+            try:
+                os.remove(qr_path)
+                cleaned += 1
+            except OSError:
+                pass
+        if cleaned:
+            logger.info(f"[BiliBot] 🗑️ 清理了 {cleaned} 个临时文件")
