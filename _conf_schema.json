@@ -251,11 +251,6 @@
     "default": 20,
     "hint": "建议 15-60 秒"
   },
-  "MAX_REPLIES_PER_RUN": {
-    "description": "每轮最多回复条数",
-    "type": "int",
-    "default": 3
-  },
   "SLEEP_START": {
     "description": "休眠开始时间（0-23）",
     "type": "int",
@@ -285,10 +280,5 @@
     "description": "自定义系统提示词（USE_ASTRBOT_PERSONA关闭时使用）",
     "type": "text",
     "default": "你是一个B站UP主的AI助手，负责回复评论。"
-  },
-  "REPLY_MAX_TOKENS": {
-    "description": "回复最大token数",
-    "type": "int",
-    "default": 300
   }
 }

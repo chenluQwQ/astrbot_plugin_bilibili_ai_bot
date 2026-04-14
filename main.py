@@ -82,23 +82,19 @@ class BiliBiliBot(Star):
         self._proactive_task = None
         self._last_cookie_check = 0
         self._login_qrcode_key = None
-        self._ensure_runtime_state_files()
         self._first_poll = not os.path.exists(REPLIED_FILE)
         self._replied_at = set(self._load_json(REPLIED_AT_FILE, []))
         self._affection = self._load_json(AFFECTION_FILE, {})
-        self._ensure_owner_affection()
         self._memory = [self._normalize_memory_entry(m) for m in self._load_json(MEMORY_FILE, []) if isinstance(m, dict)]
         self._embed_client = None
         self._video_vision_client = None
         self._image_vision_client = None
         self._consecutive_llm_failures = 0
         self._llm_cooldown_until = 0
-        self._retry_counts: dict = {}
         self._proactive_times, self._proactive_triggered = [], set()
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._web_panel = None
-        self._processed_comments = set()  # 内存级去重：(oid, rpid) 防重复回复
         self._log_environment_warnings()
         if self._has_cookie():
             asyncio.create_task(self._auto_start())
@@ -112,24 +108,6 @@ class BiliBiliBot(Star):
         os.makedirs(TEMP_VIDEO_DIR, exist_ok=True)
         # 启动时清理上次残留的临时文件
         self._cleanup_temp_files()
-    def _ensure_runtime_state_files(self):
-        defaults = {
-            REPLIED_FILE: [],
-            REPLIED_AT_FILE: [],
-            AFFECTION_FILE: {},
-            MEMORY_FILE: [],
-            PERMANENT_MEMORY_FILE: [],
-            USER_PROFILE_FILE: {},
-            WATCH_LOG_FILE: [],
-            COMMENTED_FILE: [],
-            EXTERNAL_MEMORY_FILE: {},
-            PROACTIVE_LOG_FILE: [],
-            PROACTIVE_TRIGGER_LOG_FILE: [],
-            DYNAMIC_LOG_FILE: [],
-        }
-        for path, default in defaults.items():
-            if not os.path.exists(path):
-                self._save_json(path, default)
     async def _start_web_panel(self):
         try:
             from .web_panel import WebPanel
@@ -156,22 +134,6 @@ class BiliBiliBot(Star):
         return default
     def _save_json(self, path, data):
         with open(path,"w",encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
-    def _reply_dedup_key(self, oid, comment_type, rpid):
-        return f"{comment_type}:{oid}:{rpid}"
-    def _reply_seen(self, replied_set, oid, comment_type, rpid):
-        if not rpid:
-            return False
-        dedup_key = self._reply_dedup_key(oid, comment_type, rpid)
-        # 兼容旧版本 replied.json 中仅保存 rpid 的数据
-        return dedup_key in replied_set or str(rpid) in replied_set
-    def _ensure_owner_affection(self):
-        owner = str(self.config.get("OWNER_MID", "") or "").strip()
-        if not owner:
-            return
-        current = int(self._affection.get(owner, 0) or 0)
-        if current < 100:
-            self._affection[owner] = 100
-            self._save_json(AFFECTION_FILE, self._affection)
     def _find_command(self, command_name):
         return shutil.which(command_name)
     def _get_environment_status(self):
@@ -1002,14 +964,12 @@ UP主：{video_info.get('owner_name','未知')}
         try:
             pid = provider_id if provider_id is not None else self.config.get("LLM_PROVIDER_ID","")
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            kwargs = {"prompt": full_prompt, "max_tokens": max_tokens}
+            kwargs = {"prompt": full_prompt}
             if pid:
                 kwargs["chat_provider_id"] = pid
             resp = await self.context.llm_generate(**kwargs)
             return resp.completion_text.strip() if resp and resp.completion_text else None
-        except Exception as e:
-            logger.error(f"[BiliBot] LLM 调用失败: {e}")
-            return None
+        except Exception as e: logger.error(f"[BiliBot] LLM 调用失败: {e}"); return None
     def _get_system_prompt(self):
         if self.config.get("USE_ASTRBOT_PERSONA",True):
             try:
@@ -1020,8 +980,6 @@ UP主：{video_info.get('owner_name','未知')}
     async def _generate_reply(self, content, mid, username, thread_id, oid, comment_type, image_desc=""):
         try:
             sp = self._get_system_prompt(); on = self.config.get("OWNER_NAME","") or "主人"
-            if self._is_owner(mid):
-                self._ensure_owner_affection()
             is_owner = self._is_owner(mid)
             cs = self._affection.get(str(mid),0); lv = self._get_level(cs, mid)
             lp = self._get_level_prompts()[lv]
@@ -2558,8 +2516,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                                 self._save_dynamic_schedule_state(self._dynamic_times, self._dynamic_triggered)
                                 logger.info(f"[BiliBot] 📢 触发动态发布（{key}）")
                 if self.config.get("ENABLE_REPLY",True):
-                    await self._poll_at_and_reply()
-                    await self._poll_and_reply()
+                    await self._poll_unified()
                 await asyncio.sleep(self.config.get("POLL_INTERVAL",20))
             except asyncio.CancelledError: break
             except Exception as e: logger.error(f"[BiliBot] 主循环出错: {e}\n{traceback.format_exc()}"); await asyncio.sleep(30)
@@ -2570,162 +2527,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         logger.warning(f"[BiliBot] Cookie 失效: {info}")
         if self.config.get("COOKIE_AUTO_REFRESH",True):
             ok,msg=await self.refresh_cookie(); logger.info(f"[BiliBot] 刷新{'成功' if ok else '失败'}: {msg}")
-    def _normalize_reply_notify_item(self, item):
-        source = item.get("item", {})
-        rpid = str(source.get("source_id", ""))
-        if not rpid:
-            return None
-        oid = source.get("subject_id", 0)
-        comment_type = source.get("business_id", 1)
-        return {
-            "source": "reply",
-            "notify_id": "",
-            "oid": oid,
-            "rpid": rpid,
-            "comment_type": comment_type,
-            "thread_id": str(source.get("root_id") or rpid),
-            "mid": str(item.get("user", {}).get("mid", "")),
-            "username": item.get("user", {}).get("nickname", ""),
-            "content": source.get("source_content", ""),
-            "dedup_key": self._reply_dedup_key(oid, comment_type, rpid),
-        }
-    def _normalize_at_notify_item(self, item):
-        notify_id = str(item.get("id", ""))
-        if not notify_id:
-            return None
-        source = item.get("item", {})
-        rpid = str(source.get("source_id", ""))
-        oid = source.get("subject_id", 0)
-        comment_type = source.get("business_id", 1)
-        content = self._strip_at_prefix(source.get("source_content", ""))
-        return {
-            "source": "at",
-            "notify_id": notify_id,
-            "oid": oid,
-            "rpid": rpid,
-            "comment_type": comment_type,
-            "thread_id": str(source.get("root_id") or rpid or notify_id),
-            "mid": str(item.get("user", {}).get("mid", "")),
-            "username": item.get("user", {}).get("nickname", "") or str(item.get("user", {}).get("mid", "")),
-            "content": content,
-            "dedup_key": self._reply_dedup_key(oid, comment_type, rpid) if rpid else "",
-        }
-    async def _process_notify_comment(self, payload, replied, max_replies=None, reply_count=0):
-        if not payload:
-            return reply_count, False
-        notify_id = payload.get("notify_id", "")
-        if notify_id and notify_id in self._replied_at:
-            return reply_count, False
-        rpid = payload.get("rpid", "")
-        oid = payload.get("oid", 0)
-        comment_type = payload.get("comment_type", 1)
-        dedup_key = payload.get("dedup_key", "")
-        if max_replies is not None and reply_count >= max_replies:
-            return reply_count, False
-        if not payload.get("content") or not rpid:
-            if notify_id:
-                self._replied_at.add(notify_id)
-                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-            return reply_count, False
-        if self._reply_seen(replied, oid, comment_type, rpid) or dedup_key in self._processed_comments:
-            if notify_id:
-                self._replied_at.add(notify_id)
-                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-            return reply_count, False
-        mid = payload.get("mid", "")
-        if str(mid).strip() == str(self.config.get("DEDE_USER_ID", "")).strip():
-            replied.add(dedup_key)
-            self._save_json(REPLIED_FILE, list(replied))
-            if notify_id:
-                self._replied_at.add(notify_id)
-                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-            return reply_count, False
-        bl = self._load_json(os.path.join(DATA_DIR, "block_log.json"), {})
-        if mid in bl:
-            replied.add(dedup_key)
-            self._save_json(REPLIED_FILE, list(replied))
-            if notify_id:
-                self._replied_at.add(notify_id)
-                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-            return reply_count, False
-        content = payload["content"]
-        username = payload.get("username", "") or mid
-        if self._is_blocked(content):
-            self._log_security_event("keyword_blocked", mid, username, content, "关键词过滤")
-            replied.add(dedup_key)
-            self._save_json(REPLIED_FILE, list(replied))
-            if notify_id:
-                self._replied_at.add(notify_id)
-                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-            return reply_count, False
-        cs = self._affection.get(str(mid), 0)
-        lv = self._get_level(cs, mid)
-        prefix = "📣" if payload.get("source") == "at" else "📩"
-        logger.info(f"[BiliBot] {prefix} {username}（{LEVEL_NAMES[lv]}|{cs}分）：{content[:50]}")
-        image_desc = ""
-        if payload.get("source") == "reply":
-            image_urls = await self._get_comment_images(oid, rpid, comment_type)
-            if image_urls:
-                logger.info(f"[BiliBot] 🖼️ 发现 {len(image_urls)} 张图片，识别中...")
-                image_desc = await self._recognize_images(image_urls)
-                if image_desc:
-                    logger.info(f"[BiliBot] 🖼️ 图片内容：{image_desc[:50]}...")
-        result = await self._generate_reply(
-            content,
-            mid,
-            username,
-            payload.get("thread_id", rpid),
-            oid,
-            comment_type,
-            image_desc=image_desc,
-        )
-        if not result or not result.get("reply"):
-            self._retry_counts[rpid] = self._retry_counts.get(rpid, 0) + 1
-            self._consecutive_llm_failures += 1
-            if self._retry_counts[rpid] >= 3:
-                logger.warning(f"[BiliBot] {username} 重试3次仍失败，放弃")
-                replied.add(dedup_key)
-                self._save_json(REPLIED_FILE, list(replied))
-                self._retry_counts.pop(rpid, None)
-                if notify_id:
-                    self._replied_at.add(notify_id)
-                    self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-            else:
-                logger.warning(f"[BiliBot] {username} 第{self._retry_counts[rpid]}次失败，下轮重试")
-            if self._consecutive_llm_failures >= 5:
-                self._llm_cooldown_until = time.time() + 300
-                logger.error("[BiliBot] ⚠️ 连续5次LLM失败，冷却5分钟")
-            return reply_count, False
-        self._consecutive_llm_failures = 0
-        self._retry_counts.pop(rpid, None)
-        success = await self._apply_reply_result(
-            mid=mid,
-            username=username,
-            content=content,
-            oid=oid,
-            rpid=rpid,
-            comment_type=comment_type,
-            thread_id=payload.get("thread_id", rpid),
-            result=result,
-        )
-        replied.add(dedup_key)
-        self._save_json(REPLIED_FILE, list(replied))
-        if notify_id:
-            self._replied_at.add(notify_id)
-            self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-        if success:
-            return reply_count + 1, True
-        return reply_count, False
     async def _apply_reply_result(self, *, mid, username, content, oid, rpid, comment_type, thread_id, result):
-        # 内存级去重：防止两个轮询对同一条评论重复回复
-        dedup_key = self._reply_dedup_key(oid, comment_type, rpid)
-        if dedup_key in self._processed_comments:
-            logger.info(f"[BiliBot] ⏭️ {dedup_key} 已处理过，跳过重复回复")
-            return False
-        self._processed_comments.add(dedup_key)
-        # 防止集合无限增长
-        if len(self._processed_comments) > 2000:
-            self._processed_comments = set(list(self._processed_comments)[-1000:])
         cs = self._affection.get(str(mid), 0)
         ai_reply = result["reply"]
         sd = result.get("score_delta", 1)
@@ -2733,8 +2535,6 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         uf = result.get("user_facts", [])
         pm = result.get("permanent_memory", "")
         if self.config.get("ENABLE_AFFECTION", True):
-            if self._is_owner(mid):
-                cs = max(cs, 100)
             mx = 100 if self._is_owner(mid) else 99
             ns = max(0, min(mx, cs + sd))
             self._affection[str(mid)] = ns
@@ -2781,49 +2581,156 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             await self._compress_thread_memory(thread_id)
             await self._compress_user_memory(mid, username)
         return success
-    async def _poll_and_reply(self):
-        if time.time() < self._llm_cooldown_until:
-            return  # LLM冷却中，跳过
-        try:
-            d,_=await self._http_get(BILI_NOTIFY_URL, params={"ps":10,"pn":1})
-            if d["code"]!=0: return
-            items=d.get("data",{}).get("items",[])
-            if not items: return
-            replied=set(self._load_json(REPLIED_FILE,[]))
-            if self._first_poll:
-                for item in items:
-                    payload = self._normalize_reply_notify_item(item)
-                    if payload and payload.get("dedup_key"):
-                        replied.add(payload["dedup_key"])
-                self._save_json(REPLIED_FILE,list(replied)); self._first_poll=False
-                logger.info(f"[BiliBot] 首次运行，标记 {len(items)} 条已读"); return
-            count=0; mr=self.config.get("MAX_REPLIES_PER_RUN",3)
-            for item in items:
-                if count>=mr: break
-                payload = self._normalize_reply_notify_item(item)
-                count, _ = await self._process_notify_comment(payload, replied, max_replies=mr, reply_count=count)
-                if time.time() < self._llm_cooldown_until:
-                    break
-        except Exception as e: logger.error(f"[BiliBot] 轮询出错: {e}\n{traceback.format_exc()}")
-    async def _poll_at_and_reply(self):
+    async def _poll_unified(self):
+        """统一轮询：从回复通知和@通知中取未处理评论，一次只处理一条，处理即已读"""
         if time.time() < self._llm_cooldown_until:
             return
         try:
-            d, _ = await self._http_get(BILI_AT_NOTIFY_URL, params={"ps": 10, "pn": 1})
-            if d["code"] != 0:
-                return
-            items = d.get("data", {}).get("items", [])
-            if not items:
-                return
-            # 加载回复通知的已处理集合，共享去重
             replied = set(self._load_json(REPLIED_FILE, []))
-            for item in items:
-                payload = self._normalize_at_notify_item(item)
-                await self._process_notify_comment(payload, replied)
-                if time.time() < self._llm_cooldown_until:
-                    break
+
+            # ===== 收集所有未处理的评论 =====
+            pending = []
+
+            # 1. 回复通知
+            try:
+                d, _ = await self._http_get(BILI_NOTIFY_URL, params={"ps": 10, "pn": 1})
+                if d["code"] == 0:
+                    for item in d.get("data", {}).get("items", []):
+                        r = item.get("item", {})
+                        rpid = str(r.get("source_id", ""))
+                        if not rpid or rpid in replied:
+                            continue
+                        pending.append({
+                            "rpid": rpid,
+                            "mid": str(item.get("user", {}).get("mid", "")),
+                            "username": item.get("user", {}).get("nickname", ""),
+                            "content": r.get("source_content", ""),
+                            "oid": r.get("subject_id", 0),
+                            "comment_type": r.get("business_id", 1),
+                            "thread_id": str(r.get("root_id") or rpid),
+                            "source": "reply",
+                        })
+            except Exception as e:
+                logger.warning(f"[BiliBot] 回复通知拉取失败: {e}")
+
+            # 2. @通知
+            try:
+                d, _ = await self._http_get(BILI_AT_NOTIFY_URL, params={"ps": 10, "pn": 1})
+                if d["code"] == 0:
+                    for item in d.get("data", {}).get("items", []):
+                        at_id = str(item.get("id", ""))
+                        if not at_id or at_id in self._replied_at:
+                            continue
+                        source = item.get("item", {})
+                        rpid = str(source.get("source_id", ""))
+                        # rpid 已被回复通知收集过就跳过
+                        if rpid and rpid in replied:
+                            self._replied_at.add(at_id)
+                            continue
+                        content = self._strip_at_prefix(source.get("source_content", ""))
+                        user = item.get("user", {})
+                        pending.append({
+                            "rpid": rpid,
+                            "mid": str(user.get("mid", "")),
+                            "username": user.get("nickname", "") or str(user.get("mid", "")),
+                            "content": content,
+                            "oid": source.get("subject_id", 0),
+                            "comment_type": source.get("business_id", 1),
+                            "thread_id": str(source.get("root_id") or rpid or at_id),
+                            "source": "at",
+                            "at_id": at_id,
+                        })
+            except Exception as e:
+                logger.warning(f"[BiliBot] @通知拉取失败: {e}")
+
+            # ===== 首次运行：全部标记已读 =====
+            if self._first_poll:
+                for p in pending:
+                    replied.add(p["rpid"])
+                    if p.get("at_id"):
+                        self._replied_at.add(p["at_id"])
+                self._save_json(REPLIED_FILE, list(replied))
+                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
+                self._first_poll = False
+                if pending:
+                    logger.info(f"[BiliBot] 首次运行，标记 {len(pending)} 条已读")
+                return
+
+            # ===== 按rpid去重 =====
+            seen_rpids = set()
+            unique = []
+            for p in pending:
+                if p["rpid"] not in seen_rpids and p["rpid"] not in replied:
+                    seen_rpids.add(p["rpid"])
+                    unique.append(p)
+
+            if not unique:
+                return
+
+            # ===== 只取第一条处理 =====
+            item = unique[0]
+            rpid = item["rpid"]
+            mid = item["mid"]
+            username = item["username"]
+            content = item["content"]
+            oid = item["oid"]
+            comment_type = item["comment_type"]
+            thread_id = item["thread_id"]
+
+            # 标记已读（不管后面成功失败都标）
+            replied.add(rpid)
+            self._save_json(REPLIED_FILE, list(replied))
+            if item.get("at_id"):
+                self._replied_at.add(item["at_id"])
+                self._save_json(REPLIED_AT_FILE, list(self._replied_at))
+
+            # 空内容跳过
+            if not content or not rpid:
+                return
+
+            # 拉黑用户跳过
+            bl = self._load_json(os.path.join(DATA_DIR, "block_log.json"), {})
+            if mid in bl:
+                return
+
+            # 关键词过滤
+            if self._is_blocked(content):
+                self._log_security_event("keyword_blocked", mid, username, content, "关键词过滤")
+                return
+
+            cs = self._affection.get(str(mid), 0)
+            lv = self._get_level(cs, mid)
+            logger.info(f"[BiliBot] 📩 {username}（{LEVEL_NAMES[lv]}|{cs}分）：{content[:50]}")
+
+            # 检测评论中的图片
+            image_desc = ""
+            image_urls = await self._get_comment_images(oid, rpid, comment_type)
+            if image_urls:
+                logger.info(f"[BiliBot] 🖼️ 发现 {len(image_urls)} 张图片，识别中...")
+                image_desc = await self._recognize_images(image_urls)
+                if image_desc:
+                    logger.info(f"[BiliBot] 🖼️ 图片内容：{image_desc[:50]}...")
+
+            # 生成回复
+            result = await self._generate_reply(content, mid, username, thread_id, oid, comment_type, image_desc=image_desc)
+            if not result or not result.get("reply"):
+                logger.warning(f"[BiliBot] {username} 回复生成失败，已标记已读跳过")
+                return
+
+            # 应用回复
+            await self._apply_reply_result(
+                mid=mid,
+                username=username,
+                content=content,
+                oid=oid,
+                rpid=rpid,
+                comment_type=comment_type,
+                thread_id=thread_id,
+                result=result,
+            )
+
         except Exception as e:
-            logger.error(f"[BiliBot] @轮询出错: {e}\n{traceback.format_exc()}")
+            logger.error(f"[BiliBot] 轮询出错: {e}\n{traceback.format_exc()}")
 
     async def terminate(self):
         await self._stop_bot()
