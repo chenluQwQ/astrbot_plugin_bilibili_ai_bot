@@ -62,7 +62,7 @@
     "hint": "留空则回退为纯文本LLM分析"
   },
   "VIDEO_VISION_PROVIDER_ID": {
-    "description": "视频分析使用的 AstrBot 模型提供商（留空则使用独立 API 配置）",
+    "description": "视频分析使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
     "type": "string",
     "default": "",
     "_special": "select_provider"
@@ -76,7 +76,7 @@
     "description": "视频分析 视觉模型名称",
     "type": "string",
     "default": "",
-    "hint": "如 google/gemma-3-27b-it、Pro/Qwen/Qwen2.5-VL-7B-Instruct 等"
+    "hint": "如 google/gemma-3-27b-it、Pro/Qwen/Qwen2.5-VL-7B-Instruct 等；主动看视频的直读/截帧分析还需要本机安装 yt-dlp 和 ffmpeg"
   },
   "IMAGE_VISION_API_KEY": {
     "description": "图片识别 视觉模型 API Key（识别评论中的图片）",
@@ -85,7 +85,7 @@
     "hint": "留空则不识别评论图片"
   },
   "IMAGE_VISION_PROVIDER_ID": {
-    "description": "图片识别使用的 AstrBot 模型提供商（留空则使用独立 API 配置）",
+    "description": "图片识别使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
     "type": "string",
     "default": "",
     "_special": "select_provider"

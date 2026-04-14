@@ -40,6 +40,68 @@ cd AstrBot/data/plugins
 git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 ```
 
+## 🧩 依赖与环境
+
+发布或部署这个插件时，请把下面几类依赖一起说明清楚。
+
+### 1. Python 依赖
+
+插件内的 Python 依赖由 [requirements.txt](/abs/path/C:/Users/13681/Desktop/astrbot_plugin_bilibili_ai_bot-main/astrbot_plugin_bilibili_ai_bot-main/requirements.txt:1) 管理：
+
+* `aiohttp`
+* `cryptography`
+* `lunardate`
+* `openai`
+* `Pillow`
+* `qrcode`
+* `yt-dlp`
+
+### 2. 外部命令依赖
+
+以下命令不是 Python 包，必须额外安装，并且要能在系统 `PATH` 中直接调用：
+
+* `yt-dlp`：主动看视频时下载 B 站视频
+* `ffmpeg`：压缩视频、抽帧
+* `ffprobe`：读取视频时长，决定均匀截帧位置
+
+Windows / Linux / macOS 都需要确保在终端里直接执行 `yt-dlp --version`、`ffmpeg -version`、`ffprobe -version`。
+
+### 3. AstrBot 运行环境
+
+* AstrBot 版本要求见 [metadata.yaml](/abs/path/C:/Users/13681/Desktop/astrbot_plugin_bilibili_ai_bot-main/astrbot_plugin_bilibili_ai_bot-main/metadata.yaml:1)，当前为 `>=4.16`
+* 如果要让模型自动调用插件工具，聊天模型本身必须支持函数调用 / tool calling
+* 如果要走 AstrBot 的多模态 provider，所选 provider 也必须支持图片/视频输入
+
+### 4. 配置型依赖
+
+* B站登录能力：`SESSDATA`、`BILI_JCT`、`DEDE_USER_ID`、`REFRESH_TOKEN`
+* 文本 LLM：`LLM_PROVIDER_ID`，留空时会退回 AstrBot 默认聊天模型
+* 视频视觉模型：`VIDEO_VISION_PROVIDER_ID` 或 `VIDEO_VISION_API_KEY + VIDEO_VISION_MODEL`
+* 图片识别模型：`IMAGE_VISION_PROVIDER_ID` 或 `IMAGE_VISION_API_KEY + IMAGE_VISION_MODEL`
+* 动态配图模型：`IMAGE_GEN_API_KEY + IMAGE_GEN_MODEL`
+
+### 5. 缺失依赖时的退化行为
+
+* 没有 `yt-dlp` / `ffmpeg` / `ffprobe`
+  主动看视频无法做“视频直读 / 截帧分析”，会退回纯文本分析
+* 没有视频视觉模型
+  视频分析退回纯文本概括
+* 没有图片识别模型
+  评论图片识别功能直接跳过
+* 没有图片生成模型
+  动态配图不可用
+* 聊天模型不支持工具调用
+  `llm_tool` 不会被自动调用，但 `/bili主动`、`/bili记忆` 等命令仍可手动使用
+
+### 6. 发布前自检
+
+部署完成后，至少检查一次：
+
+* `/bili状态`：确认 provider、外部命令、主动视频直读/截帧状态是否为 `✅`
+* `/bili主动`：确认主动看视频能实际跑通
+* 让 Bot 在聊天里执行一次记忆搜索或主动看视频请求，确认工具调用能触发
+* 查看日志中是否出现缺少命令、模型未配置、provider 调用失败等警告
+
 ## ⚙️ 配置
 
 安装后在 WebUI 插件配置页面填写：
@@ -56,9 +118,9 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`EMBED_API_KEY`|可选|Embedding API 密钥（记忆向量化用）|
 |`EMBED_API_BASE`|可选|Embedding API 地址，默认 SiliconFlow|
 |`EMBED_MODEL`|可选|Embedding 模型名，默认 `BAAI/bge-m3`|
-|`VIDEO_VISION_PROVIDER_ID`|可选|视频分析走 AstrBot 模型提供商，留空则走独立 API|
+|`VIDEO_VISION_PROVIDER_ID`|可选|视频分析优先走 AstrBot 模型提供商，失败会退回独立 API|
 |`VIDEO_VISION_API_KEY`|可选|视频分析视觉模型 API Key|
-|`IMAGE_VISION_PROVIDER_ID`|可选|图片识别走 AstrBot 模型提供商，留空则走独立 API|
+|`IMAGE_VISION_PROVIDER_ID`|可选|图片识别优先走 AstrBot 模型提供商，失败会退回独立 API|
 |`IMAGE_VISION_API_KEY`|可选|图片识别视觉模型 API Key|
 |`IMAGE_GEN_API_KEY`|可选|图片生成 API Key（动态配图用）|
 |`IMAGE_GEN_MODEL`|可选|图片生成模型，默认 `black-forest-labs/flux-schnell`|
@@ -73,6 +135,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 > 💡 Cookie 获取方式：发送 `/bili登录` 扫码即可，登录后 Cookie 会自动定期刷新。
 >
 > 💡 视觉模型留空时，视频分析回退为纯文本 LLM 分析，图片识别则跳过。
+>
+> 💡 主动看视频的“视频直读/截帧分析”依赖 `yt-dlp` 和 `ffmpeg` / `ffprobe` 可执行文件在系统 `PATH` 中。
 
 ## 🎮 命令
 

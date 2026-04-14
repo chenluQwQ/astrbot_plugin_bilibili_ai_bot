@@ -3,7 +3,7 @@ AstrBot Plugin - Bilibili Bot 1.1.1
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、Web管理面板。
 """
 import sys
-import io, os, re, time, json, math, random, asyncio, hashlib, base64, aiohttp, traceback
+import io, os, re, time, json, math, random, asyncio, hashlib, base64, aiohttp, traceback, shutil, subprocess
 from datetime import datetime, timedelta
 from functools import reduce
 from astrbot.api.event import filter, AstrMessageEvent
@@ -53,6 +53,7 @@ from .core.config import (
     SCHEDULE_FILE,
     SECURITY_LOG_FILE,
     TEMP_IMAGE_DIR,
+    TEMP_VIDEO_DIR,
     THREAD_COMPRESS_THRESHOLD,
     USER_AGENT,
     USER_MEMORY_COMPRESS_THRESHOLD,
@@ -94,13 +95,17 @@ class BiliBiliBot(Star):
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._web_panel = None
+        self._log_environment_warnings()
         if self._has_cookie():
             asyncio.create_task(self._auto_start())
         if self.config.get("ENABLE_WEB_PANEL", False):
             asyncio.create_task(self._start_web_panel())
 
     # ===== 工具 =====
-    def _ensure_data_dir(self): os.makedirs(DATA_DIR, exist_ok=True); os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
+    def _ensure_data_dir(self):
+        os.makedirs(DATA_DIR, exist_ok=True)
+        os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
+        os.makedirs(TEMP_VIDEO_DIR, exist_ok=True)
     async def _start_web_panel(self):
         try:
             from .web_panel import WebPanel
@@ -122,6 +127,62 @@ class BiliBiliBot(Star):
         return default
     def _save_json(self, path, data):
         with open(path,"w",encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    def _find_command(self, command_name):
+        return shutil.which(command_name)
+    def _get_environment_status(self):
+        video_provider_id = self.config.get("VIDEO_VISION_PROVIDER_ID", "")
+        image_provider_id = self.config.get("IMAGE_VISION_PROVIDER_ID", "")
+        video_api_ready = bool(self.config.get("VIDEO_VISION_API_KEY", "") and self.config.get("VIDEO_VISION_MODEL", ""))
+        image_api_ready = bool(self.config.get("IMAGE_VISION_API_KEY", "") and self.config.get("IMAGE_VISION_MODEL", ""))
+        image_gen_ready = bool(self.config.get("IMAGE_GEN_API_KEY", "") and self.config.get("IMAGE_GEN_MODEL", ""))
+        deps = {
+            "yt-dlp": bool(self._find_command("yt-dlp")),
+            "ffmpeg": bool(self._find_command("ffmpeg")),
+            "ffprobe": bool(self._find_command("ffprobe")),
+        }
+        proactive_media_ready = deps["yt-dlp"] and deps["ffmpeg"] and deps["ffprobe"]
+        return {
+            "python": {
+                "aiohttp": True,
+                "cryptography": True,
+                "lunardate": True,
+                "openai": True,
+                "Pillow": True,
+                "qrcode": True,
+                "yt-dlp": True,
+            },
+            "external_commands": deps,
+            "llm": {
+                "chat_provider": bool(self.config.get("LLM_PROVIDER_ID", "")),
+                "video_provider": bool(video_provider_id),
+                "video_api": video_api_ready,
+                "image_provider": bool(image_provider_id),
+                "image_api": image_api_ready,
+                "image_gen_api": image_gen_ready,
+            },
+            "features": {
+                "video_cover_analysis": bool(video_provider_id or video_api_ready or self.config.get("LLM_PROVIDER_ID", "")),
+                "image_recognition": bool(image_provider_id or image_api_ready),
+                "proactive_video_media": proactive_media_ready and bool(video_provider_id or video_api_ready),
+                "proactive_video_fallback_text": bool(self.config.get("LLM_PROVIDER_ID", "")),
+                "dynamic_image_generation": image_gen_ready or bool(self.config.get("VIDEO_VISION_API_KEY", "")),
+            },
+        }
+    def _log_environment_warnings(self):
+        env = self._get_environment_status()
+        missing_commands = [name for name, ok in env["external_commands"].items() if not ok]
+        if missing_commands:
+            logger.warning(
+                "[BiliBot] 缺少外部命令: %s。主动看视频将无法执行视频直读/截帧分析，"
+                "会回退为纯文本分析或直接跳过。",
+                ", ".join(missing_commands),
+            )
+        if not env["llm"]["chat_provider"]:
+            logger.warning("[BiliBot] 未配置 LLM_PROVIDER_ID。文本回复/评价/纯文本回退将依赖 AstrBot 当前默认聊天模型。")
+        if not (env["llm"]["video_provider"] or env["llm"]["video_api"]):
+            logger.warning("[BiliBot] 未配置视频视觉模型。视频相关分析将退回纯文本概括。")
+        if not (env["llm"]["image_provider"] or env["llm"]["image_api"]):
+            logger.warning("[BiliBot] 未配置图片识别模型。评论图片识别功能将不可用。")
     def _normalize_memory_entry(self, record):
         rec = dict(record)
         if rec.get("memory_type"):
@@ -165,6 +226,24 @@ class BiliBiliBot(Star):
         async with aiohttp.ClientSession() as s:
             async with s.get(url, headers=headers or self._headers(), params=params, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
                 return await r.text(), r
+    async def _run_process(self, *args, timeout=300):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            logger.warning(f"[BiliBot] 命令不存在：{args[0]}")
+            return 127, "", f"{args[0]} not found"
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            logger.warning(f"[BiliBot] 命令执行超时：{' '.join(args[:3])} ...")
+            return 124, "", "timeout"
+        return proc.returncode, stdout.decode("utf-8", errors="ignore"), stderr.decode("utf-8", errors="ignore")
 
     # ===== Embedding =====
     def _get_embed_client(self):
@@ -238,8 +317,9 @@ class BiliBiliBot(Star):
         """用视觉模型识别评论中的图片"""
         if not image_urls: return ""
         client = self._get_image_vision_client()
+        provider_id = self.config.get("IMAGE_VISION_PROVIDER_ID", "")
         model = self.config.get("IMAGE_VISION_MODEL","")
-        if not client or not model: return ""
+        if not provider_id and (not client or not model): return ""
         try:
             content = []
             for url in image_urls[:3]:
@@ -248,7 +328,9 @@ class BiliBiliBot(Star):
                     content.append({"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}})
             if not content: return ""
             content.append({"type":"text","text":"请用50字以内描述这些图片的内容。"})
-            result = self._vision_call(client, model, content, max_tokens=100)
+            result = await self._astrbot_multimodal_generate(provider_id, content, max_tokens=100)
+            if not result and client and model:
+                result = self._vision_call(client, model, content, max_tokens=100)
             return result or ""
         except Exception as e:
             logger.error(f"[BiliBot] 图片识别失败: {e}"); return ""
@@ -646,6 +728,9 @@ class BiliBiliBot(Star):
         return None
     async def _analyze_video_with_vision(self, video_info):
         """用视觉模型分析视频封面+信息，生成内容概括"""
+        media_result = await self._analyze_video_media(video_info)
+        if media_result:
+            return media_result
         client = self._get_video_vision_client()
         model = self.config.get("VIDEO_VISION_MODEL","")
         dur_min = video_info.get("duration",0) // 60
@@ -659,6 +744,14 @@ UP主：{video_info.get('owner_name','未知')}
 简介：{video_info.get('desc','无')[:500]}
 
 直接输出概括内容，不要加前缀。"""
+        provider_id = self.config.get("VIDEO_VISION_PROVIDER_ID", "")
+        provider_result = await self._astrbot_multimodal_generate(
+            provider_id,
+            [{"type": "text", "text": text_prompt}],
+            max_tokens=250,
+        )
+        if provider_result:
+            return provider_result
         # 尝试用视觉模型 + 封面
         if client and model and video_info.get("pic"):
             try:
@@ -794,14 +887,14 @@ UP主：{video_info.get('owner_name','未知')}
         except Exception as e: return -1,f"轮询失败: {e}",{}
 
     # ===== LLM =====
-    async def _llm_call(self, prompt, system_prompt="", max_tokens=300):
+    async def _llm_call(self, prompt, system_prompt="", max_tokens=300, provider_id=None):
         try:
-            pid = self.config.get("LLM_PROVIDER_ID","")
-            if not pid:
-                logger.warning("[BiliBot] 未配置 LLM_PROVIDER_ID，请在插件设置中选择模型")
-                return None
+            pid = provider_id if provider_id is not None else self.config.get("LLM_PROVIDER_ID","")
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            resp = await self.context.llm_generate(chat_provider_id=pid, prompt=full_prompt)
+            kwargs = {"prompt": full_prompt}
+            if pid:
+                kwargs["chat_provider_id"] = pid
+            resp = await self.context.llm_generate(**kwargs)
             return resp.completion_text.strip() if resp and resp.completion_text else None
         except Exception as e: logger.error(f"[BiliBot] LLM 调用失败: {e}"); return None
     def _get_system_prompt(self):
@@ -1267,6 +1360,168 @@ UP主：{video_info.get('up_name', '未知')}
 直接输出概括内容，不要加前缀。"""
         result = await self._llm_call(prompt, max_tokens=250)
         return result or f"视频《{video_info.get('title','未知')}》，UP主：{video_info.get('up_name','未知')}"
+    async def _download_video(self, bvid):
+        output_template = os.path.join(TEMP_VIDEO_DIR, f"{bvid}.%(ext)s")
+        cookie_header = (
+            f"Cookie: SESSDATA={self.config.get('SESSDATA', '')}; "
+            f"bili_jct={self.config.get('BILI_JCT', '')}; "
+            f"DedeUserID={self.config.get('DEDE_USER_ID', '')}"
+        )
+        code, _, stderr = await self._run_process(
+            "yt-dlp",
+            "-o", output_template,
+            "--format", "bestvideo+bestaudio/best",
+            "--no-playlist",
+            "--merge-output-format", "mp4",
+            "--recode-video", "mp4",
+            "--add-header", cookie_header,
+            "--add-header", "Referer: https://www.bilibili.com",
+            f"https://www.bilibili.com/video/{bvid}",
+            timeout=600,
+        )
+        if code != 0:
+            logger.warning(f"[BiliBot] 视频下载失败({bvid}): {stderr[:200]}")
+            return None
+        for name in os.listdir(TEMP_VIDEO_DIR):
+            fp = os.path.join(TEMP_VIDEO_DIR, name)
+            if name.startswith(bvid) and os.path.isfile(fp):
+                return fp
+        return None
+    async def _compress_video(self, input_path):
+        output_path = input_path.rsplit(".", 1)[0] + "_compressed.mp4"
+        code, _, stderr = await self._run_process(
+            "ffmpeg", "-y", "-i", input_path,
+            "-t", "30",
+            "-vf", "scale=480:-2",
+            "-an",
+            "-c:v", "libx264", "-preset", "fast",
+            output_path,
+            timeout=600,
+        )
+        if code != 0:
+            logger.warning(f"[BiliBot] 视频压缩失败，回退原视频: {stderr[:160]}")
+            return input_path
+        try:
+            os.remove(input_path)
+        except OSError:
+            pass
+        return output_path
+    async def _extract_video_frames(self, video_path, count=5):
+        frame_dir = video_path.rsplit(".", 1)[0] + "_frames"
+        os.makedirs(frame_dir, exist_ok=True)
+        code, stdout, _ = await self._run_process(
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path,
+            timeout=60,
+        )
+        try:
+            duration = float(stdout.strip()) if code == 0 and stdout.strip() else 30.0
+        except ValueError:
+            duration = 30.0
+        frames = []
+        for i in range(count):
+            ts = duration * (i + 1) / (count + 1)
+            frame_path = os.path.join(frame_dir, f"frame_{i}.jpg")
+            code, _, _ = await self._run_process(
+                "ffmpeg", "-y", "-ss", f"{ts:.2f}", "-i", video_path,
+                "-vframes", "1", "-vf", "scale=360:-2", "-q:v", "8",
+                frame_path,
+                timeout=120,
+            )
+            if code == 0 and os.path.exists(frame_path):
+                frames.append(frame_path)
+        return frames
+    def _cleanup_video_artifacts(self, video_path, frames=None):
+        paths = list(frames or [])
+        if video_path:
+            paths.append(video_path)
+            frame_dir = video_path.rsplit(".", 1)[0] + "_frames"
+        else:
+            frame_dir = ""
+        for path in paths:
+            try:
+                if path and os.path.isfile(path):
+                    os.remove(path)
+            except OSError:
+                pass
+        if frame_dir and os.path.isdir(frame_dir):
+            try:
+                shutil.rmtree(frame_dir)
+            except OSError:
+                pass
+    async def _astrbot_multimodal_generate(self, provider_id, content_parts, max_tokens=250):
+        if not provider_id:
+            return None
+        try:
+            resp = await self.context.llm_generate(
+                chat_provider_id=provider_id,
+                prompt=content_parts,
+            )
+            if resp and resp.completion_text:
+                return resp.completion_text.strip()
+        except Exception as e:
+            logger.warning(f"[BiliBot] AstrBot 多模态 provider 调用失败({provider_id})：{e}")
+        return None
+    async def _analyze_video_media(self, video_info):
+        provider_id = self.config.get("VIDEO_VISION_PROVIDER_ID", "")
+        client = self._get_video_vision_client()
+        model = self.config.get("VIDEO_VISION_MODEL","")
+        if not provider_id and (not client or not model):
+            return None
+        bvid = video_info.get("bvid", "")
+        if not bvid:
+            return None
+        video_path = await self._download_video(bvid)
+        if not video_path:
+            return None
+        frames = []
+        compressed_path = video_path
+        try:
+            compressed_path = await self._compress_video(video_path)
+            with open(compressed_path, "rb") as f:
+                video_b64 = base64.b64encode(f.read()).decode()
+            text_prompt = (
+                f"这是一个B站视频，标题是「{video_info.get('title', '未知')}」，"
+                f"简介是「{video_info.get('desc', '无')[:300]}」。"
+                "请用100字以内描述视频的主要内容、风格和亮点。"
+            )
+            content = [
+                {"type": "image_url", "image_url": {"url": f"data:video/mp4;base64,{video_b64}"}},
+                {"type": "text", "text": text_prompt},
+            ]
+            result = await self._astrbot_multimodal_generate(provider_id, content, max_tokens=200)
+            if not result and client and model:
+                result = self._vision_call(client, model, content, max_tokens=200)
+            if result:
+                return result
+            logger.warning(f"[BiliBot] 视频直读失败，回退截帧：{bvid}")
+            frames = await self._extract_video_frames(compressed_path, count=5)
+            if not frames:
+                return None
+            frame_content = []
+            for frame_path in frames:
+                with open(frame_path, "rb") as f:
+                    img_b64 = base64.b64encode(f.read()).decode()
+                frame_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})
+            frame_content.append({
+                "type": "text",
+                "text": (
+                    f"这些是一个B站视频的截图，标题是「{video_info.get('title', '未知')}」，"
+                    f"简介是「{video_info.get('desc', '无')[:300]}」。"
+                    "请用100字以内描述视频的主要内容、风格和亮点。"
+                )
+            })
+            result = await self._astrbot_multimodal_generate(provider_id, frame_content, max_tokens=200)
+            if not result and client and model:
+                result = self._vision_call(client, model, frame_content, max_tokens=200)
+            return result
+        except Exception as e:
+            logger.warning(f"[BiliBot] 视频媒体分析失败({bvid})：{e}")
+            return None
+        finally:
+            self._cleanup_video_artifacts(compressed_path, frames)
 
     async def _evaluate_video(self, video_info, video_description):
         sp = self._get_system_prompt()
@@ -1346,6 +1601,9 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
 
     async def _run_proactive(self):
         """主动刷B站：看视频、评价、点赞/投币/收藏/关注/评论"""
+        env = self._get_environment_status()
+        if not env["features"]["proactive_video_media"]:
+            logger.warning("[BiliBot] 当前环境不满足视频媒体分析条件，将回退为纯文本视频分析。")
         daily_watch = self.config.get("PROACTIVE_VIDEO_COUNT", 3)
         daily_comment = self.config.get("PROACTIVE_COMMENT_COUNT", 2)
         watch_log = self._load_json(WATCH_LOG_FILE, [])
@@ -1414,14 +1672,25 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             bvid = video["bvid"]
             if str(video.get("up_mid","")) == self.config.get("DEDE_USER_ID",""): continue
             logger.info(f"[BiliBot] 🎬 [{watch_count+1}/{daily_watch}] {video['title']} by {video.get('up_name','')}")
-            # 文本分析（不下载视频，用标题+简介分析）
-            vi = await self._get_video_info(video.get("oid") or await self._get_video_oid(bvid) or 0) if not video.get("tname") else None
-            tname = (vi or video).get("tname", "")
-            analysis_info = {**video, "tname": tname}
-            video_description = await self._analyze_video_text(analysis_info)
+            oid = video.get("oid") or await self._get_video_oid(bvid) or 0
+            vi = await self._get_video_info(oid) if oid else None
+            analysis_info = {
+                **video,
+                **({
+                    "bvid": vi.get("bvid", bvid),
+                    "title": vi.get("title", video.get("title", "")),
+                    "desc": vi.get("desc", video.get("desc", "")),
+                    "up_name": vi.get("owner_name", video.get("up_name", "")),
+                    "up_mid": vi.get("owner_mid", video.get("up_mid", "")),
+                    "tname": vi.get("tname", video.get("tname", "")),
+                    "duration": vi.get("duration", 0),
+                    "pic": vi.get("pic", video.get("pic", "")),
+                } if vi else {"bvid": bvid}),
+            }
+            video_description = await self._analyze_video_with_vision(analysis_info)
             logger.info(f"[BiliBot] 📝 分析：{video_description[:60]}...")
             # 评价
-            evaluation = await self._evaluate_video(video, video_description)
+            evaluation = await self._evaluate_video(analysis_info, video_description)
             if not evaluation:
                 logger.warning("[BiliBot] 评价失败，跳过互动")
                 watch_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title",""), "up_name": video.get("up_name",""), "score": 0, "mood": "未知", "comment": "评价失败", "review": "", "actions": [], "pic": video.get("pic","")})
@@ -1433,7 +1702,6 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             want_follow = evaluation.get("want_follow", False)
             logger.info(f"[BiliBot] ⭐ 评分：{score}/10 | 心情：{mood} | 短评：{comment}")
             # 根据评分互动
-            oid = await self._get_video_oid(bvid)
             actions = []
             if oid:
                 if score >= 6 and self.config.get("PROACTIVE_LIKE", True):
@@ -1443,7 +1711,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                 if score >= 8 and self.config.get("PROACTIVE_FAV", True):
                     if await self._fav_video(oid): actions.append("⭐收藏"); logger.info("[BiliBot] ⭐ 收藏成功")
                 if score >= 7 and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
-                    proactive_comment = await self._generate_proactive_comment(video, video_description)
+                    proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
                     if await self._send_comment(oid, proactive_comment):
                         actions.append("💬评论"); comment_count += 1
                         logger.info(f"[BiliBot] 💬 评论成功：{proactive_comment}")
@@ -1530,6 +1798,9 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
     @filter.command("bili状态")
     async def cmd_status(self, event: AstrMessageEvent):
         valid,info=await self.check_cookie(); mood,_=self._get_today_mood()
+        env = self._get_environment_status()
+        cmd_status = env["external_commands"]
+        feature_status = env["features"]
         mc=len(self._memory); pc=len(self._load_json(USER_PROFILE_FILE,{})); pmc=len(self._load_json(PERMANENT_MEMORY_FILE,[]))
         evo=self._load_json(PERSONALITY_FILE,{}); evo_ver=evo.get("version",0); evo_last=evo.get("last_evolve","从未")
         wl=self._load_json(WATCH_LOG_FILE,[]); today_watched=len([l for l in wl if l.get("time","").startswith(datetime.now().strftime("%Y-%m-%d"))])
@@ -1547,7 +1818,10 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             f"✅ 已触发动态:{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
             f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'}",
-            f"视频视觉:{'✅' if self.config.get('VIDEO_VISION_API_KEY','') else '❌'} 图片识别:{'✅' if self.config.get('IMAGE_VISION_API_KEY','') else '❌'}"
+            f"视频视觉Provider:{'✅' if env['llm']['video_provider'] else '❌'} 独立API:{'✅' if env['llm']['video_api'] else '❌'}",
+            f"图片识别Provider:{'✅' if env['llm']['image_provider'] else '❌'} 独立API:{'✅' if env['llm']['image_api'] else '❌'}",
+            f"外部命令 yt-dlp:{'✅' if cmd_status['yt-dlp'] else '❌'} ffmpeg:{'✅' if cmd_status['ffmpeg'] else '❌'} ffprobe:{'✅' if cmd_status['ffprobe'] else '❌'}",
+            f"主动视频直读/截帧:{'✅' if feature_status['proactive_video_media'] else '❌'} 纯文本回退:{'✅' if feature_status['proactive_video_fallback_text'] else '❌'}",
         ]
         yield event.plain_result("\n".join(lines))
     @filter.command("bili计划")
@@ -1592,13 +1866,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         })
         self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
         yield event.plain_result("🎯 已手动触发一次主动看视频")
-    @filter.llm_tool(name="bili_watch_videos")
-    async def tool_bili_watch_videos(self, event: AstrMessageEvent) -> str:
-        """触发一次主动看B站视频流程。
-
-        Args:
-            noop(boolean): 占位参数，可忽略
-        """
+    async def _tool_bili_watch_videos_result(self) -> str:
         if not self._has_cookie():
             return "未登录B站，无法执行主动看视频。请先使用 /bili登录 完成扫码登录。"
         if not self.config.get("ENABLE_PROACTIVE", False):
@@ -1615,6 +1883,13 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         })
         self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
         return "已在后台触发一次主动看B站视频流程。稍后可用 /bili日志 查看结果。"
+    @filter.llm_tool(name="bili_watch_videos")
+    async def tool_bili_watch_videos(self, event: AstrMessageEvent):
+        """触发一次主动看B站视频流程。
+
+        当用户明确要求你去看看/刷刷/随机看一些B站视频时使用。
+        """
+        yield event.plain_result(await self._tool_bili_watch_videos_result())
     @filter.command("bili开关")
     async def cmd_toggle(self, event: AstrMessageEvent):
         parts = event.message_str.strip().split(maxsplit=1)
@@ -1680,15 +1955,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         lines = [f"🧠 关于「{query}」的记忆{suffix}：",""]
         for i,r in enumerate(results,1): lines.append(f"{i}. {r[:150]+'...' if len(r)>150 else r}")
         yield event.plain_result("\n".join(lines))
-    @filter.llm_tool(name="bili_search_memory")
-    async def tool_bili_search_memory(self, event: AstrMessageEvent, query: str, memory_type: str = "", source: str = "") -> str:
-        """搜索插件记忆。
-
-        Args:
-            query(string): 要搜索的关键词或问题
-            memory_type(string): 记忆类型，可选 chat/video/dynamic/user_summary 或 交流/视频/动态/总结
-            source(string): 记忆来源，可选 bilibili/qq/all
-        """
+    async def _tool_bili_search_memory_result(self, query: str, memory_type: str = "", source: str = "") -> str:
         type_alias = {
             "chat": {"chat"},
             "交流": {"chat"},
@@ -1712,6 +1979,22 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         if not results:
             return f"没有找到与「{query}」相关的记忆。"
         return "\n".join([f"{i}. {r}" for i, r in enumerate(results, 1)])
+    @filter.llm_tool(name="bili_search_memory")
+    async def tool_bili_search_memory(self, event: AstrMessageEvent, query: str, memory_type: str = "", source: str = ""):
+        """搜索插件记忆，在回答和B站经历、视频、动态、跨平台互动相关的问题时使用。
+
+        Args:
+            query(string): 要搜索的关键词或问题
+            memory_type(string): 记忆类型，可选 chat/video/dynamic/user_summary 或 交流/视频/动态/总结
+            source(string): 记忆来源，可选 bilibili/qq/all
+        """
+        yield event.plain_result(
+            await self._tool_bili_search_memory_result(
+                query=query,
+                memory_type=memory_type,
+                source=source,
+            )
+        )
     @filter.command("bili好感")
     async def cmd_affection(self, event: AstrMessageEvent):
         parts = event.message_str.strip().split(maxsplit=1)
