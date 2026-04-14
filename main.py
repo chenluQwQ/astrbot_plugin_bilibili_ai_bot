@@ -1432,29 +1432,40 @@ UP主：{video_info.get('owner_name','未知')}
         except Exception as e:
             logger.error(f"[BiliBot] 获取UP主最新视频失败: {e}"); return None
 
-    async def _get_hot_videos_by_tid(self, tid):
+    async def _get_hot_videos(self, min_pubdate=0):
+        """从B站综合热门拉视频"""
         MIN_VIEWS = 10000; videos = []
         try:
-            d, _ = await self._http_get("https://api.bilibili.com/x/web-interface/ranking/region", params={"rid": tid, "day": 7})
+            d, _ = await self._http_get("https://api.bilibili.com/x/web-interface/popular", params={"ps": 50, "pn": random.randint(1, 5)})
             if d["code"] == 0:
-                for v in d.get("data", []):
-                    play = int(v.get("play", v.get("stat", {}).get("view", 0)) or 0)
-                    if play >= MIN_VIEWS:
-                        videos.append({"bvid": v.get("bvid",""), "title": v.get("title",""), "desc": v.get("description", v.get("desc","")), "up_name": v.get("author", v.get("owner",{}).get("name","")), "up_mid": v.get("mid", v.get("owner",{}).get("mid",0)), "pubdate": v.get("pubdate", v.get("create", v.get("created",0))), "pic": v.get("pic",""), "view": play})
+                for v in d.get("data", {}).get("list", []):
+                    play = int(v.get("stat", {}).get("view", 0) or 0)
+                    pubdate = v.get("pubdate", 0)
+                    if play >= MIN_VIEWS and pubdate >= min_pubdate:
+                        videos.append({"bvid": v.get("bvid",""), "title": v.get("title",""), "desc": v.get("desc",""), "up_name": v.get("owner",{}).get("name",""), "up_mid": v.get("owner",{}).get("mid",0), "pubdate": pubdate, "pic": v.get("pic",""), "view": play, "tname": v.get("tname","")})
+                logger.info(f"[BiliBot] 🔥 热门API返回 {len(videos)} 个符合条件的视频")
             else:
-                logger.warning(f"[BiliBot] 热榜API返回非0: code={d['code']} tid={tid}")
-        except Exception as e: logger.warning(f"[BiliBot] 热榜API失败: {e}")
-        if len(videos) < 5:
-            try:
-                d, _ = await self._http_get("https://api.bilibili.com/x/web-interface/newlist", params={"rid": tid, "ps": 50, "pn": 1, "type": 0})
-                if d["code"] == 0:
-                    for v in d.get("data",{}).get("archives",[]):
-                        play = int(v.get("stat",{}).get("view",0) or 0)
-                        if play >= MIN_VIEWS:
-                            videos.append({"bvid": v["bvid"], "title": v["title"], "desc": v.get("desc",""), "up_name": v["owner"]["name"], "up_mid": v["owner"]["mid"], "pubdate": v.get("pubdate",0), "pic": v.get("pic",""), "view": play})
-                else:
-                    logger.warning(f"[BiliBot] newlist API返回非0: code={d['code']} tid={tid}")
-            except Exception as e: logger.warning(f"[BiliBot] newlist API失败: {e}")
+                logger.warning(f"[BiliBot] 热门API返回非0: code={d['code']}")
+        except Exception as e:
+            logger.warning(f"[BiliBot] 热门API失败: {e}")
+        return videos
+
+    async def _get_newlist_videos(self, tid, min_pubdate=0):
+        """从分区最新拉视频"""
+        MIN_VIEWS = 10000; videos = []
+        try:
+            d, _ = await self._http_get("https://api.bilibili.com/x/web-interface/newlist", params={"rid": tid, "ps": 50, "pn": 1, "type": 0})
+            if d["code"] == 0:
+                for v in d.get("data",{}).get("archives",[]):
+                    play = int(v.get("stat",{}).get("view",0) or 0)
+                    pubdate = v.get("pubdate", 0)
+                    if play >= MIN_VIEWS and pubdate >= min_pubdate:
+                        videos.append({"bvid": v["bvid"], "title": v["title"], "desc": v.get("desc",""), "up_name": v["owner"]["name"], "up_mid": v["owner"]["mid"], "pubdate": pubdate, "pic": v.get("pic",""), "view": play, "tname": v.get("tname","")})
+            else:
+                logger.warning(f"[BiliBot] newlist返回非0: code={d['code']} tid={tid}")
+        except Exception as e:
+            logger.warning(f"[BiliBot] newlist失败: {e}")
+        return videos
         seen = set(); unique = []
         for v in videos:
             if v["bvid"] and v["bvid"] not in seen: seen.add(v["bvid"]); unique.append(v)
@@ -1772,18 +1783,20 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                 if pubdate and datetime.fromtimestamp(pubdate).date() == today:
                     target_videos.append(video)
                     logger.info(f"[BiliBot] 🔔 今日更新：{video['up_name']} - {video['title']}")
-        # 3. 分区热门（只取今年的）
-        tids = list(self.PREFERRED_TIDS); random.shuffle(tids)
-        for tid in tids:
-            if len(target_videos) >= daily_watch + 5: break
-            hot = await self._get_hot_videos_by_tid(tid)
-            for v in hot:
-                if v["bvid"] not in watched_bvids:
-                    pubdate = v.get("pubdate", 0)
-                    if isinstance(pubdate, str):
-                        try: pubdate = int(pubdate)
-                        except: pubdate = 0
-                    if pubdate >= min_pubdate_hot: target_videos.append(v)
+        # 3. 热门视频（今年的）
+        hot = await self._get_hot_videos(min_pubdate_hot)
+        for v in hot:
+            if v["bvid"] not in watched_bvids:
+                target_videos.append(v)
+        # 4. 分区最新兜底
+        if len(target_videos) < daily_watch:
+            tids = list(self.PREFERRED_TIDS); random.shuffle(tids)
+            for tid in tids[:3]:
+                if len(target_videos) >= daily_watch + 5: break
+                fallback = await self._get_newlist_videos(tid, min_pubdate_hot)
+                for v in fallback:
+                    if v["bvid"] not in watched_bvids:
+                        target_videos.append(v)
         # 去重 + 随机
         logger.info(f"[BiliBot] 📊 视频来源统计：特别关注={len(special_mids)}个UP | 关注列表={len(following_mids)}个UP | 收集到={len(target_videos)}个视频")
         seen = set(); unique = []
