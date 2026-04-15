@@ -118,6 +118,41 @@
     "default": "",
     "hint": "如 Flux 系列模型"
   },
+  "ENABLE_WEB_SEARCH": {
+    "description": "启用联网搜索（视频分析时补充背景知识）",
+    "type": "bool",
+    "default": false
+  },
+  "WEB_SEARCH_BACKEND": {
+    "description": "搜索后端",
+    "type": "string",
+    "default": "tavily",
+    "hint": "可选：tavily / perplexity / bocha / custom。custom 需填下方自定义接口地址"
+  },
+  "WEB_SEARCH_API_KEY": {
+    "description": "搜索 API Key",
+    "type": "string",
+    "default": "",
+    "hint": "Tavily / Perplexity / 博查 / 自定义接口的 API Key"
+  },
+  "WEB_SEARCH_API_BASE": {
+    "description": "自定义搜索接口地址（仅 custom 后端）",
+    "type": "string",
+    "default": "",
+    "hint": "OpenAI 兼容接口的 Base URL，如 https://your-api.com/v1"
+  },
+  "WEB_SEARCH_MODEL": {
+    "description": "自定义搜索模型名（仅 custom / perplexity 后端）",
+    "type": "string",
+    "default": "",
+    "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
+  },
+  "WEB_SEARCH_MAX_RESULTS": {
+    "description": "搜索返回最大条数",
+    "type": "int",
+    "default": 5,
+    "hint": "建议 3-8"
+  },
   "ENABLE_REPLY": {
     "description": "启用评论自动回复",
     "type": "bool",

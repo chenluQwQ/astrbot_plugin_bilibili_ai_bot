@@ -61,6 +61,7 @@ from .core.config import (
     USER_PROFILE_FILE,
     VIDEO_MEMORY_FILE,
     WATCH_LOG_FILE,
+    WEB_SEARCH_CACHE_FILE,
 )
 
 
@@ -94,6 +95,7 @@ class BiliBiliBot(Star):
         self._embed_client = None
         self._video_vision_client = None
         self._image_vision_client = None
+        self._web_search_client = None
         self._consecutive_llm_failures = 0
         self._llm_cooldown_until = 0
         self._proactive_times, self._proactive_triggered = [], set()
@@ -195,6 +197,13 @@ class BiliBiliBot(Star):
             logger.warning("[BiliBot] 未配置视频视觉模型。视频相关分析将退回纯文本概括。")
         if not (env["llm"]["image_provider"] or env["llm"]["image_api"]):
             logger.warning("[BiliBot] 未配置图片识别模型。评论图片识别功能将不可用。")
+        if self.config.get("ENABLE_WEB_SEARCH", False):
+            ws_backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower()
+            ws_key = self.config.get("WEB_SEARCH_API_KEY", "")
+            if not ws_key:
+                logger.warning("[BiliBot] 联网搜索已启用但未配置 WEB_SEARCH_API_KEY。")
+            else:
+                logger.info(f"[BiliBot] 🔍 联网搜索已启用，后端: {ws_backend}")
     def _normalize_memory_entry(self, record):
         rec = dict(record)
         if rec.get("memory_type"):
@@ -821,8 +830,221 @@ class BiliBiliBot(Star):
                 return [r.get("content", {}).get("message", "")[:100] for r in replies if r.get("content", {}).get("message")]
         except: pass
         return []
+
+    # ===== 联网搜索 =====
+    def _get_web_search_client(self):
+        """获取用于 Perplexity / custom 后端的 OpenAI 兼容客户端"""
+        if self._web_search_client is None:
+            backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower().strip()
+            api_key = self.config.get("WEB_SEARCH_API_KEY", "")
+            if not api_key:
+                return None
+            if backend == "perplexity":
+                from openai import OpenAI
+                self._web_search_client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.perplexity.ai",
+                )
+            elif backend == "custom":
+                base_url = self.config.get("WEB_SEARCH_API_BASE", "")
+                if not base_url:
+                    return None
+                from openai import OpenAI
+                self._web_search_client = OpenAI(api_key=api_key, base_url=base_url)
+        return self._web_search_client
+
+    async def _web_search(self, query: str) -> str:
+        """统一联网搜索入口，根据配置调不同后端，返回摘要文本"""
+        if not self.config.get("ENABLE_WEB_SEARCH", False):
+            return ""
+        api_key = self.config.get("WEB_SEARCH_API_KEY", "")
+        if not api_key:
+            return ""
+        backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower().strip()
+        max_results = self.config.get("WEB_SEARCH_MAX_RESULTS", 5)
+        # 查缓存（24h 有效）
+        cache = self._load_json(WEB_SEARCH_CACHE_FILE, {})
+        cache_key = f"{backend}:{query}"
+        if cache_key in cache:
+            cached = cache[cache_key]
+            if time.time() - cached.get("ts", 0) < 86400:
+                logger.debug(f"[BiliBot] 🔍 搜索命中缓存: {query[:40]}")
+                return cached.get("result", "")
+        logger.info(f"[BiliBot] 🔍 联网搜索({backend}): {query[:60]}")
+        result = ""
+        try:
+            if backend == "tavily":
+                result = await self._search_tavily(query, api_key, max_results)
+            elif backend == "perplexity":
+                result = await self._search_perplexity(query, max_results)
+            elif backend == "bocha":
+                result = await self._search_bocha(query, api_key, max_results)
+            elif backend == "custom":
+                result = await self._search_custom(query, max_results)
+            else:
+                logger.warning(f"[BiliBot] 未知搜索后端: {backend}")
+                return ""
+        except Exception as e:
+            logger.error(f"[BiliBot] 联网搜索失败({backend}): {e}")
+            return ""
+        # 写入缓存
+        if result:
+            cache[cache_key] = {"ts": time.time(), "result": result}
+            # 只保留最近 200 条缓存
+            if len(cache) > 200:
+                sorted_keys = sorted(cache, key=lambda k: cache[k].get("ts", 0))
+                for k in sorted_keys[:len(cache) - 200]:
+                    del cache[k]
+            self._save_json(WEB_SEARCH_CACHE_FILE, cache)
+        return result
+
+    async def _search_tavily(self, query: str, api_key: str, max_results: int) -> str:
+        """Tavily Search API"""
+        payload = {
+            "query": query,
+            "max_results": max_results,
+            "search_depth": "basic",
+            "include_answer": True,
+        }
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                "https://api.tavily.com/search",
+                json=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] Tavily HTTP {r.status}: {body[:200]}")
+                    return ""
+                data = await r.json(content_type=None)
+        # 优先用 Tavily 自带的 answer 摘要
+        answer = (data.get("answer") or "").strip()
+        results = data.get("results", [])
+        snippets = []
+        for item in results[:max_results]:
+            title = item.get("title", "")
+            content = item.get("content", "")[:300]
+            if title or content:
+                snippets.append(f"- {title}: {content}")
+        combined = "\n".join(snippets)
+        if answer:
+            return f"{answer}\n\n相关来源：\n{combined}" if combined else answer
+        return combined
+
+    async def _search_perplexity(self, query: str, max_results: int) -> str:
+        """Perplexity API (OpenAI 兼容)"""
+        client = self._get_web_search_client()
+        if not client:
+            return ""
+        model = self.config.get("WEB_SEARCH_MODEL", "") or "sonar"
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。"},
+                    {"role": "user", "content": query},
+                ],
+                max_tokens=400,
+            )
+            return resp.choices[0].message.content.strip() if resp.choices else ""
+        except Exception as e:
+            logger.error(f"[BiliBot] Perplexity 调用失败: {e}")
+            return ""
+
+    async def _search_bocha(self, query: str, api_key: str, max_results: int) -> str:
+        """博查 Web Search API"""
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                "https://api.bochaai.com/v1/web-search",
+                json={"query": query, "count": max_results, "summary": True},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                },
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] 博查 HTTP {r.status}: {body[:200]}")
+                    return ""
+                data = await r.json(content_type=None)
+        # 博查返回格式：data.webPages.value[]
+        pages = data.get("data", {}).get("webPages", {}).get("value", [])
+        if not pages:
+            # 兼容其他格式
+            pages = data.get("results", [])
+        summary = data.get("data", {}).get("summary", "")
+        snippets = []
+        for item in pages[:max_results]:
+            name = item.get("name") or item.get("title", "")
+            snippet = (item.get("summary") or item.get("snippet") or item.get("content", ""))[:300]
+            if name or snippet:
+                snippets.append(f"- {name}: {snippet}")
+        combined = "\n".join(snippets)
+        if summary:
+            return f"{summary}\n\n相关来源：\n{combined}" if combined else summary
+        return combined
+
+    async def _search_custom(self, query: str, max_results: int) -> str:
+        """自定义 OpenAI 兼容搜索接口（如 SearXNG-LLM 桥、自建 API 等）"""
+        client = self._get_web_search_client()
+        if not client:
+            return ""
+        model = self.config.get("WEB_SEARCH_MODEL", "")
+        if not model:
+            logger.warning("[BiliBot] custom 搜索后端需要配置 WEB_SEARCH_MODEL")
+            return ""
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。"},
+                    {"role": "user", "content": query},
+                ],
+                max_tokens=400,
+            )
+            return resp.choices[0].message.content.strip() if resp.choices else ""
+        except Exception as e:
+            logger.error(f"[BiliBot] 自定义搜索接口调用失败: {e}")
+            return ""
+
+    async def _should_search_for_video(self, video_info: dict, extra_context: str) -> str:
+        """让 LLM 判断是否需要搜索，需要则返回搜索 query，不需要返回空字符串"""
+        title = video_info.get("title", "")
+        desc = video_info.get("desc", "")[:200]
+        tname = video_info.get("tname", "")
+        owner = video_info.get("owner_name") or video_info.get("up_name", "")
+        prompt = f"""判断以下B站视频是否需要联网搜索来补充背景知识，以便更好地理解视频内容。
+
+视频标题：{title}
+UP主：{owner}
+分区：{tname}
+简介：{desc}
+{extra_context[:300] if extra_context else ''}
+
+以下情况需要搜索：涉及时事新闻、专业领域知识、特定人物/事件/产品、最新科技动态、争议性话题等。
+以下情况不需要搜索：日常vlog、搞笑视频、纯娱乐内容、游戏实况、个人分享等。
+
+请用JSON回复：{{"need_search": true或false, "query": "搜索关键词(不需要搜索则留空)"}}
+直接输出JSON。"""
+        try:
+            text = await self._llm_call(prompt, max_tokens=100)
+            if not text:
+                return ""
+            text = text.replace("```json", "").replace("```", "").strip()
+            m = re.search(r'\{.*\}', text, re.DOTALL)
+            if m:
+                obj = json.loads(m.group())
+                if obj.get("need_search"):
+                    return (obj.get("query") or title).strip()
+            return ""
+        except Exception as e:
+            logger.debug(f"[BiliBot] 搜索判断失败: {e}")
+            return ""
+
     async def _enrich_video_context(self, video_info):
-        """给视频信息补充标签和热评"""
+        """给视频信息补充标签、热评和联网搜索结果"""
         bvid = video_info.get("bvid", "")
         oid = video_info.get("oid") or (await self._get_video_oid(bvid) if bvid else None)
         tags = await self._get_video_tags(bvid) if bvid else []
@@ -832,6 +1054,14 @@ class BiliBiliBot(Star):
             extra += f"\n标签：{'、'.join(tags[:10])}"
         if comments:
             extra += f"\n热门评论：\n" + "\n".join([f"- {c}" for c in comments[:5]])
+        # 联网搜索补充上下文
+        if self.config.get("ENABLE_WEB_SEARCH", False):
+            search_query = await self._should_search_for_video(video_info, extra)
+            if search_query:
+                search_result = await self._web_search(search_query)
+                if search_result:
+                    extra += f"\n\n【联网搜索补充】\n{search_result[:800]}"
+                    logger.info(f"[BiliBot] 🔍 视频搜索补充完成: {search_query[:40]} -> {len(search_result)}字")
         return extra
     async def _analyze_video_with_vision(self, video_info):
         """用视觉模型分析视频封面+信息，生成内容概括"""
