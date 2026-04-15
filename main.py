@@ -1054,6 +1054,18 @@ UP主：{owner}
             return ""
         if not self.config.get("WEB_SEARCH_API_KEY", ""):
             return ""
+        # 前置过滤：明显不需要搜索的直接跳过，省一次 LLM 调用
+        stripped = re.sub(r'\[.*?\]', '', user_comment).strip()  # 去掉B站表情 [xxx]
+        if len(stripped) < 4:
+            return ""
+        SKIP_PATTERNS = (
+            "哈哈", "hh", "笑死", "666", "好的", "谢谢", "感谢", "ok", "嗯嗯",
+            "确实", "真的", "是的", "对的", "可以", "不错", "厉害", "牛", "绝了",
+            "啊这", "草", "乐", "蚌", "典", "急了", "麻了", "顶", "dd", "催更",
+            "前排", "火钳刘明", "来了", "打卡", "支持", "加油", "冲", "爱了",
+        )
+        if stripped.lower() in SKIP_PATTERNS or all(c in "。，！？~…、哈呵嘿嗯啊哦呀w～" for c in stripped):
+            return ""
         judge_provider = self.config.get("WEB_SEARCH_JUDGE_PROVIDER_ID", "")
         ctx_block = f"\n最近对话上下文：\n{context[:500]}\n" if context else ""
         prompt = f"""判断以下B站用户评论是否需要联网搜索才能准确回复。
@@ -1318,9 +1330,7 @@ UP主：{video_info.get('owner_name','未知')}
             # 联网搜索：判断用户评论是否需要搜索
             web_ctx = ""
             if not is_suspicious and self.config.get("ENABLE_WEB_SEARCH", False):
-                thread_history = self._get_thread_memories(thread_id)
-                recent_ctx = "\n".join(thread_history[-5:]) if thread_history else ""
-                search_query = await self._should_search_for_reply(clean_content, context=recent_ctx)
+                search_query = await self._should_search_for_reply(clean_content, context=mc)
                 if search_query:
                     search_result = await self._web_search(search_query)
                     if search_result:
