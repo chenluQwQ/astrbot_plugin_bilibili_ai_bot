@@ -227,7 +227,7 @@
     "description": "主动视频来源池",
     "type": "list",
     "default": ["popular"],
-    "hint": "可选: popular(综合热门) / weekly(每周必看) / precious(入站必刷) / ranking(全站排行) / ranking:分区rid / newlist:子分区tid。用 /bili分区 查看编号。示例: [\"popular\", \"ranking:160\", \"newlist:17\"]"
+    "hint": "可选: popular(综合热门) / weekly(每周必看) / precious(入站必刷) / ranking(全站排行) / ranking:分区rid / newlist:子分区tid。支持逗号写多个如 ranking:4,0,160。用 /bili分区 查看编号"
   },
   "PROACTIVE_LIKE": {
     "description": "主动点赞（≥6分）",

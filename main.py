@@ -1849,7 +1849,7 @@ UP主：{video_info.get('owner_name','未知')}
 
     async def _get_pool_videos(self, min_pubdate=0):
         """根据配置的 PROACTIVE_VIDEO_POOLS 拉取视频。
-        支持格式: popular / weekly / precious / ranking / ranking:rid / newlist:tid"""
+        支持格式: popular / weekly / precious / ranking / ranking:4,0,160 / newlist:17,171"""
         pools = self.config.get("PROACTIVE_VIDEO_POOLS", ["popular"])
         if not pools:
             pools = ["popular"]
@@ -1863,14 +1863,15 @@ UP主：{video_info.get('owner_name','未知')}
             elif pool == "precious":
                 all_videos.extend(await self._get_precious_videos())
             elif pool.startswith("ranking"):
-                rid = int(pool.split(":", 1)[1]) if ":" in pool else 0
-                all_videos.extend(await self._get_ranking_videos(rid))
+                ids = [int(x.strip()) for x in pool.split(":", 1)[1].split(",")] if ":" in pool else [0]
+                for rid in ids:
+                    all_videos.extend(await self._get_ranking_videos(rid))
             elif pool.startswith("newlist"):
-                tid = int(pool.split(":", 1)[1]) if ":" in pool else 0
-                if tid:
-                    all_videos.extend(await self._get_newlist_videos(tid, min_pubdate))
-                else:
+                ids = [int(x.strip()) for x in pool.split(":", 1)[1].split(",")] if ":" in pool else []
+                if not ids:
                     logger.warning(f"[BiliBot] newlist 需要指定子分区 tid，如 newlist:17")
+                for tid in ids:
+                    all_videos.extend(await self._get_newlist_videos(tid, min_pubdate))
             else:
                 logger.warning(f"[BiliBot] 未知视频池: {pool}")
         logger.info(f"[BiliBot] 📦 视频池合计: {len(all_videos)} 个（来源: {', '.join(str(p) for p in pools)}）")
