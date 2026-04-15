@@ -1047,17 +1047,18 @@ UP主：{owner}
             logger.debug(f"[BiliBot] 搜索判断失败: {e}")
             return ""
 
-    async def _should_search_for_reply(self, user_comment: str) -> str:
+    async def _should_search_for_reply(self, user_comment: str, context: str = "") -> str:
         """判断用户评论是否需要联网搜索，返回搜索 query 或空字符串。
-        使用独立的判断模型（WEB_SEARCH_JUDGE_PROVIDER_ID），只读用户那一句话。"""
+        使用独立的判断模型（WEB_SEARCH_JUDGE_PROVIDER_ID），读用户评论+最近上下文。"""
         if not self.config.get("ENABLE_WEB_SEARCH", False):
             return ""
         if not self.config.get("WEB_SEARCH_API_KEY", ""):
             return ""
         judge_provider = self.config.get("WEB_SEARCH_JUDGE_PROVIDER_ID", "")
+        ctx_block = f"\n最近对话上下文：\n{context[:500]}\n" if context else ""
         prompt = f"""判断以下B站用户评论是否需要联网搜索才能准确回复。
-
-用户评论：「{user_comment[:300]}」
+{ctx_block}
+用户最新评论：「{user_comment[:300]}」
 
 需要搜索的情况：用户提问了某个事实性问题、问了近期新闻/事件、提到了你可能不了解的专业知识/人物/产品/梗、要求你查某些信息。
 不需要搜索的情况：日常聊天、打招呼、表情、吐槽、纯情感表达、闲聊、你能凭自身知识回答的内容。
@@ -1317,7 +1318,9 @@ UP主：{video_info.get('owner_name','未知')}
             # 联网搜索：判断用户评论是否需要搜索
             web_ctx = ""
             if not is_suspicious and self.config.get("ENABLE_WEB_SEARCH", False):
-                search_query = await self._should_search_for_reply(clean_content)
+                thread_history = self._get_thread_memories(thread_id)
+                recent_ctx = "\n".join(thread_history[-5:]) if thread_history else ""
+                search_query = await self._should_search_for_reply(clean_content, context=recent_ctx)
                 if search_query:
                     search_result = await self._web_search(search_query)
                     if search_result:
@@ -2772,6 +2775,7 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                 score = w.get("score", "?")
                 actions = " ".join(w.get("actions", [])) or "无互动"
                 lines.append(f"  {i}. 「{w.get('title','?')[:30]}」")
+                lines.append(f"     🔗 bilibili.com/video/{w.get('bvid','')}")
                 lines.append(f"     UP:{w.get('up_name','?')} | {score}分 | {w.get('mood','?')}")
                 if w.get("review"): lines.append(f"     📝 {w['review'][:60]}")
                 lines.append(f"     {actions}")
