@@ -62,6 +62,7 @@ from .core.config import (
     VIDEO_MEMORY_FILE,
     WATCH_LOG_FILE,
     WEB_SEARCH_CACHE_FILE,
+    BILI_ZONES,
 )
 
 
@@ -2390,40 +2391,21 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
     @filter.command("bili分区")
     async def cmd_regions(self, event: AstrMessageEvent):
         """查看B站分区列表及编号，用于配置视频池"""
-        try:
-            d, _ = await self._http_get(
-                "https://member.bilibili.com/x/web/archive/pre",
-                timeout=10,
-            )
-            if d.get("code") != 0:
-                yield event.plain_result(f"❌ 获取分区失败: {d.get('message', d.get('code'))}")
-                return
-            typelist = d.get("data", {}).get("typelist", [])
-            if not typelist:
-                yield event.plain_result("❌ 分区数据为空")
-                return
-            lines = ["📂 B站分区列表", "━━━━━━━━━━━━",
-                      "用法：在 PROACTIVE_VIDEO_POOLS 填入：",
-                      "  ranking:rid → 一级分区排行榜",
-                      "  newlist:tid → 子分区最新视频", ""]
-            for main in typelist:
-                mid = main.get("id", 0)
-                mname = main.get("name", "")
-                lines.append(f"📁 {mname} (rid:{mid})")
-                children = main.get("children", [])
-                if children:
-                    subs = [f"  {c.get('name','')}({c.get('id',0)})" for c in children]
-                    lines.append("  └ " + "、".join(subs))
-            # 太长就分段发
-            text = "\n".join(lines)
-            if len(text) > 2000:
-                mid = len(lines) // 2
-                yield event.plain_result("\n".join(lines[:mid]))
-                yield event.plain_result("\n".join(lines[mid:]))
-            else:
-                yield event.plain_result(text)
-        except Exception as e:
-            yield event.plain_result(f"❌ 获取分区失败: {e}")
+        lines = ["📂 B站分区列表", "━━━━━━━━━━━━",
+                  "填法：ranking:rid 或 newlist:tid",
+                  "逗号可写多个如 ranking:4,160", ""]
+        for rid, zone in BILI_ZONES.items():
+            lines.append(f"📁 {zone['name']} (rid:{rid})")
+            if zone["children"]:
+                subs = [f"{name}({tid})" for tid, name in zone["children"].items()]
+                lines.append("  └ " + "、".join(subs))
+        text = "\n".join(lines)
+        if len(text) > 2000:
+            mid_idx = len(lines) // 2
+            yield event.plain_result("\n".join(lines[:mid_idx]))
+            yield event.plain_result("\n".join(lines[mid_idx:]))
+        else:
+            yield event.plain_result(text)
     @filter.command("bili启动")
     async def cmd_start(self, event: AstrMessageEvent):
         if self._running: yield event.plain_result("⚠️ 已在运行"); return
