@@ -93,6 +93,8 @@ INJECTION_PATTERNS = [
 ]
 LEVEL_NAMES = {"special":"主人💖","close":"好友✨","friend":"熟人😊","normal":"粉丝👋","stranger":"陌生人🌙","cold":"厌恶🖤"}
 THREAD_COMPRESS_THRESHOLD = 8
+OID_COMPRESS_THRESHOLD = 20    # 同一评论区（oid）记忆超过此数则压缩
+OID_KEEP_RECENT = 8            # 评论区压缩时保留最近几条
 MAX_SEMANTIC_RESULTS = 3
 USER_MEMORY_COMPRESS_THRESHOLD = 20
 USER_MEMORY_KEEP_RECENT = 5
