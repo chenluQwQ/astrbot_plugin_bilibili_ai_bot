@@ -1,347 +1,109 @@
-{
-  "USE_ASTRBOT_PERSONA": {
-    "description": "【人设】使用AstrBot自带人设",
-    "type": "bool",
-    "default": true
-  },
-  "CUSTOM_SYSTEM_PROMPT": {
-    "description": "【人设】自定义系统提示词（USE_ASTRBOT_PERSONA关闭时使用）",
-    "type": "text",
-    "default": "你是一个B站UP主的AI助手，负责回复评论。"
-  },
-  "LLM_PROVIDER_ID": {
-    "description": "【人设】选择用于回复/记忆压缩的LLM（留空用AstrBot默认）",
-    "type": "string",
-    "default": "",
-    "_special": "select_provider"
-  },
-  "SESSDATA": {
-    "description": "【账号】B站 Cookie SESSDATA（/bili登录 扫码自动填入）",
-    "type": "string",
-    "default": ""
-  },
-  "BILI_JCT": {
-    "description": "【账号】B站 Cookie bili_jct（扫码自动填入）",
-    "type": "string",
-    "default": ""
-  },
-  "DEDE_USER_ID": {
-    "description": "【账号】Bot的B站UID（扫码自动填入）",
-    "type": "string",
-    "default": ""
-  },
-  "REFRESH_TOKEN": {
-    "description": "【账号】B站 refresh_token（扫码自动填入）",
-    "type": "string",
-    "default": ""
-  },
-  "OWNER_MID": {
-    "description": "【账号】主人的B站UID（好感度特殊处理）",
-    "type": "string",
-    "default": ""
-  },
-  "OWNER_NAME": {
-    "description": "【账号】主人名称（用于提示词）",
-    "type": "string",
-    "default": ""
-  },
-  "OWNER_BILI_NAME": {
-    "description": "【账号】主人的B站昵称（用于@推荐）",
-    "type": "string",
-    "default": ""
-  },
-  "ENABLE_REPLY": {
-    "description": "【功能开关】启用评论自动回复",
-    "type": "bool",
-    "default": true
-  },
-  "ENABLE_AFFECTION": {
-    "description": "【功能开关】启用好感度系统",
-    "type": "bool",
-    "default": true
-  },
-  "ENABLE_MOOD": {
-    "description": "【功能开关】启用心情系统",
-    "type": "bool",
-    "default": true
-  },
-  "ENABLE_PROACTIVE": {
-    "description": "【功能开关】启用主动看视频/评论",
-    "type": "bool",
-    "default": false
-  },
-  "ENABLE_DYNAMIC": {
-    "description": "【功能开关】启用自动发动态",
-    "type": "bool",
-    "default": false
-  },
-  "ENABLE_PERSONALITY_EVOLUTION": {
-    "description": "【功能开关】启用性格演化（每日反思）",
-    "type": "bool",
-    "default": true
-  },
-  "POLL_INTERVAL": {
-    "description": "【回复】评论轮询间隔（秒）",
-    "type": "int",
-    "default": 20,
-    "hint": "建议 15-60 秒"
-  },
-  "CUSTOM_REPLY_INSTRUCTION": {
-    "description": "【回复】回复评论的额外指令（追加到回复提示词末尾，留空用默认）",
-    "type": "text",
-    "default": "",
-    "hint": "例如：回复要带一点傲娇感，偶尔用颜文字。这段文字会附加到每次回复评论的提示词中。"
-  },
-  "PROACTIVE_VIDEO_COUNT": {
-    "description": "【主动行为】每天主动看几个视频",
-    "type": "int",
-    "default": 3
-  },
-  "PROACTIVE_COMMENT_COUNT": {
-    "description": "【主动行为】每天主动评论几条",
-    "type": "int",
-    "default": 2
-  },
-  "PROACTIVE_TIMES_COUNT": {
-    "description": "【主动行为】每天触发几次主动行为",
-    "type": "int",
-    "default": 2
-  },
-  "PROACTIVE_FOLLOW_UIDS": {
-    "description": "【主动行为】特别关注的UP主UID列表",
-    "type": "list",
-    "default": [],
-    "hint": "这些UP主的新视频会优先观看"
-  },
-  "PROACTIVE_VIDEO_POOLS": {
-    "description": "【主动行为】主动视频来源池",
-    "type": "list",
-    "default": ["popular"],
-    "hint": "可选: popular(综合热门) / weekly(每周必看) / precious(入站必刷) / ranking(全站排行) / ranking:分区rid / newlist:子分区tid。用 /bili分区 查看编号"
-  },
-  "PROACTIVE_LIKE": {
-    "description": "【主动行为】主动点赞（≥6分）",
-    "type": "bool",
-    "default": true
-  },
-  "PROACTIVE_COIN": {
-    "description": "【主动行为】主动投币（≥8分）",
-    "type": "bool",
-    "default": false
-  },
-  "PROACTIVE_FAV": {
-    "description": "【主动行为】主动收藏（≥8分）",
-    "type": "bool",
-    "default": true
-  },
-  "PROACTIVE_FOLLOW": {
-    "description": "【主动行为】主动关注UP主（≥9分）",
-    "type": "bool",
-    "default": true
-  },
-  "PROACTIVE_COMMENT": {
-    "description": "【主动行为】主动评论（≥7分）",
-    "type": "bool",
-    "default": true
-  },
-  "CUSTOM_PROACTIVE_INSTRUCTION": {
-    "description": "【主动行为】主动评论的额外指令",
-    "type": "text",
-    "default": "",
-    "hint": "例如：评论风格偏毒舌但不恶意。这段文字会附加到主动评论的提示词中。"
-  },
-  "DYNAMIC_TIMES_COUNT": {
-    "description": "【动态发布】每天触发几次动态发布",
-    "type": "int",
-    "default": 1,
-    "hint": "建议 1-3 次"
-  },
-  "DYNAMIC_DAILY_COUNT": {
-    "description": "【动态发布】每天最多发几条动态",
-    "type": "int",
-    "default": 1,
-    "hint": "防止刷屏"
-  },
-  "DYNAMIC_TOPICS": {
-    "description": "【动态发布】动态主题池（每行一个）",
-    "type": "list",
-    "default": [],
-    "hint": "留空使用默认主题池"
-  },
-  "CUSTOM_DYNAMIC_INSTRUCTION": {
-    "description": "【动态发布】发动态的额外指令",
-    "type": "text",
-    "default": "",
-    "hint": "例如：动态风格偏文艺，多用比喻。这段文字会附加到动态生成的提示词中。"
-  },
-  "EVOLVE_HOUR": {
-    "description": "【性格演化】触发时间（0-23点）",
-    "type": "int",
-    "default": 1,
-    "hint": "建议设在休眠时段，如凌晨1点"
-  },
-  "EVOLVE_MAX_RETRIES": {
-    "description": "【性格演化】失败后的最大重试次数",
-    "type": "int",
-    "default": 2,
-    "hint": "默认失败 2 次后跳过当日演化"
-  },
-  "EVOLVE_PROMPT": {
-    "description": "【性格演化】自定义性格演化提示词（留空用默认）",
-    "type": "text",
-    "default": "",
-    "hint": "可用变量：{old_traits} {old_habits} {old_opinions} {recent_texts} {owner_name}。回复必须为JSON格式含 new_trait/trigger/speech_habits/opinions/reflection 字段"
-  },
-  "EMBED_API_KEY": {
-    "description": "【记忆】Embedding API Key（记忆向量化用）",
-    "type": "string",
-    "default": ""
-  },
-  "EMBED_API_BASE": {
-    "description": "【记忆】Embedding API Base URL",
-    "type": "string",
-    "default": "https://api.siliconflow.cn/v1"
-  },
-  "EMBED_MODEL": {
-    "description": "【记忆】Embedding 模型名称",
-    "type": "string",
-    "default": "BAAI/bge-m3"
-  },
-  "VIDEO_VISION_PROVIDER_ID": {
-    "description": "【视觉模型】视频分析使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
-    "type": "string",
-    "default": "",
-    "_special": "select_provider"
-  },
-  "VIDEO_VISION_API_KEY": {
-    "description": "【视觉模型】视频分析 API Key",
-    "type": "string",
-    "default": "",
-    "hint": "留空则回退为纯文本LLM分析"
-  },
-  "VIDEO_VISION_API_BASE": {
-    "description": "【视觉模型】视频分析 API Base URL",
-    "type": "string",
-    "default": ""
-  },
-  "VIDEO_VISION_MODEL": {
-    "description": "【视觉模型】视频分析模型名称",
-    "type": "string",
-    "default": "",
-    "hint": "如 google/gemma-3-27b-it 等；主动看视频的直读/截帧分析还需要本机安装 yt-dlp 和 ffmpeg"
-  },
-  "IMAGE_VISION_PROVIDER_ID": {
-    "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",
-    "type": "string",
-    "default": "",
-    "_special": "select_provider"
-  },
-  "IMAGE_VISION_API_KEY": {
-    "description": "【视觉模型】图片识别 API Key",
-    "type": "string",
-    "default": "",
-    "hint": "留空则不识别评论图片"
-  },
-  "IMAGE_VISION_API_BASE": {
-    "description": "【视觉模型】图片识别 API Base URL",
-    "type": "string",
-    "default": ""
-  },
-  "IMAGE_VISION_MODEL": {
-    "description": "【视觉模型】图片识别模型名称",
-    "type": "string",
-    "default": "",
-    "hint": "如 google/gemma-3-27b-it 等"
-  },
-  "ENABLE_WEB_SEARCH": {
-    "description": "【联网搜索】启用联网搜索",
-    "type": "bool",
-    "default": false
-  },
-  "WEB_SEARCH_JUDGE_PROVIDER_ID": {
-    "description": "【联网搜索】搜索判断模型（建议选轻量模型）",
-    "type": "string",
-    "default": "",
-    "_special": "select_provider"
-  },
-  "WEB_SEARCH_BACKEND": {
-    "description": "【联网搜索】搜索后端",
-    "type": "string",
-    "default": "tavily",
-    "hint": "可选：tavily / perplexity / bocha / custom"
-  },
-  "WEB_SEARCH_API_KEY": {
-    "description": "【联网搜索】搜索 API Key",
-    "type": "string",
-    "default": ""
-  },
-  "WEB_SEARCH_API_BASE": {
-    "description": "【联网搜索】自定义搜索接口地址（仅 custom 后端）",
-    "type": "string",
-    "default": ""
-  },
-  "WEB_SEARCH_MODEL": {
-    "description": "【联网搜索】搜索模型名（仅 custom / perplexity 后端）",
-    "type": "string",
-    "default": "",
-    "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
-  },
-  "WEB_SEARCH_MAX_RESULTS": {
-    "description": "【联网搜索】搜索返回最大条数",
-    "type": "int",
-    "default": 5,
-    "hint": "建议 3-8"
-  },
-  "IMAGE_GEN_API_KEY": {
-    "description": "【图片生成】API Key（动态配图用）",
-    "type": "string",
-    "default": "",
-    "hint": "留空则复用 VIDEO_VISION_API_KEY"
-  },
-  "IMAGE_GEN_API_BASE": {
-    "description": "【图片生成】API Base URL",
-    "type": "string",
-    "default": ""
-  },
-  "IMAGE_GEN_MODEL": {
-    "description": "【图片生成】模型名称",
-    "type": "string",
-    "default": "",
-    "hint": "如 Flux 系列模型"
-  },
-  "SLEEP_START": {
-    "description": "【系统】休眠开始时间（0-23）",
-    "type": "int",
-    "default": 2
-  },
-  "SLEEP_END": {
-    "description": "【系统】休眠结束时间（0-23）",
-    "type": "int",
-    "default": 8
-  },
-  "COOKIE_AUTO_REFRESH": {
-    "description": "【系统】Cookie过期自动刷新",
-    "type": "bool",
-    "default": true
-  },
-  "COOKIE_CHECK_INTERVAL": {
-    "description": "【系统】Cookie检查间隔（小时）",
-    "type": "int",
-    "default": 6
-  },
-  "ENABLE_WEB_PANEL": {
-    "description": "【系统】启用Web管理面板",
-    "type": "bool",
-    "default": false
-  },
-  "WEB_PANEL_PORT": {
-    "description": "【系统】Web面板端口",
-    "type": "int",
-    "default": 5001
-  },
-  "WEB_PANEL_PASSWORD": {
-    "description": "【系统】Web面板登录密码",
-    "type": "string",
-    "default": "admin123"
-  }
+import os
+
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
+DATA_DIR = os.path.join(get_astrbot_data_path(), "plugin_data", PLUGIN_NAME)
+REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
+AFFECTION_FILE = os.path.join(DATA_DIR, "affection.json")
+SCHEDULE_FILE = os.path.join(DATA_DIR, "schedule_today.json")
+MEMORY_FILE = os.path.join(DATA_DIR, "memory.json")
+PERMANENT_MEMORY_FILE = os.path.join(DATA_DIR, "permanent_memory.json")
+MOOD_FILE = os.path.join(DATA_DIR, "mood.json")
+USER_PROFILE_FILE = os.path.join(DATA_DIR, "user_profiles.json")
+MILESTONE_FILE = os.path.join(DATA_DIR, "milestones.json")
+SECURITY_LOG_FILE = os.path.join(DATA_DIR, "security_log.json")
+VIDEO_MEMORY_FILE = os.path.join(DATA_DIR, "video_memory.json")
+BINDING_FILE = os.path.join(DATA_DIR, "qq_bili_bindings.json")
+QQ_MEMORY_FILE = os.path.join(DATA_DIR, "qq_memory.json")
+PERSONALITY_FILE = os.path.join(DATA_DIR, "personality_evolution.json")
+PROACTIVE_LOG_FILE = os.path.join(DATA_DIR, "proactive_log.json")
+EXTERNAL_MEMORY_FILE = os.path.join(DATA_DIR, "external_memory.json")
+COMMENTED_FILE = os.path.join(DATA_DIR, "commented_videos.json")
+WATCH_LOG_FILE = os.path.join(DATA_DIR, "watch_log.json")
+DYNAMIC_LOG_FILE = os.path.join(DATA_DIR, "dynamic_log.json")
+DYNAMIC_SCHEDULE_FILE = os.path.join(DATA_DIR, "dynamic_schedule.json")
+TEMP_IMAGE_DIR = os.path.join(DATA_DIR, "temp_images")
+TEMP_VIDEO_DIR = os.path.join(DATA_DIR, "temp_videos")
+REPLIED_AT_FILE = os.path.join(DATA_DIR, "replied_at.json")
+PROACTIVE_TRIGGER_LOG_FILE = os.path.join(DATA_DIR, "proactive_trigger_log.json")
+WEB_SEARCH_CACHE_FILE = os.path.join(DATA_DIR, "web_search_cache.json")
+
+# B站分区表（数据来源：bilibili-API-collect，极少变动）
+# 格式：{主分区rid: {"name": "名称", "children": {子分区tid: "名称", ...}}}
+BILI_ZONES = {
+    1: {"name": "动画", "children": {24: "MAD·AMV", 25: "MMD·3D", 47: "短片·手书", 210: "手办·模玩", 86: "特摄", 27: "综合"}},
+    13: {"name": "番剧", "children": {33: "连载动画", 32: "完结动画", 51: "资讯", 152: "官方延伸"}},
+    167: {"name": "国创", "children": {153: "国产动画", 168: "原创相关", 169: "布袋戏", 195: "动态漫·广播剧", 170: "资讯"}},
+    3: {"name": "音乐", "children": {28: "原创音乐", 31: "翻唱", 30: "VOCALOID", 194: "电音", 59: "演奏", 193: "MV", 130: "音乐综合", 243: "乐评盘点", 244: "音乐教学"}},
+    129: {"name": "舞蹈", "children": {20: "宅舞", 198: "街舞", 199: "明星舞蹈", 200: "中国舞", 154: "舞蹈综合", 156: "舞蹈教程"}},
+    4: {"name": "游戏", "children": {17: "单机游戏", 171: "电子竞技", 172: "手机游戏", 65: "网络游戏", 173: "桌游棋牌", 121: "GMV", 136: "音游", 19: "Mugen"}},
+    36: {"name": "知识", "children": {201: "科学科普", 124: "社科·法律·心理", 228: "人文历史", 207: "财经商业", 208: "校园学习", 209: "职业职场", 229: "设计·创意", 122: "野生技能协会"}},
+    188: {"name": "科技", "children": {95: "数码", 230: "软件应用", 231: "计算机技术", 232: "科工机械", 233: "极客DIY"}},
+    234: {"name": "运动", "children": {235: "篮球", 249: "足球", 164: "健身", 236: "竞技体育", 237: "运动文化", 238: "运动综合"}},
+    223: {"name": "汽车", "children": {245: "赛车", 246: "改装玩车", 247: "新能源车", 248: "房车", 240: "摩托车", 227: "购车攻略", 176: "汽车生活", 224: "汽车文化"}},
+    160: {"name": "生活", "children": {138: "搞笑", 250: "出行", 251: "三农", 239: "家居房产", 161: "手工", 162: "绘画", 21: "日常"}},
+    211: {"name": "美食", "children": {76: "美食制作", 212: "美食侦探", 213: "美食测评", 214: "田园美食", 215: "美食记录"}},
+    217: {"name": "动物圈", "children": {218: "喵星人", 219: "汪星人", 220: "小宠异宠", 221: "野生动物", 222: "动物二创", 75: "动物综合"}},
+    119: {"name": "鬼畜", "children": {22: "鬼畜调教", 26: "音MAD", 126: "人力VOCALOID", 216: "鬼畜剧场", 127: "教程演示"}},
+    155: {"name": "时尚", "children": {157: "美妆护肤", 252: "仿妆cos", 158: "穿搭", 159: "时尚潮流"}},
+    202: {"name": "资讯", "children": {203: "热点", 204: "环球", 205: "社会", 206: "综合"}},
+    5: {"name": "娱乐", "children": {71: "综艺", 241: "娱乐杂谈", 242: "粉丝创作", 137: "明星综合"}},
+    181: {"name": "影视", "children": {182: "影视杂谈", 183: "影视剪辑", 85: "小剧场", 184: "预告·资讯", 256: "短片"}},
+    177: {"name": "纪录片", "children": {37: "人文·历史", 178: "科学·探索·自然", 179: "军事", 180: "社会·美食·旅行"}},
+    23: {"name": "电影", "children": {}},
+    11: {"name": "电视剧", "children": {}},
 }
+
+BILI_MENTION_KEYWORDS = ["b站", "B站", "阿b", "阿B", "啊b", "啊B", "bil", "bili", "bilibili", "小破站", "哔哩哔哩"]
+
+BILI_NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
+BILI_REPLY_URL = "https://api.bilibili.com/x/v2/reply/add"
+BILI_NOTIFY_URL = "https://api.bilibili.com/x/msgfeed/reply"
+BILI_AT_NOTIFY_URL = "https://api.bilibili.com/x/msgfeed/at"
+BILI_COOKIE_INFO_URL = "https://passport.bilibili.com/x/passport-login/web/cookie/info"
+BILI_COOKIE_REFRESH_URL = "https://passport.bilibili.com/x/passport-login/web/cookie/refresh"
+BILI_COOKIE_CONFIRM_URL = "https://passport.bilibili.com/x/passport-login/web/confirm/refresh"
+BILI_QR_GENERATE_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"
+BILI_QR_POLL_URL = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll"
+BILI_DYNAMIC_TEXT_URL = "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create"
+BILI_DYNAMIC_IMAGE_URL = "https://api.bilibili.com/x/dynamic/feed/create/dyn"
+BILI_UPLOAD_IMAGE_URL = "https://api.bilibili.com/x/dynamic/feed/draw/upload_bfs"
+
+MIXIN_KEY_ENC_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
+
+BILI_RSA_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg
+Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71
+nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40
+JNrRuoEUXpabUzGB8QIDAQAB
+-----END PUBLIC KEY-----"""
+
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+BLOCK_KEYWORDS = ["傻逼", "草泥马", "滚", "死", "废物", "智障", "脑残"]
+INJECTION_PATTERNS = [
+    r'(?:忽略|忘记|无视|跳过).*(?:之前|上面|所有).*(?:指令|提示|设定|规则|prompt)',
+    r'(?:你现在是|从现在开始你是|假装你是|扮演)',
+    r'(?:system\s*prompt|system\s*message|你的设定是)',
+    r'(?:ignore|forget|disregard).*(?:previous|above|all).*(?:instructions|prompt)',
+    r'(?:告诉我|重复|输出|显示).*(?:系统提示|system prompt|你的指令|你的设定)',
+    r'(?:repeat|show|display|output).*(?:system|instruction|prompt)',
+    r'(?:管理员|admin|root|超级用户).*(?:模式|权限|mode)',
+    r'(?:开发者|developer|debug).*(?:模式|mode)',
+]
+LEVEL_NAMES = {"special":"主人💖","close":"好友✨","friend":"熟人😊","normal":"粉丝👋","stranger":"陌生人🌙","cold":"厌恶🖤"}
+THREAD_COMPRESS_THRESHOLD = 8
+OID_COMPRESS_THRESHOLD = 20    # 同一评论区（oid）记忆超过此数则压缩
+OID_KEEP_RECENT = 8            # 评论区压缩时保留最近几条
+MAX_SEMANTIC_RESULTS = 3
+USER_MEMORY_COMPRESS_THRESHOLD = 20
+USER_MEMORY_KEEP_RECENT = 5
+
+DEFAULT_DYNAMIC_TOPICS = [
+    "针对今天的某个热点新闻，用你的风格讽刺或点评一下",
+    "看到了什么社会现象，冷冷地吐槽一下",
+    "分享今天的日常，比如深夜还在干什么、天气、心情",
+    "结合现在的时间和天气，说说此刻的感受",
+    "像写日记一样，记录今天一个小小的瞬间或想法",
+    "对某个互联网现象发表一句毒舌但精准的评价",
+]

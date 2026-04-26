@@ -1,73 +1,347 @@
-# 更新日志
-
-## v1.1.2 (2026-04-26)
-
-### 🔧 Bug 修复
-
-- **动态获取四层 bug 修复**
-  - 修复 `dict.get(key, {})` 在值为 `None` 时不返回默认值的问题（经典 Python 陷阱）
-  - 修复 `comment_type=11` 时错误地将 doc_id 当作 dynamic_id 传给详情 API
-  - 修复 B站动态详情 API 缺少 `features` 参数导致返回空数据
-  - 修复 B站 opus 格式动态的文字和图片解析路径（`major.opus.summary.text` / `major.opus.pics`）
-- **所有 B站 web-dynamic 系列 API 统一补充 `features=itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote` 参数**
-  - `x/polymer/web-dynamic/v1/detail`
-  - `x/polymer/web-dynamic/v1/feed/space`
-  - `x/polymer/web-dynamic/v1/feed/all`
-
-### ✨ 新增功能
-
-- **工具调用体系重构：FunctionTool 模式**
-  - 所有 LLM 工具从 `@filter.llm_tool` 迁移到 `FunctionTool` 类定义（`core/tools.py`）
-  - 工具返回结果回到 LLM 上下文，由 LLM 按人设风格重新生成回复，不再直接暴露原始数据给用户
-
-- **新增 15 个 LLM 工具**
-
-  **记忆类（4 个）：**
-  - `recall_user` — 查询用户画像 / 印象 / 好感度，支持 UID 或用户名模糊搜索
-  - `recall_conversation` — 语义搜索对话记忆，可限定用户
-  - `recall_video` — 搜索看过的视频记忆
-  - `recall_dynamic` — 搜索动态相关记忆
-
-  **B站查询类（3 个）：**
-  - `search_bilibili` — 搜索视频或 UP 主，支持用户想看某类内容时推荐视频
-  - `get_up_info` — 查询 UP 主详细信息 + 最近投稿 + 最近动态，支持 UID 或名字输入
-  - `watch_video` — 去看一个视频（拉信息 + AI 分析 + 评分 + 存记忆），看完后可链式调用互动工具
-
-  **B站操作类（5 个）：**
-  - `post_comment` — 在视频下发评论
-  - `like_video` — 点赞
-  - `coin_video` — 投币（1 或 2 个）
-  - `fav_video` — 收藏到默认收藏夹
-  - `follow_up` — 关注 UP 主，支持 UID 或名字输入
-
-  **关注动态类（2 个）：**
-  - `check_following_updates` — 查看今天关注的 UP 主有没有人更新（视频 / 动态 / 直播）
-  - `check_following_live` — 查看关注的人谁在直播（标题 / 分区 / 人气 / 链接）
-
-  **主动行为（1 个）：**
-  - `bili_watch_videos` — 触发一次主动看视频流程
-
-- **新增 B站 API 方法**（`core/bilibili.py`）
-  - `search_bilibili_videos` — 视频搜索（WBI 签名）
-  - `search_bilibili_users` — 用户搜索（WBI 签名）
-  - `get_up_info` — UP 主详细信息（WBI 签名）
-  - `get_up_recent_videos` — UP 主最近投稿列表（WBI 签名）
-  - `get_up_recent_dynamics` — UP 主最近动态（opus 格式兼容）
-  - `get_following_updates` — 关注动态流（今日更新过滤）
-  - `get_following_live` — 关注直播列表
-
-### 🎨 优化
-
-- **配置界面重排**（`_conf_schema.json`）
-  - 按功能分组并以【标签】前缀标注：人设 → 账号 → 功能开关 → 回复 → 主动行为 → 动态发布 → 性格演化 → 记忆 → 视觉模型 → 联网搜索 → 图片生成 → 系统
-  - 核心设置排最前，小功能靠后
-
-- **工具描述优化**
-  - 所有工具加入"不确定时先问用户"的行为约束
-  - 记忆类工具加入"每次对话只调用一次，查不到就说没有"防止循环调用
-  - 操作类工具加入"需要用户同意或主动要求时才使用"的约束
-  - Bot 自身 UID 和主人 UID 注入到相关工具描述中
-
-- **视频内容详情长度调整**
-  - 工具返回的视频内容详情从 500 字扩展到 800 字
-  - 记忆存储的视频内容从 200 字扩展到 500 字
+{
+  "USE_ASTRBOT_PERSONA": {
+    "description": "【人设】使用AstrBot自带人设",
+    "type": "bool",
+    "default": true
+  },
+  "CUSTOM_SYSTEM_PROMPT": {
+    "description": "【人设】自定义系统提示词（USE_ASTRBOT_PERSONA关闭时使用）",
+    "type": "text",
+    "default": "你是一个B站UP主的AI助手，负责回复评论。"
+  },
+  "LLM_PROVIDER_ID": {
+    "description": "【人设】选择用于回复/记忆压缩的LLM（留空用AstrBot默认）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "SESSDATA": {
+    "description": "【账号】B站 Cookie SESSDATA（/bili登录 扫码自动填入）",
+    "type": "string",
+    "default": ""
+  },
+  "BILI_JCT": {
+    "description": "【账号】B站 Cookie bili_jct（扫码自动填入）",
+    "type": "string",
+    "default": ""
+  },
+  "DEDE_USER_ID": {
+    "description": "【账号】Bot的B站UID（扫码自动填入）",
+    "type": "string",
+    "default": ""
+  },
+  "REFRESH_TOKEN": {
+    "description": "【账号】B站 refresh_token（扫码自动填入）",
+    "type": "string",
+    "default": ""
+  },
+  "OWNER_MID": {
+    "description": "【账号】主人的B站UID（好感度特殊处理）",
+    "type": "string",
+    "default": ""
+  },
+  "OWNER_NAME": {
+    "description": "【账号】主人名称（用于提示词）",
+    "type": "string",
+    "default": ""
+  },
+  "OWNER_BILI_NAME": {
+    "description": "【账号】主人的B站昵称（用于@推荐）",
+    "type": "string",
+    "default": ""
+  },
+  "ENABLE_REPLY": {
+    "description": "【功能开关】启用评论自动回复",
+    "type": "bool",
+    "default": true
+  },
+  "ENABLE_AFFECTION": {
+    "description": "【功能开关】启用好感度系统",
+    "type": "bool",
+    "default": true
+  },
+  "ENABLE_MOOD": {
+    "description": "【功能开关】启用心情系统",
+    "type": "bool",
+    "default": true
+  },
+  "ENABLE_PROACTIVE": {
+    "description": "【功能开关】启用主动看视频/评论",
+    "type": "bool",
+    "default": false
+  },
+  "ENABLE_DYNAMIC": {
+    "description": "【功能开关】启用自动发动态",
+    "type": "bool",
+    "default": false
+  },
+  "ENABLE_PERSONALITY_EVOLUTION": {
+    "description": "【功能开关】启用性格演化（每日反思）",
+    "type": "bool",
+    "default": true
+  },
+  "POLL_INTERVAL": {
+    "description": "【回复】评论轮询间隔（秒）",
+    "type": "int",
+    "default": 20,
+    "hint": "建议 15-60 秒"
+  },
+  "CUSTOM_REPLY_INSTRUCTION": {
+    "description": "【回复】回复评论的额外指令（追加到回复提示词末尾，留空用默认）",
+    "type": "text",
+    "default": "",
+    "hint": "例如：回复要带一点傲娇感，偶尔用颜文字。这段文字会附加到每次回复评论的提示词中。"
+  },
+  "PROACTIVE_VIDEO_COUNT": {
+    "description": "【主动行为】每天主动看几个视频",
+    "type": "int",
+    "default": 3
+  },
+  "PROACTIVE_COMMENT_COUNT": {
+    "description": "【主动行为】每天主动评论几条",
+    "type": "int",
+    "default": 2
+  },
+  "PROACTIVE_TIMES_COUNT": {
+    "description": "【主动行为】每天触发几次主动行为",
+    "type": "int",
+    "default": 2
+  },
+  "PROACTIVE_FOLLOW_UIDS": {
+    "description": "【主动行为】特别关注的UP主UID列表",
+    "type": "list",
+    "default": [],
+    "hint": "这些UP主的新视频会优先观看"
+  },
+  "PROACTIVE_VIDEO_POOLS": {
+    "description": "【主动行为】主动视频来源池",
+    "type": "list",
+    "default": ["popular"],
+    "hint": "可选: popular(综合热门) / weekly(每周必看) / precious(入站必刷) / ranking(全站排行) / ranking:分区rid / newlist:子分区tid。用 /bili分区 查看编号"
+  },
+  "PROACTIVE_LIKE": {
+    "description": "【主动行为】主动点赞（≥6分）",
+    "type": "bool",
+    "default": true
+  },
+  "PROACTIVE_COIN": {
+    "description": "【主动行为】主动投币（≥8分）",
+    "type": "bool",
+    "default": false
+  },
+  "PROACTIVE_FAV": {
+    "description": "【主动行为】主动收藏（≥8分）",
+    "type": "bool",
+    "default": true
+  },
+  "PROACTIVE_FOLLOW": {
+    "description": "【主动行为】主动关注UP主（≥9分）",
+    "type": "bool",
+    "default": true
+  },
+  "PROACTIVE_COMMENT": {
+    "description": "【主动行为】主动评论（≥7分）",
+    "type": "bool",
+    "default": true
+  },
+  "CUSTOM_PROACTIVE_INSTRUCTION": {
+    "description": "【主动行为】主动评论的额外指令",
+    "type": "text",
+    "default": "",
+    "hint": "例如：评论风格偏毒舌但不恶意。这段文字会附加到主动评论的提示词中。"
+  },
+  "DYNAMIC_TIMES_COUNT": {
+    "description": "【动态发布】每天触发几次动态发布",
+    "type": "int",
+    "default": 1,
+    "hint": "建议 1-3 次"
+  },
+  "DYNAMIC_DAILY_COUNT": {
+    "description": "【动态发布】每天最多发几条动态",
+    "type": "int",
+    "default": 1,
+    "hint": "防止刷屏"
+  },
+  "DYNAMIC_TOPICS": {
+    "description": "【动态发布】动态主题池（每行一个）",
+    "type": "list",
+    "default": [],
+    "hint": "留空使用默认主题池"
+  },
+  "CUSTOM_DYNAMIC_INSTRUCTION": {
+    "description": "【动态发布】发动态的额外指令",
+    "type": "text",
+    "default": "",
+    "hint": "例如：动态风格偏文艺，多用比喻。这段文字会附加到动态生成的提示词中。"
+  },
+  "EVOLVE_HOUR": {
+    "description": "【性格演化】触发时间（0-23点）",
+    "type": "int",
+    "default": 1,
+    "hint": "建议设在休眠时段，如凌晨1点"
+  },
+  "EVOLVE_MAX_RETRIES": {
+    "description": "【性格演化】失败后的最大重试次数",
+    "type": "int",
+    "default": 2,
+    "hint": "默认失败 2 次后跳过当日演化"
+  },
+  "EVOLVE_PROMPT": {
+    "description": "【性格演化】自定义性格演化提示词（留空用默认）",
+    "type": "text",
+    "default": "",
+    "hint": "可用变量：{old_traits} {old_habits} {old_opinions} {recent_texts} {owner_name}。回复必须为JSON格式含 new_trait/trigger/speech_habits/opinions/reflection 字段"
+  },
+  "EMBED_API_KEY": {
+    "description": "【记忆】Embedding API Key（记忆向量化用）",
+    "type": "string",
+    "default": ""
+  },
+  "EMBED_API_BASE": {
+    "description": "【记忆】Embedding API Base URL",
+    "type": "string",
+    "default": "https://api.siliconflow.cn/v1"
+  },
+  "EMBED_MODEL": {
+    "description": "【记忆】Embedding 模型名称",
+    "type": "string",
+    "default": "BAAI/bge-m3"
+  },
+  "VIDEO_VISION_PROVIDER_ID": {
+    "description": "【视觉模型】视频分析使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "VIDEO_VISION_API_KEY": {
+    "description": "【视觉模型】视频分析 API Key",
+    "type": "string",
+    "default": "",
+    "hint": "留空则回退为纯文本LLM分析"
+  },
+  "VIDEO_VISION_API_BASE": {
+    "description": "【视觉模型】视频分析 API Base URL",
+    "type": "string",
+    "default": ""
+  },
+  "VIDEO_VISION_MODEL": {
+    "description": "【视觉模型】视频分析模型名称",
+    "type": "string",
+    "default": "",
+    "hint": "如 google/gemma-3-27b-it 等；主动看视频的直读/截帧分析还需要本机安装 yt-dlp 和 ffmpeg"
+  },
+  "IMAGE_VISION_PROVIDER_ID": {
+    "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "IMAGE_VISION_API_KEY": {
+    "description": "【视觉模型】图片识别 API Key",
+    "type": "string",
+    "default": "",
+    "hint": "留空则不识别评论图片"
+  },
+  "IMAGE_VISION_API_BASE": {
+    "description": "【视觉模型】图片识别 API Base URL",
+    "type": "string",
+    "default": ""
+  },
+  "IMAGE_VISION_MODEL": {
+    "description": "【视觉模型】图片识别模型名称",
+    "type": "string",
+    "default": "",
+    "hint": "如 google/gemma-3-27b-it 等"
+  },
+  "ENABLE_WEB_SEARCH": {
+    "description": "【联网搜索】启用联网搜索",
+    "type": "bool",
+    "default": false
+  },
+  "WEB_SEARCH_JUDGE_PROVIDER_ID": {
+    "description": "【联网搜索】搜索判断模型（建议选轻量模型）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "WEB_SEARCH_BACKEND": {
+    "description": "【联网搜索】搜索后端",
+    "type": "string",
+    "default": "tavily",
+    "hint": "可选：tavily / perplexity / bocha / custom"
+  },
+  "WEB_SEARCH_API_KEY": {
+    "description": "【联网搜索】搜索 API Key",
+    "type": "string",
+    "default": ""
+  },
+  "WEB_SEARCH_API_BASE": {
+    "description": "【联网搜索】自定义搜索接口地址（仅 custom 后端）",
+    "type": "string",
+    "default": ""
+  },
+  "WEB_SEARCH_MODEL": {
+    "description": "【联网搜索】搜索模型名（仅 custom / perplexity 后端）",
+    "type": "string",
+    "default": "",
+    "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
+  },
+  "WEB_SEARCH_MAX_RESULTS": {
+    "description": "【联网搜索】搜索返回最大条数",
+    "type": "int",
+    "default": 5,
+    "hint": "建议 3-8"
+  },
+  "IMAGE_GEN_API_KEY": {
+    "description": "【图片生成】API Key（动态配图用）",
+    "type": "string",
+    "default": "",
+    "hint": "留空则复用 VIDEO_VISION_API_KEY"
+  },
+  "IMAGE_GEN_API_BASE": {
+    "description": "【图片生成】API Base URL",
+    "type": "string",
+    "default": ""
+  },
+  "IMAGE_GEN_MODEL": {
+    "description": "【图片生成】模型名称",
+    "type": "string",
+    "default": "",
+    "hint": "如 Flux 系列模型"
+  },
+  "SLEEP_START": {
+    "description": "【系统】休眠开始时间（0-23）",
+    "type": "int",
+    "default": 2
+  },
+  "SLEEP_END": {
+    "description": "【系统】休眠结束时间（0-23）",
+    "type": "int",
+    "default": 8
+  },
+  "COOKIE_AUTO_REFRESH": {
+    "description": "【系统】Cookie过期自动刷新",
+    "type": "bool",
+    "default": true
+  },
+  "COOKIE_CHECK_INTERVAL": {
+    "description": "【系统】Cookie检查间隔（小时）",
+    "type": "int",
+    "default": 6
+  },
+  "ENABLE_WEB_PANEL": {
+    "description": "【系统】启用Web管理面板",
+    "type": "bool",
+    "default": false
+  },
+  "WEB_PANEL_PORT": {
+    "description": "【系统】Web面板端口",
+    "type": "int",
+    "default": 5001
+  },
+  "WEB_PANEL_PASSWORD": {
+    "description": "【系统】Web面板登录密码",
+    "type": "string",
+    "default": "admin123"
+  }
+}
