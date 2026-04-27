@@ -54,9 +54,6 @@ class ReplyMixin:
             custom_reply_inst = self.config.get("CUSTOM_REPLY_INSTRUCTION", "")
             if custom_reply_inst:
                 prompt += f"\n\n【补充提示词】{custom_reply_inst}"
-            custom_affection_inst = self.config.get("CUSTOM_AFFECTION_INSTRUCTION", "")
-            if custom_affection_inst:
-                prompt += f"\n\n【好感度行为补充】{custom_affection_inst}"
             rt = await self._llm_call(prompt, system_prompt=sp)
             if not rt:
                 return None

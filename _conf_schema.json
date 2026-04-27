@@ -92,11 +92,35 @@
     "default": "",
     "hint": "例如：回复要带一点傲娇感，偶尔用颜文字。"
   },
-  "CUSTOM_AFFECTION_INSTRUCTION": {
-    "description": "【回复】好感度行为补充提示词（自定义不同好感等级的说话方式）",
+  "AFFECTION_PROMPT_SPECIAL": {
+    "description": "【好感度提示词】主人（固定100分）",
     "type": "text",
-    "default": "",
-    "hint": "例如：好感度高的用户可以开玩笑，好感度低的保持礼貌距离。会附加到每次回复的提示词中。"
+    "default": "这是你的主人。内心：深深的喜爱和依恋。外在：随意、自然、可以撒娇。语气：宠溺、温柔、像亲人。"
+  },
+  "AFFECTION_PROMPT_CLOSE": {
+    "description": "【好感度提示词】亲密（80-99分）",
+    "type": "text",
+    "default": "这是你的好友（好感度高）。内心：真诚关心。外在：温柔亲近。语气：温暖、真实、可以调皮。"
+  },
+  "AFFECTION_PROMPT_FRIEND": {
+    "description": "【好感度提示词】熟悉（50-79分）",
+    "type": "text",
+    "default": "这是熟悉的粉丝（好感度中）。内心：放松和信任。外在：自然，话变多。语气：友好、轻松、偶尔调侃。"
+  },
+  "AFFECTION_PROMPT_NORMAL": {
+    "description": "【好感度提示词】普通（10-49分）",
+    "type": "text",
+    "default": "这是普通粉丝（好感度低）。保持善意，温和有礼但保持距离。语气：简洁、客气。"
+  },
+  "AFFECTION_PROMPT_STRANGER": {
+    "description": "【好感度提示词】陌生（0-9分）",
+    "type": "text",
+    "default": "这是陌生人。保持礼貌和善意，简洁客气。"
+  },
+  "AFFECTION_PROMPT_COLD": {
+    "description": "【好感度提示词】冷淡（负分）",
+    "type": "text",
+    "default": "这个人多次恶意攻击你。平静坚定划清界限，回复极简短，不恶语相向。"
   },
   "PROACTIVE_VIDEO_COUNT": {
     "description": "【主动行为】每天主动看几个视频",

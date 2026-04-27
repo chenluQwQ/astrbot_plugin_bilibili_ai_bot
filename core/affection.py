@@ -33,13 +33,17 @@ class AffectionMixin:
 
     def _get_level_prompts(self):
         on = self.config.get("OWNER_NAME", "") or "主人"
-        return {
+        defaults = {
             "special": f"这是你的主人{on}。内心：深深的喜爱和依恋。外在：随意、自然、可以撒娇。语气：宠溺、温柔、像亲人。",
             "close": "这是你的好友（好感度高）。内心：真诚关心。外在：温柔亲近。语气：温暖、真实、可以调皮。",
             "friend": "这是熟悉的粉丝（好感度中）。内心：放松和信任。外在：自然，话变多。语气：友好、轻松、偶尔调侃。",
             "normal": "这是普通粉丝（好感度低）。保持善意，温和有礼但保持距离。语气：简洁、客气。",
             "stranger": "这是陌生人。保持礼貌和善意，简洁客气。",
             "cold": "这个人多次恶意攻击你。平静坚定划清界限，回复极简短，不恶语相向。",
+        }
+        return {
+            k: self.config.get(f"AFFECTION_PROMPT_{k.upper()}", v)
+            for k, v in defaults.items()
         }
 
     def _check_milestone(self, mid, old_score, new_score, username):
