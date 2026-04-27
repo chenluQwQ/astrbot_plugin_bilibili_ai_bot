@@ -125,12 +125,7 @@ class DynamicMixin:
             try:
                 return json.loads(text)
             except json.JSONDecodeError:
-                match = re.search(r'\{.*\}', text, re.DOTALL)
-                if match:
-                    try:
-                        return json.loads(match.group())
-                    except Exception:
-                        pass
+                pass
             logger.warning(f"[BiliBot] 动态内容JSON解析失败: {text[:100]}")
             return None
         except Exception as e:

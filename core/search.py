@@ -2,6 +2,7 @@
 import re
 import json
 import time
+from collections import OrderedDict
 import aiohttp
 from astrbot.api import logger
 from .config import WEB_SEARCH_CACHE_FILE
@@ -35,13 +36,16 @@ class WebSearchMixin:
             return ""
         backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower().strip()
         max_results = self.config.get("WEB_SEARCH_MAX_RESULTS", 5)
-        cache = self._load_json(WEB_SEARCH_CACHE_FILE, {})
+        cache = OrderedDict(self._load_json(WEB_SEARCH_CACHE_FILE, {}))
         cache_key = f"{backend}:{query}"
         if cache_key in cache:
             cached = cache[cache_key]
             if time.time() - cached.get("ts", 0) < 86400:
                 logger.debug(f"[BiliBot] 🔍 搜索命中缓存: {query[:40]}")
+                cache.move_to_end(cache_key)
                 return cached.get("result", "")
+            else:
+                del cache[cache_key]
         logger.info(f"[BiliBot] 🔍 联网搜索({backend}): {query[:60]}")
         result = ""
         try:
@@ -61,11 +65,10 @@ class WebSearchMixin:
             return ""
         if result:
             cache[cache_key] = {"ts": time.time(), "result": result}
-            if len(cache) > 200:
-                sorted_keys = sorted(cache, key=lambda k: cache[k].get("ts", 0))
-                for k in sorted_keys[: len(cache) - 200]:
-                    del cache[k]
-            self._save_json(WEB_SEARCH_CACHE_FILE, cache)
+            cache.move_to_end(cache_key)
+            while len(cache) > 200:
+                cache.popitem(last=False)
+            self._save_json(WEB_SEARCH_CACHE_FILE, dict(cache))
         return result
 
     async def _search_tavily(self, query: str, api_key: str, max_results: int) -> str:

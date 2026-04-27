@@ -1,6 +1,6 @@
 """
 AstrBot Plugin - Bilibili Bot 1.2.0
-自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、Web管理面板。
+自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
 import sys
@@ -26,14 +26,6 @@ if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.p
 @register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.1.2","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
 class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
-        # 清理旧缓存，确保插件更新后代码生效
-        import shutil as _shutil
-        _plugin_dir = os.path.dirname(os.path.abspath(__file__))
-        for _root, _dirs, _ in os.walk(_plugin_dir):
-            for _d in _dirs:
-                if _d == "__pycache__":
-                    _shutil.rmtree(os.path.join(_root, _d), ignore_errors=True)
-
         super().__init__(context)
         self.config = config
         self._ensure_data_dir()
@@ -59,26 +51,13 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._proactive_times, self._proactive_triggered = [], set()
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
-        self._web_panel = None
         self._log_environment_warnings()
         if self._has_cookie():
             asyncio.create_task(self._auto_start())
-        if self.config.get("ENABLE_WEB_PANEL", False):
-            asyncio.create_task(self._start_web_panel())
 
         # 注册 FunctionTool 工具（结果回到 LLM 重新生成）
         from .core.tools import create_tools
         self.context.add_llm_tools(*create_tools(self))
-
-    async def _start_web_panel(self):
-        try:
-            from .web_panel import WebPanel
-            port = self.config.get("WEB_PANEL_PORT", 5001)
-            password = self.config.get("WEB_PANEL_PASSWORD", "admin123")
-            self._web_panel = WebPanel(self, port=port, password=password)
-            await self._web_panel.start()
-        except Exception as e:
-            logger.error(f"[BiliBot] Web面板启动失败: {e}")
 
     async def _auto_start(self):
         await asyncio.sleep(3)
@@ -156,7 +135,6 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
-        if self._web_panel: await self._web_panel.stop()
         self._cleanup_temp_files()
         logger.info("[BiliBot] 已停用")
     # ===== QQ命令 =====

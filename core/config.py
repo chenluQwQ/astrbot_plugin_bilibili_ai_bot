@@ -1,9 +1,9 @@
 import os
 
-from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+from astrbot.api.star import StarTools
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
-DATA_DIR = os.path.join(get_astrbot_data_path(), "plugin_data", PLUGIN_NAME)
+DATA_DIR = str(StarTools.get_data_dir(PLUGIN_NAME))
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
 AFFECTION_FILE = os.path.join(DATA_DIR, "affection.json")
 SCHEDULE_FILE = os.path.join(DATA_DIR, "schedule_today.json")

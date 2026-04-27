@@ -28,21 +28,13 @@ class PersonalityMixin:
             parts.append("【对事物的看法】" + "；".join(opinions))
         return "\n".join(parts) if parts else ""
 
-    @staticmethod
-    def _parse_evolve_json(raw_text, old_habits, old_opinions):
-        text = raw_text.replace("```json", "").replace("```", "").strip()
-        # 修复LLM返回的中文引号导致JSON解析失败
-        text = text.replace('\u201c', "'").replace('\u201d', "'").replace('\u2018', "'").replace('\u2019', "'")
+    def _parse_evolve_json(self, raw_text, old_habits, old_opinions):
+        text = self._repair_llm_json(raw_text)
         try:
             return json.loads(text)
         except Exception:
             pass
-        m = re.search(r'\{.*\}', text, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group())
-            except Exception:
-                pass
+        # 尝试补全截断的JSON
         json_start = text.find('{')
         if json_start != -1:
             fragment = text[json_start:]

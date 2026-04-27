@@ -178,6 +178,11 @@ class MemoryMixin:
         oid_mems = [m for m in self._memory if m.get("oid") == oid_str and self._match_memory_type(m, {"chat"})]
         if len(oid_mems) <= OID_COMPRESS_THRESHOLD:
             return
+        cooldowns = getattr(self, "_compress_cooldowns", {})
+        import time as _time
+        cooldown_key = f"oid_{oid_str}"
+        if cooldown_key in cooldowns and _time.time() - cooldowns[cooldown_key] < 3600:
+            return
         logger.info(f"[BiliBot] 🗜️ 评论区 {oid} 记忆达 {len(oid_mems)} 条，压缩...")
         oid_mems.sort(key=lambda x: x.get("time", ""))
         old = oid_mems[:-OID_KEEP_RECENT]
@@ -191,6 +196,8 @@ class MemoryMixin:
         try:
             summary = await self._llm_call(prompt, max_tokens=300)
             if not summary:
+                cooldowns[cooldown_key] = _time.time()
+                self._compress_cooldowns = cooldowns
                 return
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
             emb = await self._get_embedding(summary)
@@ -220,11 +227,18 @@ class MemoryMixin:
             self._save_memory_entry(comp)
             logger.info(f"[BiliBot] 🗜️ 评论区 {oid} 压缩：{len(old)} 条 → 1 条总结")
         except Exception as e:
-            logger.error(f"[BiliBot] 评论区压缩失败：{e}")
+            cooldowns[cooldown_key] = _time.time()
+            self._compress_cooldowns = cooldowns
+            logger.error(f"[BiliBot] 评论区压缩失败（1小时后重试）：{e}")
 
     async def _compress_thread_memory(self, thread_id):
         thread_mems = [m for m in self._memory if m.get("thread_id") == str(thread_id) and self._match_memory_type(m, {"chat"})]
         if len(thread_mems) <= THREAD_COMPRESS_THRESHOLD:
+            return
+        cooldowns = getattr(self, "_compress_cooldowns", {})
+        import time as _time
+        cooldown_key = f"thread_{thread_id}"
+        if cooldown_key in cooldowns and _time.time() - cooldowns[cooldown_key] < 3600:
             return
         thread_mems.sort(key=lambda x: x.get("time", ""))
         keep_recent = 3
@@ -234,6 +248,8 @@ class MemoryMixin:
         try:
             summary = await self._llm_call(prompt, max_tokens=200)
             if not summary:
+                cooldowns[cooldown_key] = _time.time()
+                self._compress_cooldowns = cooldowns
                 return
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
             emb = await self._get_embedding(summary)
@@ -266,11 +282,19 @@ class MemoryMixin:
             self._save_memory_entry(comp)
             logger.info(f"[BiliBot] 🗜️ 评论线 {thread_id} 压缩：{len(old)} 条 → 1 条总结")
         except Exception as e:
-            logger.error(f"[BiliBot] 评论线压缩失败：{e}")
+            cooldowns[cooldown_key] = _time.time()
+            self._compress_cooldowns = cooldowns
+            logger.error(f"[BiliBot] 评论线压缩失败（1小时后重试）：{e}")
 
     async def _compress_user_memory(self, user_id, username):
         um = [m for m in self._memory if m.get("user_id") == str(user_id) and self._match_memory_type(m, {"chat"})]
         if len(um) <= USER_MEMORY_COMPRESS_THRESHOLD:
+            return
+        # 冷却机制：压缩失败后1小时内不重试，避免反复浪费 Token
+        cooldowns = getattr(self, "_compress_cooldowns", {})
+        import time as _time
+        cooldown_key = f"user_{user_id}"
+        if cooldown_key in cooldowns and _time.time() - cooldowns[cooldown_key] < 3600:
             return
         logger.info(f"[BiliBot] 🗜️ {username} 记忆达 {len(um)} 条，压缩...")
         um.sort(key=lambda x: x.get("time", ""))
@@ -284,6 +308,8 @@ class MemoryMixin:
         try:
             text = await self._llm_call(prompt, max_tokens=400)
             if not text:
+                cooldowns[cooldown_key] = _time.time()
+                self._compress_cooldowns = cooldowns
                 return
             text = self._repair_llm_json(text)
             try:
@@ -319,7 +345,9 @@ class MemoryMixin:
             self._save_memory_entry(comp)
             logger.info(f"[BiliBot] 🗜️ 压缩完成：{len(old)} 条 → 1 条")
         except Exception as e:
-            logger.error(f"[BiliBot] 记忆压缩失败：{e}")
+            cooldowns[cooldown_key] = _time.time()
+            self._compress_cooldowns = cooldowns
+            logger.error(f"[BiliBot] 记忆压缩失败（{username}，1小时后重试）：{e}")
 
     # ══════════════════════════════════════
     #  上下文构建（分层优先级）

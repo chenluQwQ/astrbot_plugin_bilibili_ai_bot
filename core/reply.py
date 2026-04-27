@@ -63,13 +63,6 @@ class ReplyMixin:
                 r = json.loads(rt)
             except Exception:
                 pass
-            if r is None:
-                m = re.search(r'\{.*\}', rt, re.DOTALL)
-                if m:
-                    try:
-                        r = json.loads(m.group())
-                    except Exception:
-                        pass
             if r is None or not isinstance(r, dict):
                 rm = re.search(r'"reply"\s*:\s*"([^"]*)"', rt)
                 reply_text = rm.group(1) if rm else rt[:50]
