@@ -190,7 +190,20 @@ class BilibiliAPIMixin:
                 BILI_REPLY_URL,
                 data={"oid": oid, "type": oid_type, "message": comment_text, "csrf": self.config.get("BILI_JCT", "")},
             )
-            return d.get("code") == 0
+            code = d.get("code", -1)
+            if code == 0:
+                return True
+            if code == -101:
+                logger.warning("[BiliBot] 发评论失败：Cookie 已失效")
+            elif code == -403 or code == 12015:
+                logger.warning("[BiliBot] 发评论失败：访问被限制（可能触发风控）")
+            elif code == 12002:
+                logger.warning("[BiliBot] 发评论失败：评论区已关闭")
+            elif code == 12025:
+                logger.warning("[BiliBot] 发评论失败：评论内容包含敏感词")
+            else:
+                logger.warning(f"[BiliBot] 发评论失败({oid}): code={code} {d.get('message', '')}")
+            return False
         except Exception as e:
             logger.error(f"[BiliBot] 发送评论异常: {e}")
             return False
@@ -308,21 +321,43 @@ class BilibiliAPIMixin:
     async def _like_video(self, aid):
         try:
             d, _ = await self._http_post("https://api.bilibili.com/x/web-interface/archive/like", data={"aid": aid, "like": 1, "csrf": self.config.get("BILI_JCT", "")})
-            return d.get("code") == 0
-        except Exception:
+            code = d.get("code", -1)
+            if code == 0:
+                return True
+            if code == -101:
+                logger.warning("[BiliBot] 点赞失败：Cookie 已失效")
+            elif code == -403:
+                logger.warning("[BiliBot] 点赞失败：访问被限制（可能触发风控）")
+            else:
+                logger.warning(f"[BiliBot] 点赞失败({aid}): code={code} {d.get('message', '')}")
+            return False
+        except Exception as e:
+            logger.warning(f"[BiliBot] 点赞异常({aid}): {e}")
             return False
 
     async def _coin_video(self, aid, num=1):
         try:
             d, _ = await self._http_post("https://api.bilibili.com/x/web-interface/coin/add", data={"aid": aid, "multiply": num, "select_like": 0, "csrf": self.config.get("BILI_JCT", "")})
-            return d.get("code") == 0
-        except Exception:
+            code = d.get("code", -1)
+            if code == 0:
+                return True
+            if code == -101:
+                logger.warning("[BiliBot] 投币失败：Cookie 已失效")
+            elif code == -403:
+                logger.warning("[BiliBot] 投币失败：访问被限制（可能触发风控）")
+            else:
+                logger.warning(f"[BiliBot] 投币失败({aid}): code={code} {d.get('message', '')}")
+            return False
+        except Exception as e:
+            logger.warning(f"[BiliBot] 投币异常({aid}): {e}")
             return False
 
     async def _fav_video(self, aid):
         try:
             d, _ = await self._http_get("https://api.bilibili.com/x/v3/fav/folder/created/list-all", params={"up_mid": self.config.get("DEDE_USER_ID", ""), "type": 2})
             if d["code"] != 0:
+                if d["code"] == -101:
+                    logger.warning("[BiliBot] 获取收藏夹失败：Cookie 已失效")
                 return False
             fav_list = d.get("data", {}).get("list") or []
             if not fav_list:
@@ -330,15 +365,30 @@ class BilibiliAPIMixin:
                 return False
             fav_id = fav_list[0]["id"]
             d2, _ = await self._http_post("https://api.bilibili.com/x/v3/fav/resource/deal", data={"rid": aid, "type": 2, "add_media_ids": fav_id, "csrf": self.config.get("BILI_JCT", "")})
-            return d2.get("code") == 0
-        except Exception:
+            code = d2.get("code", -1)
+            if code == 0:
+                return True
+            logger.warning(f"[BiliBot] 收藏失败({aid}): code={code} {d2.get('message', '')}")
+            return False
+        except Exception as e:
+            logger.warning(f"[BiliBot] 收藏异常({aid}): {e}")
             return False
 
     async def _follow_user(self, mid):
         try:
             d, _ = await self._http_post("https://api.bilibili.com/x/relation/modify", data={"fid": mid, "act": 1, "re_src": 11, "csrf": self.config.get("BILI_JCT", "")})
-            return d.get("code") == 0
-        except Exception:
+            code = d.get("code", -1)
+            if code == 0:
+                return True
+            if code == -101:
+                logger.warning("[BiliBot] 关注失败：Cookie 已失效")
+            elif code == -403:
+                logger.warning("[BiliBot] 关注失败：访问被限制（可能触发风控）")
+            else:
+                logger.warning(f"[BiliBot] 关注失败({mid}): code={code} {d.get('message', '')}")
+            return False
+        except Exception as e:
+            logger.warning(f"[BiliBot] 关注异常({mid}): {e}")
             return False
 
     # ── 图片上传 ──

@@ -161,11 +161,13 @@ UP主：{video_info.get('up_name', '未知')}
         )
         code, _, stderr = await self._run_process(
             "yt-dlp", "-o", output_template,
-            "--format", "bestvideo+bestaudio/best",
+            # 只下载 480p 以下，AI 分析不需要高画质，减少 CDN 请求量降低风控风险
+            "--format", "bestvideo[height<=480]+bestaudio/best[height<=480]/worst",
             "--no-playlist", "--merge-output-format", "mp4",
             "--recode-video", "mp4",
             "--add-header", cookie_header,
             "--add-header", "Referer: https://www.bilibili.com",
+            "--limit-rate", "2M",
             f"https://www.bilibili.com/video/{bvid}",
             timeout=600,
         )

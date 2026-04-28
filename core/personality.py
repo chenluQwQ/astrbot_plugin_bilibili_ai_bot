@@ -72,6 +72,8 @@ class PersonalityMixin:
         recent = sorted(self._memory, key=lambda x: x.get("time", ""), reverse=True)[:30]
         if len(recent) < 5:
             logger.info("[BiliBot] 🌱 记忆太少，跳过演化")
+            evo["last_evolve"] = today
+            self._save_json(PERSONALITY_FILE, evo)
             return
         recent_texts = "\n".join([m["text"] for m in recent[:20]])
         old_traits = evo.get("evolved_traits", [])

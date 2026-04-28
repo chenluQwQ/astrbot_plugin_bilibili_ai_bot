@@ -356,56 +356,66 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             want_follow = evaluation.get("want_follow", False)
             logger.info(f"[BiliBot] ⭐ 评分：{score}/10 | 心情：{mood} | 短评：{comment}")
             actions = []
+            interaction_failed = False
             if oid:
-                if score >= 6 and self.config.get("PROACTIVE_LIKE", True):
+                # 交互前快速校验 Cookie
+                cookie_ok, _ = await self.check_cookie()
+                if not cookie_ok:
+                    logger.warning("[BiliBot] ⚠️ Cookie 已失效，跳过本轮所有互动操作")
+                    interaction_failed = True
+                elif score >= 6 and self.config.get("PROACTIVE_LIKE", True):
                     if await self._like_video(oid):
                         actions.append("👍点赞")
                         logger.info("[BiliBot] 👍 点赞成功")
-                if score >= 8 and self.config.get("PROACTIVE_COIN", False):
-                    if await self._coin_video(oid):
-                        actions.append("🪙投币")
-                        logger.info("[BiliBot] 🪙 投币成功")
-                if score >= 8 and self.config.get("PROACTIVE_FAV", True):
-                    if await self._fav_video(oid):
-                        actions.append("⭐收藏")
-                        logger.info("[BiliBot] ⭐ 收藏成功")
-                if score >= 7 and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
-                    proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
-                    if await self._send_comment(oid, proactive_comment):
-                        actions.append("💬评论")
-                        comment_count += 1
-                        logger.info(f"[BiliBot] 💬 评论成功：{proactive_comment}")
-                        commented_videos.add(bvid)
-                        self._save_json(COMMENTED_FILE, list(commented_videos))
-                        pl = self._load_json(PROACTIVE_LOG_FILE, [])
-                        pl.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "comment": proactive_comment})
-                        self._save_json(PROACTIVE_LOG_FILE, pl[-100:])
-                if evaluation.get("recommend_owner", False):
-                    on = self.config.get("OWNER_NAME", "") or "主人"
-                    owner_bili = self.config.get("OWNER_BILI_NAME", "")
-                    if owner_bili:
-                        try:
-                            rec_prompt = f"""你刚看完视频「{video.get('title', '')}」，觉得很不错想推荐给{on}。
+                    else:
+                        # 点赞是最轻量的操作，如果连这个都失败大概率是风控
+                        interaction_failed = True
+                if not interaction_failed:
+                    if score >= 8 and self.config.get("PROACTIVE_COIN", False):
+                        if await self._coin_video(oid):
+                            actions.append("🪙投币")
+                            logger.info("[BiliBot] 🪙 投币成功")
+                    if score >= 8 and self.config.get("PROACTIVE_FAV", True):
+                        if await self._fav_video(oid):
+                            actions.append("⭐收藏")
+                            logger.info("[BiliBot] ⭐ 收藏成功")
+                    if score >= 7 and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
+                        proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
+                        if await self._send_comment(oid, proactive_comment):
+                            actions.append("💬评论")
+                            comment_count += 1
+                            logger.info(f"[BiliBot] 💬 评论成功：{proactive_comment}")
+                            commented_videos.add(bvid)
+                            self._save_json(COMMENTED_FILE, list(commented_videos))
+                            pl = self._load_json(PROACTIVE_LOG_FILE, [])
+                            pl.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "comment": proactive_comment})
+                            self._save_json(PROACTIVE_LOG_FILE, pl[-100:])
+                    if evaluation.get("recommend_owner", False):
+                        on = self.config.get("OWNER_NAME", "") or "主人"
+                        owner_bili = self.config.get("OWNER_BILI_NAME", "")
+                        if owner_bili:
+                            try:
+                                rec_prompt = f"""你刚看完视频「{video.get('title', '')}」，觉得很不错想推荐给{on}。
 写一句简短的推荐语，要求：
 - 用你自己的语气，自然随意
 - 不超过25字
 - 不要带@、不要带任何人名或称呼
 - 直接输出推荐语"""
-                            custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
-                            if custom_rec_inst:
-                                rec_prompt += f"\n【补充提示词】{custom_rec_inst}"
-                            rec_text = await self._llm_call(rec_prompt, system_prompt=self._get_system_prompt(), max_tokens=60)
-                            rec_text = re.sub(r'@\S+\s*', '', rec_text or "你可能会喜欢这个")
-                            owner_name = (self.config.get("OWNER_NAME", "") or "").strip()
-                            _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
-                            rec_text = re.sub(rf'^({"|".join(_name_patterns)})[，,\s]*', '', rec_text)
-                            rec_msg = f"@{owner_bili} {rec_text}"
-                            if await self._send_comment(oid, rec_msg):
-                                actions.append("📢推荐给主人")
-                                logger.info(f"[BiliBot] 📢 已@主人：{rec_msg}")
-                        except Exception:
-                            pass
-            if (score >= 9 or want_follow) and self.config.get("PROACTIVE_FOLLOW", True):
+                                custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
+                                if custom_rec_inst:
+                                    rec_prompt += f"\n【补充提示词】{custom_rec_inst}"
+                                rec_text = await self._llm_call(rec_prompt, system_prompt=self._get_system_prompt(), max_tokens=60)
+                                rec_text = re.sub(r'@\S+\s*', '', rec_text or "你可能会喜欢这个")
+                                owner_name = (self.config.get("OWNER_NAME", "") or "").strip()
+                                _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
+                                rec_text = re.sub(rf'^({"|".join(_name_patterns)})[，,\s]*', '', rec_text)
+                                rec_msg = f"@{owner_bili} {rec_text}"
+                                if await self._send_comment(oid, rec_msg):
+                                    actions.append("📢推荐给主人")
+                                    logger.info(f"[BiliBot] 📢 已@主人：{rec_msg}")
+                            except Exception:
+                                pass
+            if not interaction_failed and (score >= 9 or want_follow) and self.config.get("PROACTIVE_FOLLOW", True):
                 if str(video.get("up_mid", "")) != str(self.config.get("OWNER_MID", "")):
                     if await self._follow_user(video["up_mid"]):
                         actions.append("➕关注")
