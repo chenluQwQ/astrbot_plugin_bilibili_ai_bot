@@ -18,6 +18,25 @@ import os
 class BilibiliAPIMixin:
     """所有 B站 HTTP API 调用。"""
 
+    # ── buvid3 设备标识 ──
+    async def _ensure_buvid(self):
+        """获取并缓存 buvid3，减少风控触发概率"""
+        if self.config.get("BUVID3", ""):
+            return
+        try:
+            d, _ = await self._http_get("https://api.bilibili.com/x/frontend/finger/spi")
+            if d.get("code") == 0:
+                buvid3 = d["data"].get("b_3", "")
+                buvid4 = d["data"].get("b_4", "")
+                if buvid3:
+                    self.config["BUVID3"] = buvid3
+                    if buvid4:
+                        self.config["BUVID4"] = buvid4
+                    self.config.save_config()
+                    logger.info(f"[BiliBot] 已获取 buvid3: {buvid3[:16]}...")
+        except Exception as e:
+            logger.warning(f"[BiliBot] 获取 buvid3 失败（不影响基本功能）: {e}")
+
     # ── Cookie 检查 / 刷新 ──
     async def check_cookie(self):
         s = self.config.get("SESSDATA", "")
