@@ -159,12 +159,15 @@ UP主：{video_info.get('up_name', '未知')}
         sessdata = self.config.get('SESSDATA', '')
         bili_jct = self.config.get('BILI_JCT', '')
         dede_uid = self.config.get('DEDE_USER_ID', '')
+        buvid3 = self.config.get('BUVID3', '')
         cookie_content = (
             "# Netscape HTTP Cookie File\n"
             f".bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\t{sessdata}\n"
             f".bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\t{bili_jct}\n"
             f".bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t{dede_uid}\n"
         )
+        if buvid3:
+            cookie_content += f".bilibili.com\tTRUE\t/\tFALSE\t0\tbuvid3\t{buvid3}\n"
         try:
             with open(cookie_file, "w") as f:
                 f.write(cookie_content)
