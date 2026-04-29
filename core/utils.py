@@ -23,12 +23,19 @@ class UtilsMixin:
         return bool(self.config.get("SESSDATA", ""))
 
     def _headers(self):
+        cookie_parts = (
+            f"SESSDATA={self.config.get('SESSDATA', '')}; "
+            f"bili_jct={self.config.get('BILI_JCT', '')}; "
+            f"DedeUserID={self.config.get('DEDE_USER_ID', '')}"
+        )
+        buvid3 = self.config.get("BUVID3", "")
+        if buvid3:
+            cookie_parts += f"; buvid3={buvid3}"
+        buvid4 = self.config.get("BUVID4", "")
+        if buvid4:
+            cookie_parts += f"; buvid4={buvid4}"
         return {
-            "Cookie": (
-                f"SESSDATA={self.config.get('SESSDATA', '')}; "
-                f"bili_jct={self.config.get('BILI_JCT', '')}; "
-                f"DedeUserID={self.config.get('DEDE_USER_ID', '')}"
-            ),
+            "Cookie": cookie_parts,
             "User-Agent": USER_AGENT,
             "Referer": "https://www.bilibili.com",
             "Accept-Encoding": "gzip, deflate",
