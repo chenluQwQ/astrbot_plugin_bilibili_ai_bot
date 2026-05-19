@@ -236,7 +236,8 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
         trigger_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "type": "manual_proactive_request", "scheduled": "llm_request", "status": "triggered", "content": msg[:100]})
         self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
-        req.system_prompt += "\n\n【系统提示】你已经决定现在去随机看一些B站视频，并已在后台开始执行一次主动看视频流程。回复用户时明确告诉对方你已经去看了。"
+        sender_name = event.get_sender_name() or "用户"
+        req.system_prompt += f"\n\n【系统提示】{sender_name}叫你去看B站视频，你已在后台开始执行一次看视频流程。回复时让对方知道你去看了，看完后相关记忆会存入你的评论区记忆中，之后可以回忆起来。"
 
     # ── 主流程 ──
     async def _run_proactive(self, max_watch=None, max_comment=None):
@@ -428,6 +429,8 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
             log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "manual": is_manual}
             watch_log.append(log_entry)
             self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+            recommended_owner = "📢推荐给主人" in actions
+            on = self.config.get("OWNER_NAME", "") or "主人"
             memory_text = (
                 f"[{log_entry['time']}] Bot看了视频《{video.get('title', '')}》"
                 f"(UP主:{video.get('up_name', '')}) "
@@ -435,6 +438,8 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                 f"感想:{review[:80]} "
                 f"内容:{video_description[:120]}"
             )
+            if recommended_owner:
+                memory_text += f" | 觉得不错，在评论区@了{on}来看"
             await self._save_self_memory_record("proactive_watch", memory_text, memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "video_title": video.get("title", "")})
             if bvid not in external_memory:
                 external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": video_description, "score": score, "mood": mood, "review": review, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
