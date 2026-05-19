@@ -892,8 +892,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 return
             bili_uid = bindings[qq_id]
 
-            req.system_prompt += f"\n\n【该用户已绑定B站UID:{bili_uid}，如需回忆相关内容可使用recall系列工具查询】"
-            logger.debug(f"[BiliBot] QQ→B站绑定提示注入: uid={bili_uid}")
+            # 不再自动注入system_prompt，避免破坏缓存前缀；绑定信息已通过工具可查
+            logger.debug(f"[BiliBot] QQ→B站绑定已确认(不注入prompt): uid={bili_uid}")
         except Exception as e:
             logger.error(f"[BiliBot] 记忆注入失败: {e}")
 
