@@ -47,6 +47,7 @@ Bot 可在聊天中通过自然语言触发以下能力，工具结果回到 LLM
 * **新番时间线** — 查询最近更新的新番
 * **番剧排行** — 获取热门番剧排行
 * **追番更新** — 查看追番是否更新
+* **B站拉黑** — 主人确认后拉黑指定 UID 的用户（v1.1.31 新增）
 
 ### 🛠️ 运维与安全
 * **Web 管理面板** — 浏览器管理记忆、好感度、动态日志等（正在维护，暂时去除该功能）
@@ -54,6 +55,8 @@ Bot 可在聊天中通过自然语言触发以下能力，工具结果回到 LLM
 * **基础防注入** — 对可疑 prompt 注入内容做检测、记录和安全包裹
 * **Cookie 自动刷新** — 定期检查 + 自动刷新，支持扫码登录
 * **拉黑管理** — 手动 / 自动拉黑，黑名单用户不调 LLM 不花钱
+* **恶意告警** — B站评论区有人攻击 Bot 时，用人设口吻通过 QQ 私信通知主人，主人可直接回复决定是否拉黑（v1.1.31 新增）
+* **视频直读多格式兼容** — 视频分析支持 Gemini / Qwen 两种接口格式，用户自选（v1.1.31 新增）
 
 ## 🔗 QQ ↔ B站 记忆互通
 
@@ -174,6 +177,11 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 | `ENABLE_WEB_PANEL` | 可选 | 启用 Web 管理面板 |
 | `WEB_PANEL_PORT` | 可选 | Web 面板端口，默认 5001 |
 | `WEB_PANEL_PASSWORD` | 可选 | Web 面板密码，默认 `admin123` ⚠️ **部署在公网务必修改** |
+| `VIDEO_VISION_FORMAT` | 可选 | 视频直读接口格式：`gemini` / `qwen` / `none`（默认 `none`，截帧分析）|
+| `VIDEO_VISION_FPS` | 可选 | Qwen 格式视频抽帧率，默认 2 |
+| `ABUSE_ALERT_MODE` | 可选 | 恶意告警模式：`off` / `score` / `model`（默认 `off`）|
+| `ABUSE_ALERT_QQ_UMO` | 可选 | 接收告警的 QQ 私聊 UMO |
+| `ABUSE_ALERT_SCORE_THRESHOLD` | 可选 | 触发告警的 score_delta 阈值，默认 -3 |
 
 完整配置说明详见插件配置页面，所有配置项都有 description 和 hint 可查。
 
@@ -182,6 +190,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 > 💡 视觉模型留空时，视频分析回退为纯文本 LLM 分析，图片识别则跳过。
 >
 > 💡 主动看视频的"视频直读 / 截帧分析"依赖 `ffmpeg` / `ffprobe` 可执行文件在系统 `PATH` 中（`yt-dlp` 会由 pip 自动安装）。
+>
+> 💡 恶意告警功能需要同时配置 `ABUSE_ALERT_MODE` 和 `ABUSE_ALERT_QQ_UMO`。UMO 可从 AstrBot 日志或读空气插件的 UMO 注册表获取。告警时 Bot 会用人设口吻私信主人并询问是否拉黑，主人直接回复即可。
 
 ## 🎮 命令
 
