@@ -8,7 +8,7 @@ from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.api import logger
-from .config import USER_PROFILE_FILE, AFFECTION_FILE, LEVEL_NAMES
+from .config import USER_PROFILE_FILE, AFFECTION_FILE, LEVEL_NAMES, DATA_DIR
 
 
 def create_tools(plugin):
@@ -665,6 +665,63 @@ def create_tools(plugin):
             ep_id = kwargs.get("ep_id", 0) or None
             return await plugin._tool_bili_watch_bangumi_result(season_id=season_id, ep_id=ep_id)
 
+    # ── B站用户拉黑 ──
+
+    @dataclass
+    class BlockBiliUserTool(FunctionTool[AstrAgentContext]):
+        name: str = "bili_block_user"
+        description: str = (
+            "拉黑一个B站用户。当主人同意/要求拉黑某个B站用户时调用。"
+            "Block a Bilibili user by UID. Use when the owner confirms blocking someone."
+        )
+        parameters: dict = Field(default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "uid": {"type": "string", "description": "要拉黑的B站用户 UID"},
+                "reason": {"type": "string", "description": "拉黑原因（简短描述）", "default": "恶意评论"},
+            },
+            "required": ["uid"],
+        })
+
+        async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            uid = str(kwargs.get("uid", "")).strip()
+            reason = kwargs.get("reason", "恶意评论") or "恶意评论"
+            if not uid or not uid.isdigit():
+                return ToolExecResult(is_success=False, description="UID 无效，请提供纯数字的B站UID。")
+
+            # 检查是否是主人
+            if plugin._is_owner(uid):
+                return ToolExecResult(is_success=False, description="不能拉黑主人！")
+
+            import os, json
+            from datetime import datetime as dt
+
+            # 调用B站API拉黑
+            api_ok = await plugin._block_user(int(uid))
+
+            # 写入本地黑名单
+            bl_path = os.path.join(DATA_DIR, "block_log.json")
+            bl = plugin._load_json(bl_path, {})
+            bl[uid] = {
+                "username": reason,
+                "reason": reason,
+                "time": dt.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            plugin._save_json(bl_path, bl)
+
+            if api_ok:
+                logger.info(f"[BiliBot] 🚫 工具拉黑 UID:{uid}（{reason}）")
+                return ToolExecResult(
+                    is_success=True,
+                    description=f"已拉黑 UID:{uid}，B站API调用成功。",
+                )
+            else:
+                logger.warning(f"[BiliBot] ⚠️ 工具拉黑 UID:{uid} B站API失败，已加本地黑名单")
+                return ToolExecResult(
+                    is_success=True,
+                    description=f"UID:{uid} 已加入本地黑名单，但B站API调用失败（可能需要重新登录）。",
+                )
+
     # 返回所有工具实例
     return [
         # 记忆类
@@ -693,4 +750,6 @@ def create_tools(plugin):
         CheckFollowingUpdatesTool(),
         CheckFollowingLiveTool(),
         WatchVideosTool(),
+        # 用户管理
+        BlockBiliUserTool(),
     ]
