@@ -315,6 +315,19 @@
     "default": "",
     "hint": "如 google/gemma-3-27b-it 等；主动看视频的直读/截帧分析还需要本机安装 yt-dlp 和 ffmpeg"
   },
+  "VIDEO_VISION_FORMAT": {
+    "description": "【视觉模型】视频直读的接口格式（请根据你使用的模型选择）",
+    "type": "string",
+    "default": "none",
+    "hint": "gemini=Gemini原生格式 | qwen=通义千问/硅基流动格式 | none=跳过直读，使用截帧分析",
+    "enum": ["gemini", "qwen", "none"]
+  },
+  "VIDEO_VISION_FPS": {
+    "description": "【视觉模型】视频直读抽帧率（仅Qwen格式生效）",
+    "type": "number",
+    "default": 2,
+    "hint": "每秒抽取的帧数，值越大越精细但token消耗越多，建议1~4"
+  },
   "IMAGE_VISION_PROVIDER_ID": {
     "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",
     "type": "string",
@@ -393,6 +406,25 @@
     "type": "string",
     "default": "",
     "hint": "如 Flux 系列模型"
+  },
+  "ABUSE_ALERT_MODE": {
+    "description": "【恶意告警】检测到恶意评论时通知主人（通过QQ私信）",
+    "type": "string",
+    "default": "off",
+    "hint": "off=关闭 | score=仅根据好感度变化判断 | model=额外调一次模型二次确认（更准但多一次API调用）",
+    "enum": ["off", "score", "model"]
+  },
+  "ABUSE_ALERT_QQ_UMO": {
+    "description": "【恶意告警】接收通知的 QQ 私聊 UMO（从 AstrBot 日志或读空气插件的 UMO 注册表获取）",
+    "type": "string",
+    "default": "",
+    "hint": "格式示例：FriendMessage_napcat_123456789 — 不填则无法发送通知"
+  },
+  "ABUSE_ALERT_SCORE_THRESHOLD": {
+    "description": "【恶意告警】触发告警的 score_delta 阈值",
+    "type": "int",
+    "default": -3,
+    "hint": "score_delta ≤ 此值时触发告警，-3=不友善以上，-5=仅辱骂"
   },
   "SLEEP_START": {
     "description": "【系统】休眠开始时间（0-23）",

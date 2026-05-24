@@ -23,7 +23,7 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.13","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.1.31","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
 class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -248,7 +248,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         today_dynamic=len([l for l in dl if l.get("time","").startswith(datetime.now().strftime("%Y-%m-%d"))])
         schedule = self._get_schedule_snapshot()
         lines = [
-            f"📺 BiliBot 1.13 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.1.31 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"🎭 心情:{mood} | 🌱性格v{evo_ver}（{evo_last[:10]}）",
@@ -892,8 +892,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 return
             bili_uid = bindings[qq_id]
 
-            # 不再自动注入system_prompt，避免破坏缓存前缀；绑定信息已通过工具可查
-            logger.debug(f"[BiliBot] QQ→B站绑定已确认(不注入prompt): uid={bili_uid}")
+            req.system_prompt += f"\n\n【该用户已绑定B站UID:{bili_uid}，如需回忆相关内容可使用recall系列工具查询】"
+            logger.debug(f"[BiliBot] QQ→B站绑定提示注入: uid={bili_uid}")
         except Exception as e:
             logger.error(f"[BiliBot] 记忆注入失败: {e}")
 
