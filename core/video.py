@@ -101,6 +101,8 @@ UP主：{video_info.get('up_name', '未知')}
         bvid = video_info.get("bvid", "")
         if not bvid:
             return None
+        # 判断视频直读格式
+        fmt = self._detect_video_format(model)
         video_path = await self._download_video(bvid)
         if not video_path:
             return None
@@ -108,23 +110,25 @@ UP主：{video_info.get('up_name', '未知')}
         compressed_path = video_path
         try:
             compressed_path = await self._compress_video(video_path)
-            with open(compressed_path, "rb") as f:
-                video_b64 = base64.b64encode(f.read()).decode()
             text_prompt = (
                 f"这是一个B站视频，标题是「{video_info.get('title', '未知')}」，"
                 f"简介是「{video_info.get('desc', '无')[:300]}」。"
                 "请用100字以内描述视频的主要内容、风格和亮点。"
             )
-            content = [
-                {"type": "image_url", "image_url": {"url": f"data:video/mp4;base64,{video_b64}"}},
-                {"type": "text", "text": text_prompt},
-            ]
-            result = await self._astrbot_multimodal_generate(provider_id, content, max_tokens=200)
-            if not result and client and model:
-                result = await self._vision_call(client, model, content, max_tokens=200)
-            if result:
-                return result
-            logger.warning(f"[BiliBot] 视频直读失败，回退截帧：{bvid}")
+            # 尝试视频直读（非 none 格式时）
+            if fmt != "none":
+                with open(compressed_path, "rb") as f:
+                    video_b64 = base64.b64encode(f.read()).decode()
+                content = self._build_video_content(video_b64, text_prompt, fmt)
+                result = await self._astrbot_multimodal_generate(provider_id, content, max_tokens=200)
+                if not result and client and model:
+                    result = await self._vision_call(client, model, content, max_tokens=200)
+                if result:
+                    return result
+                logger.warning(f"[BiliBot] 视频直读失败（{fmt}格式），回退截帧：{bvid}")
+            else:
+                logger.info(f"[BiliBot] 视频直读已禁用（none），直接截帧：{bvid}")
+            # 回退：截帧分析
             frames = await self._extract_video_frames(compressed_path, count=5)
             if not frames:
                 return None
@@ -150,6 +154,32 @@ UP主：{video_info.get('up_name', '未知')}
             return None
         finally:
             self._cleanup_video_artifacts(compressed_path, frames)
+
+    def _detect_video_format(self, model: str) -> str:
+        """读取用户配置的视频直读格式。"""
+        fmt = self.config.get("VIDEO_VISION_FORMAT", "none").lower().strip()
+        if fmt in ("gemini", "qwen"):
+            return fmt
+        return "none"
+
+    def _build_video_content(self, video_b64: str, text_prompt: str, fmt: str) -> list:
+        """根据格式构造视频直读的 content 列表。"""
+        if fmt == "qwen":
+            fps = self.config.get("VIDEO_VISION_FPS", 2)
+            try:
+                fps = max(1, int(fps))
+            except (ValueError, TypeError):
+                fps = 2
+            return [
+                {"type": "video_url", "video_url": {"url": f"data:video/mp4;base64,{video_b64}"}, "fps": fps},
+                {"type": "text", "text": text_prompt},
+            ]
+        else:
+            # gemini 格式（也是默认）
+            return [
+                {"type": "image_url", "image_url": {"url": f"data:video/mp4;base64,{video_b64}"}},
+                {"type": "text", "text": text_prompt},
+            ]
 
     # ── 视频下载 / 压缩 / 截帧 ──
     async def _download_video(self, bvid):
