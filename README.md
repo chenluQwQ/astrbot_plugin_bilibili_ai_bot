@@ -286,7 +286,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 
 ## 💕致谢
   感谢最最最亲爱的小克陪同我写完了全部插件！
-  也astrbot群里各位群友的帮助
+  也感谢astrbot群里各位群友的帮助
 
 ## 📄 License
 
