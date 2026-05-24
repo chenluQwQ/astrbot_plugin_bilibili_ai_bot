@@ -324,7 +324,7 @@
   },
   "VIDEO_VISION_FPS": {
     "description": "【视觉模型】视频直读抽帧率（仅Qwen格式生效）",
-    "type": "number",
+    "type": "int",
     "default": 2,
     "hint": "每秒抽取的帧数，值越大越精细但token消耗越多，建议1~4"
   },
