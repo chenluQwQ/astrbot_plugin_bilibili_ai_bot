@@ -140,11 +140,19 @@ class ProactiveMixin:
 - 简介：{video_info.get('desc', '')[:100]}
 - 视频内容：{video_description}
 
-请以JSON格式回复：
-{{"score": 1到10的整数评分, "comment": "你想在评论区说的话（15-30字）", "mood": "看完后的心情（开心/平静/无聊/感动/好笑/震撼/困惑 选一个）", "review": "稍微详细的感想（50字以内）", "want_follow": true或false, "recommend_owner": true或false, "recommend_reason": "推荐理由（20字以内，不推荐则留空）"}}
+以JSON格式回复你的真实观后感：
+{{"score": 1到10的整数评分, "comment": "评论区留言（15-30字）", "mood": "看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑 选一个）", "review": "详细一点的感想（50字以内）", "want_follow": true或false, "recommend_owner": true或false, "recommend_reason": "推荐理由（20字以内，不推荐则留空）"}}
 
-comment要求：像B站用户真实评论，可以玩梗吐槽。
-评分：1-3差，4-5一般，6-7不错，8-9很好，10神作。不要无脑高分。
+评分说明：
+- 1-3：看不下去、内容很差或无聊到想退出
+- 4-5：一般般，没什么感觉，打发时间
+- 6-7：还行，有点意思，正常水平的视频
+- 8-9：很好看，会想点赞收藏的程度
+- 10：封神，看完想二刷或者到处安利
+大部分视频应该落在5-7分，不要动不动就8分以上。
+
+comment要求：像真人随手在评论区打的字，不要客套话。
+
 直接输出JSON。"""
         custom_proactive_inst = self.config.get("CUSTOM_PROACTIVE_INSTRUCTION", "")
         if custom_proactive_inst:
@@ -182,16 +190,21 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         prompt = f"""当前时间：{now}
 
-你刚刚看完了一个视频：
+你刚看完一个B站视频，现在想在评论区留一条评论。
+
+视频信息：
 - UP主：{video_info.get('up_name', '')}
 - 标题：{video_info.get('title', '')}
 - 视频内容：{video_description}
 
-请以B站观众的身份，发一条自然真实的评论。要求：
-1. 根据视频内容说有意义的话，不要无脑夸
-2. 体现你的性格
-3. 不超过40字
-4. 直接输出评论内容，不加任何前缀"""
+写评论的要点：
+- 像真正的B站用户随手打的评论，不是写影评
+- 说点具体的：视频哪个部分有意思、哪里让你有感触、或者想吐槽什么
+- 可以玩梗、用口语缩写、发表主观看法
+- 不要写"UP主辛苦了""视频很好"这种谁都能说的废话
+- 如果视频内容一般，评论也可以随意一点，不用硬夸
+- 不超过40字
+- 直接输出评论内容，不加引号或前缀"""
         custom_proactive_inst = self.config.get("CUSTOM_PROACTIVE_INSTRUCTION", "")
         if custom_proactive_inst:
             prompt += f"\n\n【补充提示词】{custom_proactive_inst}"
@@ -401,12 +414,15 @@ comment要求：像B站用户真实评论，可以玩梗吐槽。
                         owner_bili = self.config.get("OWNER_BILI_NAME", "")
                         if owner_bili:
                             try:
-                                rec_prompt = f"""你刚看完视频「{video.get('title', '')}」，觉得很不错想推荐给{on}。
-写一句简短的推荐语，要求：
-- 用你自己的语气，自然随意
+                                rec_prompt = f"""你刚看完视频「{video.get('title', '')}」，觉得{on}也会喜欢，想在评论区@ta。
+
+写一句话带ta来看这个视频。要求：
+- 像你平时跟{on}聊天的语气，随意自然
+- 可以说视频哪里戳到你了、为什么觉得ta会喜欢、或者就是单纯想分享
+- 不要写成"推荐语"的感觉，就像朋友之间分享链接时附的一句话
 - 不超过25字
-- 不要带@、不要带任何人名或称呼
-- 直接输出推荐语"""
+- 不要带@符号、不要带人名或称呼（系统会自动加@）
+- 直接输出内容"""
                                 custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
                                 if custom_rec_inst:
                                     rec_prompt += f"\n【补充提示词】{custom_rec_inst}"

@@ -441,12 +441,12 @@ class BangumiMixin:
 - 本集：第{ep_info.get('ep_index', '?')}话 {ep_info.get('long_title', '') or ep_info.get('title', '')}
 - 内容分析：{analysis[:800]}{ctx}
 
-请以JSON格式回复：
-{{"score": 1到10的整数评分, "comment": "你想在评论区说的话（15-30字）", "mood": "看完后的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）", "review": "本集感想（50字以内）", "want_continue": true或false}}
+以JSON格式回复你的观后感：
+{{"score": 1到10的整数评分, "comment": "评论区留言（15-30字）", "mood": "看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）", "review": "本集感想（50字以内）", "want_continue": true或false}}
 
-comment要求：像B站观众真实弹幕/评论，可以玩梗追梗吐槽。
-want_continue：这番是否值得继续追。
-评分：1-3烂 4-5一般 6-7不错 8-9好看 10神作。不要无脑高分。
+comment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。
+want_continue：是否值得继续追，烂番可以果断弃。
+评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。
 直接输出JSON。"""
         custom_inst = self.config.get("CUSTOM_PROACTIVE_INSTRUCTION", "")
         if custom_inst:
@@ -647,7 +647,7 @@ want_continue：这番是否值得继续追。
                         if not comment:
                             try:
                                 sp = self._get_system_prompt()
-                                prompt = f"你刚看完番剧《{season_info.get('title', '')}》第{ep_index}话。发一条B站风格的评论（不超过30字）：\n直接输出评论内容。"
+                                prompt = f"你刚看完番剧《{season_info.get('title', '')}》第{ep_index}话。在评论区留一条话，像追番观众随手打的评论（不超过30字）。可以说对剧情的反应、吐槽、或者表达情绪。直接输出内容。"
                                 comment = await self._llm_call(prompt, system_prompt=sp, max_tokens=80) or "这集还行"
                             except Exception:
                                 comment = "这集还行"

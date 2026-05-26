@@ -105,15 +105,16 @@ class DynamicMixin:
 
 {time_hint}，你想发一条B站动态。主题方向：{topic}{history_section}
 
-风格要求：
-- 说话自然有网感，像真人发的动态
-- 结合当前时间（{time_hint}）写出真实感
+B站动态的感觉：
+- 像在朋友圈/微博随手发的状态，不要太正式
+- 可以是碎碎念、感慨、分享日常、发表看法、吐槽、或者单纯因为无聊
+- 结合当前时间（{time_hint}）让内容有真实感——比如早上可能犯困，下午可能在摸鱼，晚上可能在追番
 - 不要和最近发过的动态内容重复或相似
 
 请以JSON格式回复：
-{{"text": "动态文案（50-150字，自然随意）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
+{{"text": "动态文案（50-150字）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
 
-注意：动态文案要有个性，不要像AI写的。不是每次都需要图片。"""
+注意：不是每条动态都需要配图。"""
         custom_dynamic_inst = self.config.get("CUSTOM_DYNAMIC_INSTRUCTION", "")
         if custom_dynamic_inst:
             prompt += f"\n\n【补充提示词】{custom_dynamic_inst}"

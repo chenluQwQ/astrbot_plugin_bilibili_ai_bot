@@ -91,10 +91,10 @@ class MemoryMixin:
     #  检索
     # ══════════════════════════════════════
     def _get_thread_memories(self, thread_id):
-        """当前评论线（reply chain）的对话"""
+        """当前评论线（reply chain）的对话，返回结构化记录"""
         docs = [m for m in self._memory if m.get("thread_id") == str(thread_id) and self._match_memory_type(m, {"chat"})]
         docs.sort(key=lambda x: x.get("time", ""))
-        return [m["text"] for m in docs]
+        return docs
 
     def _get_oid_memories(self, oid, exclude_thread_id=None):
         """同一评论区（oid）下的所有对话记忆，不限用户。排除当前 thread 避免重复。"""
@@ -106,7 +106,49 @@ class MemoryMixin:
             and (exclude_thread_id is None or m.get("thread_id") != str(exclude_thread_id))
         ]
         docs.sort(key=lambda x: x.get("time", ""))
-        return [m["text"] for m in docs]
+        return docs
+
+    @staticmethod
+    def _format_conversation_turn(m):
+        """将一条记忆格式化为清晰的对话轮次，标注uid和时间"""
+        uid = m.get("user_id", "?")
+        name = m.get("username", "?")
+        t = m.get("time", "?")
+        text = m.get("text", "")
+        # 旧格式兼容：从text中提取内容
+        import re
+        match = re.search(r'说：(.+?)\s*\|\s*Bot回复：(.+)$', text)
+        if match:
+            user_said = match.group(1).strip()
+            bot_said = match.group(2).strip()
+            return f"[{t}] {name}(uid:{uid})：{user_said}\n[{t}] Bot：{bot_said}"
+        return f"[{t}] {text}"
+
+    @staticmethod
+    def _format_oid_memories_grouped(docs):
+        """将评论区记忆按用户分组格式化，防止窜台"""
+        from collections import OrderedDict
+        import re
+        groups = OrderedDict()
+        for m in docs:
+            uid = m.get("user_id", "?")
+            name = m.get("username", "?")
+            key = f"{name}(uid:{uid})"
+            if key not in groups:
+                groups[key] = []
+            t = m.get("time", "?")
+            text = m.get("text", "")
+            match = re.search(r'说：(.+?)\s*\|\s*Bot回复：(.+)$', text)
+            if match:
+                groups[key].append(f"  [{t}] {name}：{match.group(1).strip()}")
+                groups[key].append(f"  [{t}] Bot：{match.group(2).strip()}")
+            else:
+                groups[key].append(f"  [{t}] {text}")
+        lines = []
+        for user_key, turns in groups.items():
+            lines.append(f"── 与{user_key}的对话 ──")
+            lines.extend(turns)
+        return lines
 
     def _get_bvid_memories(self, bvid, exclude_oid=None):
         """按bvid调取所有与该视频相关的历史记忆（主动看视频、以前的评论区互动等）。
@@ -396,15 +438,24 @@ class MemoryMixin:
         # 1.3 当前评论线（最直接的对话上下文）
         td = self._get_thread_memories(thread_id)
         if td:
-            parts.append("【当前评论线对话】\n" + "\n".join(td[-10:]))
+            formatted = [self._format_conversation_turn(m) for m in td[-10:]]
+            parts.append(
+                "【当前评论线上下文】以下是你和这位用户在同一评论线里的历史对话，"
+                "按时间顺序排列：\n" + "\n".join(formatted)
+            )
 
         # 1.4 本评论区其他对话（同oid，排除当前thread，不限用户）
         if oid:
             oid_mems = self._get_oid_memories(oid, exclude_thread_id=thread_id)
             if oid_mems:
-                # 最多取最近15条，避免太长
+                # 最多取最近15条，按用户分组避免窜台
                 recent_oid = oid_mems[-15:]
-                parts.append("【本评论区其他对话】\n" + "\n".join(recent_oid))
+                grouped = self._format_oid_memories_grouped(recent_oid)
+                parts.append(
+                    "【本评论区其他用户的对话】以下是同一评论区里你和其他用户的交流记录，"
+                    "注意区分不同用户（各自标注了uid），不要把不同人的对话混淆：\n"
+                    + "\n".join(grouped)
+                )
 
         # ── 第二层：认人 ──
 
