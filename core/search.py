@@ -36,7 +36,11 @@ class WebSearchMixin:
             return ""
         backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower().strip()
         max_results = self.config.get("WEB_SEARCH_MAX_RESULTS", 5)
-        cache = OrderedDict(self._load_json(WEB_SEARCH_CACHE_FILE, {}))
+        raw_cache = self._load_json(WEB_SEARCH_CACHE_FILE, {})
+        # 按访问时间排序重建 OrderedDict，确保 LRU 淘汰正确
+        cache = OrderedDict(
+            sorted(raw_cache.items(), key=lambda x: x[1].get("ts", 0))
+        )
         cache_key = f"{backend}:{query}"
         if cache_key in cache:
             cached = cache[cache_key]
