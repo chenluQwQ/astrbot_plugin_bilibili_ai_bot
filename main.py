@@ -65,19 +65,33 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     async def _auto_start(self):
         await asyncio.sleep(3)
         valid, _ = await self.check_cookie()
-        if valid: await self._start_bot(); logger.info("[BiliBot] 自动启动")
-        else: logger.warning("[BiliBot] Cookie无效")
+        if valid:
+            await self._start_bot()
+            logger.info("[BiliBot] 自动启动")
+        else:
+            logger.warning("[BiliBot] Cookie无效")
     async def _start_bot(self):
-        if self._running: return
+        if self._running:
+            return
         await self._ensure_buvid()
         self._mark_overdue_schedule_as_triggered_on_startup()
-        self._running = True; self._task = asyncio.create_task(self._main_loop()); logger.info("[BiliBot] 启动")
+        self._running = True
+        self._task = asyncio.create_task(self._main_loop())
+        logger.info("[BiliBot] 启动")
     async def _stop_bot(self):
         self._running = False
-        if self._task: self._task.cancel(); self._task = None
-        if self._proactive_task and not self._proactive_task.done(): self._proactive_task.cancel(); self._proactive_task = None
-        if self._dynamic_task and not self._dynamic_task.done(): self._dynamic_task.cancel(); self._dynamic_task = None
-        if self._bangumi_task and not self._bangumi_task.done(): self._bangumi_task.cancel(); self._bangumi_task = None
+        if self._task:
+            self._task.cancel()
+            self._task = None
+        if self._proactive_task and not self._proactive_task.done():
+            self._proactive_task.cancel()
+            self._proactive_task = None
+        if self._dynamic_task and not self._dynamic_task.done():
+            self._dynamic_task.cancel()
+            self._dynamic_task = None
+        if self._bangumi_task and not self._bangumi_task.done():
+            self._bangumi_task.cancel()
+            self._bangumi_task = None
         logger.info("[BiliBot] 停止")
 
     async def _main_loop(self):
@@ -85,13 +99,19 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         while self._running:
             try:
                 await self._maybe_evolve_personality()
-                h = datetime.now().hour; ss = self.config.get("SLEEP_START", 2); se = self.config.get("SLEEP_END", 8)
-                if ss <= h < se: await asyncio.sleep(60); continue
+                h = datetime.now().hour
+                ss = self.config.get("SLEEP_START", 2)
+                se = self.config.get("SLEEP_END", 8)
+                if ss <= h < se:
+                    await asyncio.sleep(60)
+                    continue
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
-                if time.time() - self._last_cookie_check > ci: await self._check_and_refresh_cookie()
+                if time.time() - self._last_cookie_check > ci:
+                    await self._check_and_refresh_cookie()
                 self._last_cookie_check = time.time()
                 if self.config.get("ENABLE_PROACTIVE", False):
-                    now_dt = datetime.now(); today_str = now_dt.strftime("%Y-%m-%d")
+                    now_dt = datetime.now()
+                    today_str = now_dt.strftime("%Y-%m-%d")
                     sched = self._load_json(SCHEDULE_FILE, {})
                     if sched.get("date") != today_str:
                         self._proactive_times, self._proactive_triggered = self._generate_daily_schedule()
@@ -111,7 +131,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                                 logger.info(f"[BiliBot] 🎯 触发主动视频（{key}）")
                                 break
                 if self.config.get("ENABLE_DYNAMIC", False):
-                    now_dt = datetime.now(); today_str = now_dt.strftime("%Y-%m-%d")
+                    now_dt = datetime.now()
+                    today_str = now_dt.strftime("%Y-%m-%d")
                     sched = self._load_json(DYNAMIC_SCHEDULE_FILE, {})
                     if sched.get("date") != today_str:
                         self._dynamic_times, self._dynamic_triggered = self._generate_dynamic_schedule()
@@ -130,7 +151,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 if self.config.get("ENABLE_REPLY", True): await self._poll_unified()
                 # 番剧主动看番（随机时间调度，与视频/动态一致）
                 if self.config.get("ENABLE_BANGUMI", False) and self.config.get("BANGUMI_PROACTIVE", False):
-                    now_dt = datetime.now(); today_str = now_dt.strftime("%Y-%m-%d")
+                    now_dt = datetime.now()
+                    today_str = now_dt.strftime("%Y-%m-%d")
                     bsched = self._load_json(BANGUMI_SCHEDULE_FILE, {})
                     if bsched.get("date") != today_str:
                         self._bangumi_times, self._bangumi_triggered, self._bangumi_update_checked = self._generate_bangumi_schedule()
@@ -165,16 +187,22 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                                     logger.info(f"[BiliBot] 🎬 触发主动看番（{key}）")
                                     break
                 await asyncio.sleep(self.config.get("POLL_INTERVAL", 20))
-            except asyncio.CancelledError: break
-            except Exception as e: logger.error(f"[BiliBot] 主循环出错: {e}\n{traceback.format_exc()}"); await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[BiliBot] 主循环出错: {e}\n{traceback.format_exc()}")
+                await asyncio.sleep(30)
         self._running = False
 
     async def _check_and_refresh_cookie(self):
         valid, info = await self.check_cookie()
-        if valid: logger.info(f"[BiliBot] Cookie OK: {info}"); return
+        if valid:
+            logger.info(f"[BiliBot] Cookie OK: {info}")
+            return
         logger.warning(f"[BiliBot] Cookie 失效: {info}")
         if self.config.get("COOKIE_AUTO_REFRESH", True):
-            ok, msg = await self.refresh_cookie(); logger.info(f"[BiliBot] 刷新{'成功' if ok else '失败'}: {msg}")
+            ok, msg = await self.refresh_cookie()
+            logger.info(f"[BiliBot] 刷新{'成功' if ok else '失败'}: {msg}")
 
     async def terminate(self):
         await self._stop_bot()
@@ -188,13 +216,17 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             yield event.plain_result("❌ 生成二维码失败")
             return
         self._login_qrcode_key = qrcode_key
-        import qrcode; qr=qrcode.QRCode(version=1,box_size=8,border=2); qr.add_data(qr_url); qr.make(fit=True)
-        img=qr.make_image(fill_color="black",back_color="white")
-        buf=io.BytesIO()
-        img.save(buf,format="PNG")
+        import qrcode
+        qr = qrcode.QRCode(version=1, box_size=8, border=2)
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
         buf.seek(0)
-        qr_path=os.path.join(DATA_DIR,"login_qr.png")
-        with open(qr_path,"wb") as f: f.write(buf.getvalue())
+        qr_path = os.path.join(DATA_DIR, "login_qr.png")
+        with open(qr_path, "wb") as f:
+            f.write(buf.getvalue())
         yield event.chain_result([Plain("📱 请用B站APP扫描下方二维码：\n扫码后发送 /bili确认"), Image.fromFileSystem(qr_path)])
     @filter.command("bili确认")
     async def cmd_login_confirm(self, event: AstrMessageEvent):
@@ -408,7 +440,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 "/bili记忆 <关键词> 视频 ← 只搜视频记忆\n"
                 "/bili记忆 <关键词> 动态 ← 只搜动态记忆\n"
                 "/bili记忆 <关键词> 交流 ← 只搜交流记忆"
-            ); return
+            )
+            return
         query=parts[1]
         arg=parts[2] if len(parts)>2 else None
         source = None
