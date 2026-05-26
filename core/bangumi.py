@@ -462,17 +462,14 @@ want_continue：这番是否值得继续追。
             candidate = m.group() if m else text
             try:
                 return json.loads(candidate)
-            except Exception:
+            except json.JSONDecodeError:
+                # 去尾逗号后重试
                 fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
                 try:
                     return json.loads(fixed)
-                except Exception:
-                    try:
-                        import ast
-                        return ast.literal_eval(fixed)
-                    except Exception:
-                        logger.warning(f"[BiliBot] 番剧评价JSON解析失败: {raw[:300]}")
-                        return None
+                except json.JSONDecodeError:
+                    logger.warning(f"[BiliBot] 番剧评价JSON解析失败: {raw[:300]}")
+                    return None
         except Exception as e:
             logger.error(f"[BiliBot] 番剧评价失败: {e} | raw={str(text)[:200]}")
             return None
