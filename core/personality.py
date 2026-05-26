@@ -32,28 +32,41 @@ class PersonalityMixin:
         text = self._repair_llm_json(raw_text)
         try:
             return json.loads(text)
-        except Exception:
+        except json.JSONDecodeError:
             pass
-        # 尝试补全截断的JSON
+        # 渐进截断：从末尾逐步移除不完整内容再尝试闭合
         json_start = text.find('{')
         if json_start != -1:
             fragment = text[json_start:]
-            ob = fragment.count('{') - fragment.count('}')
-            oq = fragment.count('[') - fragment.count(']')
-            fragment = re.sub(r',?\s*"[^"]*$', '', fragment)
-            fragment = re.sub(r',\s*$', '', fragment)
-            fragment += ']' * max(0, oq) + '}' * max(0, ob)
-            try:
-                return json.loads(fragment)
-            except Exception:
-                pass
+            # 尝试移除最后一个不完整的键值对再闭合
+            for pattern in [
+                r',\s*"[^"]*"?\s*:?\s*(?:\[[^\]]*)?$',  # 截断的key:value
+                r',\s*"[^"]*$',                          # 截断的字符串
+                r',\s*$',                                # 尾逗号
+            ]:
+                cleaned = re.sub(pattern, '', fragment)
+                # 尝试直接闭合所有开放的括号
+                for suffix in [']}', '}', ']}', '"]}', '"]}}']:
+                    try:
+                        return json.loads(cleaned + suffix)
+                    except json.JSONDecodeError:
+                        continue
         logger.warning(f"[BiliBot] 性格演化JSON解析失败：{raw_text[:200]}")
+        # regex 提取各字段兜底
         reflection = ""
         rm = re.search(r'"reflection"\s*:\s*"([^"]*)"', text)
         if rm:
             reflection = rm.group(1)
+        new_trait = ""
+        tm = re.search(r'"new_trait"\s*:\s*"([^"]*)"', text)
+        if tm:
+            new_trait = tm.group(1)
+        trigger = ""
+        trm = re.search(r'"trigger"\s*:\s*"([^"]*)"', text)
+        if trm:
+            trigger = trm.group(1)
         return {
-            "new_trait": "", "trigger": "",
+            "new_trait": new_trait, "trigger": trigger,
             "speech_habits": old_habits, "opinions": old_opinions,
             "reflection": reflection or "今天的反思没能整理好...",
         }
