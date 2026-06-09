@@ -483,11 +483,14 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             dynamic_count = len([m for m in self._memory if self._match_memory_type(m, {"dynamic"})])
             user_summary_count = len([m for m in self._memory if self._match_memory_type(m, {"user_summary"})])
             lvl = self._consolidation.get_stats()
+            level_line = f"📊 级别: 今日:{lvl['today']} | 近期:{lvl['recent']} | 长期:{lvl['long_term']} | 老化:{lvl['aged']}"
+            if lvl.get('no_level', 0) > 0:
+                level_line += f" | ⚠无级别:{lvl['no_level']}"
             yield event.plain_result(
                 "🧠 记忆统计\n"
                 f"总计:{mc} | B站:{bc} | QQ:{qc}\n"
                 f"交流:{chat_count} | 视频:{video_count} | 动态:{dynamic_count} | 用户总结:{user_summary_count}\n"
-                f"📊 级别: 今日:{lvl['today']} | 近期:{lvl['recent']} | 长期:{lvl['long_term']} | 老化:{lvl['aged']}\n\n"
+                f"{level_line}\n\n"
                 "用法:\n"
                 "/bili记忆 <关键词>\n"
                 "/bili记忆 <关键词> qq ← 只搜QQ\n"
@@ -539,12 +542,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     @filter.command("bili迁移记忆")
     async def cmd_migrate_memory(self, event: AstrMessageEvent):
-        """手动将无 level 的旧记忆迁移为 long_term。"""
+        """手动将无有效 level 的旧记忆迁移（chat→recent/7分，其他→long_term/8分）。"""
         migrated = self._consolidation._migrate_legacy_entries()
         if migrated:
-            yield event.plain_result(f"📦 已迁移 {migrated} 条旧记忆 → long_term")
+            yield event.plain_result(f"📦 已迁移 {migrated} 条旧记忆（chat→recent/其他→long_term）")
         else:
-            yield event.plain_result("✅ 所有记忆已有 level 字段，无需迁移")
+            yield event.plain_result("✅ 所有记忆已有有效 level，无需迁移")
 
     async def _tool_bili_search_memory_result(self, query: str, memory_type: str = "", source: str = "") -> str:
         type_alias = {
