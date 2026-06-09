@@ -36,9 +36,8 @@ class MemoryMixin:
                 rec["memory_type"] = "user_summary"
             else:
                 rec["memory_type"] = "chat"
-        # level 归一化：无 level 的旧记忆不在这里改（由 consolidation 迁移）
-        if "level" not in rec:
-            rec.setdefault("level", None)
+        # level 归一化：无 level 的旧记忆保持不设（由 consolidation 迁移处理）
+        # 注意：不要 setdefault("level", None)，那会导致迁移检测 key 存在而跳过
         return rec
 
     def _save_memory_entry(self, record):
