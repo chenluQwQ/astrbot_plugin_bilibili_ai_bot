@@ -17,6 +17,7 @@ from .core import (
     AffectionMixin, PersonalityMixin, BilibiliAPIMixin,
     BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin,
     ProactiveMixin, DynamicMixin, ScheduleMixin,
+    ConsolidationEngine, BiliBotMemoryAPI,
 )
 
 _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data", "site-packages")
@@ -54,7 +55,13 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._bangumi_times, self._bangumi_triggered, self._bangumi_update_checked = [], set(), False
+        self._special_follow_task = None
+        self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
+        # ── 记忆清算引擎 & 外部接口 ──
+        self._consolidation = ConsolidationEngine(self)
+        self.memory_api = BiliBotMemoryAPI(self)
+        self._consolidation_task = None
         if self._has_cookie():
             asyncio.create_task(self._auto_start())
 
@@ -92,7 +99,22 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         if self._bangumi_task and not self._bangumi_task.done():
             self._bangumi_task.cancel()
             self._bangumi_task = None
+        if self._special_follow_task and not self._special_follow_task.done():
+            self._special_follow_task.cancel()
+            self._special_follow_task = None
+        if self._consolidation_task and not self._consolidation_task.done():
+            self._consolidation_task.cancel()
+            self._consolidation_task = None
         logger.info("[BiliBot] 停止")
+
+    async def _run_consolidation_safe(self):
+        """安全执行日终清算，捕获所有异常。"""
+        try:
+            logger.info("[BiliBot] 🌙 开始日终清算...")
+            summary = await self._consolidation.run_daily()
+            logger.info(f"[BiliBot] 🌙 日终清算完成:\n{summary}")
+        except Exception as e:
+            logger.error(f"[BiliBot] 日终清算异常: {e}", exc_info=True)
 
     async def _main_loop(self):
         logger.info("[BiliBot] 主循环开始")
@@ -103,6 +125,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
                 if ss <= h < se:
+                    # ── 日终清算：在睡眠时段触发 ──
+                    if self._consolidation.should_run_today():
+                        if self._consolidation_task is None or self._consolidation_task.done():
+                            self._consolidation_task = asyncio.create_task(self._run_consolidation_safe())
                     await asyncio.sleep(60)
                     continue
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
@@ -186,6 +212,28 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                                     self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
                                     logger.info(f"[BiliBot] 🎬 触发主动看番（{key}）")
                                     break
+                # 特别关注定时巡视
+                if self.config.get("SPECIAL_FOLLOW_ENABLED", False):
+                    now_dt = datetime.now()
+                    today_str = now_dt.strftime("%Y-%m-%d")
+                    sfsched = self._load_json(SPECIAL_FOLLOW_SCHEDULE_FILE, {})
+                    if sfsched.get("date") != today_str:
+                        self._special_follow_times, self._special_follow_triggered = self._generate_special_follow_schedule()
+                        logger.info(f"[BiliBot] 📅 特关时间：{[f'{sh}:{sm:02d}' for sh,sm in self._special_follow_times]}")
+                    elif not self._special_follow_times:
+                        self._special_follow_times, self._special_follow_triggered = self._load_or_generate_special_follow_schedule()
+                    for sh, sm in self._special_follow_times:
+                        key = f"{sh}:{sm:02d}"
+                        if key not in self._special_follow_triggered and (now_dt.hour > sh or (now_dt.hour == sh and now_dt.minute >= sm)):
+                            if self._special_follow_task is None or self._special_follow_task.done():
+                                self._special_follow_task = asyncio.create_task(self._run_special_follow())
+                                self._special_follow_triggered.add(key)
+                                self._save_special_follow_schedule_state(self._special_follow_times, self._special_follow_triggered)
+                                trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
+                                trigger_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "type": "special_follow", "scheduled": key, "status": "triggered"})
+                                self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
+                                logger.info(f"[BiliBot] ⭐ 触发特别关注巡视（{key}）")
+                                break
                 await asyncio.sleep(self.config.get("POLL_INTERVAL", 20))
             except asyncio.CancelledError:
                 break
@@ -283,14 +331,16 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"📺 BiliBot 1.1.31 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
+            f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
             f"🎭 心情:{mood} | 🌱性格v{evo_ver}（{evo_last[:10]}）",
             f"📹 今日已看:{today_watched}个视频 | 📝动态:{today_dynamic}条",
             f"🎯 主动时间:{', '.join(schedule['proactive_times']) if schedule['proactive_times'] else '未生成'}",
             f"📢 动态时间:{', '.join(schedule['dynamic_times']) if schedule['dynamic_times'] else '未生成'}",
+            f"⭐ 特关时间:{', '.join(schedule['special_follow_times']) if schedule.get('special_follow_times') else '未启用'}",
             f"✅ 已触发主动:{', '.join(schedule['proactive_triggered']) if schedule['proactive_triggered'] else '暂无'}",
             f"✅ 已触发动态:{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
-            f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'}",
+            f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'}",
             f"🔍 联网搜索:{'✅ '+feature_status['web_search_backend'] if feature_status['web_search'] else '❌'} 判断模型:{'✅' if feature_status['web_search_judge'] else '❌(用主模型)'}",
             f"📦 视频池:{', '.join(self.config.get('PROACTIVE_VIDEO_POOLS', ['popular']))}",
             f"视频视觉Provider:{'✅' if env['llm']['video_provider'] else '❌'} 独立API:{'✅' if env['llm']['video_api'] else '❌'}",
@@ -311,6 +361,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"✅ 已触发动态：{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"🎬 看番时间：{', '.join(schedule['bangumi_times']) if schedule.get('bangumi_times') else '未生成'}",
             f"✅ 已触发看番：{', '.join(schedule['bangumi_triggered']) if schedule.get('bangumi_triggered') else '暂无'}",
+            f"⭐ 特关巡视时间：{', '.join(schedule['special_follow_times']) if schedule.get('special_follow_times') else '未启用'}",
+            f"✅ 已触发特关：{', '.join(schedule['special_follow_triggered']) if schedule.get('special_follow_triggered') else '暂无'}",
         ]
         yield event.plain_result("\n".join(lines))
     @filter.command("bili分区")
@@ -430,10 +482,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             video_count = len([m for m in self._memory if self._match_memory_type(m, {"video"})])
             dynamic_count = len([m for m in self._memory if self._match_memory_type(m, {"dynamic"})])
             user_summary_count = len([m for m in self._memory if self._match_memory_type(m, {"user_summary"})])
+            lvl = self._consolidation.get_stats()
             yield event.plain_result(
                 "🧠 记忆统计\n"
                 f"总计:{mc} | B站:{bc} | QQ:{qc}\n"
-                f"交流:{chat_count} | 视频:{video_count} | 动态:{dynamic_count} | 用户总结:{user_summary_count}\n\n"
+                f"交流:{chat_count} | 视频:{video_count} | 动态:{dynamic_count} | 用户总结:{user_summary_count}\n"
+                f"📊 级别: 今日:{lvl['today']} | 近期:{lvl['recent']} | 长期:{lvl['long_term']} | 老化:{lvl['aged']}\n\n"
                 "用法:\n"
                 "/bili记忆 <关键词>\n"
                 "/bili记忆 <关键词> qq ← 只搜QQ\n"
@@ -463,6 +517,35 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         lines = [f"🧠 关于「{query}」的记忆{suffix}：",""]
         for i,r in enumerate(results,1): lines.append(f"{i}. {r[:150]+'...' if len(r)>150 else r}")
         yield event.plain_result("\n".join(lines))
+
+    @filter.command("bili清算")
+    async def cmd_consolidation(self, event: AstrMessageEvent):
+        """手动触发日终清算。"""
+        yield event.plain_result("🌙 开始手动清算...")
+        try:
+            summary = await self._consolidation.run_daily()
+            yield event.plain_result(f"🌙 清算完成\n{summary}")
+        except Exception as e:
+            yield event.plain_result(f"❌ 清算失败: {e}")
+
+    @filter.command("bili清理老化")
+    async def cmd_cleanup_aged(self, event: AstrMessageEvent):
+        """清理所有 aged=true 的长期记忆。"""
+        removed = self._consolidation.cleanup_aged()
+        if removed:
+            yield event.plain_result(f"🗑️ 已清理 {removed} 条老化记忆")
+        else:
+            yield event.plain_result("✅ 没有需要清理的老化记忆")
+
+    @filter.command("bili迁移记忆")
+    async def cmd_migrate_memory(self, event: AstrMessageEvent):
+        """手动将无 level 的旧记忆迁移为 long_term。"""
+        migrated = self._consolidation._migrate_legacy_entries()
+        if migrated:
+            yield event.plain_result(f"📦 已迁移 {migrated} 条旧记忆 → long_term")
+        else:
+            yield event.plain_result("✅ 所有记忆已有 level 字段，无需迁移")
+
     async def _tool_bili_search_memory_result(self, query: str, memory_type: str = "", source: str = "") -> str:
         type_alias = {
             "chat": {"chat"},

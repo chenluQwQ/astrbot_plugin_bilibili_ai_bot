@@ -146,7 +146,32 @@
     "description": "【主动行为】特别关注的UP主UID列表",
     "type": "list",
     "default": [],
-    "hint": "这些UP主的新视频会优先观看"
+    "hint": "这些UP主的新视频会优先观看（主动行为+特关巡视共用）"
+  },
+  "SPECIAL_FOLLOW_ENABLED": {
+    "description": "【特别关注】启用定时特关巡视（独立于主动刷视频）",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，会按独立时间表巡视特别关注UP主的最新视频"
+  },
+  "SPECIAL_FOLLOW_MODE": {
+    "description": "【特别关注】触发模式",
+    "type": "string",
+    "default": "random",
+    "hint": "random=每天随机时间 | fixed=固定时间（需配置SPECIAL_FOLLOW_FIXED_TIMES）",
+    "enum": ["random", "fixed"]
+  },
+  "SPECIAL_FOLLOW_TIMES_COUNT": {
+    "description": "【特别关注】每天巡视几次（random模式生效）",
+    "type": "int",
+    "default": 1,
+    "hint": "随机模式下每天触发的次数"
+  },
+  "SPECIAL_FOLLOW_FIXED_TIMES": {
+    "description": "【特别关注】固定触发时间（fixed模式生效）",
+    "type": "list",
+    "default": ["12:00", "20:00"],
+    "hint": "格式 HH:MM，如 [\"12:00\", \"20:00\"]"
   },
   "PROACTIVE_VIDEO_POOLS": {
     "description": "【主动行为】主动视频来源池",
@@ -327,6 +352,12 @@
     "type": "int",
     "default": 2,
     "hint": "每秒抽取的帧数，值越大越精细但token消耗越多，建议1~4"
+  },
+  "VIDEO_SEGMENT_SEC": {
+    "description": "【视频分析】长视频切片长度（秒）",
+    "type": "int",
+    "default": 300,
+    "hint": "超过此时长的视频会被切片分段分析再整合，默认300秒（5分钟），上限10段"
   },
   "IMAGE_VISION_PROVIDER_ID": {
     "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",

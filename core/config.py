@@ -32,6 +32,7 @@ BANGUMI_MEMORY_FILE = os.path.join(DATA_DIR, "bangumi_memory.json")
 BANGUMI_WATCH_LOG_FILE = os.path.join(DATA_DIR, "bangumi_watch_log.json")
 BANGUMI_SCHEDULE_FILE = os.path.join(DATA_DIR, "bangumi_schedule.json")
 PROACTIVE_TRIGGER_LOG_FILE = os.path.join(DATA_DIR, "proactive_trigger_log.json")
+SPECIAL_FOLLOW_SCHEDULE_FILE = os.path.join(DATA_DIR, "special_follow_schedule.json")
 WEB_SEARCH_CACHE_FILE = os.path.join(DATA_DIR, "web_search_cache.json")
 
 # B站分区表（数据来源：bilibili-API-collect，极少变动）
@@ -103,6 +104,15 @@ OID_KEEP_RECENT = 8            # 评论区压缩时保留最近几条
 MAX_SEMANTIC_RESULTS = 3
 USER_MEMORY_COMPRESS_THRESHOLD = 20
 USER_MEMORY_KEEP_RECENT = 5
+
+# ── 记忆分级相关 ──
+MEMORY_LEVELS = ("today", "recent", "long_term")
+CONSOLIDATION_DISCARD_THRESHOLD = 3   # LLM评分 ≤ 此值的 chat 记忆丢弃
+CONSOLIDATION_BATCH_SIZE = 20         # 每批评估条数
+RECENT_PROMOTE_DAYS = 14              # recent 超过此天数自动升 long_term
+LONG_TERM_AGE_DAYS = 180              # long_term 超过此天数标 aged
+CONSOLIDATION_HOUR = 3                # 日终清算触发时间（小时，建议凌晨）
+CONSOLIDATION_STATE_FILE = os.path.join(DATA_DIR, "consolidation_state.json")
 
 DEFAULT_DYNAMIC_TOPICS = [
     "针对今天的某个热点新闻，用你的风格讽刺或点评一下",

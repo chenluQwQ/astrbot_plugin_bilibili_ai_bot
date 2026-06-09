@@ -468,3 +468,151 @@ comment要求：像真人随手在评论区打的字，不要客套话。
             logger.info(f"[BiliBot] ⏳ 等待 {wait} 秒...")
             await asyncio.sleep(wait)
         logger.info(f"[BiliBot] 🎉 刷B站完成！看了 {watch_count} 个视频，评论了 {comment_count} 条")
+
+    # ── 特别关注定时巡视 ──
+
+    async def _run_special_follow(self):
+        try:
+            await self._run_special_follow_inner()
+        except asyncio.CancelledError:
+            logger.info("[BiliBot] 特别关注任务被取消")
+        except Exception as e:
+            logger.error(f"[BiliBot] 特别关注任务异常: {e}\n{traceback.format_exc()}")
+
+    async def _run_special_follow_inner(self):
+        special_mids = self.config.get("PROACTIVE_FOLLOW_UIDS", [])
+        if not special_mids:
+            logger.info("[BiliBot] 特别关注列表为空，跳过")
+            return
+
+        watch_log = self._load_json(WATCH_LOG_FILE, [])
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        watched_bvids = set()
+        for entry in watch_log:
+            watched_bvids.add(entry.get("bvid", ""))
+        commented_videos = set(self._load_json(COMMENTED_FILE, []))
+        external_memory = self._load_json(EXTERNAL_MEMORY_FILE, {})
+
+        logger.info(f"[BiliBot] ⭐ 特别关注巡视开始，共 {len(special_mids)} 个UP主")
+
+        watch_count = 0
+        comment_count = 0
+        daily_comment = self.config.get("PROACTIVE_COMMENT_COUNT", 2)
+
+        for mid in special_mids:
+            video = await self._get_up_latest_video(mid)
+            if not video:
+                logger.info(f"[BiliBot] ⭐ UP主 {mid} 无最新视频，跳过")
+                continue
+            bvid = video["bvid"]
+            if bvid in watched_bvids:
+                logger.info(f"[BiliBot] ⭐ 已看过 {video.get('up_name', '')} 的《{video['title']}》，跳过")
+                continue
+            if str(video.get("up_mid", "")) == self.config.get("DEDE_USER_ID", ""):
+                continue
+
+            logger.info(f"[BiliBot] ⭐ 特关看视频：{video.get('up_name', '')} - {video['title']}")
+            oid = video.get("oid") or await self._get_video_oid(bvid) or 0
+            vi = await self._get_video_info(oid) if oid else None
+            analysis_info = {
+                **video,
+                **({
+                    "bvid": vi.get("bvid", bvid), "title": vi.get("title", video.get("title", "")),
+                    "desc": vi.get("desc", video.get("desc", "")), "up_name": vi.get("owner_name", video.get("up_name", "")),
+                    "up_mid": vi.get("owner_mid", video.get("up_mid", "")), "tname": vi.get("tname", video.get("tname", "")),
+                    "duration": vi.get("duration", 0), "pic": vi.get("pic", video.get("pic", "")),
+                    "cid": vi.get("cid", 0),
+                } if vi else {"bvid": bvid}),
+            }
+
+            video_description = await self._analyze_video_with_vision(analysis_info)
+            logger.info(f"[BiliBot] ⭐ 分析：{video_description[:60]}...")
+            evaluation = await self._evaluate_video(analysis_info, video_description)
+
+            if not evaluation:
+                logger.warning("[BiliBot] ⭐ 评价失败，跳过互动")
+                watch_log.append({
+                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid,
+                    "title": video.get("title", ""), "up_name": video.get("up_name", ""),
+                    "score": 0, "mood": "未知", "comment": "评价失败", "review": "",
+                    "actions": [], "pic": video.get("pic", ""), "source": "special_follow",
+                })
+                self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+                watched_bvids.add(bvid)
+                watch_count += 1
+                continue
+
+            score = evaluation.get("score", 5)
+            comment = evaluation.get("comment", "")
+            mood = evaluation.get("mood", "平静")
+            review = evaluation.get("review", "")
+            logger.info(f"[BiliBot] ⭐ 评分：{score}/10 | 心情：{mood} | 短评：{comment}")
+
+            actions = []
+            interaction_failed = False
+            if oid:
+                cookie_ok, _ = await self.check_cookie()
+                if not cookie_ok:
+                    logger.warning("[BiliBot] ⚠️ Cookie 已失效，跳过互动")
+                    interaction_failed = True
+                elif score >= 6 and self.config.get("PROACTIVE_LIKE", True):
+                    if await self._like_video(oid):
+                        actions.append("👍点赞")
+                    else:
+                        interaction_failed = True
+                if not interaction_failed:
+                    if score >= 8 and self.config.get("PROACTIVE_COIN", False):
+                        if await self._coin_video(oid):
+                            actions.append("🪙投币")
+                    if score >= 8 and self.config.get("PROACTIVE_FAV", True):
+                        if await self._fav_video(oid):
+                            actions.append("⭐收藏")
+                    if score >= 7 and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
+                        proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
+                        if await self._send_comment(oid, proactive_comment):
+                            actions.append("💬评论")
+                            comment_count += 1
+                            commented_videos.add(bvid)
+                            self._save_json(COMMENTED_FILE, list(commented_videos))
+
+            log_entry = {
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid,
+                "title": video.get("title", ""), "up_name": video.get("up_name", ""),
+                "up_mid": str(video.get("up_mid", "")), "score": score,
+                "mood": mood, "comment": comment, "review": review,
+                "actions": actions, "pic": video.get("pic", ""), "source": "special_follow",
+            }
+            watch_log.append(log_entry)
+            self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+
+            memory_text = (
+                f"[{log_entry['time']}] 特别关注看了视频《{video.get('title', '')}》"
+                f"(UP主:{video.get('up_name', '')}) "
+                f"评分:{score}/10 心情:{mood} "
+                f"感想:{review[:80]} 内容:{video_description[:120]}"
+            )
+            await self._save_self_memory_record(
+                "special_follow_watch", memory_text, memory_type="video",
+                extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "video_title": video.get("title", "")},
+            )
+
+            if bvid not in external_memory:
+                external_memory[bvid] = {
+                    "title": video.get("title", ""), "up_name": video.get("up_name", ""),
+                    "up_mid": str(video.get("up_mid", "")), "description": video_description,
+                    "score": score, "mood": mood, "review": review,
+                    "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": [],
+                }
+                self._save_json(EXTERNAL_MEMORY_FILE, external_memory)
+
+            watched_bvids.add(bvid)
+            watch_count += 1
+            action_str = " ".join(actions) if actions else "（默默看完）"
+            logger.info(f"[BiliBot] ⭐ 互动：{action_str}")
+
+            if watch_count < len(special_mids):
+                wait = random.randint(30, 90)
+                logger.info(f"[BiliBot] ⭐ 等待 {wait} 秒...")
+                await asyncio.sleep(wait)
+
+        logger.info(f"[BiliBot] ⭐ 特别关注巡视完成！看了 {watch_count} 个视频")

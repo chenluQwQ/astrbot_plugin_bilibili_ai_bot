@@ -25,18 +25,20 @@ class MemoryMixin:
     # ══════════════════════════════════════
     def _normalize_memory_entry(self, record):
         rec = dict(record)
-        if rec.get("memory_type"):
-            return rec
-        thread_id = str(rec.get("thread_id", ""))
-        text = str(rec.get("text", ""))
-        if thread_id == "dynamic" or "Bot发了一条动态" in text:
-            rec["memory_type"] = "dynamic"
-        elif thread_id.startswith("video:") or thread_id == "proactive_watch" or "Bot看了视频" in text or "视频分析记忆" in text:
-            rec["memory_type"] = "video"
-        elif text.startswith("[记忆压缩]") or text.startswith("[评论区总结]"):
-            rec["memory_type"] = "user_summary"
-        else:
-            rec["memory_type"] = "chat"
+        if not rec.get("memory_type"):
+            thread_id = str(rec.get("thread_id", ""))
+            text = str(rec.get("text", ""))
+            if thread_id == "dynamic" or "Bot发了一条动态" in text:
+                rec["memory_type"] = "dynamic"
+            elif thread_id.startswith("video:") or thread_id == "proactive_watch" or "Bot看了视频" in text or "视频分析记忆" in text:
+                rec["memory_type"] = "video"
+            elif text.startswith("[记忆压缩]") or text.startswith("[评论区总结]"):
+                rec["memory_type"] = "user_summary"
+            else:
+                rec["memory_type"] = "chat"
+        # level 归一化：无 level 的旧记忆不在这里改（由 consolidation 迁移）
+        if "level" not in rec:
+            rec.setdefault("level", None)
         return rec
 
     def _save_memory_entry(self, record):
@@ -55,7 +57,7 @@ class MemoryMixin:
     # ══════════════════════════════════════
     #  写入记忆
     # ══════════════════════════════════════
-    async def _save_memory_record(self, rpid, thread_id, user_id, username, content, reply_text, source="bilibili", oid=0):
+    async def _save_memory_record(self, rpid, thread_id, user_id, username, content, reply_text, source="bilibili", oid=0, bvid="", video_title=""):
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         text = f"[{now}] 用户{user_id}({username})说：{content} | Bot回复：{reply_text}"
         emb = await self._get_embedding(text)
@@ -64,21 +66,29 @@ class MemoryMixin:
             "user_id": str(user_id), "username": username,
             "time": now, "text": text, "source": source,
             "memory_type": "chat",
+            "level": "today", "importance": 5, "promoted_at": now,
         }
         if oid:
             rec["oid"] = str(oid)
+        if bvid:
+            rec["bvid"] = bvid
+        if video_title:
+            rec["video_title"] = video_title
         if emb:
             rec["embedding"] = emb
         self._save_memory_entry(rec)
 
     async def _save_self_memory_record(self, thread_id, text, source="bilibili", memory_type="chat", user_id="self", extra=None):
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        # 视频/动态类记忆默认 importance 更高
+        default_imp = 6 if memory_type in ("video", "dynamic") else 5
         rec = {
             "rpid": f"{thread_id}_{int(datetime.now().timestamp())}",
             "thread_id": str(thread_id),
             "user_id": str(user_id),
             "time": now, "text": text,
             "source": source, "memory_type": memory_type,
+            "level": "today", "importance": default_imp, "promoted_at": now,
         }
         if extra:
             rec.update(extra)
@@ -110,26 +120,45 @@ class MemoryMixin:
 
     @staticmethod
     def _format_conversation_turn(m):
-        """将一条记忆格式化为清晰的对话轮次，标注uid和时间"""
+        """将一条记忆格式化为清晰的对话轮次，标注uid、时间、视频来源"""
         uid = m.get("user_id", "?")
         name = m.get("username", "?")
         t = m.get("time", "?")
         text = m.get("text", "")
+        # 视频来源标注
+        video_tag = ""
+        vt = m.get("video_title", "")
+        bv = m.get("bvid", "")
+        if vt and bv:
+            video_tag = f" [视频《{vt}》({bv})]"
+        elif bv:
+            video_tag = f" [{bv}]"
         # 旧格式兼容：从text中提取内容
         import re
         match = re.search(r'说：(.+?)\s*\|\s*Bot回复：(.+)$', text)
         if match:
             user_said = match.group(1).strip()
             bot_said = match.group(2).strip()
-            return f"[{t}] {name}(uid:{uid})：{user_said}\n[{t}] Bot：{bot_said}"
-        return f"[{t}] {text}"
+            return f"[{t}]{video_tag} {name}(uid:{uid})：{user_said}\n[{t}] Bot：{bot_said}"
+        return f"[{t}]{video_tag} {text}"
 
     @staticmethod
     def _format_oid_memories_grouped(docs):
-        """将评论区记忆按用户分组格式化，防止窜台"""
+        """将评论区记忆按用户分组格式化，防止窜台，标注视频来源"""
         from collections import OrderedDict
         import re
         groups = OrderedDict()
+        # 提取这组记忆的视频来源（取第一条有信息的）
+        video_label = ""
+        for m in docs:
+            vt = m.get("video_title", "")
+            bv = m.get("bvid", "")
+            if vt:
+                video_label = f"《{vt}》({bv})" if bv else f"《{vt}》"
+                break
+            elif bv:
+                video_label = bv
+                break
         for m in docs:
             uid = m.get("user_id", "?")
             name = m.get("username", "?")
@@ -145,8 +174,9 @@ class MemoryMixin:
             else:
                 groups[key].append(f"  [{t}] {text}")
         lines = []
+        header_suffix = f" （视频：{video_label}）" if video_label else ""
         for user_key, turns in groups.items():
-            lines.append(f"── 与{user_key}的对话 ──")
+            lines.append(f"── 与{user_key}的对话{header_suffix} ──")
             lines.extend(turns)
         return lines
 
@@ -252,6 +282,7 @@ class MemoryMixin:
                 "text": f"[评论区总结] {summary}",
                 "source": "bilibili",
                 "memory_type": "user_summary",
+                "level": "long_term", "importance": 7, "promoted_at": now,
             }
             # 保留视频元数据（从被压缩的记录中提取）
             for m in old:
@@ -305,6 +336,7 @@ class MemoryMixin:
                 "text": f"[评论线总结] {summary}",
                 "source": "bilibili",
                 "memory_type": "chat",
+                "level": "long_term", "importance": 6, "promoted_at": now,
             }
             if old_oid:
                 comp["oid"] = str(old_oid)
@@ -366,6 +398,7 @@ class MemoryMixin:
                 "thread_id": "compressed", "user_id": str(user_id),
                 "time": now, "text": f"[记忆压缩] {result.get('summary', '')}",
                 "source": "bilibili", "memory_type": "user_summary",
+                "level": "long_term", "importance": 7, "promoted_at": now,
             }
             # 保留元数据（用户可能在多个视频下互动，取最近的）
             for m in reversed(old):
@@ -504,12 +537,17 @@ class MemoryMixin:
 
     @staticmethod
     def _format_memory_with_meta(m):
-        """给记忆条目附加元数据标签：类型、时间、来源。"""
+        """给记忆条目附加元数据标签：类型、级别、时间、来源。"""
         parts = []
         # 类型
         mtype = m.get("memory_type", "chat")
         type_labels = {"chat": "交流", "video": "视频", "dynamic": "动态", "user_summary": "总结"}
         parts.append(f"[{type_labels.get(mtype, mtype)}]")
+        # 级别
+        level = m.get("level")
+        if level:
+            level_labels = {"today": "今日", "recent": "近期", "long_term": "长期"}
+            parts.append(f"[{level_labels.get(level, level)}]")
         # 来源
         source = m.get("source", "")
         if source and source != "bilibili":

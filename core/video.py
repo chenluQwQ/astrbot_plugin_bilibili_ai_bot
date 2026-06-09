@@ -101,23 +101,58 @@ UP主：{video_info.get('up_name', '未知')}
         bvid = video_info.get("bvid", "")
         if not bvid:
             return None
-        # 判断视频直读格式
         fmt = self._detect_video_format(model)
         video_path = await self._download_video(bvid)
         if not video_path:
             return None
-        frames = []
-        compressed_path = video_path
+
+        segments = []
         try:
-            compressed_path = await self._compress_video(video_path)
+            # 切片（短视频返回单段，长视频返回多段）
+            segment_sec = self.config.get("VIDEO_SEGMENT_SEC", 300)
+            segments = await self._slice_video_segments(video_path, segment_sec=segment_sec)
+            if not segments:
+                return None
+
+            segment_analyses = []
+            for idx, seg_path in enumerate(segments):
+                label = f"第{idx+1}/{len(segments)}段" if len(segments) > 1 else ""
+                result = await self._analyze_single_segment(
+                    seg_path, video_info, fmt, provider_id, client, model, label,
+                )
+                if result:
+                    segment_analyses.append(result)
+
+            if not segment_analyses:
+                return None
+
+            # 单段直接返回
+            if len(segment_analyses) == 1:
+                return segment_analyses[0]
+
+            # 多段：LLM 整合
+            return await self._consolidate_segment_analyses(video_info, segment_analyses)
+
+        except Exception as e:
+            logger.warning(f"[BiliBot] 视频媒体分析失败({bvid})：{e}")
+            return None
+        finally:
+            # 清理所有切片和帧
+            for seg in segments:
+                self._cleanup_video_artifacts(seg)
+
+    async def _analyze_single_segment(self, seg_path, video_info, fmt, provider_id, client, model, label=""):
+        """分析单个视频片段，返回文本结果。"""
+        frames = []
+        try:
             text_prompt = (
-                f"这是一个B站视频，标题是「{video_info.get('title', '未知')}」，"
+                f"这是一个B站视频{label}，标题是「{video_info.get('title', '未知')}」，"
                 f"简介是「{video_info.get('desc', '无')[:300]}」。"
-                "请用100字以内描述视频的主要内容、风格和亮点。"
+                f"请用100字以内描述{'这一段' if label else '视频'}的主要内容、风格和亮点。"
             )
-            # 尝试视频直读（非 none 格式时）
+            # 尝试视频直读
             if fmt != "none":
-                with open(compressed_path, "rb") as f:
+                with open(seg_path, "rb") as f:
                     video_b64 = base64.b64encode(f.read()).decode()
                 content = self._build_video_content(video_b64, text_prompt, fmt)
                 result = await self._astrbot_multimodal_generate(provider_id, content, max_tokens=200)
@@ -125,11 +160,12 @@ UP主：{video_info.get('up_name', '未知')}
                     result = await self._vision_call(client, model, content, max_tokens=200)
                 if result:
                     return result
-                logger.warning(f"[BiliBot] 视频直读失败（{fmt}格式），回退截帧：{bvid}")
-            else:
-                logger.info(f"[BiliBot] 视频直读已禁用（none），直接截帧：{bvid}")
+                logger.warning(f"[BiliBot] 视频直读失败（{fmt}），回退截帧{label}")
             # 回退：截帧分析
-            frames = await self._extract_video_frames(compressed_path, count=5)
+            if not os.path.exists(seg_path):
+                logger.warning(f"[BiliBot] 片段文件不存在，无法截帧{label}: {seg_path}")
+                return None
+            frames = await self._extract_video_frames(seg_path, count=5)
             if not frames:
                 return None
             frame_content = []
@@ -137,23 +173,33 @@ UP主：{video_info.get('up_name', '未知')}
                 with open(frame_path, "rb") as f:
                     img_b64 = base64.b64encode(f.read()).decode()
                 frame_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})
-            frame_content.append({
-                "type": "text",
-                "text": (
-                    f"这些是一个B站视频的截图，标题是「{video_info.get('title', '未知')}」，"
-                    f"简介是「{video_info.get('desc', '无')[:300]}」。"
-                    "请用100字以内描述视频的主要内容、风格和亮点。"
-                ),
-            })
+            frame_content.append({"type": "text", "text": text_prompt})
             result = await self._astrbot_multimodal_generate(provider_id, frame_content, max_tokens=200)
             if not result and client and model:
                 result = await self._vision_call(client, model, frame_content, max_tokens=200)
             return result
         except Exception as e:
-            logger.warning(f"[BiliBot] 视频媒体分析失败({bvid})：{e}")
+            logger.warning(f"[BiliBot] 片段分析失败{label}: {e}")
             return None
         finally:
-            self._cleanup_video_artifacts(compressed_path, frames)
+            self._cleanup_video_artifacts(None, frames)
+
+    async def _consolidate_segment_analyses(self, video_info, segment_analyses):
+        """多段分析结果整合为一段完整概括。"""
+        parts = "\n".join(
+            f"【第{i+1}段】{text}" for i, text in enumerate(segment_analyses)
+        )
+        prompt = f"""以下是B站视频《{video_info.get('title', '未知')}》（UP主：{video_info.get('owner_name', '未知')}）分段分析的结果，请将所有段落整合为一段完整的内容概括（300字以内），覆盖视频全程的要点：
+
+{parts}
+
+直接输出整合后的概括，不要加前缀。"""
+        result = await self._llm_call(prompt, max_tokens=400)
+        if result:
+            logger.info(f"[BiliBot] 📹 长视频{len(segment_analyses)}段整合完成")
+            return result
+        # 整合失败就拼接返回
+        return " | ".join(segment_analyses)
 
     def _detect_video_format(self, model: str) -> str:
         """读取用户配置的视频直读格式。"""
@@ -182,6 +228,16 @@ UP主：{video_info.get('up_name', '未知')}
             ]
 
     # ── 视频下载 / 压缩 / 截帧 ──
+
+    # 分辨率回退链：优先低画质省流，逐级升高，最后兜底
+    _FORMAT_FALLBACKS = [
+        "bestvideo[height<=480]+bestaudio/best[height<=480]",
+        "bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "bestvideo+bestaudio/best",
+        "worst",
+    ]
+
     async def _download_video(self, bvid):
         output_template = os.path.join(TEMP_VIDEO_DIR, f"{bvid}.%(ext)s")
         # 生成 Netscape 格式 cookie 文件，兼容新版 yt-dlp
@@ -204,49 +260,122 @@ UP主：{video_info.get('up_name', '未知')}
         except Exception as e:
             logger.warning(f"[BiliBot] Cookie文件写入失败: {e}")
             return None
+
+        last_err = ""
         try:
-            code, _, stderr = await self._run_process(
-                "yt-dlp", "-o", output_template,
-                # 只下载 480p 以下，AI 分析不需要高画质，减少 CDN 请求量降低风控风险
-                "--format", "bestvideo[height<=480]+bestaudio/best[height<=480]/worst",
-                "--no-playlist", "--merge-output-format", "mp4",
-                "--recode-video", "mp4",
-                "--cookies", cookie_file,
-                "--add-header", "Referer: https://www.bilibili.com",
-                "--limit-rate", "2M",
-                f"https://www.bilibili.com/video/{bvid}",
-                timeout=600,
-            )
+            for fmt in self._FORMAT_FALLBACKS:
+                # 清理上一轮可能残留的部分文件
+                self._cleanup_partial_downloads(bvid)
+                code, _, stderr = await self._run_process(
+                    "yt-dlp", "-o", output_template,
+                    "--format", fmt,
+                    "--no-playlist", "--merge-output-format", "mp4",
+                    "--recode-video", "mp4",
+                    "--cookies", cookie_file,
+                    "--add-header", "Referer: https://www.bilibili.com",
+                    "--limit-rate", "2M",
+                    f"https://www.bilibili.com/video/{bvid}",
+                    timeout=600,
+                )
+                if code == 0:
+                    for name in os.listdir(TEMP_VIDEO_DIR):
+                        fp = os.path.join(TEMP_VIDEO_DIR, name)
+                        if name.startswith(bvid) and os.path.isfile(fp) and not name.endswith("_cookies.txt"):
+                            logger.info(f"[BiliBot] 视频下载成功({bvid})，格式: {fmt}")
+                            return fp
+                last_err = stderr[:200] if stderr else "unknown error"
+                logger.info(f"[BiliBot] 格式 {fmt} 下载失败({bvid})，尝试下一个: {last_err[:80]}")
         finally:
             try:
                 os.remove(cookie_file)
             except OSError:
                 pass
-        if code != 0:
-            logger.warning(f"[BiliBot] 视频下载失败({bvid}): {stderr[:200]}")
-            return None
-        for name in os.listdir(TEMP_VIDEO_DIR):
-            fp = os.path.join(TEMP_VIDEO_DIR, name)
-            if name.startswith(bvid) and os.path.isfile(fp):
-                return fp
+
+        logger.warning(f"[BiliBot] 视频下载全部失败({bvid}): {last_err}")
         return None
 
+    def _cleanup_partial_downloads(self, bvid):
+        """清理某个 bvid 的残留下载文件（不删 cookie）"""
+        if not os.path.isdir(TEMP_VIDEO_DIR):
+            return
+        for name in os.listdir(TEMP_VIDEO_DIR):
+            if name.startswith(bvid) and not name.endswith("_cookies.txt"):
+                try:
+                    fp = os.path.join(TEMP_VIDEO_DIR, name)
+                    if os.path.isfile(fp):
+                        os.remove(fp)
+                except OSError:
+                    pass
+
+    async def _get_video_duration(self, video_path):
+        """获取视频实际时长（秒）"""
+        code, stdout, _ = await self._run_process(
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path, timeout=60,
+        )
+        try:
+            return float(stdout.strip()) if code == 0 and stdout.strip() else 0.0
+        except ValueError:
+            return 0.0
+
     async def _compress_video(self, input_path):
+        """压缩单段视频，AI分析用，极速编码优先。"""
         output_path = input_path.rsplit(".", 1)[0] + "_compressed.mp4"
         code, _, stderr = await self._run_process(
             "ffmpeg", "-y", "-i", input_path,
-            "-t", "30", "-vf", "scale=480:-2", "-an",
-            "-c:v", "libx264", "-preset", "fast",
-            output_path, timeout=600,
+            "-vf", "scale=360:-2", "-an",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
+            output_path, timeout=300,
         )
-        if code != 0:
-            logger.warning(f"[BiliBot] 视频压缩失败，回退原视频: {stderr[:160]}")
+        if code != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            logger.warning(f"[BiliBot] 视频压缩失败或输出为空，回退原视频: {stderr[:160] if stderr else ''}")
             return input_path
         try:
             os.remove(input_path)
         except OSError:
             pass
         return output_path
+
+    async def _slice_video_segments(self, video_path, segment_sec=300):
+        """将长视频切成多个片段，每段 segment_sec 秒，返回片段路径列表。
+        短视频（<=segment_sec）直接压缩返回单段。"""
+        duration = await self._get_video_duration(video_path)
+        if duration <= 0:
+            duration = segment_sec  # 拿不到时长就当一段处理
+
+        if duration <= segment_sec:
+            # 短视频：直接压缩整段
+            compressed = await self._compress_video(video_path)
+            return [compressed]
+
+        # 长视频：切片
+        segments = []
+        num_segments = min(int(duration // segment_sec) + (1 if duration % segment_sec > 10 else 0), 10)  # 上限10段
+        base = video_path.rsplit(".", 1)[0]
+        for i in range(num_segments):
+            start = i * segment_sec
+            seg_path = f"{base}_seg{i}.mp4"
+            code, _, stderr = await self._run_process(
+                "ffmpeg", "-y", "-ss", str(start), "-i", video_path,
+                "-t", str(segment_sec),
+                "-vf", "scale=360:-2", "-an",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
+                seg_path, timeout=300,
+            )
+            if code == 0 and os.path.exists(seg_path):
+                segments.append(seg_path)
+            else:
+                logger.warning(f"[BiliBot] 切片{i}失败: {stderr[:100] if stderr else 'unknown'}")
+        # 清理原始文件
+        try:
+            os.remove(video_path)
+        except OSError:
+            pass
+        if not segments:
+            logger.warning("[BiliBot] 所有切片均失败")
+        return segments
 
     async def _extract_video_frames(self, video_path, count=5):
         frame_dir = video_path.rsplit(".", 1)[0] + "_frames"

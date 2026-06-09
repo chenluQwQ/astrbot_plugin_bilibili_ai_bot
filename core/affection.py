@@ -116,6 +116,13 @@ class AffectionMixin:
         entries = []
         if p.get("username"):
             entries.append(f"昵称：{p['username']}")
+        # 视频遭遇记录：在哪些视频下和这个人聊过
+        encounters = p.get("video_encounters", [])
+        if encounters:
+            recent = encounters[-5:]  # 最近5个视频
+            enc_strs = [f"《{e['title']}》({e['bvid']}, {e['time']})" for e in recent if e.get("title")]
+            if enc_strs:
+                entries.append(f"曾在以下视频下交流过：{'；'.join(enc_strs)}")
         if p.get("facts"):
             for f in p["facts"][-10:]:
                 entries.append(f)
@@ -125,11 +132,12 @@ class AffectionMixin:
             entries.append(f"印象：{p['impression']}")
         return "【对该用户的了解】\n" + "\n".join(entries) if entries else ""
 
-    def _update_user_profile(self, mid, username=None, impression=None, new_facts=None, new_tags=None):
+    def _update_user_profile(self, mid, username=None, impression=None, new_facts=None, new_tags=None, video_encounter=None):
+        """更新用户画像。video_encounter: {"bvid": "...", "title": "...", "time": "..."} 可选"""
         profiles = self._load_json(USER_PROFILE_FILE, {})
         uid = str(mid)
         if uid not in profiles:
-            profiles[uid] = {"username": "", "impression": "", "facts": [], "tags": []}
+            profiles[uid] = {"username": "", "impression": "", "facts": [], "tags": [], "video_encounters": []}
         if username and not profiles[uid].get("username"):
             profiles[uid]["username"] = username
         if impression:
@@ -148,6 +156,13 @@ class AffectionMixin:
                 if t and t not in et:
                     et.append(t)
             profiles[uid]["tags"] = et[-10:]
+        if video_encounter and video_encounter.get("bvid"):
+            ve = profiles[uid].setdefault("video_encounters", [])
+            # 同一个bvid只记一次（更新时间）
+            existing_bvids = {e.get("bvid") for e in ve}
+            if video_encounter["bvid"] not in existing_bvids:
+                ve.append(video_encounter)
+                profiles[uid]["video_encounters"] = ve[-20:]  # 最多保留20个
         self._save_json(USER_PROFILE_FILE, profiles)
 
     # ── 心情 ──

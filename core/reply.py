@@ -11,6 +11,7 @@ from .config import (
     PERMANENT_MEMORY_FILE, REPLIED_AT_FILE, REPLIED_FILE,
     REPLIED_CONTENT_KEYS_FILE, REPLY_LOG_FILE,
     BILI_AT_NOTIFY_URL, BILI_NOTIFY_URL,
+    VIDEO_MEMORY_FILE,
 )
 
 
@@ -111,6 +112,20 @@ class ReplyMixin:
         imp = result.get("impression", "")
         uf = result.get("user_facts", [])
         pm = result.get("permanent_memory", "")
+
+        # ── 解析当前视频来源（comment_type=1 是视频评论区） ──
+        bvid = ""
+        video_title = ""
+        if comment_type == 1 and oid:
+            try:
+                bvid = await self._oid_to_bvid(oid) or ""
+                if bvid:
+                    vc = self._load_json(VIDEO_MEMORY_FILE, {})
+                    cache = vc.get(bvid, {})
+                    video_title = cache.get("title", "")
+            except Exception:
+                pass
+
         if self.config.get("ENABLE_AFFECTION", True):
             if self._is_owner(mid):
                 ns = 100
@@ -147,8 +162,22 @@ class ReplyMixin:
                     await self._block_user(int(mid))
                     logger.info(f"[BiliBot] 🚫 拉黑 {username}")
                     return False
-        if imp or uf:
-            self._update_user_profile(mid, username=username, impression=imp or None, new_facts=uf or None)
+
+        # ── 更新用户画像（含视频遭遇记录） ──
+        video_encounter = None
+        if bvid:
+            video_encounter = {
+                "bvid": bvid,
+                "title": video_title,
+                "time": datetime.now().strftime("%Y-%m-%d"),
+            }
+        if imp or uf or video_encounter:
+            self._update_user_profile(
+                mid, username=username,
+                impression=imp or None, new_facts=uf or None,
+                video_encounter=video_encounter,
+            )
+
         if pm:
             perm = self._load_json(PERMANENT_MEMORY_FILE, [])
             if len(perm) < 20:
@@ -162,15 +191,24 @@ class ReplyMixin:
         if success:
             # 写入独立的回复日志（不受记忆压缩影响）
             reply_log = self._load_json(REPLY_LOG_FILE, [])
-            reply_log.append({
+            log_entry = {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "mid": str(mid), "username": username,
                 "content": content[:100], "reply": ai_reply[:100],
                 "oid": str(oid), "rpid": str(rpid),
                 "score_delta": sd,
-            })
+            }
+            if bvid:
+                log_entry["bvid"] = bvid
+            if video_title:
+                log_entry["video_title"] = video_title
+            reply_log.append(log_entry)
             self._save_json(REPLY_LOG_FILE, reply_log[-500:])
-            await self._save_memory_record(rpid, thread_id, mid, username, content, ai_reply, oid=oid)
+            # 记忆写入（带视频来源）
+            await self._save_memory_record(
+                rpid, thread_id, mid, username, content, ai_reply,
+                oid=oid, bvid=bvid, video_title=video_title,
+            )
             await self._compress_thread_memory(thread_id)
             await self._compress_oid_memory(oid)
             await self._compress_user_memory(mid, username)

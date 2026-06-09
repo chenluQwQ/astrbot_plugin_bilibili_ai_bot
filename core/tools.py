@@ -2,6 +2,8 @@
 工具返回的字符串会回到 LLM，由 LLM 用人设风格重新生成回复。
 """
 from datetime import datetime
+import asyncio
+import random
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
@@ -421,6 +423,7 @@ def create_tools(plugin):
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            await asyncio.sleep(random.uniform(2, 5))
             success = await plugin._like_video(int(kwargs.get("oid", "0")))
             return "点赞成功。" if success else "点赞失败。"
 
@@ -438,6 +441,7 @@ def create_tools(plugin):
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            await asyncio.sleep(random.uniform(2, 5))
             num = int(kwargs.get("num", "1"))
             success = await plugin._coin_video(int(kwargs.get("oid", "0")), num=num)
             return f"投了{num}个币。" if success else "投币失败。"
@@ -455,6 +459,7 @@ def create_tools(plugin):
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            await asyncio.sleep(random.uniform(2, 5))
             success = await plugin._fav_video(int(kwargs.get("oid", "0")))
             return "收藏成功。" if success else "收藏失败。"
 
