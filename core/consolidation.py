@@ -1,7 +1,8 @@
 """日终清算引擎 — 记忆分级评估、升级、老化。
 
 流程：
-  1. 迁移：无 level 的旧记忆 → chat 类型到 recent(7分)，其他到 long_term(8分)
+  1. 迁移：无有效 level 的旧记忆（含 level=None/""）
+         → chat 类型到 recent(7分)，其他到 long_term(8分)
          chat 类型有 level 但无 importance → recent, importance=7
   2. 日终：LLM 批量评估 today 的 chat 记忆
        非今天产生的 chat 记忆 → 直接晋升 recent, importance=7
@@ -119,7 +120,7 @@ class ConsolidationEngine:
     # ══════════════════════════════════════
 
     def _migrate_legacy_entries(self) -> int:
-        """将无 level 字段的旧记忆标记：
+        """将无有效 level 的旧记忆标记：
         - chat 类型 → recent, importance=7
         - 非 chat 类型 → long_term, importance=8
         首次运行时，也将所有 today/recent 记忆提升为 long_term, importance=7。
@@ -134,10 +135,11 @@ class ConsolidationEngine:
         for m in self.bot._memory:
             norm = self.bot._normalize_memory_entry(m)
             is_chat = norm.get("memory_type") == "chat"
+            level = m.get("level")  # 可能是 None / "" / 缺失
 
-            if "level" not in m:
+            if not level:
+                # level 缺失 或 None / ""：全部视为无级别旧记忆
                 if is_chat:
-                    # chat 无 level → recent，固定7分
                     m["level"] = "recent"
                     m["importance"] = 7
                 else:
@@ -145,12 +147,12 @@ class ConsolidationEngine:
                     m["importance"] = 8
                 m["promoted_at"] = m.get("time", now_str)
                 count += 1
-            elif not bootstrap_done and m.get("level") in ("today", "recent"):
+            elif not bootstrap_done and level in ("today", "recent"):
                 m["level"] = "long_term"
                 m["importance"] = max(m.get("importance", 5), 7)
                 m["promoted_at"] = now_str
                 count += 1
-            elif is_chat and m.get("level") and not m.get("importance"):
+            elif is_chat and level and not m.get("importance"):
                 # chat 有 level 但无分数 → 强制 recent，固定7分
                 m["level"] = "recent"
                 m["importance"] = 7
