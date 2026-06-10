@@ -340,7 +340,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"✅ 已触发主动:{', '.join(schedule['proactive_triggered']) if schedule['proactive_triggered'] else '暂无'}",
             f"✅ 已触发动态:{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
-            f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'}",
+            f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'} 工具:{'✅' if self.config.get('ENABLE_LLM_TOOLS',True) else '❌'}",
             f"🔍 联网搜索:{'✅ '+feature_status['web_search_backend'] if feature_status['web_search'] else '❌'} 判断模型:{'✅' if feature_status['web_search_judge'] else '❌(用主模型)'}",
             f"📦 视频池:{', '.join(self.config.get('PROACTIVE_VIDEO_POOLS', ['popular']))}",
             f"视频视觉Provider:{'✅' if env['llm']['video_provider'] else '❌'} 独立API:{'✅' if env['llm']['video_api'] else '❌'}",
@@ -442,12 +442,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     async def cmd_toggle(self, event: AstrMessageEvent):
         parts = event.message_str.strip().split(maxsplit=1)
         if len(parts)<2:
-            tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
+            tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","工具":"ENABLE_LLM_TOOLS","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
             lines = ["可切换功能："] + [f"  {n} ({'✅' if self.config.get(k,True) else '❌'})" for n,k in tm.items()] + ["","用法: /bili开关 回复"]
             yield event.plain_result("\n".join(lines))
             return
         name=parts[1].strip()
-        tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
+        tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","工具":"ENABLE_LLM_TOOLS","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
         key=tm.get(name)
         if not key:
             yield event.plain_result(f"❌ 不认识：{name}")
