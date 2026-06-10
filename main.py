@@ -443,11 +443,24 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         parts = event.message_str.strip().split(maxsplit=1)
         if len(parts)<2:
             tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","工具":"ENABLE_LLM_TOOLS","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
-            lines = ["可切换功能："] + [f"  {n} ({'✅' if self.config.get(k,True) else '❌'})" for n,k in tm.items()] + ["","用法: /bili开关 回复"]
+            lines = ["可切换功能："] + [f"  {n} ({'✅' if self.config.get(k,True) else '❌'})" for n,k in tm.items()] + ["","用法: /bili开关 回复","      /bili开关 全部 ← 一键开/关所有"]
             yield event.plain_result("\n".join(lines))
             return
         name=parts[1].strip()
         tm = {"回复":"ENABLE_REPLY","主动":"ENABLE_PROACTIVE","动态":"ENABLE_DYNAMIC","好感":"ENABLE_AFFECTION","心情":"ENABLE_MOOD","演化":"ENABLE_PERSONALITY_EVOLUTION","工具":"ENABLE_LLM_TOOLS","点赞":"PROACTIVE_LIKE","投币":"PROACTIVE_COIN","收藏":"PROACTIVE_FAV","关注":"PROACTIVE_FOLLOW","评论":"PROACTIVE_COMMENT"}
+
+        # ── 一键全部开/关 ──
+        if name == "全部":
+            # 任一主功能开着 → 全关；全关了 → 全开
+            any_on = any(self.config.get(k, True) for k in tm.values())
+            new_state = not any_on
+            for k in tm.values():
+                self.config[k] = new_state
+            self.config.save_config()
+            emoji = "✅ 全部开启" if new_state else "❌ 全部关闭"
+            yield event.plain_result(f"{emoji}（{len(tm)}项）")
+            return
+
         key=tm.get(name)
         if not key:
             yield event.plain_result(f"❌ 不认识：{name}")
