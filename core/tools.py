@@ -727,8 +727,21 @@ def create_tools(plugin):
                     description=f"UID:{uid} 已加入本地黑名单，但B站API调用失败（可能需要重新登录）。",
                 )
 
-    # 返回所有工具实例
-    return [
+    # ── 一键开关守卫：ENABLE_LLM_TOOLS=False 时所有工具直接返回提示 ──
+
+    def _guard_tool(tool):
+        original_call = tool.call
+
+        async def guarded_call(context, **kwargs):
+            if not plugin.config.get("ENABLE_LLM_TOOLS", True):
+                return "⚠️ LLM工具已关闭，管理员可用 /bili开关 工具 开启。"
+            return await original_call(context, **kwargs)
+
+        tool.call = guarded_call
+        return tool
+
+    # 返回所有工具实例（带守卫）
+    return [_guard_tool(t) for t in [
         # 记忆类
         RecallUserTool(),
         RecallConversationTool(),
@@ -757,4 +770,4 @@ def create_tools(plugin):
         WatchVideosTool(),
         # 用户管理
         BlockBiliUserTool(),
-    ]
+    ]]
