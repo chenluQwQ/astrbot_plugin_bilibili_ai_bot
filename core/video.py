@@ -30,31 +30,75 @@ class VideoMixin:
                     logger.info(f"[BiliBot] 🔍 视频搜索补充完成: {search_query[:40]} -> {len(search_result)}字")
         return extra
 
-    # ── 视频分析 ──
-    async def _analyze_video_with_vision(self, video_info):
-        media_result = await self._analyze_video_media(video_info)
-        if media_result:
-            return media_result
-        client = self._get_video_vision_client()
-        model = self.config.get("VIDEO_VISION_MODEL", "")
-        dur_min = video_info.get("duration", 0) // 60
-        dur_sec = video_info.get("duration", 0) % 60
-        extra_context = await self._enrich_video_context(video_info)
-        # 获取字幕
+    # ── 联合上下文（字幕+热评统一构建，所有分析路径共用） ──
+    async def _build_joint_context(self, video_info):
+        """构建字幕+热评联合上下文。
+
+        返回 dict：
+          extra      - 标签/热评/联网搜索补充（_enrich_video_context 的结果）
+          subtitle   - 格式化后的字幕段（含前缀，可直接拼入 prompt）
+          has_signal - 是否拿到了字幕或热评（决定是否值得做联合整合）
+          joint_hint - 联合分析指令（指导 LLM 把内容与观众反响结合）
+        """
+        extra = await self._enrich_video_context(video_info)
         subtitle_text = await self._get_video_subtitles(
             video_info.get("bvid", ""), video_info.get("cid", 0)
         )
         subtitle_section = ""
         if subtitle_text:
             subtitle_section = f"\n字幕内容：{subtitle_text[:1500]}"
+        has_comments = "热门评论" in extra
+        joint_hint = ""
+        if subtitle_text or has_comments:
+            hint_parts = []
+            if subtitle_text:
+                hint_parts.append("字幕反映视频实际讲了什么，以字幕为准概括内容")
+            if has_comments:
+                hint_parts.append("热门评论反映观众的真实反应，结尾用1-2句描述评论区的氛围、观众在玩什么梗或在讨论什么")
+            joint_hint = "\n联合分析要求：" + "；".join(hint_parts) + "。"
+        return {
+            "extra": extra,
+            "subtitle": subtitle_section,
+            "has_signal": bool(subtitle_text or has_comments),
+            "joint_hint": joint_hint,
+        }
+
+    async def _merge_visual_and_joint(self, video_info, visual_summary, joint):
+        """视觉分析结果与字幕/热评做最终联合整合。"""
+        if not joint.get("has_signal"):
+            return None
+        prompt = f"""以下是关于B站视频《{video_info.get('title', '未知')}》（UP主：{video_info.get('owner_name', video_info.get('up_name', '未知'))}）的多维信息，请整合为一段完整的内容概括（500字以内）：
+
+【画面分析】（来自视觉模型，描述视频画面内容）
+{visual_summary}
+{joint.get('subtitle', '')}
+【补充信息】{joint.get('extra', '') or '无'}
+{joint.get('joint_hint', '')}
+整合要点：画面分析与字幕互相印证视频内容；若两者冲突，以字幕为准。直接输出概括内容，不要加前缀。"""
+        result = await self._llm_call(prompt, max_tokens=600)
+        if result:
+            logger.info("[BiliBot] 🔗 视觉+字幕+热评联合整合完成")
+        return result
+
+    # ── 视频分析 ──
+    async def _analyze_video_with_vision(self, video_info):
+        joint = await self._build_joint_context(video_info)
+        media_result = await self._analyze_video_media(video_info)
+        if media_result:
+            merged = await self._merge_visual_and_joint(video_info, media_result, joint)
+            return merged or media_result
+        client = self._get_video_vision_client()
+        model = self.config.get("VIDEO_VISION_MODEL", "")
+        dur_min = video_info.get("duration", 0) // 60
+        dur_sec = video_info.get("duration", 0) % 60
         text_prompt = f"""请根据以下B站视频信息，写一段详细的内容概括（500字以内），包括：这个视频的主要内容和讲了什么、关键观点或亮点、视频类型/风格、可能的受众。
 
 视频标题：{video_info.get('title', '未知')}
 UP主：{video_info.get('owner_name', '未知')}
 分区：{video_info.get('tname', '未知')}
 时长：{dur_min}分{dur_sec}秒
-简介：{video_info.get('desc', '无')[:500]}{extra_context}{subtitle_section}
-
+简介：{video_info.get('desc', '无')[:500]}{joint['extra']}{joint['subtitle']}
+{joint['joint_hint']}
 直接输出概括内容，不要加前缀。"""
         provider_id = self.config.get("VIDEO_VISION_PROVIDER_ID", "")
         provider_result = await self._astrbot_multimodal_generate(provider_id, [{"type": "text", "text": text_prompt}], max_tokens=500)
@@ -74,20 +118,14 @@ UP主：{video_info.get('owner_name', '未知')}
         return result or f"视频《{video_info.get('title', '未知')}》，UP主：{video_info.get('owner_name', '未知')}，分区：{video_info.get('tname', '未知')}。简介：{video_info.get('desc', '无')[:100]}"
 
     async def _analyze_video_text(self, video_info):
-        extra_context = await self._enrich_video_context(video_info)
-        subtitle_text = await self._get_video_subtitles(
-            video_info.get("bvid", ""), video_info.get("cid", 0)
-        )
-        subtitle_section = ""
-        if subtitle_text:
-            subtitle_section = f"\n字幕内容：{subtitle_text[:1500]}"
+        joint = await self._build_joint_context(video_info)
         prompt = f"""请根据以下B站视频信息，写一段详细的内容概括（500字以内），包括：这个视频的主要内容和讲了什么、关键观点或亮点、视频类型/风格、可能的受众。
 
 视频标题：{video_info.get('title', '未知')}
 UP主：{video_info.get('up_name', '未知')}
 分区：{video_info.get('tname', '未知')}
-简介：{video_info.get('desc', '无')[:500]}{extra_context}{subtitle_section}
-
+简介：{video_info.get('desc', '无')[:500]}{joint['extra']}{joint['subtitle']}
+{joint['joint_hint']}
 直接输出概括内容，不要加前缀。"""
         result = await self._llm_call(prompt, max_tokens=500)
         return result or f"视频《{video_info.get('title', '未知')}》，UP主：{video_info.get('up_name', '未知')}"

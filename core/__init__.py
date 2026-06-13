@@ -12,6 +12,7 @@ from .reply import ReplyMixin
 from .proactive import ProactiveMixin
 from .dynamic import DynamicMixin
 from .schedule import ScheduleMixin
+from .weekly import WeeklySummaryMixin
 from .consolidation import ConsolidationEngine
 from .memory_api import BiliBotMemoryAPI
 
@@ -30,6 +31,7 @@ __all__ = [
     "ProactiveMixin",
     "DynamicMixin",
     "ScheduleMixin",
+    "WeeklySummaryMixin",
     "ConsolidationEngine",
     "BiliBotMemoryAPI",
 ]

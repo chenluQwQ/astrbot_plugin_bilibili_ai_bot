@@ -227,6 +227,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 | `/bili看番` | 搜索并观看番剧 |
 | `/bili番剧记忆` | 查看番剧观看记忆 |
 | `/bili番剧日志` | 查看番剧记录 |
+| `/bili周总结` | 手动生成本周B站生活总结 |
+| `/biliUMO` | 获取当前会话 UMO 并自动填入配置 |
 
 
 

@@ -16,7 +16,7 @@ from .core import (
     UtilsMixin, LLMMixin, VisionMixin, MemoryMixin,
     AffectionMixin, PersonalityMixin, BilibiliAPIMixin,
     BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin,
-    ProactiveMixin, DynamicMixin, ScheduleMixin,
+    ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin,
     ConsolidationEngine, BiliBotMemoryAPI,
 )
 
@@ -24,8 +24,8 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.1.31","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
-class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin):
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.2.0","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
@@ -129,6 +129,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                     if self._consolidation.should_run_today():
                         if self._consolidation_task is None or self._consolidation_task.done():
                             self._consolidation_task = asyncio.create_task(self._run_consolidation_safe())
+                    # ── 周总结：日终清算已完成且不在运行时触发 ──
+                    elif self._consolidation_task is None or self._consolidation_task.done():
+                        try:
+                            await self._maybe_weekly_summary()
+                        except Exception as e:
+                            logger.error(f"[BiliBot] 周总结调度异常: {e}")
                     await asyncio.sleep(60)
                     continue
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
@@ -543,6 +549,20 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             yield event.plain_result(f"🌙 清算完成\n{summary}")
         except Exception as e:
             yield event.plain_result(f"❌ 清算失败: {e}")
+
+    @filter.command("bili周总结")
+    async def cmd_weekly_summary(self, event: AstrMessageEvent):
+        """手动触发周总结（生成并按配置投递）。"""
+        yield event.plain_result("📅 正在回顾这一周...")
+        try:
+            summary, delivered = await self.run_weekly_summary()
+            if not summary:
+                yield event.plain_result("📅 这周没什么活动记录，没有生成总结")
+                return
+            via = "、".join(delivered) if delivered else "仅存档"
+            yield event.plain_result(f"{summary}\n\n——已投递：{via}")
+        except Exception as e:
+            yield event.plain_result(f"❌ 周总结失败: {e}")
 
     @filter.command("bili清理老化")
     async def cmd_cleanup_aged(self, event: AstrMessageEvent):
@@ -977,9 +997,26 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             lines.append(f"   💛 好感{'+' if r.get('score_delta', 0) >= 0 else ''}{r.get('score_delta', 0)}")
         yield event.plain_result("\n".join(lines))
 
+    @filter.command("biliUMO")
+    async def cmd_umo(self, event: AstrMessageEvent):
+        """获取当前会话 UMO 并自动记录到周总结/恶意告警配置。"""
+        umo = event.unified_msg_origin
+        saved = []
+        if not (self.config.get("ABUSE_ALERT_QQ_UMO", "") or "").strip():
+            self.config["ABUSE_ALERT_QQ_UMO"] = umo
+            saved.append("恶意告警")
+        if not (self.config.get("WEEKLY_SUMMARY_QQ_UMO", "") or "").strip():
+            self.config["WEEKLY_SUMMARY_QQ_UMO"] = umo
+            saved.append("周总结")
+        if saved:
+            self.config.save_config()
+            yield event.plain_result(f"当前 UMO：{umo}\n✅ 已自动填入：{'、'.join(saved)}的 QQ UMO 配置")
+        else:
+            yield event.plain_result(f"当前 UMO：{umo}\n（恶意告警和周总结的 UMO 都已有值，未覆盖）")
+
     @filter.command("bili帮助")
     async def cmd_help(self, event: AstrMessageEvent):
-        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili计划 — 查看今日主动/动态时间\n/bili分区 — 查看B站分区编号（配置视频池用）\n/bili启动 — 启动\n/bili停止 — 停止\n/bili主动 — 立刻触发一次主动看视频\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili回复日志 — 查看某天的回复记录\n/bili看番 — 手动触发看番\n/bili番剧日志 — 查看看番记录\n/bili番剧记忆 — 查看追番进度\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili动态日志 — 动态记录\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili清理 — 清理临时文件\n/bili帮助 — 本帮助\n━━━━━━━━━━━━\n💡 首次用 /bili登录\n💡 直接在聊天里让 Bot 去随机看B站视频，也会尝试触发一次主动看视频")
+        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili计划 — 查看今日主动/动态时间\n/bili分区 — 查看B站分区编号（配置视频池用）\n/bili启动 — 启动\n/bili停止 — 停止\n/bili主动 — 立刻触发一次主动看视频\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 — 今日视频/评论日志\n/bili回复日志 — 查看某天的回复记录\n/bili看番 — 手动触发看番\n/bili番剧日志 — 查看看番记录\n/bili番剧记忆 — 查看追番进度\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili动态日志 — 动态记录\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili清理 — 清理临时文件\n/bili帮助 — 本帮助\n/biliUMO — 获取当前UMO并自动填入配置\n━━━━━━━━━━━━\n💡 首次用 /bili登录\n💡 直接在聊天里让 Bot 去随机看B站视频，也会尝试触发一次主动看视频")
 
     # ===== QQ↔B站 记忆互通 =====
     @filter.command("bili绑定")
