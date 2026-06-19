@@ -1,6 +1,6 @@
 name: astrbot_plugin_bilibili_ai_bot
 display_name: B站 AI Bot
-desc: B站评论自动回复、好感度系统、语义记忆、主动看视频、动态发布、联网查询与 Web 管理面板
+desc: B站评论自动回复、好感度系统、语义记忆、主动看视频、动态发布、联网查询
 version: 1.2.0
 author: chenluQwQ,claude
 repo: https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
