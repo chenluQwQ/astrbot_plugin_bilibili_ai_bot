@@ -92,7 +92,7 @@ class PersonalityMixin:
         old_traits = evo.get("evolved_traits", [])
         old_habits = evo.get("speech_habits", [])
         old_opinions = evo.get("opinions", [])
-        sp = self._get_system_prompt()
+        sp = await self._get_system_prompt()
         on = self.config.get("OWNER_NAME", "") or "主人"
         default_evolve_prompt = """现在是睡前反思时间。请根据你最近的互动经历，思考自己有没有发生什么变化。
 
