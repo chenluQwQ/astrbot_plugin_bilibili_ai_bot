@@ -432,7 +432,7 @@ class BangumiMixin:
 
     async def _evaluate_bangumi_episode(self, season_info, ep_info, analysis, bangumi_context):
         """LLM 评价番剧单集。"""
-        sp = self._get_system_prompt()
+        sp = await self._get_system_prompt()
         ctx = f"\n\n【你之前看过的进度】\n{bangumi_context}" if bangumi_context else ""
         prompt = f"""你刚看完一集番剧：
 - 番名：{season_info.get('title', '')}
@@ -646,7 +646,7 @@ want_continue：是否值得继续追，烂番可以果断弃。
                     if score >= 6 and self.config.get("BANGUMI_COMMENT", True):
                         if not comment:
                             try:
-                                sp = self._get_system_prompt()
+                                sp = await self._get_system_prompt()
                                 prompt = f"你刚看完番剧《{season_info.get('title', '')}》第{ep_index}话。在评论区留一条话，像追番观众随手打的评论（不超过30字）。可以说对剧情的反应、吐槽、或者表达情绪。直接输出内容。"
                                 comment = await self._llm_call(prompt, system_prompt=sp, max_tokens=80) or "这集还行"
                             except Exception:
