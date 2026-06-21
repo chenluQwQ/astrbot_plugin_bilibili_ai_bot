@@ -133,7 +133,7 @@ class ProactiveMixin:
 
     # ── 评价 & 评论 ──
     async def _evaluate_video(self, video_info, video_description):
-        sp = self._get_system_prompt()
+        sp = await self._get_system_prompt()
         prompt = f"""你刚看完一个B站视频：
 - UP主：{video_info.get('up_name', '')}
 - 标题：{video_info.get('title', '')}
@@ -186,7 +186,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
             return None
 
     async def _generate_proactive_comment(self, video_info, video_description):
-        sp = self._get_system_prompt()
+        sp = await self._get_system_prompt()
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         prompt = f"""当前时间：{now}
 
@@ -433,7 +433,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
                                 custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
                                 if custom_rec_inst:
                                     rec_prompt += f"\n【补充提示词】{custom_rec_inst}"
-                                rec_text = await self._llm_call(rec_prompt, system_prompt=self._get_system_prompt(), max_tokens=60)
+                                rec_text = await self._llm_call(rec_prompt, system_prompt=await self._get_system_prompt(), max_tokens=60)
                                 rec_text = re.sub(r'@\S+\s*', '', rec_text or "你可能会喜欢这个")
                                 owner_name = (self.config.get("OWNER_NAME", "") or "").strip()
                                 _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
