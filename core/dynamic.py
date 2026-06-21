@@ -100,7 +100,7 @@ class DynamicMixin:
         custom_topics = self.config.get("DYNAMIC_TOPICS", [])
         topics = custom_topics if custom_topics and isinstance(custom_topics, list) else DEFAULT_DYNAMIC_TOPICS
         topic = random.choice(topics)
-        sp = self._get_system_prompt()
+        sp = await self._get_system_prompt()
         prompt = f"""{sp}{perm_section}
 
 {time_hint}，你想发一条B站动态。主题方向：{topic}{history_section}
