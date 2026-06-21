@@ -18,12 +18,12 @@ class LLMMixin:
             logger.error(f"[BiliBot] LLM 调用失败: {e}")
             return None
 
-    def _get_system_prompt(self):
+    async def _get_system_prompt(self):
         if self.config.get("USE_ASTRBOT_PERSONA", True):
             try:
-                persona = self.context.persona_manager.get_default_persona_v3()
-                if persona:
+                persona = await self.context.persona_manager.get_default_persona_v3()
+                if persona and persona.get("prompt"):
                     return persona["prompt"]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[BiliBot] 读取AstrBot自带人设失败，将使用自定义提示词: {e}")
         return self.config.get("CUSTOM_SYSTEM_PROMPT", "你是一个活跃在B站的角色，会回复评论、看视频、发动态。用自然的口语化风格交流。")
