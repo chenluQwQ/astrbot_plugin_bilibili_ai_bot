@@ -27,7 +27,7 @@ class ReplyMixin:
 
     async def _generate_reply(self, content, mid, username, thread_id, oid, comment_type, image_desc=""):
         try:
-            sp = self._get_system_prompt()
+            sp = await self._get_system_prompt()
             on = self.config.get("OWNER_NAME", "") or "主人"
             is_owner = self._is_owner(mid)
             cs = self._affection.get(str(mid), 0)
@@ -444,7 +444,7 @@ class ReplyMixin:
                                  score_delta: int, detail: str):
         """用人设口吻通过 QQ 私信告诉主人有人攻击，询问是否拉黑。"""
         try:
-            sp = self._get_system_prompt()
+            sp = await self._get_system_prompt()
             severity = "不太友善" if score_delta >= -4 else "很过分地辱骂"
             detail_note = f"（{detail}）" if detail else ""
 
