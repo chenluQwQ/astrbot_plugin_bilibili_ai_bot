@@ -15,7 +15,53 @@ from .config import (
 class ProactiveMixin:
     """主动刷B站看视频。"""
 
-    PREFERRED_TIDS = [17, 160, 211, 3, 13, 167, 321, 36, 129]
+    # 兜底分区（口味数据不足时使用）
+    FALLBACK_TIDS = [17, 160, 211, 3, 13, 167, 321, 36, 129]
+
+    # ── 口味偏好系统 ──
+
+    def _build_tname_to_tid_map(self):
+        """从 BILI_ZONES 构建 tname→tid 反向映射。"""
+        from .config import BILI_ZONES
+        m = {}
+        for rid, zone in BILI_ZONES.items():
+            m[zone["name"]] = rid
+            for tid, name in zone.get("children", {}).items():
+                m[name] = tid
+        return m
+
+    def _get_taste_tids(self, min_score=7, min_count=2):
+        """从历史高分视频中提取偏好分区 tid 列表（按加权得分排序）。
+
+        返回 list[int]，最多10个。空列表表示口味数据不足。
+        """
+        watch_log = self._load_json(WATCH_LOG_FILE, [])
+        tname_map = self._build_tname_to_tid_map()
+        # 统计：每个分区的高分次数和总分
+        from collections import Counter, defaultdict
+        tid_count = Counter()
+        tid_score_sum = defaultdict(float)
+        for entry in watch_log:
+            score = entry.get("score", 0)
+            tname = entry.get("tname", "")
+            if score >= min_score and tname:
+                tid = tname_map.get(tname)
+                if tid:
+                    tid_count[tid] += 1
+                    tid_score_sum[tid] += score
+        # 过滤：至少出现 min_count 次的分区才算稳定偏好
+        qualified = {tid: cnt for tid, cnt in tid_count.items() if cnt >= min_count}
+        if not qualified:
+            return []
+        # 加权排序：次数 × 平均分
+        ranked = sorted(
+            qualified.keys(),
+            key=lambda t: qualified[t] * (tid_score_sum[t] / qualified[t]),
+            reverse=True,
+        )
+        result = ranked[:10]
+        logger.info(f"[BiliBot] 🎯 口味偏好TID: {result}（来自{len(watch_log)}条历史记录）")
+        return result
 
     # ── 视频池 ──
     async def _get_hot_videos(self, min_pubdate=0):
@@ -103,6 +149,37 @@ class ProactiveMixin:
             logger.warning(f"[BiliBot] 排行榜API失败: {e}")
         return videos
 
+    async def _get_rcmd_videos(self):
+        """从B站首页推荐获取视频（基于登录账号的个性化推荐）。"""
+        videos = []
+        try:
+            d, _ = await self._http_get(
+                "https://api.bilibili.com/x/web-interface/index/top/rcmd",
+                params={"fresh_type": 4, "ps": 30, "fresh_idx": random.randint(1, 20),
+                         "fresh_idx_1h": random.randint(1, 10), "version": 1},
+            )
+            if d.get("code") == 0:
+                for v in d.get("data", {}).get("item", []):
+                    if v.get("goto") != "av":
+                        continue  # 跳过广告/直播等
+                    videos.append({
+                        "bvid": v.get("bvid", ""),
+                        "title": v.get("title", ""),
+                        "desc": v.get("desc", ""),
+                        "up_name": v.get("owner", {}).get("name", ""),
+                        "up_mid": v.get("owner", {}).get("mid", 0),
+                        "pubdate": v.get("pubdate", 0),
+                        "pic": v.get("pic", ""),
+                        "view": int(v.get("stat", {}).get("view", 0) or 0),
+                        "tname": v.get("tname", ""),
+                    })
+                logger.info(f"[BiliBot] 🏠 首页推荐：{len(videos)} 个视频")
+            else:
+                logger.warning(f"[BiliBot] 首页推荐API返回非0: code={d.get('code')}")
+        except Exception as e:
+            logger.warning(f"[BiliBot] 首页推荐API失败: {e}")
+        return videos
+
     async def _get_pool_videos(self, min_pubdate=0):
         pools = self.config.get("PROACTIVE_VIDEO_POOLS", ["popular"])
         if not pools:
@@ -116,6 +193,8 @@ class ProactiveMixin:
                 all_videos.extend(await self._get_weekly_videos())
             elif pool == "precious":
                 all_videos.extend(await self._get_precious_videos())
+            elif pool == "rcmd":
+                all_videos.extend(await self._get_rcmd_videos())
             elif pool.startswith("ranking"):
                 ids = [int(x.strip()) for x in pool.split(":", 1)[1].split(",")] if ":" in pool else [0]
                 for rid in ids:
@@ -311,20 +390,45 @@ comment要求：像真人随手在评论区打的字，不要客套话。
                     target_videos.append(video)
                     logger.info(f"[BiliBot] 🔔 今日更新：{video['up_name']} - {video['title']}")
         pool_videos = await self._get_pool_videos(min_pubdate_hot)
-        for v in pool_videos:
-            if v["bvid"] not in watched_bvids:
-                target_videos.append(v)
+        explore_videos = [v for v in pool_videos if v["bvid"] not in watched_bvids]
+        # ── 口味偏好分配 ──
+        # 比例：taste = (N+1)//2, explore = N//2（例：2→1:1, 3→2:1, 4→2:2）
+        # 关注列表的今日更新视频算 taste 额度
+        follow_today_count = len(target_videos) - len(special_mids)
+        remaining = max(daily_watch - len(target_videos), 0)
+        taste_quota = max((remaining + 1) // 2, 0)
+        explore_quota = max(remaining - taste_quota, 0)
+        # 口味视频：从偏好分区拉
+        taste_tids = self._get_taste_tids()
+        if not taste_tids:
+            taste_tids = list(self.FALLBACK_TIDS)
+            logger.info("[BiliBot] 🎯 口味数据不足，使用兜底分区")
+        random.shuffle(taste_tids)
+        taste_pool = []
+        for tid in taste_tids[:5]:
+            if len(taste_pool) >= taste_quota + 10:
+                break
+            vids = await self._get_newlist_videos(tid, min_pubdate_hot)
+            for v in vids:
+                if v["bvid"] not in watched_bvids:
+                    taste_pool.append(v)
+        random.shuffle(taste_pool)
+        random.shuffle(explore_videos)
+        # 按配额合并
+        for v in taste_pool[:taste_quota]:
+            target_videos.append(v)
+        for v in explore_videos[:explore_quota]:
+            target_videos.append(v)
+        # 额度没填满时互补
         if len(target_videos) < daily_watch:
-            tids = list(self.PREFERRED_TIDS)
-            random.shuffle(tids)
-            for tid in tids[:3]:
+            remaining_pool = taste_pool[taste_quota:] + explore_videos[explore_quota:]
+            random.shuffle(remaining_pool)
+            for v in remaining_pool:
                 if len(target_videos) >= daily_watch + 5:
                     break
-                fallback = await self._get_newlist_videos(tid, min_pubdate_hot)
-                for v in fallback:
-                    if v["bvid"] not in watched_bvids:
-                        target_videos.append(v)
-        logger.info(f"[BiliBot] 📊 视频来源统计：特别关注={len(special_mids)}个UP | 关注列表={len(following_mids)}个UP | 收集到={len(target_videos)}个视频")
+                if v["bvid"] not in {tv["bvid"] for tv in target_videos}:
+                    target_videos.append(v)
+        logger.info(f"[BiliBot] 📊 视频来源统计：特别关注={len(special_mids)}个UP | 关注更新={follow_today_count} | 口味={min(len(taste_pool), taste_quota)} | 探索={min(len(explore_videos), explore_quota)} | 总计={len(target_videos)}")
         seen = set()
         unique = []
         for v in target_videos:
@@ -363,7 +467,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
             evaluation = await self._evaluate_video(analysis_info, video_description)
             if not evaluation:
                 logger.warning("[BiliBot] 评价失败，跳过互动")
-                watch_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "score": 0, "mood": "未知", "comment": "评价失败", "review": "", "actions": [], "pic": video.get("pic", ""), "manual": is_manual})
+                watch_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "score": 0, "mood": "未知", "comment": "评价失败", "review": "", "actions": [], "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "manual": is_manual})
                 self._save_json(WATCH_LOG_FILE, watch_log[-200:])
                 watched_bvids.add(bvid)
                 watch_count += 1
@@ -449,7 +553,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
                     if await self._follow_user(video["up_mid"]):
                         actions.append("➕关注")
                         logger.info(f"[BiliBot] ➕ 关注了 {video.get('up_name', '')}")
-            log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "manual": is_manual}
+            log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "manual": is_manual}
             watch_log.append(log_entry)
             self._save_json(WATCH_LOG_FILE, watch_log[-200:])
             recommended_owner = "📢推荐给主人" in actions
@@ -542,7 +646,8 @@ comment要求：像真人随手在评论区打的字，不要客套话。
                     "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid,
                     "title": video.get("title", ""), "up_name": video.get("up_name", ""),
                     "score": 0, "mood": "未知", "comment": "评价失败", "review": "",
-                    "actions": [], "pic": video.get("pic", ""), "source": "special_follow",
+                    "actions": [], "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""),
+                    "source": "special_follow",
                 })
                 self._save_json(WATCH_LOG_FILE, watch_log[-200:])
                 watched_bvids.add(bvid)
@@ -587,7 +692,8 @@ comment要求：像真人随手在评论区打的字，不要客套话。
                 "title": video.get("title", ""), "up_name": video.get("up_name", ""),
                 "up_mid": str(video.get("up_mid", "")), "score": score,
                 "mood": mood, "comment": comment, "review": review,
-                "actions": actions, "pic": video.get("pic", ""), "source": "special_follow",
+                "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""),
+                "source": "special_follow",
             }
             watch_log.append(log_entry)
             self._save_json(WATCH_LOG_FILE, watch_log[-200:])
