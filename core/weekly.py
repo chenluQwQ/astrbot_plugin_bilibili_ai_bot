@@ -161,7 +161,7 @@ class WeeklySummaryMixin:
             prompt += f"\n【补充提示词】{custom_inst}"
 
         summary = await self._llm_call(
-            prompt, system_prompt=self._get_system_prompt(), max_tokens=800
+            prompt, system_prompt=await self._get_system_prompt(), max_tokens=800
         )
         return (summary or "").strip() or None
 
