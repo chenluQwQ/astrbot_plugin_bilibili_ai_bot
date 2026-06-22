@@ -365,6 +365,10 @@ class ReplyMixin:
                 thread_id=thread_id, result=result,
             )
 
+            # 回复冷却：防止短时间内重复回复
+            cooldown = max(int(self.config.get("REPLY_COOLDOWN", 15)), 5)
+            self._llm_cooldown_until = time.time() + cooldown
+
             # 恶意告警：回复完成后异步检查
             try:
                 await self._check_abuse_alert(
