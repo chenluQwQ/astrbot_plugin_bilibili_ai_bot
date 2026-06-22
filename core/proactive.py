@@ -567,7 +567,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
             )
             if recommended_owner:
                 memory_text += f" | 觉得不错，在评论区@了{on}来看"
-            await self._save_self_memory_record("proactive_watch", memory_text, memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "video_title": video.get("title", "")})
+            await self._save_self_memory_record("proactive_watch", memory_text, memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")})
             if bvid not in external_memory:
                 external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": video_description, "score": score, "mood": mood, "review": review, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
                 self._save_json(EXTERNAL_MEMORY_FILE, external_memory)
@@ -706,7 +706,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
             )
             await self._save_self_memory_record(
                 "special_follow_watch", memory_text, memory_type="video",
-                extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "video_title": video.get("title", "")},
+                extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")},
             )
 
             if bvid not in external_memory:
