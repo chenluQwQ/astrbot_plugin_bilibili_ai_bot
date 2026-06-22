@@ -8,8 +8,10 @@ class LLMMixin:
     async def _llm_call(self, prompt, system_prompt="", max_tokens=300, provider_id=None):
         try:
             pid = provider_id if provider_id is not None else self.config.get("LLM_PROVIDER_ID", "")
-            full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            kwargs = {"prompt": full_prompt}
+            # 人设走真正的 system role：① 增强人设遵循 ② 让人设成为稳定前缀，命中提示词缓存
+            kwargs = {"prompt": prompt}
+            if system_prompt:
+                kwargs["system_prompt"] = system_prompt
             if pid:
                 kwargs["chat_provider_id"] = pid
             resp = await self.context.llm_generate(**kwargs)
