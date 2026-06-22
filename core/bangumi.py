@@ -609,7 +609,7 @@ want_continue：是否值得继续追，烂番可以果断弃。
             await self._save_self_memory_record(
                 f"bangumi:{season_info['season_id']}", memory_text,
                 memory_type="bangumi",
-                extra={"season_id": str(season_info["season_id"]), "ep_id": str(ep_info.get("ep_id", ""))},
+                extra={"season_id": str(season_info["season_id"]), "ep_id": str(ep_info.get("ep_id", "")), "tname": "番剧"},
             )
 
             # 互动
