@@ -559,5 +559,16 @@ class MemoryMixin:
         vt = m.get("video_title", "")
         if vt:
             parts.append(f"[视频:《{vt}》]")
+        # 分区（如果有）
+        tn = m.get("tname", "")
+        if tn:
+            parts.append(f"[分区:{tn}]")
+        # 链接（番剧用 ep 链接，普通视频用 bvid 链接）
+        ep_id = m.get("ep_id", "")
+        bvid = m.get("bvid", "")
+        if ep_id:
+            parts.append(f"[链接:https://www.bilibili.com/bangumi/play/ep{ep_id}]")
+        elif bvid:
+            parts.append(f"[链接:https://www.bilibili.com/video/{bvid}]")
         prefix = "".join(parts)
         return f"{prefix} {m.get('text', '')}"
