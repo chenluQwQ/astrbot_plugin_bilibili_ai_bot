@@ -526,5 +526,10 @@
         "description": "【系统】Cookie检查间隔（小时）",
         "type": "int",
         "default": 6
+    },
+    "REPLY_COOLDOWN": {
+        "description": "【回复】回复冷却时间（秒，回复一条后等待多久再处理下一条，最低5秒）",
+        "type": "int",
+        "default": 15
     }
 }
