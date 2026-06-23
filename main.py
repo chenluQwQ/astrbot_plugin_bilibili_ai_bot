@@ -38,7 +38,6 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._login_qrcode_key = None
         self._first_poll = True
         self._replied_at = set(self._load_json(REPLIED_AT_FILE, []))
-        self._replied_content_keys = set(self._load_json(REPLIED_CONTENT_KEYS_FILE, []))
         self._affection = self._load_json(AFFECTION_FILE, {})
         owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
         if owner_mid:
@@ -708,12 +707,6 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             if isinstance(replied, list) and len(replied) > 2000:
                 self._save_json(REPLIED_FILE, replied[-2000:])
                 msg_lines.append(f"  ✅ 已回复记录：{len(replied)}→2000条")
-            # 清理过期的内容去重指纹（只保留最近2000条）
-            content_keys = self._load_json(REPLIED_CONTENT_KEYS_FILE, [])
-            if isinstance(content_keys, list) and len(content_keys) > 2000:
-                self._save_json(REPLIED_CONTENT_KEYS_FILE, content_keys[-2000:])
-                self._replied_content_keys = set(content_keys[-2000:])
-                msg_lines.append(f"  ✅ 内容去重指纹：{len(content_keys)}→2000条")
             msg_lines.append("")
             msg_lines.append("💡 提示：如需完全重置，手动删除 plugin_data/astrbot_plugin_bilibili_ai_bot 目录")
         else:
