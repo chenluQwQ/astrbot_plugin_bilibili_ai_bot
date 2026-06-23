@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.2.0
+AstrBot Plugin - Bilibili Bot 1.2.1
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
