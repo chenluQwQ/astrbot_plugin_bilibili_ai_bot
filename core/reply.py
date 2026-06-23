@@ -9,7 +9,7 @@ from astrbot.api import logger
 from .config import (
     AFFECTION_FILE, DATA_DIR, LEVEL_NAMES,
     PERMANENT_MEMORY_FILE, REPLIED_AT_FILE, REPLIED_FILE,
-    REPLIED_CONTENT_KEYS_FILE, REPLY_LOG_FILE,
+    REPLY_LOG_FILE,
     BILI_AT_NOTIFY_URL, BILI_NOTIFY_URL,
     VIDEO_MEMORY_FILE,
 )
@@ -17,13 +17,6 @@ from .config import (
 
 class ReplyMixin:
     """回复生成与评论区轮询。"""
-
-    @staticmethod
-    def _make_content_key(mid, oid, content):
-        """生成 mid:oid:content_hash 去重键，防止同一评论从不同通知源重复处理。"""
-        import hashlib
-        ch = hashlib.md5(str(content).encode()).hexdigest()[:12]
-        return f"{mid}:{oid}:{ch}"
 
     async def _generate_reply(self, content, mid, username, thread_id, oid, comment_type, image_desc=""):
         try:
@@ -279,41 +272,26 @@ class ReplyMixin:
             # 首次运行标记已读
             if self._first_poll:
                 for p in pending:
-                    replied.add(p["rpid"])
+                    if p["rpid"]:
+                        replied.add(p["rpid"])
                     if p.get("at_id"):
                         self._replied_at.add(p["at_id"])
-                    ck = self._make_content_key(p["mid"], p["oid"], p["content"])
-                    self._replied_content_keys.add(ck)
                 self._save_json(REPLIED_FILE, list(replied))
                 self._save_json(REPLIED_AT_FILE, list(self._replied_at))
-                self._save_json(REPLIED_CONTENT_KEYS_FILE, list(self._replied_content_keys))
                 self._first_poll = False
                 if pending:
                     logger.info(f"[BiliBot] 首次运行，标记 {len(pending)} 条已读")
                 return
 
-            # 去重（rpid + 内容指纹双重去重）
+            # 去重：rpid 为唯一主键（没有 rpid 的评论回不了复，后面会被 line 339 拦掉）
             seen_rpids = set()
-            seen_content_keys = set()
             unique = []
             for p in pending:
-                ck = self._make_content_key(p["mid"], p["oid"], p["content"])
-                if ck in self._replied_content_keys or ck in seen_content_keys:
-                    logger.debug(f"[BiliBot] 内容去重跳过: {p['username']} content_key={ck[:30]}")
-                    # 顺便标记rpid和at_id，防止下次再进pending
-                    if p["rpid"]:
-                        replied.add(p["rpid"])
-                    if p.get("at_id"):
-                        self._replied_at.add(p["at_id"])
+                rpid = p["rpid"]
+                if not rpid or rpid in seen_rpids or rpid in replied:
                     continue
-                if p["rpid"] in seen_rpids or (p["rpid"] and p["rpid"] in replied):
-                    continue
-                seen_rpids.add(p["rpid"])
-                seen_content_keys.add(ck)
+                seen_rpids.add(rpid)
                 unique.append(p)
-            # 保存被内容去重标记的rpid/at_id
-            self._save_json(REPLIED_FILE, list(replied))
-            self._save_json(REPLIED_AT_FILE, list(self._replied_at))
             if not unique:
                 return
 
@@ -326,13 +304,10 @@ class ReplyMixin:
             comment_type = item["comment_type"]
             thread_id = item["thread_id"]
 
-            # 立即标记已处理（rpid + 内容指纹）
+            # 立即标记已处理（rpid，立刻落盘，防止下一轮重复拉到）
             if rpid:
                 replied.add(rpid)
-            content_key = self._make_content_key(mid, oid, content)
-            self._replied_content_keys.add(content_key)
-            self._save_json(REPLIED_FILE, list(replied))
-            self._save_json(REPLIED_CONTENT_KEYS_FILE, list(self._replied_content_keys))
+                self._save_json(REPLIED_FILE, list(replied))
             if item.get("at_id"):
                 self._replied_at.add(item["at_id"])
                 self._save_json(REPLIED_AT_FILE, list(self._replied_at))
