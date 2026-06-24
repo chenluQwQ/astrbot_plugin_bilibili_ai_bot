@@ -8,7 +8,7 @@ from datetime import datetime
 from astrbot.api import logger
 from .config import (
     COMMENTED_FILE, EXTERNAL_MEMORY_FILE, PROACTIVE_LOG_FILE,
-    PROACTIVE_TRIGGER_LOG_FILE, WATCH_LOG_FILE,
+    PROACTIVE_TRIGGER_LOG_FILE, VIDEO_MEMORY_FILE, WATCH_LOG_FILE,
 )
 
 
@@ -571,6 +571,22 @@ comment要求：像真人随手在评论区打的字，不要客套话。
             if bvid not in external_memory:
                 external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": video_description, "score": score, "mood": mood, "review": review, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
                 self._save_json(EXTERNAL_MEMORY_FILE, external_memory)
+            # 写入与评论回复共用的视频分析缓存，避免同一视频被重复下载分析
+            try:
+                vc = self._load_json(VIDEO_MEMORY_FILE, {})
+                vc[bvid] = {
+                    "bvid": bvid,
+                    "title": analysis_info.get("title", video.get("title", "")),
+                    "desc": (analysis_info.get("desc", "") or "")[:200],
+                    "owner_name": analysis_info.get("up_name", video.get("up_name", "")),
+                    "owner_mid": str(analysis_info.get("up_mid", video.get("up_mid", ""))),
+                    "tname": analysis_info.get("tname", ""),
+                    "analysis": video_description,
+                    "time": log_entry["time"],
+                }
+                self._save_json(VIDEO_MEMORY_FILE, vc)
+            except Exception as e:
+                logger.debug(f"[BiliBot] 写入视频缓存失败: {e}")
             watched_bvids.add(bvid)
             watch_count += 1
             action_str = " ".join(actions) if actions else "（默默看完）"
