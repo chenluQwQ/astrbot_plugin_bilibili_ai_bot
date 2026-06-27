@@ -180,10 +180,16 @@ class BilibiliAPIMixin:
 
     # ── 评论 ──
     async def _send_reply(self, oid, rpid, reply_type, content):
+        msg = (content or "").strip()
+        # B站不接受空内容 / 纯标点 / 纯符号（会报「不可发送单个标点符号」），
+        # 至少要含一个文字或数字，否则提前拦掉，省一次必然失败的请求
+        if not msg or not re.search(r'[0-9A-Za-z一-鿿]', msg):
+            logger.warning(f"[BiliBot] 回复内容无效（空/纯标点），跳过发送：{content!r}")
+            return False
         try:
             d, _ = await self._http_post(
                 BILI_REPLY_URL,
-                data={"oid": oid, "type": reply_type, "root": rpid, "parent": rpid, "message": content, "csrf": self.config.get("BILI_JCT", "")},
+                data={"oid": oid, "type": reply_type, "root": rpid, "parent": rpid, "message": msg, "csrf": self.config.get("BILI_JCT", "")},
             )
             if d["code"] == 0:
                 return True

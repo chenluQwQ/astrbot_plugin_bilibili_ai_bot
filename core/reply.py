@@ -338,11 +338,15 @@ class ReplyMixin:
                 self._is_owner(mid) or item.get("source") == "at"
                 or high_aff or self._is_reply_whitelisted(mid)
             )
-            if not force_reply:
+            if force_reply:
+                logger.info(f"[BiliBot] ✅ 必回（主人/@/高好感/白名单）：{username}")
+            else:
                 prob = max(0, min(100, int(self.config.get("REPLY_PROBABILITY_PERCENT", 100))))
-                if random.randint(1, 100) > prob:
-                    logger.info(f"[BiliBot] 🎲 概率跳过（{prob}%）：{username}")
+                roll = random.randint(1, 100)
+                if roll > prob:
+                    logger.info(f"[BiliBot] 🎲 概率跳过（掷{roll} > {prob}%）：{username}")
                     return
+                logger.info(f"[BiliBot] 🎲 概率命中（掷{roll} ≤ {prob}%），继续：{username}")
                 if self.config.get("ENABLE_SIMILAR_SKIP", False) and await self._is_semantically_repeated(content):
                     self._log_security_event("similar_skip", mid, username, content, "语义相似去重")
                     logger.info(f"[BiliBot] ♻️ 相似评论跳过：{username}：{content[:30]}")
