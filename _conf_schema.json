@@ -531,5 +531,53 @@
         "description": "【回复】回复冷却时间（秒，回复一条后等待多久再处理下一条，最低5秒）",
         "type": "int",
         "default": 15
+    },
+    "REPLY_PROBABILITY_PERCENT": {
+        "description": "【回复】回复概率（%）",
+        "type": "int",
+        "default": 100,
+        "hint": "普通评论按此概率随机回复，100=每条都回。主人/被@/高好感(熟人以上)/必回白名单 不受影响，永远回"
+    },
+    "REPLY_ALWAYS_UIDS": {
+        "description": "【回复】必回UID白名单",
+        "type": "list",
+        "default": [],
+        "hint": "这些UID不受回复概率和语义去重影响，一定会回复"
+    },
+    "ENABLE_SIMILAR_SKIP": {
+        "description": "【回复】启用语义相似去重（相似评论不重复回复）",
+        "type": "bool",
+        "default": false,
+        "hint": "需先配置好 Embedding（记忆设置里的 EMBED_*）。开启后，和最近回复过的评论语义高度相似的，直接跳过不回，防刷屏/复读。主人/@/高好感/白名单不受影响"
+    },
+    "REPLY_SIMILARITY_PERCENT": {
+        "description": "【回复】语义相似度阈值（%）",
+        "type": "int",
+        "default": 90,
+        "hint": "相似度≥此值视为重复评论、跳过不回。越高越严格(只拦几乎一样的)，建议 85-95"
+    },
+    "ENABLE_AUTO_BLOCK": {
+        "description": "【拉黑】启用自动拉黑",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后只扣好感度、不自动拉黑任何人"
+    },
+    "BLOCK_WHITELIST_UIDS": {
+        "description": "【拉黑】永不拉黑的UID白名单",
+        "type": "list",
+        "default": [],
+        "hint": "这些UID永远不会被自动拉黑（主人UID已自动包含，无需重复填）"
+    },
+    "AUTO_BLOCK_SCORE": {
+        "description": "【拉黑】好感度低于此值自动拉黑",
+        "type": "int",
+        "default": -30,
+        "hint": "好感度 ≤ 此值时自动拉黑。设成很低(如-999)可基本关闭按分数拉黑"
+    },
+    "AUTO_BLOCK_NEGATIVE_TIMES": {
+        "description": "【拉黑】恶意评论累计次数达标自动拉黑",
+        "type": "int",
+        "default": 5,
+        "hint": "同一人恶意评论(score_delta≤-3)累计达此次数自动拉黑。0=不按次数拉黑"
     }
 }

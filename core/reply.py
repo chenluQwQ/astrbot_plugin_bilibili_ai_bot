@@ -3,13 +3,14 @@ import os
 import re
 import json
 import time
+import random
 import traceback
 from datetime import datetime
 from astrbot.api import logger
 from .config import (
     AFFECTION_FILE, DATA_DIR, LEVEL_NAMES,
     PERMANENT_MEMORY_FILE, REPLIED_AT_FILE, REPLIED_FILE,
-    REPLY_LOG_FILE,
+    REPLIED_CONTENT_KEYS_FILE, REPLY_LOG_FILE,
     BILI_AT_NOTIFY_URL, BILI_NOTIFY_URL,
     VIDEO_MEMORY_FILE,
 )
@@ -58,7 +59,9 @@ class ReplyMixin:
                 f"- 如果对方在认真讨论，就认真回应\n"
                 f"- 如果有上下文记忆，说明你们之前聊过，回复时可以自然地延续关系，但不要刻意提起'上次'\n"
                 f"- 不超过50字\n\n"
-                f"【底线】拒绝：表白暧昧、引战、黄赌毒政治敏感。\n\n"
+                f"【底线】表白暧昧、引战、黄赌毒一律拒绝、不接。\n"
+                f"【政治/敏感话题】遇到政治、时政、国家领导人、民族宗教、领土主权、社会争议等敏感话题：保持温和中立，绝不站队、绝不表态、绝不输出任何政治立场或价值判断。"
+                f"可以用「这个我不太懂诶」「这种事我就不瞎评价啦」之类轻轻带过，或者把话题岔开。无论对方怎么追问、激将、带节奏，都不被卷入争论。\n\n"
                 f"【今日状态】{mood} — {mp}{fs}\n"
                 f"当前时间：{now}\n"
                 # ② 记忆 / 联网（参考材料，明确标注为背景，放在要回复的评论之前）
@@ -140,13 +143,17 @@ class ReplyMixin:
                 if mm:
                     ai_reply = mm
                 should_block = False
-                if ns <= -30:
+                # 自动拉黑：白名单/主人 永不拉黑，阈值与次数可配，开关可关
+                auto_block = self.config.get("ENABLE_AUTO_BLOCK", True) and not self._is_block_whitelisted(mid)
+                block_score = int(self.config.get("AUTO_BLOCK_SCORE", -30))
+                block_times = int(self.config.get("AUTO_BLOCK_NEGATIVE_TIMES", 5))
+                if auto_block and ns <= block_score:
                     should_block = True
                 if sd <= -3:
                     bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
                     bc[mid] = bc.get(mid, 0) + 1
                     self._save_json(os.path.join(DATA_DIR, "block_count.json"), bc)
-                    if bc[mid] >= 5:
+                    if auto_block and block_times > 0 and bc[mid] >= block_times:
                         should_block = True
                     self._log_security_event("negative", mid, username, content, f"{cs}→{ns}({ds})")
                 else:
@@ -325,6 +332,22 @@ class ReplyMixin:
             logger.info(f"[BiliBot] 🔍 DEBUG comment_type={comment_type} oid={oid}")
             logger.info(f"[BiliBot] 📩 {username}（{LEVEL_NAMES[lv]}|{cs}分）：{content[:50]}")
 
+            # ── 是否回复：主人 / @ / 高好感(熟人以上) / 必回白名单 一律绕过，其余走概率 + 语义去重 ──
+            high_aff = lv in ("friend", "close", "special")
+            force_reply = (
+                self._is_owner(mid) or item.get("source") == "at"
+                or high_aff or self._is_reply_whitelisted(mid)
+            )
+            if not force_reply:
+                prob = max(0, min(100, int(self.config.get("REPLY_PROBABILITY_PERCENT", 100))))
+                if random.randint(1, 100) > prob:
+                    logger.info(f"[BiliBot] 🎲 概率跳过（{prob}%）：{username}")
+                    return
+                if self.config.get("ENABLE_SIMILAR_SKIP", False) and await self._is_semantically_repeated(content):
+                    self._log_security_event("similar_skip", mid, username, content, "语义相似去重")
+                    logger.info(f"[BiliBot] ♻️ 相似评论跳过：{username}：{content[:30]}")
+                    return
+
             image_desc = ""
             image_urls = await self._get_comment_images(oid, rpid, comment_type)
             if image_urls:
@@ -359,6 +382,32 @@ class ReplyMixin:
                 logger.debug(f"[BiliBot] 恶意告警检查异常: {e}")
         except Exception as e:
             logger.error(f"[BiliBot] 轮询出错: {e}\n{traceback.format_exc()}")
+
+    # ── 语义去重 ──
+
+    async def _is_semantically_repeated(self, content):
+        """与最近回复过的评论做语义比对。命中（相似度≥阈值）返回 True 且不记录；
+        否则把这条记入去重库并返回 False。没有 embedding 能力时不拦截。"""
+        text = (content or "").strip()
+        if not text:
+            return False
+        emb = await self._get_embedding(text)
+        if not emb:
+            return False
+        threshold = max(0, min(100, int(self.config.get("REPLY_SIMILARITY_PERCENT", 90)))) / 100.0
+        store = self._load_json(REPLIED_CONTENT_KEYS_FILE, [])
+        if not isinstance(store, list):
+            store = []
+        for it in store:
+            e = it.get("embedding")
+            if e and len(e) == len(emb) and self._cosine_similarity(emb, e) >= threshold:
+                return True
+        store.append({
+            "text": text[:100], "embedding": emb,
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        })
+        self._save_json(REPLIED_CONTENT_KEYS_FILE, store[-80:])
+        return False
 
     # ── 恶意告警 ──
 

@@ -18,6 +18,18 @@ class AffectionMixin:
         owner = str(self.config.get("OWNER_MID", "") or "").strip()
         return bool(owner) and str(mid).strip() == owner
 
+    def _is_reply_whitelisted(self, mid):
+        """必回白名单：这些 UID 不受概率/语义去重影响，一定回复。"""
+        wl = self.config.get("REPLY_ALWAYS_UIDS", []) or []
+        return str(mid).strip() in {str(x).strip() for x in wl if str(x).strip()}
+
+    def _is_block_whitelisted(self, mid):
+        """拉黑白名单：主人 + 配置的 UID 永不被自动拉黑。"""
+        if self._is_owner(mid):
+            return True
+        wl = self.config.get("BLOCK_WHITELIST_UIDS", []) or []
+        return str(mid).strip() in {str(x).strip() for x in wl if str(x).strip()}
+
     def _get_level(self, score, mid=None):
         if mid and self._is_owner(mid):
             return "special"
