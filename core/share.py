@@ -64,6 +64,15 @@ class ShareMixin:
                     self._append_share_text(parts, getattr(comp, attr, None))
         except Exception:
             pass
+
+        # 转发聊天记录里的预览文本通常藏在 NapCat raw.elements[].multiForwardMsgElement.xmlContent。
+        # 默认不读，避免把聊天记录里的旧链接也自动解析；用户打开配置后才扫描。
+        if self.config.get("BILI_SHARE_PARSE_FORWARD", False):
+            for attr in ("raw", "raw_dict", "raw_event"):
+                try:
+                    self._append_share_text(parts, getattr(event.message_obj, attr, None))
+                except Exception:
+                    pass
         return "\n".join(p for p in parts if p)
 
     async def _resolve_share_url(self, url):
