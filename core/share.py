@@ -1,4 +1,4 @@
-﻿"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
+"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
 import os
 import asyncio
 import re
@@ -259,8 +259,19 @@ class ShareMixin:
             send_paths, skipped = await self._split_share_video_for_chat(video_path)
             total = len(send_paths)
             for idx, path in enumerate(send_paths, 1):
-                comp = self._share_video_component(path)
                 caption = f"📼 回放切片 {idx}/{total} · 《{info.get('title','未知标题')[:24]}》"
+                if not path or not os.path.isfile(path):
+                    logger.warning(f"[BiliBot] 群聊视频发送前文件不存在: {path}")
+                    yield event.plain_result(
+                        f"{caption}\n⚠️ 视频文件不存在，可能是下载失败、临时文件被清理，或协议端无法访问本地路径。"
+                    )
+                    continue
+                if os.path.getsize(path) <= 0:
+                    logger.warning(f"[BiliBot] 群聊视频发送前文件为空: {path}")
+                    yield event.plain_result(f"{caption}\n⚠️ 视频文件为空，可能下载失败。")
+                    continue
+
+                comp = self._share_video_component(path)
                 if comp:
                     yield event.chain_result([__import__('astrbot.api.message_components', fromlist=['Plain']).Plain(caption), comp])
                 else:
