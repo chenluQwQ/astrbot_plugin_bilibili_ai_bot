@@ -1,5 +1,6 @@
-"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
+﻿"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
 import os
+import asyncio
 import re
 import time
 import aiohttp
@@ -196,6 +197,10 @@ class ShareMixin:
             except OSError:
                 pass
 
+    async def _cleanup_share_video_files_later(self, paths, delay=600):
+        await asyncio.sleep(delay)
+        self._cleanup_share_video_files(paths)
+
     def _share_recent_hit(self, bvid):
         if not bvid:
             return False
@@ -267,4 +272,7 @@ class ShareMixin:
             cleanup = list(send_paths)
             if video_path and video_path not in cleanup:
                 cleanup.append(video_path)
-            self._cleanup_share_video_files(cleanup)
+            if cleanup:
+                asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=600))
+
+

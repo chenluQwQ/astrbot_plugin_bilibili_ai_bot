@@ -1,4 +1,4 @@
-"""基础工具方法：HTTP请求、JSON读写、进程管理、环境检测、临时文件清理。"""
+﻿"""基础工具方法：HTTP请求、JSON读写、进程管理、环境检测、临时文件清理。"""
 import os
 import json
 import shutil
@@ -59,7 +59,22 @@ class UtilsMixin:
 
     # ── 外部命令 ──
     def _find_command(self, command_name):
-        return shutil.which(command_name)
+        found = shutil.which(command_name)
+        if found:
+            return found
+        names = [command_name]
+        if os.name == "nt" and not command_name.lower().endswith(".exe"):
+            names.append(command_name + ".exe")
+        search_dirs = [
+            "/usr/local/bin", "/usr/bin", "/bin", "/opt/homebrew/bin",
+            r"C:\\ffmpeg\\bin", r"C:\\Program Files\\ffmpeg\\bin", r"C:\\ProgramData\\chocolatey\\bin",
+        ]
+        for folder in search_dirs:
+            for name in names:
+                path = os.path.join(folder, name)
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    return path
+        return None
 
     # ── HTTP 请求 ──
     async def _http_get(self, url, headers=None, params=None, timeout=10, retries=2):
@@ -123,6 +138,9 @@ class UtilsMixin:
         raise last_err
 
     async def _run_process(self, *args, timeout=300):
+        if args:
+            resolved = self._find_command(args[0]) or args[0]
+            args = (resolved, *args[1:])
         try:
             proc = await asyncio.create_subprocess_exec(
                 *args,
@@ -247,3 +265,4 @@ class UtilsMixin:
         if m:
             text = m.group()
         return text
+

@@ -285,14 +285,40 @@ UP主：{video_info.get('up_name', '未知')}
 
     # ── 视频下载 / 压缩 / 截帧 ──
 
-    # 分辨率回退链：优先低画质省流，逐级升高，最后兜底
+    # 分辨率回退链：先尝试无需合并的 MP4，避免无 ffmpeg 时只留下 m4a；再尝试高质量音视频合并。
     _FORMAT_FALLBACKS = [
-        "bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]/best[height<=480][vcodec!=none][acodec!=none]",
+        "best[ext=mp4][vcodec!=none][acodec!=none][height<=720]/best[height<=720][vcodec!=none][acodec!=none]",
+        "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]",
+        "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
         "bestvideo+bestaudio/best",
-        "worst",
+        "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
     ]
+    _VIDEO_FILE_EXTS = {".mp4", ".mkv", ".webm", ".mov"}
+    _AUDIO_FILE_EXTS = {".m4a", ".mp3", ".aac", ".opus", ".flac", ".wav"}
+
+    def _pick_downloaded_video_file(self, bvid):
+        if not os.path.isdir(TEMP_VIDEO_DIR):
+            return None
+        candidates = []
+        for name in os.listdir(TEMP_VIDEO_DIR):
+            if not name.startswith(bvid) or name.endswith("_cookies.txt"):
+                continue
+            fp = os.path.join(TEMP_VIDEO_DIR, name)
+            if not os.path.isfile(fp) or name.endswith((".part", ".ytdl")):
+                continue
+            ext = os.path.splitext(name)[1].lower()
+            if ext in self._AUDIO_FILE_EXTS:
+                continue
+            if ext not in self._VIDEO_FILE_EXTS:
+                continue
+            size = os.path.getsize(fp)
+            if size > 0:
+                candidates.append((ext == ".mp4", size, fp))
+        if not candidates:
+            return None
+        candidates.sort(reverse=True)
+        return candidates[0][2]
 
     async def _download_video(self, bvid):
         output_template = os.path.join(TEMP_VIDEO_DIR, f"{bvid}.%(ext)s")
@@ -334,11 +360,13 @@ UP主：{video_info.get('up_name', '未知')}
                     timeout=600,
                 )
                 if code == 0:
-                    for name in os.listdir(TEMP_VIDEO_DIR):
-                        fp = os.path.join(TEMP_VIDEO_DIR, name)
-                        if name.startswith(bvid) and os.path.isfile(fp) and not name.endswith("_cookies.txt"):
-                            logger.info(f"[BiliBot] 视频下载成功({bvid})，格式: {fmt}")
-                            return fp
+                    fp = self._pick_downloaded_video_file(bvid)
+                    if fp:
+                        logger.info(f"[BiliBot] 视频下载成功({bvid})，格式: {fmt}，文件: {os.path.basename(fp)}")
+                        return fp
+                    last_err = "yt-dlp 成功退出，但没有产出可发送的视频文件（可能只下载到音频）"
+                    logger.info(f"[BiliBot] {last_err}({bvid})，尝试下一个格式")
+                    continue
                 last_err = stderr[:200] if stderr else "unknown error"
                 logger.info(f"[BiliBot] 格式 {fmt} 下载失败({bvid})，尝试下一个: {last_err[:80]}")
         finally:
@@ -752,3 +780,4 @@ UP主：{video_info.get('up_name', '未知')}
         except Exception as e:
             logger.debug(f"[BiliBot] 动态详情API获取失败(id={dynamic_id}): {e}")
         return ""
+
