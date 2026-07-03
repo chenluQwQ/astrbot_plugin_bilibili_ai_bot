@@ -3,6 +3,8 @@ import os
 import asyncio
 import re
 import time
+import json
+import html
 import aiohttp
 from datetime import datetime
 from astrbot.api import logger
@@ -16,21 +18,50 @@ class ShareMixin:
     AV_RE = re.compile(r"(?:\bav|aid=)(\d+)\b", re.IGNORECASE)
     URL_RE = re.compile(r"https?://[^\s\]\[\)\(\"'<>]+", re.IGNORECASE)
 
+    @staticmethod
+    def _normalize_share_text(value):
+        text = html.unescape(str(value or ""))
+        return text.replace("\\/", "/")
+
+    def _append_share_text(self, parts, value):
+        if value is None:
+            return
+        if isinstance(value, dict):
+            for v in value.values():
+                self._append_share_text(parts, v)
+            return
+        if isinstance(value, (list, tuple, set)):
+            for v in value:
+                self._append_share_text(parts, v)
+            return
+
+        text = self._normalize_share_text(value)
+        if not text:
+            return
+        parts.append(text)
+
+        # QQ 小程序一般是 CQ:json / arkElement，B站短链藏在 meta.detail_1.qqdocurl 里。
+        # 这里顺手解析 JSON 字符串，把 qqdocurl/url/desc/prompt 等字段都纳入链接提取。
+        stripped = text.strip()
+        if stripped.startswith("{") or stripped.startswith("["):
+            try:
+                self._append_share_text(parts, json.loads(stripped))
+            except Exception:
+                pass
+
     def _collect_share_text(self, event):
-        parts = [event.message_str or ""]
+        parts = []
+        self._append_share_text(parts, event.message_str or "")
         try:
             raw = getattr(event.message_obj, "raw_message", None)
-            if raw:
-                parts.append(str(raw))
+            self._append_share_text(parts, raw)
         except Exception:
             pass
         try:
             for comp in getattr(event.message_obj, "message", []) or []:
-                parts.append(str(comp))
+                self._append_share_text(parts, comp)
                 for attr in ("url", "title", "content", "desc", "text", "data"):
-                    val = getattr(comp, attr, None)
-                    if val:
-                        parts.append(str(val))
+                    self._append_share_text(parts, getattr(comp, attr, None))
         except Exception:
             pass
         return "\n".join(p for p in parts if p)
