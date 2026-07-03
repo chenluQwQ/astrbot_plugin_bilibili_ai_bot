@@ -14,6 +14,38 @@ from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
 class ShareMixin:
     """处理群聊里的 B站视频分享。"""
 
+    def _cfg_bool(self, key, default=False):
+        value = self.config.get(key, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on", "enable", "enabled", "开启")
+        return bool(value)
+
+    def _is_forward_message(self, event):
+        try:
+            raw_msg = str(getattr(event.message_obj, "raw_message", "") or "")
+            if "[CQ:forward" in raw_msg:
+                return True
+        except Exception:
+            pass
+        try:
+            for comp in getattr(event.message_obj, "message", []) or []:
+                if isinstance(comp, dict) and comp.get("type") == "forward":
+                    return True
+                if getattr(comp, "type", None) == "forward":
+                    return True
+        except Exception:
+            pass
+        try:
+            raw = getattr(event.message_obj, "raw", None) or {}
+            for element in raw.get("elements", []) or []:
+                if element.get("multiForwardMsgElement"):
+                    return True
+        except Exception:
+            pass
+        return False
+
     BVID_RE = re.compile(r"\b(BV[0-9A-Za-z]{10,})\b")
     AV_RE = re.compile(r"(?:\bav|aid=)(\d+)\b", re.IGNORECASE)
     URL_RE = re.compile(r"https?://[^\s\]\[\)\(\"'<>]+", re.IGNORECASE)
@@ -67,7 +99,7 @@ class ShareMixin:
 
         # 转发聊天记录里的预览文本通常藏在 NapCat raw.elements[].multiForwardMsgElement.xmlContent。
         # 默认不读，避免把聊天记录里的旧链接也自动解析；用户打开配置后才扫描。
-        if self.config.get("BILI_SHARE_PARSE_FORWARD", False):
+        if self._cfg_bool("BILI_SHARE_PARSE_FORWARD", False):
             for attr in ("raw", "raw_dict", "raw_event"):
                 try:
                     self._append_share_text(parts, getattr(event.message_obj, attr, None))
@@ -240,7 +272,9 @@ class ShareMixin:
         return False
 
     async def _handle_group_bili_share(self, event):
-        if not self.config.get("ENABLE_BILI_SHARE_PARSE", False):
+        if not self._cfg_bool("ENABLE_BILI_SHARE_PARSE", False):
+            return
+        if self._is_forward_message(event) and not self._cfg_bool("BILI_SHARE_PARSE_FORWARD", False):
             return
         msg = (event.message_str or "").strip()
         if msg.startswith("/"):
