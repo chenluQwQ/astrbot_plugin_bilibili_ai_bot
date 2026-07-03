@@ -234,9 +234,11 @@ class ShareMixin:
         if not self.config.get("ENABLE_BILI_SHARE_PARSE", False):
             return
         msg = (event.message_str or "").strip()
-        if not msg or msg.startswith("/"):
+        if msg.startswith("/"):
             return
         text = self._collect_share_text(event)
+        if not text.strip():
+            return
         target = await self._extract_bili_share_target(text)
         if not target:
             return
