@@ -108,29 +108,7 @@ class ShareMixin:
         return text if len(text) <= limit else text[:limit].rstrip() + "…"
 
     async def _summarize_shared_video(self, info):
-        bvid = info.get("bvid", "")
-        vc = self._load_json(VIDEO_MEMORY_FILE, {})
-        cached = vc.get(bvid, {}) if bvid else {}
-        if cached.get("analysis"):
-            return self._short_text(cached["analysis"])
-        if not self.config.get("BILI_SHARE_PARSE_ANALYZE", True):
-            return self._short_text(info.get("desc") or "这个视频没有简介。")
-        result = await self._analyze_video_text(info)
-        summary = self._short_text(result or info.get("desc") or "暂时没能概括出内容。")
-        if bvid:
-            vc[bvid] = {
-                "bvid": bvid,
-                "title": info.get("title", ""),
-                "desc": (info.get("desc") or "")[:200],
-                "owner_name": info.get("owner_name", ""),
-                "owner_mid": str(info.get("owner_mid", "")),
-                "tname": info.get("tname", ""),
-                "analysis": summary,
-                "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "source": "group_share",
-            }
-            self._save_json(VIDEO_MEMORY_FILE, vc)
-        return summary
+        return self._short_text(info.get("desc") or "这个视频没有简介。")
 
     def _build_share_card_text(self, info, summary):
         bvid = info.get("bvid", "")
