@@ -123,21 +123,28 @@ class ShareMixin:
             self._save_json(VIDEO_MEMORY_FILE, vc)
         return summary
 
-    def _build_share_card_text(self, info, summary):
+    @staticmethod
+    def _format_duration_minutes(seconds):
+        try:
+            seconds = int(seconds or 0)
+        except Exception:
+            seconds = 0
+        minutes = seconds / 60
+        if minutes <= 0:
+            return "未知"
+        text = f"{minutes:.1f}".rstrip("0").rstrip(".")
+        return f"{text} 分钟"
+
+    def _build_share_card_text(self, info):
         bvid = info.get("bvid", "")
         link = f"https://www.bilibili.com/video/{bvid}" if bvid else ""
         lines = [
-            "🎞️ B站分享解析卡",
-            "━━━━━━━━━━━━",
-            f"《{info.get('title', '未知标题')}》",
-            f"UP：{info.get('owner_name', '未知')}（UID:{info.get('owner_mid', '?')}）",
-            f"分区：{info.get('tname', '未知')} | 时长：{self._format_duration(info.get('duration', 0))}",
+            f"标题：{info.get('title', '未知标题')}",
+            f"UP：{info.get('owner_name', '未知')}",
+            f"时长：{self._format_duration_minutes(info.get('duration', 0))}",
         ]
         if link:
             lines.append(f"链接：{link}")
-        lines.extend(["", f"内容：{summary[:420]}"])
-        if self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
-            lines.append("\n我试着把原视频整理成群聊可看的回放切片。")
         return "\n".join(lines)
 
     def _share_video_component(self, video_path):
@@ -232,12 +239,11 @@ class ShareMixin:
         if self._share_recent_hit(bvid):
             return
 
-        summary = await self._summarize_shared_video(info)
-        yield event.plain_result(self._build_share_card_text(info, summary))
+        yield event.plain_result(self._build_share_card_text(info))
 
         await self._save_self_memory_record(
             f"group_share:{bvid}",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，内容概括:{summary[:180]}",
+            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}。",
             memory_type="video",
             extra={"bvid": bvid, "owner_mid": str(info.get("owner_mid", "")), "video_title": info.get("title", ""), "tname": info.get("tname", "")},
         )
@@ -251,7 +257,6 @@ class ShareMixin:
         send_paths = []
         skipped = False
         try:
-            yield event.plain_result("📼 正在取原视频并整理成群聊回放切片...")
             video_path = await self._download_video(bvid)
             if not video_path:
                 yield event.plain_result("⚠️ 原视频下载失败，先看解析卡和链接吧。")
