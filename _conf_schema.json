@@ -369,13 +369,7 @@
     "description": "【群聊分享解析】解析后发送原视频/切片",
     "type": "bool",
     "default": true,
-    "hint": "开启后会尝试用 yt-dlp 下载原视频，并按配置切成群聊可发送的回放切片。"
-  },
-  "BILI_SHARE_PARSE_ANALYZE": {
-    "description": "【群聊分享解析】生成视频内容摘要",
-    "type": "bool",
-    "default": true,
-    "hint": "开启后会用现有 LLM/字幕/热评能力生成内容概括；关闭则只使用视频简介。"
+    "hint": "开启后会尝试用 yt-dlp 下载原视频，并按配置切成群聊可发送的回放切片。发送依赖本地 file:// 路径，请确保 AstrBot 与 QQ 协议端能访问同一文件路径；uv + Docker 等混合部署需自行配置目录挂载，否则可能出现 ENOENT。"
   },
   "BILI_SHARE_PARSE_SEGMENT_SECONDS": {
     "description": "【群聊分享解析】原视频切片秒数",
