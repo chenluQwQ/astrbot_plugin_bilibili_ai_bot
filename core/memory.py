@@ -11,7 +11,7 @@ from datetime import datetime
 from astrbot.api import logger
 from .config import (
     MAX_SEMANTIC_RESULTS, MEMORY_FILE, PERMANENT_MEMORY_FILE,
-    QQ_MEMORY_FILE, THREAD_COMPRESS_THRESHOLD,
+    THREAD_COMPRESS_THRESHOLD,
     OID_COMPRESS_THRESHOLD, OID_KEEP_RECENT,
     USER_MEMORY_COMPRESS_THRESHOLD, USER_MEMORY_KEEP_RECENT,
 )
@@ -198,8 +198,6 @@ class MemoryMixin:
             and "embedding" in m
             and self._match_memory_type(m, memory_types or {"chat", "user_summary"})
         ]
-        qq_mem = self._load_json(QQ_MEMORY_FILE, [])
-        um += [m for m in qq_mem if m.get("user_id") == str(user_id) and "embedding" in m]
         if not um:
             return []
         qe = await self._get_embedding(query_text)
@@ -212,9 +210,6 @@ class MemoryMixin:
     async def _search_memories_raw(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5):
         """底层语义搜索：返回 [(score, record), ...]"""
         cands = list(self._memory)
-        if source != "bilibili":
-            qq_mem = self._load_json(QQ_MEMORY_FILE, [])
-            cands += qq_mem
         if source:
             cands = [m for m in cands if m.get("source") == source]
         if user_id is not None:

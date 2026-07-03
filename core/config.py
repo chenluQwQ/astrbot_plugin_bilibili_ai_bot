@@ -15,7 +15,7 @@ MILESTONE_FILE = os.path.join(DATA_DIR, "milestones.json")
 SECURITY_LOG_FILE = os.path.join(DATA_DIR, "security_log.json")
 VIDEO_MEMORY_FILE = os.path.join(DATA_DIR, "video_memory.json")
 BINDING_FILE = os.path.join(DATA_DIR, "qq_bili_bindings.json")
-QQ_MEMORY_FILE = os.path.join(DATA_DIR, "qq_memory.json")
+# QQ_MEMORY_FILE 已废弃（v1.3.0），QQ 记忆不再单独存储
 PERSONALITY_FILE = os.path.join(DATA_DIR, "personality_evolution.json")
 PROACTIVE_LOG_FILE = os.path.join(DATA_DIR, "proactive_log.json")
 EXTERNAL_MEMORY_FILE = os.path.join(DATA_DIR, "external_memory.json")

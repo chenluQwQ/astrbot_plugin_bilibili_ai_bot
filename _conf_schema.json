@@ -55,6 +55,47 @@
         "type": "bool",
         "default": true
     },
+    "POLL_INTERVAL": {
+        "description": "【回复】评论轮询间隔（秒）",
+        "type": "int",
+        "default": 20,
+        "hint": "建议 15-60 秒"
+    },
+    "REPLY_COOLDOWN": {
+        "description": "【回复】回复冷却时间（秒，回复一条后等待多久再处理下一条，最低5秒）",
+        "type": "int",
+        "default": 15
+    },
+    "REPLY_PROBABILITY_PERCENT": {
+        "description": "【回复】回复概率（%）",
+        "type": "int",
+        "default": 100,
+        "hint": "普通评论按此概率随机回复，100=每条都回。主人/被@/高好感(熟人以上)/必回白名单 不受影响，永远回"
+    },
+    "REPLY_ALWAYS_UIDS": {
+        "description": "【回复】必回UID白名单",
+        "type": "list",
+        "default": [],
+        "hint": "这些UID不受回复概率和语义去重影响，一定会回复"
+    },
+    "ENABLE_SIMILAR_SKIP": {
+        "description": "【回复】启用语义相似去重（相似评论不重复回复）",
+        "type": "bool",
+        "default": false,
+        "hint": "需先配置好 Embedding（记忆设置里的 EMBED_*）。开启后，和最近回复过的评论语义高度相似的，直接跳过不回，防刷屏/复读。主人/@/高好感/白名单不受影响"
+    },
+    "REPLY_SIMILARITY_PERCENT": {
+        "description": "【回复】语义相似度阈值（%）",
+        "type": "int",
+        "default": 90,
+        "hint": "相似度≥此值视为重复评论、跳过不回。越高越严格(只拦几乎一样的)，建议 85-95"
+    },
+    "CUSTOM_REPLY_INSTRUCTION": {
+        "description": "【回复】回复评论的补充提示词（追加到回复提示词末尾，留空用默认）",
+        "type": "text",
+        "default": "",
+        "hint": "例如：回复要带一点傲娇感，偶尔用颜文字。"
+    },
     "ENABLE_AFFECTION": {
         "description": "【功能开关】启用好感度系统",
         "type": "bool",
@@ -65,57 +106,49 @@
         "type": "bool",
         "default": true
     },
+    "AFFECTION_PROMPT_SPECIAL": {
+        "description": "【好感度提示词】主人（固定100分）",
+        "type": "text",
+        "default": "这是你的主人。内心：深深的喜爱和依恋。外在：随意、自然、可以撒娇。语气：宠溺、温柔、像亲人。"
+    },
+    "AFFECTION_PROMPT_CLOSE": {
+        "description": "【好感度提示词】亲密（80-99分）",
+        "type": "text",
+        "default": "这是你的好友（好感度高）。内心：真诚关心。外在：温柔亲近。语气：温暖、真实、可以调皮。"
+    },
+    "AFFECTION_PROMPT_FRIEND": {
+        "description": "【好感度提示词】熟悉（50-79分）",
+        "type": "text",
+        "default": "这是熟悉的粉丝（好感度中）。内心：放松和信任。外在：自然，话变多。语气：友好、轻松、偶尔调侃。"
+    },
+    "AFFECTION_PROMPT_NORMAL": {
+        "description": "【好感度提示词】普通（10-49分）",
+        "type": "text",
+        "default": "这是普通粉丝（好感度低）。保持善意，温和有礼但保持距离。语气：简洁、客气。"
+    },
+    "AFFECTION_PROMPT_STRANGER": {
+        "description": "【好感度提示词】陌生（0-9分）",
+        "type": "text",
+        "default": "这是陌生人。保持礼貌和善意，简洁客气。"
+    },
+    "AFFECTION_PROMPT_COLD": {
+        "description": "【好感度提示词】冷淡（负分）",
+        "type": "text",
+        "default": "这个人多次恶意攻击你。平静坚定划清界限，回复极简短，不恶语相向。"
+    },
     "ENABLE_PROACTIVE": {
         "description": "【功能开关】启用主动看视频/评论",
         "type": "bool",
         "default": false
     },
-    "ENABLE_DYNAMIC": {
-        "description": "【功能开关】启用自动发动态",
-        "type": "bool",
-        "default": false
-    },
-    "ENABLE_BANGUMI": {
-        "description": "【番剧】启用番剧功能（看番、搜番、番剧记忆）",
-        "type": "bool",
-        "default": false
-    },
-    "ENABLE_PERSONALITY_EVOLUTION": {
-        "description": "【功能开关】启用性格演化（每日反思）",
-        "type": "bool",
-        "default": true
-    },
-    "ENABLE_WEEKLY_SUMMARY": {
-        "description": "【周总结】启用每周总结（回顾一周的B站生活）",
-        "type": "bool",
-        "default": false,
-        "hint": "每周固定一天，在睡眠时段自动生成本周总结（看了什么视频/番、发了什么动态、和谁聊得多）"
-    },
-    "ENABLE_WEB_SEARCH": {
-        "description": "【联网搜索】启用联网搜索",
-        "type": "bool",
-        "default": false
-    },
-    "POLL_INTERVAL": {
-        "description": "【回复】评论轮询间隔（秒）",
-        "type": "int",
-        "default": 20,
-        "hint": "建议 15-60 秒"
-    },
-    "CUSTOM_REPLY_INSTRUCTION": {
-        "description": "【回复】回复评论的补充提示词（追加到回复提示词末尾，留空用默认）",
-        "type": "text",
-        "default": "",
-        "hint": "例如：回复要带一点傲娇感，偶尔用颜文字。"
-    },
     "PROACTIVE_VIDEO_POOLS": {
-        "description": "【主动行为】主动视频来源池",
+        "description": "【主动行为】主动视频来源池（可填中文，不用记 rid/tid）",
         "type": "list",
         "default": [
             "popular",
             "rcmd"
         ],
-        "hint": "可选: popular(综合热门) / rcmd(首页推荐，基于账号兴趣) / weekly(每周必看) / precious(入站必刷) / ranking(全站排行) / ranking:分区rid / newlist:子分区tid。用 /bili分区 查看编号"
+        "hint": "可填：热门 / 推荐 / 每周必看 / 入站必刷 / 排行榜:游戏 / 最新:单机游戏；也可直接填主分区名如 游戏（等同排行榜:游戏）或子分区名如 单机游戏（等同最新:单机游戏）。旧写法 ranking:4、newlist:17 仍兼容。用 /bili分区 查看完整中文名称。"
     },
     "PROACTIVE_VIDEO_COUNT": {
         "description": "【主动行为】每次主动看几个视频",
@@ -126,6 +159,18 @@
         "description": "【主动行为】每天最多看几个视频（所有来源合计，0=不限制）",
         "type": "int",
         "default": 0
+    },
+    "ENABLE_PROACTIVE_LLM_PREFILTER": {
+        "description": "【主动行为】下载/观看前让LLM按标题筛选探索视频",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，主动看视频在下载前会让 LLM 根据标题、UP、分区和简介判断想不想看。特别关注、关注更新、口味分区会直接看，不走筛选。可用 /bili开关 筛选 切换。"
+    },
+    "PROACTIVE_LLM_PREFILTER_MAX_REJECTS": {
+        "description": "【主动行为】标题筛选每轮最多拒绝几个视频",
+        "type": "int",
+        "default": 3,
+        "hint": "避免 Bot 挑太久。达到上限后，本轮后续探索视频默认放行。"
     },
     "PROACTIVE_TIMES_COUNT": {
         "description": "【主动行为】每天触发几次主动行为",
@@ -180,6 +225,48 @@
         "default": [],
         "hint": "这些UP主的新视频会优先观看（主动行为+特关巡视共用）"
     },
+    "ENABLE_BILI_SHARE_PARSE": {
+        "description": "【群聊分享解析】识别群聊里的B站视频分享",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，群里有人发 B站视频链接、b23短链或QQ小程序文本时，Bot 会自动发解析卡。也可用 /bili开关 解析 切换。"
+    },
+    "BILI_SHARE_PARSE_SEND_VIDEO": {
+        "description": "【群聊分享解析】解析后发送原视频/切片",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后会尝试用 yt-dlp 下载原视频，并按配置切成群聊可发送的回放切片；失败时只发解析卡和链接。"
+    },
+    "BILI_SHARE_PARSE_ANALYZE": {
+        "description": "【群聊分享解析】生成视频内容摘要",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后会用现有 LLM/字幕/热评能力生成内容概括；关闭则只使用视频简介。"
+    },
+    "BILI_SHARE_PARSE_SEGMENT_SECONDS": {
+        "description": "【群聊分享解析】原视频切片秒数",
+        "type": "int",
+        "default": 180,
+        "hint": "原视频过长或过大时，每段切多少秒；建议 120-300。"
+    },
+    "BILI_SHARE_PARSE_MAX_SEGMENTS": {
+        "description": "【群聊分享解析】每次最多发送几个切片",
+        "type": "int",
+        "default": 3,
+        "hint": "避免群聊刷屏。后续内容会提示用户可调大此值。"
+    },
+    "BILI_SHARE_PARSE_MAX_VIDEO_MB": {
+        "description": "【群聊分享解析】单个视频文件大小阈值MB",
+        "type": "int",
+        "default": 80,
+        "hint": "超过此大小会尝试切片；不同 QQ 适配器可能还有自己的上传大小限制。"
+    },
+    "BILI_SHARE_PARSE_COOLDOWN": {
+        "description": "【群聊分享解析】同一视频重复解析冷却秒数",
+        "type": "int",
+        "default": 90,
+        "hint": "同一群里短时间重复发送同一个视频时，避免重复刷解析。"
+    },
     "SPECIAL_FOLLOW_ENABLED": {
         "description": "【特别关注】启用定时特关巡视（独立于主动刷视频）",
         "type": "bool",
@@ -210,6 +297,11 @@
             "20:00"
         ],
         "hint": "格式 HH:MM，如 [\"12:00\", \"20:00\"]"
+    },
+    "ENABLE_BANGUMI": {
+        "description": "【番剧】启用番剧功能（看番、搜番、番剧记忆）",
+        "type": "bool",
+        "default": false
     },
     "BANGUMI_PROACTIVE": {
         "description": "【番剧】启用主动看番（定时自动随机看番）",
@@ -251,6 +343,11 @@
         "type": "bool",
         "default": true
     },
+    "ENABLE_DYNAMIC": {
+        "description": "【功能开关】启用自动发动态",
+        "type": "bool",
+        "default": false
+    },
     "DYNAMIC_TIMES_COUNT": {
         "description": "【动态发布】每天触发几次动态发布",
         "type": "int",
@@ -275,6 +372,12 @@
         "default": "",
         "hint": "例如：动态风格偏文艺，多用比喻。"
     },
+    "ENABLE_WEEKLY_SUMMARY": {
+        "description": "【周总结】启用每周总结（回顾一周的B站生活）",
+        "type": "bool",
+        "default": false,
+        "hint": "每周固定一天，在睡眠时段自动生成本周总结（看了什么视频/番、发了什么动态、和谁聊得多）"
+    },
     "WEEKLY_SUMMARY_MODE": {
         "description": "【周总结】总结发送方式",
         "type": "string",
@@ -296,40 +399,21 @@
         "type": "string",
         "default": ""
     },
+    "WEEKLY_SUMMARY_RENDER_IMAGE": {
+        "description": "【周总结】生成周总结图片卡片",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后周总结会额外渲染为 PNG 图片；QQ私信和B站动态会优先发送图片，失败时自动退回纯文本。"
+    },
     "CUSTOM_WEEKLY_INSTRUCTION": {
         "description": "【周总结】周总结的补充提示词",
         "type": "text",
         "default": ""
     },
-    "AFFECTION_PROMPT_SPECIAL": {
-        "description": "【好感度提示词】主人（固定100分）",
-        "type": "text",
-        "default": "这是你的主人。内心：深深的喜爱和依恋。外在：随意、自然、可以撒娇。语气：宠溺、温柔、像亲人。"
-    },
-    "AFFECTION_PROMPT_CLOSE": {
-        "description": "【好感度提示词】亲密（80-99分）",
-        "type": "text",
-        "default": "这是你的好友（好感度高）。内心：真诚关心。外在：温柔亲近。语气：温暖、真实、可以调皮。"
-    },
-    "AFFECTION_PROMPT_FRIEND": {
-        "description": "【好感度提示词】熟悉（50-79分）",
-        "type": "text",
-        "default": "这是熟悉的粉丝（好感度中）。内心：放松和信任。外在：自然，话变多。语气：友好、轻松、偶尔调侃。"
-    },
-    "AFFECTION_PROMPT_NORMAL": {
-        "description": "【好感度提示词】普通（10-49分）",
-        "type": "text",
-        "default": "这是普通粉丝（好感度低）。保持善意，温和有礼但保持距离。语气：简洁、客气。"
-    },
-    "AFFECTION_PROMPT_STRANGER": {
-        "description": "【好感度提示词】陌生（0-9分）",
-        "type": "text",
-        "default": "这是陌生人。保持礼貌和善意，简洁客气。"
-    },
-    "AFFECTION_PROMPT_COLD": {
-        "description": "【好感度提示词】冷淡（负分）",
-        "type": "text",
-        "default": "这个人多次恶意攻击你。平静坚定划清界限，回复极简短，不恶语相向。"
+    "ENABLE_PERSONALITY_EVOLUTION": {
+        "description": "【功能开关】启用性格演化（每日反思）",
+        "type": "bool",
+        "default": true
     },
     "EVOLVE_HOUR": {
         "description": "【性格演化】触发时间（0-23点）",
@@ -404,11 +488,17 @@
         "default": 2,
         "hint": "每秒抽取的帧数，值越大越精细但token消耗越多，建议1~4"
     },
-    "VIDEO_SEGMENT_SEC": {
-        "description": "【视频分析】长视频切片长度（秒）",
+    "VIDEO_SEGMENT_MINUTES": {
+        "description": "【视频分析】长视频自动切片长度（分钟/段）",
         "type": "int",
-        "default": 300,
-        "hint": "超过此时长的视频会被切片分段分析再整合，默认300秒（5分钟），上限10段"
+        "default": 5,
+        "hint": "超过此时长的视频会按段分析再整合。默认 5 分钟较稳，建议 3~8 分钟；越短越细但 token 消耗越大。"
+    },
+    "VIDEO_SEGMENT_MAX_COUNT": {
+        "description": "【视频分析】长视频最多分析多少段",
+        "type": "int",
+        "default": 10,
+        "hint": "超长视频最多分析几段，超出部分跳过。建议不要超过 10 段，避免 token 和耗时过高。"
     },
     "IMAGE_VISION_PROVIDER_ID": {
         "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",
@@ -432,6 +522,11 @@
         "type": "string",
         "default": "",
         "hint": "如 google/gemma-3-27b-it 等"
+    },
+    "ENABLE_WEB_SEARCH": {
+        "description": "【联网搜索】启用联网搜索",
+        "type": "bool",
+        "default": false
     },
     "WEB_SEARCH_JUDGE_PROVIDER_ID": {
         "description": "【联网搜索】搜索判断模型（建议选轻量模型）",
@@ -507,55 +602,6 @@
         "default": -3,
         "hint": "score_delta ≤ 此值时触发告警，-3=不友善以上，-5=仅辱骂"
     },
-    "SLEEP_START": {
-        "description": "【系统】休眠开始时间（0-23）",
-        "type": "int",
-        "default": 2
-    },
-    "SLEEP_END": {
-        "description": "【系统】休眠结束时间（0-23）",
-        "type": "int",
-        "default": 8
-    },
-    "COOKIE_AUTO_REFRESH": {
-        "description": "【系统】Cookie过期自动刷新",
-        "type": "bool",
-        "default": true
-    },
-    "COOKIE_CHECK_INTERVAL": {
-        "description": "【系统】Cookie检查间隔（小时）",
-        "type": "int",
-        "default": 6
-    },
-    "REPLY_COOLDOWN": {
-        "description": "【回复】回复冷却时间（秒，回复一条后等待多久再处理下一条，最低5秒）",
-        "type": "int",
-        "default": 15
-    },
-    "REPLY_PROBABILITY_PERCENT": {
-        "description": "【回复】回复概率（%）",
-        "type": "int",
-        "default": 100,
-        "hint": "普通评论按此概率随机回复，100=每条都回。主人/被@/高好感(熟人以上)/必回白名单 不受影响，永远回"
-    },
-    "REPLY_ALWAYS_UIDS": {
-        "description": "【回复】必回UID白名单",
-        "type": "list",
-        "default": [],
-        "hint": "这些UID不受回复概率和语义去重影响，一定会回复"
-    },
-    "ENABLE_SIMILAR_SKIP": {
-        "description": "【回复】启用语义相似去重（相似评论不重复回复）",
-        "type": "bool",
-        "default": false,
-        "hint": "需先配置好 Embedding（记忆设置里的 EMBED_*）。开启后，和最近回复过的评论语义高度相似的，直接跳过不回，防刷屏/复读。主人/@/高好感/白名单不受影响"
-    },
-    "REPLY_SIMILARITY_PERCENT": {
-        "description": "【回复】语义相似度阈值（%）",
-        "type": "int",
-        "default": 90,
-        "hint": "相似度≥此值视为重复评论、跳过不回。越高越严格(只拦几乎一样的)，建议 85-95"
-    },
     "ENABLE_AUTO_BLOCK": {
         "description": "【拉黑】启用自动拉黑",
         "type": "bool",
@@ -579,5 +625,25 @@
         "type": "int",
         "default": 5,
         "hint": "同一人恶意评论(score_delta≤-3)累计达此次数自动拉黑。0=不按次数拉黑"
+    },
+    "SLEEP_START": {
+        "description": "【系统】休眠开始时间（0-23）",
+        "type": "int",
+        "default": 2
+    },
+    "SLEEP_END": {
+        "description": "【系统】休眠结束时间（0-23）",
+        "type": "int",
+        "default": 8
+    },
+    "COOKIE_AUTO_REFRESH": {
+        "description": "【系统】Cookie过期自动刷新",
+        "type": "bool",
+        "default": true
+    },
+    "COOKIE_CHECK_INTERVAL": {
+        "description": "【系统】Cookie检查间隔（小时）",
+        "type": "int",
+        "default": 6
     }
 }

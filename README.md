@@ -1,4 +1,4 @@
-# astrbot_plugin_bilibili_ai_bot
+﻿# astrbot_plugin_bilibili_ai_bot
 
 B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让你的 AI 角色在 B 站评论区”活”起来。
 
@@ -27,6 +27,9 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **`/bili主动` 手动触发** — 命令式立刻触发一次主动看视频流程
 - **聊天里直接让 Bot 去看视频** — 在 QQ 聊天里说”去刷刷 B 站吧”之类的话，Bot 会用 LLM 判断意图，若确认是请求则在后台启动一次主动看视频
 - **自动发动态** — 定时发布动态，支持 AI 生成配图
+- **周总结图片卡片** — 每周总结可渲染为固定模板 PNG，只替换文字内容，QQ/B站动态优先发送图片
+- **群聊B站分享解析** — 识别群里的 B站链接/短链/小程序分享，发送解析卡，并可把原视频整理成群聊回放切片
+- **看片前标题筛选** — 主动看探索视频下载前，可让 LLM 根据标题/UP/分区/简介先判断想不想看；关注和口味分区直接放行
 
 ### 📺 番剧能力
 
@@ -176,8 +179,12 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`ENABLE_WEB_SEARCH`          |可选|启用联网查询（回复时按需搜索最新信息）                                                  |
 |`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
+|`ENABLE_BILI_SHARE_PARSE`    |可选|启用群聊B站分享解析（`/bili开关 解析`）                                      |
+|`BILI_SHARE_PARSE_SEND_VIDEO` |可选|解析后尝试发送原视频/切片，失败则只发解析卡和链接                                  |
 |`ENABLE_PROACTIVE`           |可选|启用主动看视频                                                              |
-|`PROACTIVE_VIDEO_POOLS`      |可选|主动视频来源池（popular / rcmd / weekly / precious / ranking / ranking:rid 等）|
+|`PROACTIVE_VIDEO_POOLS`      |可选|主动视频来源池，可填中文：热门 / 推荐 / 排行榜:游戏 / 最新:单机游戏；兼容 `ranking:4`、`newlist:17`|
+|`ENABLE_PROACTIVE_LLM_PREFILTER`|可选|主动看探索视频前让 LLM 按标题判断想不想看（`/bili开关 筛选`）|
+|`PROACTIVE_LLM_PREFILTER_MAX_REJECTS`|可选|标题筛选每轮最多拒绝几个视频，默认 3，达到上限后放行|
 |`ENABLE_DYNAMIC`             |可选|启用自动发动态                                                              |
 |`DYNAMIC_TIMES_COUNT`        |可选|每天触发几次动态发布                                                           |
 |`DYNAMIC_DAILY_COUNT`        |可选|每天最多发几条动态                                                            |
@@ -190,7 +197,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`ABUSE_ALERT_QQ_UMO`         |可选|接收告警的 QQ 私聊 UMO                                                      |
 |`ABUSE_ALERT_SCORE_THRESHOLD`|可选|触发告警的 score_delta 阈值，默认 -3                                           |
 
-完整配置说明详见插件配置页面，所有配置项都有 description 和 hint 可查。
+完整配置说明详见插件配置页面，所有配置项都有 description 和 hint 可查。视频池不会背编号时，发送 `/bili分区` 查看中文分区名和示例。
 
 > 💡 Cookie 获取方式：发送 `/bili登录` 扫码即可，登录后 Cookie 会自动定期刷新。
 > 
@@ -207,12 +214,12 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili登录`      |扫码登录 B站（扫码后发 `/bili确认`）|
 |`/bili确认`      |确认扫码结果                 |
 |`/bili状态`      |查看运行状态                 |
-|`/bili计划`      |查看今日主动 / 动态时间          |
-|`/bili分区`      |查看 B站 分区编号（配置视频池用）     |
+|`/bili计划`      |查看今日主动 / 动态 / 看番时间      |
+|`/bili分区`      |查看视频池中文填法和分区名          |
 |`/bili启动`      |启动 Bot                 |
 |`/bili停止`      |停止 Bot                 |
 |`/bili主动`      |立刻触发一次主动看视频            |
-|`/bili开关 <功能>` |切换功能开关                 |
+|`/bili开关 <功能>` |切换功能开关，支持 `解析`、`解析视频`、`筛选` 等 |
 |`/bili刷新`      |手动刷新 Cookie            |
 |`/bili记忆 <关键词>`|语义搜索记忆                 |
 |`/bili好感 [UID]`|查看好感度排行 / 查询           |
@@ -222,20 +229,22 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili性格`      |查看性格演化                 |
 |`/bili性格编辑`    |手动编辑性格                 |
 |`/bili性格删除`    |删除演化条目                 |
-|`/bili日志`      |今日视频 / 评论日志            |
+|`/bili日志 视频`  |主动看视频和主动评论记录          |
 |`/bili永久记忆`    |查看 / 删除永久记忆            |
 |`/bili动态`      |手动发动态                  |
-|`/bili动态日志`    |动态记录                   |
+|`/bili日志 动态`  |动态发布记录                 |
 |`/bili绑定 <UID>`|绑定 QQ 与 B站 UID（记忆互通）   |
 |`/bili解绑`      |解除绑定                   |
 |`/bili清理`      |清理临时文件                 |
 |`/bili帮助`      |查看帮助                   |
-|`/bili回复日志`    |查看评论回复                 |
+|`/bili日志 回复`  |查看评论回复                 |
 |`/bili看番`      |搜索并观看番剧                |
 |`/bili番剧记忆`    |查看番剧观看记忆               |
-|`/bili番剧日志`    |查看番剧记录                 |
-|`/bili周总结`     |手动生成本周B站生活总结           |
+|`/bili日志 番剧`  |查看番剧记录                 |
+|`/bili周总结`     |手动生成本周B站生活总结，并渲染图片卡片 |
 |`/biliUMO`     |获取当前会话 UMO 并自动填入配置     |
+
+日志统一走 `/bili日志 <视频|番剧|动态|回复> [日期]`，例如 `/bili日志 视频 2026-07-01`。
 
 
 > 💡 除了命令以外，也可以直接在聊天里用自然语言让 Bot 去随机看 B 站视频 — Bot 会用 LLM 判断意图后自动触发。
@@ -301,3 +310,5 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 ## 📄 License
 
 MIT
+
+

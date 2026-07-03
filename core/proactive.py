@@ -7,7 +7,7 @@ import traceback
 from datetime import datetime
 from astrbot.api import logger
 from .config import (
-    COMMENTED_FILE, EXTERNAL_MEMORY_FILE, PROACTIVE_LOG_FILE,
+    BILI_ZONES, COMMENTED_FILE, EXTERNAL_MEMORY_FILE, PROACTIVE_LOG_FILE,
     PROACTIVE_TRIGGER_LOG_FILE, VIDEO_MEMORY_FILE, WATCH_LOG_FILE,
 )
 
@@ -17,6 +17,111 @@ class ProactiveMixin:
 
     # 兜底分区（口味数据不足时使用）
     FALLBACK_TIDS = [17, 160, 211, 3, 13, 167, 321, 36, 129]
+    VIDEO_POOL_ALIASES = {
+        "popular": "popular", "hot": "popular", "热门": "popular", "综合热门": "popular",
+        "rcmd": "rcmd", "recommend": "rcmd", "推荐": "rcmd", "首页推荐": "rcmd", "个性推荐": "rcmd",
+        "weekly": "weekly", "每周必看": "weekly", "周必看": "weekly",
+        "precious": "precious", "入站必刷": "precious", "必刷": "precious",
+        "ranking": "ranking", "rank": "ranking", "排行": "ranking", "排行榜": "ranking", "分区排行": "ranking",
+        "newlist": "newlist", "new": "newlist", "最新": "newlist", "新稿件": "newlist", "分区最新": "newlist",
+    }
+
+    # ── 视频池配置解析 ──
+
+    @staticmethod
+    def _normalize_zone_name(name):
+        return re.sub(r"[\s_\-·・/\\]+", "", str(name or "").lower())
+
+    @staticmethod
+    def _split_pool_spec(raw):
+        text = str(raw or "").strip()
+        for sep in (":", "："):
+            if sep in text:
+                left, right = text.split(sep, 1)
+                return left.strip(), right.strip()
+        return text, ""
+
+    def _zone_id_maps(self):
+        main_map = {"全站": (0, "全站"), "全站排行": (0, "全站")}
+        child_map = {}
+        id_name = {0: "全站"}
+        for rid, zone in BILI_ZONES.items():
+            name = zone["name"]
+            main_map[self._normalize_zone_name(name)] = (rid, name)
+            id_name[rid] = name
+            for tid, child_name in zone.get("children", {}).items():
+                child_map[self._normalize_zone_name(child_name)] = (tid, child_name)
+                id_name[tid] = child_name
+        return main_map, child_map, id_name
+
+    def _lookup_zone_id(self, name, prefer="main"):
+        main_map, child_map, _ = self._zone_id_maps()
+        key = self._normalize_zone_name(name)
+        maps = (child_map, main_map) if prefer == "child" else (main_map, child_map)
+        for zone_map in maps:
+            if key in zone_map:
+                return zone_map[key]
+        return None
+
+    def _parse_video_pool_ids(self, raw_ids, prefer="main"):
+        ids = []
+        for chunk in re.split(r"[,，、\s]+", str(raw_ids or "")):
+            item = chunk.strip()
+            if not item:
+                continue
+            if item.isdigit():
+                ids.append(int(item))
+                continue
+            matched = self._lookup_zone_id(item, prefer=prefer)
+            if matched:
+                ids.append(matched[0])
+            else:
+                logger.warning(f"[BiliBot] 未识别的视频池分区：{item}，可用 /bili分区 查看中文名称")
+        return ids
+
+    def _resolve_video_pool_spec(self, pool_raw):
+        raw = str(pool_raw or "").strip()
+        if not raw:
+            return "popular", [], "popular"
+        prefix, value = self._split_pool_spec(raw)
+        alias = self.VIDEO_POOL_ALIASES.get(self._normalize_zone_name(prefix))
+        if alias in ("popular", "rcmd", "weekly", "precious"):
+            return alias, [], raw
+        if alias == "ranking":
+            ids = self._parse_video_pool_ids(value, prefer="main") if value else [0]
+            return "ranking", ids or [0], raw
+        if alias == "newlist":
+            ids = self._parse_video_pool_ids(value, prefer="child") if value else []
+            return "newlist", ids, raw
+        if prefix.isdigit():
+            return "ranking", [int(prefix)], raw
+        main_map, child_map, _ = self._zone_id_maps()
+        key = self._normalize_zone_name(prefix)
+        if key in main_map:
+            return "ranking", [main_map[key][0]], raw
+        if key in child_map:
+            return "newlist", [child_map[key][0]], raw
+        return "unknown", [], raw
+
+    def _format_resolved_video_pool(self, pool, ids, raw):
+        _, _, id_name = self._zone_id_maps()
+        if pool == "ranking":
+            names = ",".join(id_name.get(i, str(i)) for i in (ids or [0]))
+            return f"{raw}→排行:{names}" if str(raw) != f"ranking:{','.join(map(str, ids or [0]))}" else raw
+        if pool == "newlist":
+            names = ",".join(id_name.get(i, str(i)) for i in ids)
+            return f"{raw}→最新:{names}" if names else f"{raw}→最新:未指定"
+        return str(raw)
+
+    def _format_video_pool_config(self):
+        pools = self.config.get("PROACTIVE_VIDEO_POOLS", ["popular"])
+        if not pools:
+            pools = ["popular"]
+        parts = []
+        for pool_raw in pools:
+            pool, ids, raw = self._resolve_video_pool_spec(pool_raw)
+            parts.append(self._format_resolved_video_pool(pool, ids, raw))
+        return "、".join(parts)
 
     # ── 口味偏好系统 ──
 
@@ -62,6 +167,54 @@ class ProactiveMixin:
         result = ranked[:10]
         logger.info(f"[BiliBot] 🎯 口味偏好TID: {result}（来自{len(watch_log)}条历史记录）")
         return result
+
+    def _tag_video_source(self, video, source):
+        item = dict(video)
+        item["_source"] = source
+        return item
+
+    def _is_preferred_video_source(self, video, taste_tids=None):
+        source = video.get("_source", "")
+        if source in ("special_follow", "following", "taste"):
+            return True
+        if not taste_tids:
+            return False
+        tname = video.get("tname", "")
+        tid = self._build_tname_to_tid_map().get(tname)
+        return bool(tid and tid in set(taste_tids))
+
+    async def _should_watch_video_before_download(self, video, taste_tids, rejected_count, max_rejects):
+        """下载前按标题做轻量筛选。关注/口味视频直接放行；探索视频最多拒绝 max_rejects 次。"""
+        if not self.config.get("ENABLE_PROACTIVE_LLM_PREFILTER", False):
+            return True, "筛选关闭"
+        if self._is_preferred_video_source(video, taste_tids):
+            return True, "关注或口味来源，直接看"
+        if rejected_count >= max_rejects:
+            return True, "本轮拒绝次数已达上限，停止挑选"
+        title = video.get("title", "")
+        if not title:
+            return True, "标题为空，默认看看"
+        prompt = f"""你正在给自己挑一个B站视频看。请只根据标题、UP主、分区和简介判断你现在想不想看这个视频。
+
+标题：{title}
+UP主：{video.get('up_name', '')}
+分区：{video.get('tname', '')}
+简介：{(video.get('desc', '') or '')[:180]}
+
+判断标准：
+- 如果标题看起来有趣、信息量高、和你的口味可能相关，回答 yes。
+- 如果明显像低质标题党、广告、重复搬运、你大概率没兴趣，回答 no。
+- 不要太挑剔；不确定就 yes。
+
+只输出一行：yes 或 no，然后可以用不超过12字写理由。"""
+        try:
+            result = (await self._llm_call(prompt, max_tokens=40) or "").strip().lower()
+        except Exception as e:
+            logger.debug(f"[BiliBot] 看片前筛选失败，默认放行: {e}")
+            return True, "筛选失败，默认看"
+        if result.startswith("no") or result.startswith("不") or result.startswith("否"):
+            return False, result[:40]
+        return True, result[:40] or "想看"
 
     # ── 视频池 ──
     async def _get_hot_videos(self, min_pubdate=0):
@@ -185,8 +338,10 @@ class ProactiveMixin:
         if not pools:
             pools = ["popular"]
         all_videos = []
+        resolved_sources = []
         for pool_raw in pools:
-            pool = str(pool_raw).lower().strip()
+            pool, ids, raw = self._resolve_video_pool_spec(pool_raw)
+            resolved_sources.append(self._format_resolved_video_pool(pool, ids, raw))
             if pool == "popular":
                 all_videos.extend(await self._get_hot_videos(min_pubdate))
             elif pool == "weekly":
@@ -195,19 +350,17 @@ class ProactiveMixin:
                 all_videos.extend(await self._get_precious_videos())
             elif pool == "rcmd":
                 all_videos.extend(await self._get_rcmd_videos())
-            elif pool.startswith("ranking"):
-                ids = [int(x.strip()) for x in pool.split(":", 1)[1].split(",")] if ":" in pool else [0]
-                for rid in ids:
+            elif pool == "ranking":
+                for rid in (ids or [0]):
                     all_videos.extend(await self._get_ranking_videos(rid))
-            elif pool.startswith("newlist"):
-                ids = [int(x.strip()) for x in pool.split(":", 1)[1].split(",")] if ":" in pool else []
+            elif pool == "newlist":
                 if not ids:
-                    logger.warning("[BiliBot] newlist 需要指定子分区 tid，如 newlist:17")
+                    logger.warning("[BiliBot] 最新分区需要指定中文分区或 tid，如 最新:单机游戏 / newlist:17")
                 for tid in ids:
                     all_videos.extend(await self._get_newlist_videos(tid, min_pubdate))
             else:
-                logger.warning(f"[BiliBot] 未知视频池: {pool}")
-        logger.info(f"[BiliBot] 📦 视频池合计: {len(all_videos)} 个（来源: {', '.join(str(p) for p in pools)}）")
+                logger.warning(f"[BiliBot] 未知视频池: {raw}，可填 热门/推荐/排行榜:游戏/最新:单机游戏")
+        logger.info(f"[BiliBot] 📦 视频池合计: {len(all_videos)} 个（来源: {', '.join(resolved_sources)}）")
         return all_videos
 
     # ── 评价 & 评论 ──
@@ -371,7 +524,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
         for mid in special_mids:
             video = await self._get_up_latest_video(mid)
             if video and video["bvid"] not in watched_bvids:
-                target_videos.insert(0, video)
+                target_videos.insert(0, self._tag_video_source(video, "special_follow"))
                 logger.info(f"[BiliBot] ⭐ 特别关心：{video['up_name']} - {video['title']}")
         following_mids = await self.get_followings()
         logger.info(f"[BiliBot] 📡 关注列表：{len(following_mids)} 个UP主")
@@ -387,7 +540,7 @@ comment要求：像真人随手在评论区打的字，不要客套话。
                     except Exception:
                         pubdate = 0
                 if pubdate and datetime.fromtimestamp(pubdate).date() == today:
-                    target_videos.append(video)
+                    target_videos.append(self._tag_video_source(video, "following"))
                     logger.info(f"[BiliBot] 🔔 今日更新：{video['up_name']} - {video['title']}")
         pool_videos = await self._get_pool_videos(min_pubdate_hot)
         explore_videos = [v for v in pool_videos if v["bvid"] not in watched_bvids]
@@ -416,18 +569,20 @@ comment要求：像真人随手在评论区打的字，不要客套话。
         random.shuffle(explore_videos)
         # 按配额合并
         for v in taste_pool[:taste_quota]:
-            target_videos.append(v)
+            target_videos.append(self._tag_video_source(v, "taste"))
         for v in explore_videos[:explore_quota]:
-            target_videos.append(v)
-        # 额度没填满时互补
-        if len(target_videos) < daily_watch:
-            remaining_pool = taste_pool[taste_quota:] + explore_videos[explore_quota:]
+            target_videos.append(self._tag_video_source(v, "explore"))
+        # 额度没填满时互补；开启标题筛选时额外留几个候补，避免拒绝后看不够
+        prefilter_extra = max(0, int(self.config.get("PROACTIVE_LLM_PREFILTER_MAX_REJECTS", 3))) if self.config.get("ENABLE_PROACTIVE_LLM_PREFILTER", False) else 0
+        candidate_target = daily_watch + max(5, prefilter_extra)
+        if len(target_videos) < candidate_target:
+            remaining_pool = [(v, "taste") for v in taste_pool[taste_quota:]] + [(v, "explore") for v in explore_videos[explore_quota:]]
             random.shuffle(remaining_pool)
-            for v in remaining_pool:
-                if len(target_videos) >= daily_watch + 5:
+            for v, source in remaining_pool:
+                if len(target_videos) >= candidate_target:
                     break
                 if v["bvid"] not in {tv["bvid"] for tv in target_videos}:
-                    target_videos.append(v)
+                    target_videos.append(self._tag_video_source(v, source))
         logger.info(f"[BiliBot] 📊 视频来源统计：特别关注={len(special_mids)}个UP | 关注更新={follow_today_count} | 口味={min(len(taste_pool), taste_quota)} | 探索={min(len(explore_videos), explore_quota)} | 总计={len(target_videos)}")
         seen = set()
         unique = []
@@ -443,13 +598,21 @@ comment要求：像真人随手在评论区打的字，不要客套话。
         logger.info(f"[BiliBot] 📋 共找到 {len(unique)} 个视频")
         watch_count = 0
         comment_count = 0
+        prefilter_rejected = 0
+        prefilter_max_rejects = max(0, int(self.config.get("PROACTIVE_LLM_PREFILTER_MAX_REJECTS", 3)))
         for video in unique:
             if watch_count >= daily_watch:
                 break
             bvid = video["bvid"]
             if str(video.get("up_mid", "")) == self.config.get("DEDE_USER_ID", ""):
                 continue
-            logger.info(f"[BiliBot] 🎬 [{watch_count + 1}/{daily_watch}] {video['title']} by {video.get('up_name', '')}")
+            allow_watch, prefilter_reason = await self._should_watch_video_before_download(video, taste_tids, prefilter_rejected, prefilter_max_rejects)
+            if not allow_watch:
+                prefilter_rejected += 1
+                logger.info(f"[BiliBot] 🧭 标题筛选跳过({prefilter_rejected}/{prefilter_max_rejects})：{video['title']} | {prefilter_reason}")
+                continue
+            source_note = {"special_follow": "特关", "following": "关注", "taste": "口味", "explore": "探索"}.get(video.get("_source", ""), "候选")
+            logger.info(f"[BiliBot] 🎬 [{watch_count + 1}/{daily_watch}] [{source_note}] {video['title']} by {video.get('up_name', '')}")
             oid = video.get("oid") or await self._get_video_oid(bvid) or 0
             vi = await self._get_video_info(oid) if oid else None
             analysis_info = {

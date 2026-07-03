@@ -1,4 +1,4 @@
-"""视频分析：内容概括、媒体处理、视频/动态上下文构建。"""
+﻿"""视频分析：内容概括、媒体处理、视频/动态上下文构建。"""
 import os
 import base64
 import shutil
@@ -147,8 +147,14 @@ UP主：{video_info.get('up_name', '未知')}
         segments = []
         try:
             # 切片（短视频返回单段，长视频返回多段）
-            segment_sec = self.config.get("VIDEO_SEGMENT_SEC", 300)
-            segments = await self._slice_video_segments(video_path, segment_sec=segment_sec)
+            segment_min = self.config.get("VIDEO_SEGMENT_MINUTES", 0)
+            if segment_min:
+                segment_sec = max(60, int(segment_min) * 60)
+            else:
+                # 兼容旧配置键（秒）
+                segment_sec = int(self.config.get("VIDEO_SEGMENT_SEC", 300))
+            max_segments = max(1, int(self.config.get("VIDEO_SEGMENT_MAX_COUNT", 10)))
+            segments = await self._slice_video_segments(video_path, segment_sec=segment_sec, max_segments=max_segments)
             if not segments:
                 return None
 
@@ -183,10 +189,16 @@ UP主：{video_info.get('up_name', '未知')}
         """分析单个视频片段，返回文本结果。"""
         frames = []
         try:
+            segment_note = (
+                f"这是按 {self.config.get('VIDEO_SEGMENT_MINUTES', 5)} 分钟左右切片后的{label}。"
+                if label else "这是完整短视频。"
+            )
             text_prompt = (
-                f"这是一个B站视频{label}，标题是「{video_info.get('title', '未知')}」，"
-                f"简介是「{video_info.get('desc', '无')[:300]}」。"
-                f"请用100字以内描述{'这一段' if label else '视频'}的主要内容、风格和亮点。"
+                f"这是B站视频「{video_info.get('title', '未知')}」{('的' + label) if label else ''}。{segment_note}\n"
+                f"简介：「{video_info.get('desc', '无')[:300]}」。\n"
+                f"请具体描述{'这一段' if label else '这个视频'}：①讲了什么/发生了什么 ②画面与风格 "
+                f"③最有记忆点的细节（名场面、梗、金句、字幕关键信息）。"
+                f"这一段只写本段内容，不要替整条视频下结论；不要泛泛而谈，120字以内。"
             )
             # 尝试视频直读
             if fmt != "none":
@@ -227,7 +239,13 @@ UP主：{video_info.get('up_name', '未知')}
         parts = "\n".join(
             f"【第{i+1}段】{text}" for i, text in enumerate(segment_analyses)
         )
-        prompt = f"""以下是B站视频《{video_info.get('title', '未知')}》（UP主：{video_info.get('owner_name', '未知')}）分段分析的结果，请将所有段落整合为一段完整的内容概括（300字以内），覆盖视频全程的要点：
+        prompt = f"""以下是B站视频《{video_info.get('title', '未知')}》（UP主：{video_info.get('owner_name', '未知')}）分段分析的结果，请整合为一段完整的内容概括（300字以内）。
+
+整合要求：
+- 按视频推进顺序串起来，覆盖开头、中段、结尾的主要内容。
+- 合并重复信息，保留具体画面、观点、梗、金句或关键字幕。
+- 如果某些分段信息不足，就明确只依据已看到的分段，不要脑补。
+- 最后用一句话概括视频整体风格或看点。
 
 {parts}
 
@@ -376,8 +394,8 @@ UP主：{video_info.get('up_name', '未知')}
             pass
         return output_path
 
-    async def _slice_video_segments(self, video_path, segment_sec=300):
-        """将长视频切成多个片段，每段 segment_sec 秒，返回片段路径列表。
+    async def _slice_video_segments(self, video_path, segment_sec=300, max_segments=10):
+        """将长视频切成多个片段，每段 segment_sec 秒，最多 max_segments 段，返回片段路径列表。
         短视频（<=segment_sec）直接压缩返回单段。"""
         duration = await self._get_video_duration(video_path)
         if duration <= 0:
@@ -390,7 +408,7 @@ UP主：{video_info.get('up_name', '未知')}
 
         # 长视频：切片
         segments = []
-        num_segments = min(int(duration // segment_sec) + (1 if duration % segment_sec > 10 else 0), 10)  # 上限10段
+        num_segments = min(int(duration // segment_sec) + (1 if duration % segment_sec > 10 else 0), max_segments)
         base = video_path.rsplit(".", 1)[0]
         for i in range(num_segments):
             start = i * segment_sec

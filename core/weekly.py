@@ -13,12 +13,15 @@
   - 手动：/bili周总结 命令
 """
 import json
+import os
+import re
+import time
 from datetime import datetime, timedelta
 from collections import Counter
 from astrbot.api import logger
 from .config import (
     WATCH_LOG_FILE, BANGUMI_WATCH_LOG_FILE, DYNAMIC_LOG_FILE,
-    PROACTIVE_LOG_FILE, WEEKLY_SUMMARY_FILE,
+    PROACTIVE_LOG_FILE, WEEKLY_SUMMARY_FILE, TEMP_IMAGE_DIR,
 )
 
 
@@ -165,9 +168,199 @@ class WeeklySummaryMixin:
         )
         return (summary or "").strip() or None
 
+    # ── 图片渲染 ──
+
+    def _find_weekly_font(self, bold=False):
+        """寻找可渲染中文的字体，找不到则退回 Pillow 默认字体。"""
+        try:
+            from PIL import ImageFont
+        except Exception:
+            return None
+        candidates = [
+            r"C:\Windows\Fonts\msyhbd.ttc" if bold else r"C:\Windows\Fonts\msyh.ttc",
+            r"C:\Windows\Fonts\simhei.ttf",
+            r"C:\Windows\Fonts\simsun.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
+        for path in candidates:
+            if path and os.path.exists(path):
+                return path
+        return None
+
+    def _load_weekly_font(self, size, bold=False):
+        from PIL import ImageFont
+        font_path = self._find_weekly_font(bold=bold)
+        if font_path:
+            return ImageFont.truetype(font_path, size=size)
+        return ImageFont.load_default()
+
+    @staticmethod
+    def _strip_weekly_emoji(text):
+        return re.sub(r"^[\s📅📺🎬💬📢✍️📝✨⭐🌙·|]+", "", text or "").strip()
+
+    @staticmethod
+    def _text_width(draw, text, font):
+        if not text:
+            return 0
+        box = draw.textbbox((0, 0), text, font=font)
+        return box[2] - box[0]
+
+    def _wrap_weekly_text(self, draw, text, font, max_width):
+        lines = []
+        for raw_line in str(text or "").splitlines():
+            line = raw_line.strip()
+            if not line:
+                lines.append("")
+                continue
+            buf = ""
+            for ch in line:
+                trial = buf + ch
+                if buf and self._text_width(draw, trial, font) > max_width:
+                    lines.append(buf)
+                    buf = ch
+                else:
+                    buf = trial
+            if buf:
+                lines.append(buf)
+        return lines
+
+    def _parse_weekly_sections(self, summary):
+        sections = []
+        current_title = "本周摘要"
+        current_lines = []
+        stats_line = ""
+        for raw in (summary or "").splitlines():
+            line = raw.strip()
+            if not line or set(line) <= {"━", "-", "—"}:
+                continue
+            clean = self._strip_weekly_emoji(line)
+            if line.startswith("📅"):
+                current_title = clean or "周报"
+                continue
+            if any(line.startswith(prefix) for prefix in ("📺", "🎬", "💬", "📢", "✍")):
+                if current_lines:
+                    sections.append((current_title, "\n".join(current_lines).strip()))
+                current_title = clean or line
+                current_lines = []
+                continue
+            if not stats_line and ("视频" in line or "番剧" in line or "互动" in line or "动态" in line) and "·" in line:
+                stats_line = line
+                continue
+            current_lines.append(line)
+        if current_lines:
+            sections.append((current_title, "\n".join(current_lines).strip()))
+        return stats_line, sections[:6]
+
+    @staticmethod
+    def _rounded_rect(draw, xy, radius, fill, outline=None, width=1):
+        draw.rounded_rectangle(xy, radius=radius, fill=fill, outline=outline, width=width)
+
+    def _render_weekly_summary_image(self, summary):
+        """把周总结渲染成固定模板 PNG。失败时返回 None，不影响文本投递。"""
+        try:
+            from PIL import Image, ImageDraw, ImageFilter
+        except Exception as e:
+            logger.warning(f"[BiliBot] 周总结图片渲染不可用（缺少Pillow）: {e}")
+            return None
+        try:
+            os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
+            width, height = 1200, 1680
+            img = Image.new("RGB", (width, height), "#f7f1e8")
+            draw = ImageDraw.Draw(img)
+            for y in range(height):
+                t = y / max(height - 1, 1)
+                r = int(247 * (1 - t) + 228 * t)
+                g = int(241 * (1 - t) + 238 * t)
+                b = int(232 * (1 - t) + 230 * t)
+                draw.line((0, y, width, y), fill=(r, g, b))
+
+            # 柔和色块，纯代码渲染的模板背景
+            overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+            od = ImageDraw.Draw(overlay)
+            od.ellipse((-180, -120, 520, 460), fill=(246, 169, 122, 85))
+            od.ellipse((760, 80, 1420, 720), fill=(94, 145, 132, 75))
+            od.ellipse((650, 1120, 1320, 1820), fill=(76, 98, 142, 55))
+            overlay = overlay.filter(ImageFilter.GaussianBlur(36))
+            img = Image.alpha_composite(img.convert("RGBA"), overlay)
+            draw = ImageDraw.Draw(img)
+
+            title_font = self._load_weekly_font(56, bold=True)
+            sub_font = self._load_weekly_font(26)
+            stat_font = self._load_weekly_font(28, bold=True)
+            card_title_font = self._load_weekly_font(32, bold=True)
+            body_font = self._load_weekly_font(28)
+            small_font = self._load_weekly_font(22)
+
+            week_start = (datetime.now() - timedelta(days=7)).strftime("%m.%d")
+            week_end = datetime.now().strftime("%m.%d")
+            stats_line, sections = self._parse_weekly_sections(summary)
+            if not stats_line:
+                stats_line = "这一周的B站生活记录"
+
+            margin = 72
+            y = 74
+            draw.text((margin, y), "BiliBot 周报", fill="#24312f", font=title_font)
+            y += 72
+            draw.text((margin + 2, y), f"{week_start} - {week_end} · 自动生成", fill="#6f746f", font=sub_font)
+
+            badge_text = "WEEKLY"
+            badge_w = self._text_width(draw, badge_text, small_font) + 42
+            self._rounded_rect(draw, (width - margin - badge_w, 86, width - margin, 132), 23, fill=(36, 49, 47, 230))
+            draw.text((width - margin - badge_w + 21, 98), badge_text, fill="#f8f0df", font=small_font)
+
+            y += 78
+            self._rounded_rect(draw, (margin, y, width - margin, y + 86), 30, fill=(255, 252, 244, 220), outline=(229, 215, 192, 220), width=2)
+            draw.text((margin + 34, y + 26), stats_line, fill="#4a4f49", font=stat_font)
+            y += 118
+
+            palette = ["#d86f45", "#477c73", "#526c9d", "#a56a43", "#6f6f48", "#8b627a"]
+            content_bottom = height - 116
+            for idx, (title, body) in enumerate(sections):
+                body = body or "这块内容有点安静。"
+                card_x1, card_x2 = margin, width - margin
+                max_text_w = card_x2 - card_x1 - 70
+                wrapped = self._wrap_weekly_text(draw, body, body_font, max_text_w)
+                wrapped = wrapped[:7]
+                line_h = 38
+                card_h = 86 + max(1, len(wrapped)) * line_h + 32
+                if y + card_h > content_bottom:
+                    break
+                self._rounded_rect(draw, (card_x1, y, card_x2, y + card_h), 34, fill=(255, 253, 248, 232), outline=(229, 218, 201, 210), width=2)
+                accent = palette[idx % len(palette)]
+                self._rounded_rect(draw, (card_x1 + 24, y + 28, card_x1 + 38, y + card_h - 28), 7, fill=accent)
+                draw.text((card_x1 + 58, y + 28), title, fill="#283330", font=card_title_font)
+                ty = y + 78
+                for line in wrapped:
+                    draw.text((card_x1 + 58, ty), line, fill="#4b4d49", font=body_font)
+                    ty += line_h
+                y += card_h + 24
+
+            footer = "Generated by astrbot_plugin_bilibili_ai_bot"
+            draw.text((margin, height - 62), footer, fill="#8b8d87", font=small_font)
+            path = os.path.join(TEMP_IMAGE_DIR, f"weekly_summary_{int(time.time())}.png")
+            img.convert("RGB").save(path, "PNG", optimize=True)
+            logger.info(f"[BiliBot] 周总结图片已渲染: {path}")
+            return path
+        except Exception as e:
+            logger.warning(f"[BiliBot] 周总结图片渲染失败: {e}", exc_info=True)
+            return None
+
+    def _append_image_to_chain(self, chain, image_path):
+        from astrbot.api.message_components import Image as MsgImage
+        img = MsgImage.fromFileSystem(image_path)
+        if hasattr(chain, "chain"):
+            chain.chain.append(img)
+            return chain
+        if hasattr(chain, "append"):
+            chain.append(img)
+            return chain
+        return None
+
     # ── 投递 ──
 
-    async def _deliver_weekly_summary(self, summary):
+    async def _deliver_weekly_summary(self, summary, image_path=None):
         """按配置投递周总结，返回投递结果描述列表。"""
         mode = str(self.config.get("WEEKLY_SUMMARY_MODE", "qq")).lower().strip()
         results = []
@@ -179,23 +372,45 @@ class WeeklySummaryMixin:
             if umo:
                 try:
                     from astrbot.api.event import MessageChain
-                    chain = MessageChain().message(summary)
+                    chain = MessageChain().message("📅 本周B站生活周报")
+                    if image_path:
+                        chain = self._append_image_to_chain(chain, image_path) or MessageChain().message(summary)
+                    else:
+                        chain = MessageChain().message(summary)
                     await self.context.send_message(umo, chain)
-                    results.append("QQ私信")
+                    results.append("QQ私信图片" if image_path else "QQ私信")
                     logger.info("[BiliBot] 📅 周总结已通过QQ私信发送")
                 except Exception as e:
-                    logger.warning(f"[BiliBot] 周总结QQ发送失败: {e}")
+                    logger.warning(f"[BiliBot] 周总结QQ图片发送失败，尝试退回文本: {e}")
+                    try:
+                        from astrbot.api.event import MessageChain
+                        await self.context.send_message(umo, MessageChain().message(summary))
+                        results.append("QQ私信文本")
+                    except Exception as e2:
+                        logger.warning(f"[BiliBot] 周总结QQ文本发送失败: {e2}")
             else:
                 logger.warning("[BiliBot] 周总结模式包含qq但未配置UMO（周总结/恶意告警的UMO都为空）")
 
         if mode in ("dynamic", "both"):
             try:
-                if await self._post_dynamic_text(summary):
-                    results.append("B站动态")
+                success = False
+                has_image = False
+                dynamic_text = summary
+                if image_path:
+                    img_info = await self._upload_image_to_bilibili(image_path)
+                    if img_info:
+                        dynamic_text = "📅 这周的B站生活周报来啦，整理成图片存档一下。"
+                        success = await self._post_dynamic_with_image(dynamic_text, img_info)
+                        has_image = success
+                if not success:
+                    success = await self._post_dynamic_text(summary)
+                if success:
+                    results.append("B站动态图片" if has_image else "B站动态")
                     log = self._load_json(DYNAMIC_LOG_FILE, [])
                     log.append({
                         "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "text": summary, "has_image": False, "weekly": True,
+                        "text": dynamic_text, "has_image": has_image, "weekly": True,
+                        "image_path": image_path if has_image else "",
                     })
                     self._save_json(DYNAMIC_LOG_FILE, log[-100:])
                     logger.info("[BiliBot] 📅 周总结已发布为B站动态")
@@ -214,13 +429,14 @@ class WeeklySummaryMixin:
         this_week = datetime.now().strftime("%G-W%V")
         return any(r.get("week") == this_week for r in records if isinstance(r, dict))
 
-    def _save_weekly_summary_record(self, summary, delivered):
+    def _save_weekly_summary_record(self, summary, delivered, image_path=""):
         records = self._load_json(WEEKLY_SUMMARY_FILE, [])
         records.append({
             "week": datetime.now().strftime("%G-W%V"),
             "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "summary": summary,
             "delivered": delivered,
+            "image_path": image_path or "",
         })
         self._save_json(WEEKLY_SUMMARY_FILE, records[-20:])
 
@@ -245,12 +461,13 @@ class WeeklySummaryMixin:
             summary = await self._generate_weekly_summary()
         except Exception as e:
             logger.error(f"[BiliBot] 周总结生成异常: {e}")
-            return None, []
+            return None, [], None
         if not summary:
             # 没有活动也记录一下，避免同一周反复尝试
-            self._save_weekly_summary_record("（本周无活动，未生成）", [])
-            return None, []
-        delivered = await self._deliver_weekly_summary(summary)
-        self._save_weekly_summary_record(summary, delivered)
+            self._save_weekly_summary_record("（本周无活动，未生成）", [], "")
+            return None, [], None
+        image_path = self._render_weekly_summary_image(summary) if self.config.get("WEEKLY_SUMMARY_RENDER_IMAGE", True) else None
+        delivered = await self._deliver_weekly_summary(summary, image_path=image_path)
+        self._save_weekly_summary_record(summary, delivered, image_path or "")
         logger.info(f"[BiliBot] 📅 周总结完成，投递：{delivered or ['仅存档']}")
-        return summary, delivered
+        return summary, delivered, image_path
