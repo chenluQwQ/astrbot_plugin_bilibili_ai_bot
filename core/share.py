@@ -89,25 +89,34 @@ class ShareMixin:
         return None
 
     @staticmethod
-    def _format_duration(seconds):
+    def _format_duration_minutes(seconds):
         try:
             seconds = int(seconds or 0)
         except Exception:
             seconds = 0
-        h, rem = divmod(seconds, 3600)
-        m, s = divmod(rem, 60)
-        return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+        if seconds <= 0:
+            return "未知"
+        minutes = seconds / 60
+        text = f"{minutes:.1f}".rstrip("0").rstrip(".")
+        return f"{text} 分钟"
+
+    @staticmethod
+    def _short_text(text, limit=140):
+        text = " ".join(str(text or "").split())
+        if not text:
+            return "这个视频没有简介。"
+        return text if len(text) <= limit else text[:limit].rstrip() + "…"
 
     async def _summarize_shared_video(self, info):
         bvid = info.get("bvid", "")
         vc = self._load_json(VIDEO_MEMORY_FILE, {})
         cached = vc.get(bvid, {}) if bvid else {}
         if cached.get("analysis"):
-            return cached["analysis"]
+            return self._short_text(cached["analysis"])
         if not self.config.get("BILI_SHARE_PARSE_ANALYZE", True):
-            return (info.get("desc") or "这个视频没有简介。")[:220]
+            return self._short_text(info.get("desc") or "这个视频没有简介。")
         result = await self._analyze_video_text(info)
-        summary = (result or info.get("desc") or "暂时没能概括出内容。")[:500]
+        summary = self._short_text(result or info.get("desc") or "暂时没能概括出内容。")
         if bvid:
             vc[bvid] = {
                 "bvid": bvid,
@@ -123,19 +132,7 @@ class ShareMixin:
             self._save_json(VIDEO_MEMORY_FILE, vc)
         return summary
 
-    @staticmethod
-    def _format_duration_minutes(seconds):
-        try:
-            seconds = int(seconds or 0)
-        except Exception:
-            seconds = 0
-        minutes = seconds / 60
-        if minutes <= 0:
-            return "未知"
-        text = f"{minutes:.1f}".rstrip("0").rstrip(".")
-        return f"{text} 分钟"
-
-    def _build_share_card_text(self, info):
+    def _build_share_card_text(self, info, summary):
         bvid = info.get("bvid", "")
         link = f"https://www.bilibili.com/video/{bvid}" if bvid else ""
         lines = [
@@ -145,6 +142,8 @@ class ShareMixin:
         ]
         if link:
             lines.append(f"链接：{link}")
+        if summary:
+            lines.append(f"内容：{self._short_text(summary)}")
         return "\n".join(lines)
 
     def _share_video_component(self, video_path):
@@ -239,11 +238,12 @@ class ShareMixin:
         if self._share_recent_hit(bvid):
             return
 
-        yield event.plain_result(self._build_share_card_text(info))
+        summary = await self._summarize_shared_video(info)
+        yield event.plain_result(self._build_share_card_text(info, summary))
 
         await self._save_self_memory_record(
             f"group_share:{bvid}",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}。",
+            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，内容概括:{self._short_text(summary, 120)}",
             memory_type="video",
             extra={"bvid": bvid, "owner_mid": str(info.get("owner_mid", "")), "video_title": info.get("title", ""), "tname": info.get("tname", "")},
         )
