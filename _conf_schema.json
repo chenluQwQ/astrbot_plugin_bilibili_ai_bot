@@ -365,6 +365,12 @@
     "default": false,
     "hint": "开启后，群里有人发 B站视频链接、b23短链或QQ小程序文本时，Bot 会自动发解析卡。也可用 /bili开关 解析 切换。"
   },
+  "BILI_SHARE_PARSE_FORWARD": {
+    "description": "【群聊分享解析】识别转发聊天记录里的B站链接",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后会尝试从合并转发/聊天记录预览文本中提取 B站链接或 BV号。默认关闭，避免对聊天记录里的旧链接自动解析。"
+  },
   "BILI_SHARE_PARSE_SEND_VIDEO": {
     "description": "【群聊分享解析】解析后发送原视频/切片",
     "type": "bool",
