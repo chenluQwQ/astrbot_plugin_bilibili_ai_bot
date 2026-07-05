@@ -1,10 +1,8 @@
-"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
+﻿"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
 import os
 import asyncio
 import re
 import time
-import json
-import html
 import aiohttp
 from datetime import datetime
 from astrbot.api import logger
@@ -14,97 +12,27 @@ from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
 class ShareMixin:
     """处理群聊里的 B站视频分享。"""
 
-    def _cfg_bool(self, key, default=False):
-        value = self.config.get(key, default)
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.strip().lower() in ("1", "true", "yes", "on", "enable", "enabled", "开启")
-        return bool(value)
-
-    def _is_forward_message(self, event):
-        try:
-            raw_msg = str(getattr(event.message_obj, "raw_message", "") or "")
-            if "[CQ:forward" in raw_msg:
-                return True
-        except Exception:
-            pass
-        try:
-            for comp in getattr(event.message_obj, "message", []) or []:
-                if isinstance(comp, dict) and comp.get("type") == "forward":
-                    return True
-                if getattr(comp, "type", None) == "forward":
-                    return True
-        except Exception:
-            pass
-        try:
-            raw = getattr(event.message_obj, "raw", None) or {}
-            for element in raw.get("elements", []) or []:
-                if element.get("multiForwardMsgElement"):
-                    return True
-        except Exception:
-            pass
-        return False
-
     BVID_RE = re.compile(r"\b(BV[0-9A-Za-z]{10,})\b")
     AV_RE = re.compile(r"(?:\bav|aid=)(\d+)\b", re.IGNORECASE)
     URL_RE = re.compile(r"https?://[^\s\]\[\)\(\"'<>]+", re.IGNORECASE)
 
-    @staticmethod
-    def _normalize_share_text(value):
-        text = html.unescape(str(value or ""))
-        return text.replace("\\/", "/")
-
-    def _append_share_text(self, parts, value):
-        if value is None:
-            return
-        if isinstance(value, dict):
-            for v in value.values():
-                self._append_share_text(parts, v)
-            return
-        if isinstance(value, (list, tuple, set)):
-            for v in value:
-                self._append_share_text(parts, v)
-            return
-
-        text = self._normalize_share_text(value)
-        if not text:
-            return
-        parts.append(text)
-
-        # QQ 小程序一般是 CQ:json / arkElement，B站短链藏在 meta.detail_1.qqdocurl 里。
-        # 这里顺手解析 JSON 字符串，把 qqdocurl/url/desc/prompt 等字段都纳入链接提取。
-        stripped = text.strip()
-        if stripped.startswith("{") or stripped.startswith("["):
-            try:
-                self._append_share_text(parts, json.loads(stripped))
-            except Exception:
-                pass
-
     def _collect_share_text(self, event):
-        parts = []
-        self._append_share_text(parts, event.message_str or "")
+        parts = [event.message_str or ""]
         try:
             raw = getattr(event.message_obj, "raw_message", None)
-            self._append_share_text(parts, raw)
+            if raw:
+                parts.append(str(raw))
         except Exception:
             pass
         try:
             for comp in getattr(event.message_obj, "message", []) or []:
-                self._append_share_text(parts, comp)
+                parts.append(str(comp))
                 for attr in ("url", "title", "content", "desc", "text", "data"):
-                    self._append_share_text(parts, getattr(comp, attr, None))
+                    val = getattr(comp, attr, None)
+                    if val:
+                        parts.append(str(val))
         except Exception:
             pass
-
-        # 转发聊天记录里的预览文本通常藏在 NapCat raw.elements[].multiForwardMsgElement.xmlContent。
-        # 默认不读，避免把聊天记录里的旧链接也自动解析；用户打开配置后才扫描。
-        if self._cfg_bool("BILI_SHARE_PARSE_FORWARD", False):
-            for attr in ("raw", "raw_dict", "raw_event"):
-                try:
-                    self._append_share_text(parts, getattr(event.message_obj, attr, None))
-                except Exception:
-                    pass
         return "\n".join(p for p in parts if p)
 
     async def _resolve_share_url(self, url):
@@ -161,39 +89,55 @@ class ShareMixin:
         return None
 
     @staticmethod
-    def _format_duration_minutes(seconds):
+    def _format_duration(seconds):
         try:
             seconds = int(seconds or 0)
         except Exception:
             seconds = 0
-        if seconds <= 0:
-            return "未知"
-        minutes = seconds / 60
-        text = f"{minutes:.1f}".rstrip("0").rstrip(".")
-        return f"{text} 分钟"
-
-    @staticmethod
-    def _short_text(text, limit=140):
-        text = " ".join(str(text or "").split())
-        if not text:
-            return "这个视频没有简介。"
-        return text if len(text) <= limit else text[:limit].rstrip() + "…"
+        h, rem = divmod(seconds, 3600)
+        m, s = divmod(rem, 60)
+        return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
     async def _summarize_shared_video(self, info):
-        return self._short_text(info.get("desc") or "这个视频没有简介。")
+        bvid = info.get("bvid", "")
+        vc = self._load_json(VIDEO_MEMORY_FILE, {})
+        cached = vc.get(bvid, {}) if bvid else {}
+        if cached.get("analysis"):
+            return cached["analysis"]
+        if not self.config.get("BILI_SHARE_PARSE_ANALYZE", True):
+            return (info.get("desc") or "这个视频没有简介。")[:220]
+        result = await self._analyze_video_text(info)
+        summary = (result or info.get("desc") or "暂时没能概括出内容。")[:500]
+        if bvid:
+            vc[bvid] = {
+                "bvid": bvid,
+                "title": info.get("title", ""),
+                "desc": (info.get("desc") or "")[:200],
+                "owner_name": info.get("owner_name", ""),
+                "owner_mid": str(info.get("owner_mid", "")),
+                "tname": info.get("tname", ""),
+                "analysis": summary,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "source": "group_share",
+            }
+            self._save_json(VIDEO_MEMORY_FILE, vc)
+        return summary
 
     def _build_share_card_text(self, info, summary):
         bvid = info.get("bvid", "")
         link = f"https://www.bilibili.com/video/{bvid}" if bvid else ""
         lines = [
-            f"标题：{info.get('title', '未知标题')}",
-            f"UP：{info.get('owner_name', '未知')}",
-            f"时长：{self._format_duration_minutes(info.get('duration', 0))}",
+            "🎞️ B站分享解析卡",
+            "━━━━━━━━━━━━",
+            f"《{info.get('title', '未知标题')}》",
+            f"UP：{info.get('owner_name', '未知')}（UID:{info.get('owner_mid', '?')}）",
+            f"分区：{info.get('tname', '未知')} | 时长：{self._format_duration(info.get('duration', 0))}",
         ]
         if link:
             lines.append(f"链接：{link}")
-        if summary:
-            lines.append(f"内容：{self._short_text(summary)}")
+        lines.extend(["", f"内容：{summary[:420]}"])
+        if self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
+            lines.append("\n我试着把原视频整理成群聊可看的回放切片。")
         return "\n".join(lines)
 
     def _share_video_component(self, video_path):
@@ -272,16 +216,12 @@ class ShareMixin:
         return False
 
     async def _handle_group_bili_share(self, event):
-        if not self._cfg_bool("ENABLE_BILI_SHARE_PARSE", False):
-            return
-        if self._is_forward_message(event) and not self._cfg_bool("BILI_SHARE_PARSE_FORWARD", False):
+        if not self.config.get("ENABLE_BILI_SHARE_PARSE", False):
             return
         msg = (event.message_str or "").strip()
-        if msg.startswith("/"):
+        if not msg or msg.startswith("/"):
             return
         text = self._collect_share_text(event)
-        if not text.strip():
-            return
         target = await self._extract_bili_share_target(text)
         if not target:
             return
@@ -297,7 +237,7 @@ class ShareMixin:
 
         await self._save_self_memory_record(
             f"group_share:{bvid}",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，内容概括:{self._short_text(summary, 120)}",
+            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，内容概括:{summary[:180]}",
             memory_type="video",
             extra={"bvid": bvid, "owner_mid": str(info.get("owner_mid", "")), "video_title": info.get("title", ""), "tname": info.get("tname", "")},
         )
@@ -311,6 +251,7 @@ class ShareMixin:
         send_paths = []
         skipped = False
         try:
+            yield event.plain_result("📼 正在取原视频并整理成群聊回放切片...")
             video_path = await self._download_video(bvid)
             if not video_path:
                 yield event.plain_result("⚠️ 原视频下载失败，先看解析卡和链接吧。")
@@ -318,19 +259,8 @@ class ShareMixin:
             send_paths, skipped = await self._split_share_video_for_chat(video_path)
             total = len(send_paths)
             for idx, path in enumerate(send_paths, 1):
-                caption = f"📼 回放切片 {idx}/{total} · 《{info.get('title','未知标题')[:24]}》"
-                if not path or not os.path.isfile(path):
-                    logger.warning(f"[BiliBot] 群聊视频发送前文件不存在: {path}")
-                    yield event.plain_result(
-                        f"{caption}\n⚠️ 视频文件不存在，可能是下载失败、临时文件被清理，或协议端无法访问本地路径。"
-                    )
-                    continue
-                if os.path.getsize(path) <= 0:
-                    logger.warning(f"[BiliBot] 群聊视频发送前文件为空: {path}")
-                    yield event.plain_result(f"{caption}\n⚠️ 视频文件为空，可能下载失败。")
-                    continue
-
                 comp = self._share_video_component(path)
+                caption = f"📼 回放切片 {idx}/{total} · 《{info.get('title','未知标题')[:24]}》"
                 if comp:
                     yield event.chain_result([__import__('astrbot.api.message_components', fromlist=['Plain']).Plain(caption), comp])
                 else:

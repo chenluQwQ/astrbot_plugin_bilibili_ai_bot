@@ -200,6 +200,27 @@ class WeeklySummaryMixin:
     def _strip_weekly_emoji(text):
         return re.sub(r"^[\s📅📺🎬💬📢✍️📝✨⭐🌙·|]+", "", text or "").strip()
 
+    # 中文字体没有彩色 emoji 字形，画出来是豆腐块，渲染前全部去掉
+    _WEEKLY_EMOJI_RE = re.compile(
+        "["
+        "\U0001F000-\U0001FAFF"   # 各类 emoji / 符号 / 补充区
+        "\U00002190-\U000021FF"   # 箭头
+        "\U00002460-\U000024FF"   # 带圈数字
+        "\U00002600-\U000027BF"   # 杂项符号、装饰符号
+        "\U00002B00-\U00002BFF"   # 杂项符号与箭头（⭐ 等）
+        "\U0001F1E6-\U0001F1FF"   # 区域指示符
+        "\ufe0e\ufe0f\u200d\u20e3"  # 变体选择符 / ZWJ / 组合键帽
+        "]+"
+    )
+
+    @classmethod
+    def _clean_weekly_render_text(cls, text):
+        """去掉字体画不出来的 emoji 和 LLM 夹带的 markdown 记号。"""
+        s = cls._WEEKLY_EMOJI_RE.sub("", text or "")
+        s = re.sub(r"\*{1,3}([^*\n]+)\*{1,3}", r"\1", s)  # **加粗** → 加粗
+        s = s.replace("**", "").replace("`", "")
+        return re.sub(r"[ \t]{2,}", " ", s).strip()
+
     @staticmethod
     def _text_width(draw, text, font):
         if not text:
@@ -226,6 +247,9 @@ class WeeklySummaryMixin:
                 lines.append(buf)
         return lines
 
+    # LLM 不带 emoji 前缀时，靠这些标题词兜底识别板块
+    _WEEKLY_KNOWN_TITLES = ("视频", "追番", "评论区", "动态", "碎碎念", "本周摘要", "总结")
+
     def _parse_weekly_sections(self, summary):
         sections = []
         current_title = "本周摘要"
@@ -233,16 +257,26 @@ class WeeklySummaryMixin:
         stats_line = ""
         for raw in (summary or "").splitlines():
             line = raw.strip()
-            if not line or set(line) <= {"━", "-", "—"}:
+            if not line or set(line) <= {"━", "-", "—", "=", "*"}:
                 continue
             clean = self._strip_weekly_emoji(line)
-            if line.startswith("📅"):
-                current_title = clean or "周报"
+            # 标题行：📅 开头，或 markdown 标题/纯文字形式的「周报 xx.xx ~ xx.xx」
+            md = re.match(r"^#{1,4}\s*(.+)$", clean)
+            md_clean = self._strip_weekly_emoji(md.group(1)) if md else ""
+            if line.startswith("📅") or re.match(r"^周报\b|^周报[\s|｜]", md_clean or clean):
+                current_title = (md_clean or clean) or "周报"
                 continue
-            if any(line.startswith(prefix) for prefix in ("📺", "🎬", "💬", "📢", "✍")):
+            # 板块标题：emoji 前缀 / markdown 标题 / 单独一行的已知标题词
+            bare = (md_clean or clean).rstrip("：:").replace("**", "").strip()
+            is_header = (
+                any(line.startswith(p) for p in ("📺", "🎬", "💬", "📢", "✍"))
+                or (md and bare)
+                or bare in self._WEEKLY_KNOWN_TITLES
+            )
+            if is_header:
                 if current_lines:
                     sections.append((current_title, "\n".join(current_lines).strip()))
-                current_title = clean or line
+                current_title = bare or clean or line
                 current_lines = []
                 continue
             if not stats_line and ("视频" in line or "番剧" in line or "互动" in line or "动态" in line) and "·" in line:
@@ -266,25 +300,10 @@ class WeeklySummaryMixin:
             return None
         try:
             os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
-            width, height = 1200, 1680
-            img = Image.new("RGB", (width, height), "#f7f1e8")
-            draw = ImageDraw.Draw(img)
-            for y in range(height):
-                t = y / max(height - 1, 1)
-                r = int(247 * (1 - t) + 228 * t)
-                g = int(241 * (1 - t) + 238 * t)
-                b = int(232 * (1 - t) + 230 * t)
-                draw.line((0, y, width, y), fill=(r, g, b))
-
-            # 柔和色块，纯代码渲染的模板背景
-            overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-            od = ImageDraw.Draw(overlay)
-            od.ellipse((-180, -120, 520, 460), fill=(246, 169, 122, 85))
-            od.ellipse((760, 80, 1420, 720), fill=(94, 145, 132, 75))
-            od.ellipse((650, 1120, 1320, 1820), fill=(76, 98, 142, 55))
-            overlay = overlay.filter(ImageFilter.GaussianBlur(36))
-            img = Image.alpha_composite(img.convert("RGBA"), overlay)
-            draw = ImageDraw.Draw(img)
+            width = 1200
+            margin = 72
+            line_h = 38
+            max_body_lines = 14
 
             title_font = self._load_weekly_font(56, bold=True)
             sub_font = self._load_weekly_font(26)
@@ -296,10 +315,47 @@ class WeeklySummaryMixin:
             week_start = (datetime.now() - timedelta(days=7)).strftime("%m.%d")
             week_end = datetime.now().strftime("%m.%d")
             stats_line, sections = self._parse_weekly_sections(summary)
-            if not stats_line:
-                stats_line = "这一周的B站生活记录"
+            stats_line = self._clean_weekly_render_text(stats_line) or "这一周的B站生活记录"
 
-            margin = 72
+            # 先量后画：用临时画布把每张卡片的行数算出来，画布高度按内容伸缩
+            meas = ImageDraw.Draw(Image.new("RGB", (width, 8)))
+            max_text_w = width - margin * 2 - 70
+            cards = []
+            for title, body in sections:
+                title = self._clean_weekly_render_text(title) or "小记"
+                body = self._clean_weekly_render_text(body) or "这块内容有点安静。"
+                wrapped = self._wrap_weekly_text(meas, body, body_font, max_text_w)
+                if len(wrapped) > max_body_lines:
+                    wrapped = wrapped[:max_body_lines]
+                    wrapped[-1] = wrapped[-1][:-1] + "…"
+                card_h = 86 + max(1, len(wrapped)) * line_h + 32
+                cards.append((title, wrapped, card_h))
+
+            header_h = 342          # 大标题 + 日期 + 统计条
+            footer_h = 116
+            content_h = sum(h for _, _, h in cards) + 24 * max(len(cards) - 1, 0)
+            height = max(1280, header_h + content_h + footer_h + 40)
+            height = min(height, 4000)
+
+            img = Image.new("RGB", (width, height), "#f7f1e8")
+            draw = ImageDraw.Draw(img)
+            for y in range(height):
+                t = y / max(height - 1, 1)
+                r = int(247 * (1 - t) + 228 * t)
+                g = int(241 * (1 - t) + 238 * t)
+                b = int(232 * (1 - t) + 230 * t)
+                draw.line((0, y, width, y), fill=(r, g, b))
+
+            # 柔和色块，纯代码渲染的模板背景（底部色块跟随画布高度）
+            overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+            od = ImageDraw.Draw(overlay)
+            od.ellipse((-180, -120, 520, 460), fill=(246, 169, 122, 85))
+            od.ellipse((760, 80, 1420, 720), fill=(94, 145, 132, 75))
+            od.ellipse((650, height - 560, 1320, height + 140), fill=(76, 98, 142, 55))
+            overlay = overlay.filter(ImageFilter.GaussianBlur(36))
+            img = Image.alpha_composite(img.convert("RGBA"), overlay)
+            draw = ImageDraw.Draw(img)
+
             y = 74
             draw.text((margin, y), "BiliBot 周报", fill="#24312f", font=title_font)
             y += 72
@@ -317,14 +373,8 @@ class WeeklySummaryMixin:
 
             palette = ["#d86f45", "#477c73", "#526c9d", "#a56a43", "#6f6f48", "#8b627a"]
             content_bottom = height - 116
-            for idx, (title, body) in enumerate(sections):
-                body = body or "这块内容有点安静。"
+            for idx, (title, wrapped, card_h) in enumerate(cards):
                 card_x1, card_x2 = margin, width - margin
-                max_text_w = card_x2 - card_x1 - 70
-                wrapped = self._wrap_weekly_text(draw, body, body_font, max_text_w)
-                wrapped = wrapped[:7]
-                line_h = 38
-                card_h = 86 + max(1, len(wrapped)) * line_h + 32
                 if y + card_h > content_bottom:
                     break
                 self._rounded_rect(draw, (card_x1, y, card_x2, y + card_h), 34, fill=(255, 253, 248, 232), outline=(229, 218, 201, 210), width=2)
