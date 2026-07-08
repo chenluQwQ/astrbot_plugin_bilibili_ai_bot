@@ -1075,15 +1075,19 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             msg = event.message_str or ""
             if not msg or msg.startswith("/"):
                 return
+            if self._inject_recent_group_share_into_request(event, req):
+                logger.debug("[BiliBot] recent group share context injected before user message")
             qq_id = str(event.get_sender_id())
             bindings = self._load_json(BINDING_FILE, {})
             if qq_id not in bindings:
                 return
             bili_uid = bindings[qq_id]
 
-            req.system_prompt += f"\n\n【该用户已绑定B站UID:{bili_uid}，如需回忆相关内容可使用recall系列工具查询】"
-            logger.debug(f"[BiliBot] QQ→B站绑定提示注入: uid={bili_uid}")
+            bind_ctx = f"\u3010\u4e0a\u4e00\u6761\u7528\u6237\u80cc\u666f\uff1aB\u7ad9\u7ed1\u5b9a\u3011\n\u8be5\u7528\u6237\u5df2\u7ed1\u5b9aB\u7ad9UID:{bili_uid}\u3002\u5982\u9700\u56de\u5fc6\u76f8\u5173\u5185\u5bb9\uff0c\u53ef\u4f7f\u7528recall\u7cfb\u5217\u5de5\u5177\u67e5\u8be2\u3002"
+            self._inject_context_block_before_user(req, bind_ctx)
+            logger.debug(f"[BiliBot] QQ->Bili binding context injected before user message: uid={bili_uid}")
         except Exception as e:
             logger.error(f"[BiliBot] 记忆注入失败: {e}")
 
     # capture_qq_memory 已移除（v1.3.0），QQ记忆不再单独存储
+

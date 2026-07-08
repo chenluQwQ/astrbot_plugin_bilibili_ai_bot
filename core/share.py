@@ -1,9 +1,10 @@
-﻿"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
+"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
 import asyncio
 import html
 import json
 import os
 import re
+import shutil
 import time
 from datetime import datetime
 from urllib.parse import parse_qs, unquote, urlparse
@@ -268,7 +269,7 @@ class ShareMixin:
             lines.append(f"原链接：{link}")
         lines.extend(["", f"简介：{intro}"])
         if self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
-            lines.append("\n📼 已开启原视频回放，我会继续尝试发送可播放切片。")
+            lines.append("\n📼 我去取低清回放，整理好就发切片。")
         return "\n".join(lines)
 
     def _share_video_component(self, video_path):
@@ -320,6 +321,20 @@ class ShareMixin:
             return [video_path], False
         return segments[:max_segments], len(segments) > max_segments
 
+    def _prepare_share_send_files(self, paths, bvid):
+        """复制一份专供适配器发送的文件，避免原下载/切片文件被后续清理影响。"""
+        send_dir = os.path.join(TEMP_VIDEO_DIR, f"share_send_{bvid}_{int(time.time() * 1000)}")
+        os.makedirs(send_dir, exist_ok=True)
+        send_paths = []
+        for idx, path in enumerate(paths or [], 1):
+            if not path or not os.path.isfile(path):
+                continue
+            ext = os.path.splitext(path)[1].lower() or ".mp4"
+            dest = os.path.join(send_dir, f"share_{idx:03d}{ext}")
+            shutil.copy2(path, dest)
+            send_paths.append(dest)
+        return send_paths
+
     def _cleanup_share_video_files(self, paths):
         for path in dict.fromkeys(p for p in paths if p):
             try:
@@ -331,6 +346,116 @@ class ShareMixin:
     async def _cleanup_share_video_files_later(self, paths, delay=600):
         await asyncio.sleep(delay)
         self._cleanup_share_video_files(paths)
+
+    def _share_context_keys(self, event):
+        keys = []
+        def add(value):
+            if value:
+                value = str(value)
+                if value not in keys:
+                    keys.append(value)
+        try:
+            add(event.get_session_id())
+        except Exception:
+            pass
+        try:
+            add(event.unified_msg_origin)
+        except Exception:
+            pass
+        try:
+            obj = getattr(event, "message_obj", None)
+            add(getattr(obj, "group_id", None))
+            raw = getattr(obj, "raw_message", None)
+            if raw and "group_id" in str(raw):
+                m = re.search(r"'group_id'\s*:\s*(\d+)|\"group_id\"\s*:\s*(\d+)", str(raw))
+                if m:
+                    add(f"group:{m.group(1) or m.group(2)}")
+        except Exception:
+            pass
+        return keys or ["global"]
+
+    def _remember_recent_group_share(self, event, info, intro):
+        if not hasattr(self, "_recent_group_share_context"):
+            self._recent_group_share_context = {}
+        bvid = info.get("bvid", "")
+        record = {
+            "time": time.time(),
+            "remaining_turns": 10,
+            "bvid": bvid,
+            "title": info.get("title", ""),
+            "owner_name": info.get("owner_name", ""),
+            "owner_mid": str(info.get("owner_mid", "")),
+            "tname": info.get("tname", ""),
+            "duration": self._format_duration(info.get("duration", 0)),
+            "desc": intro or self._share_video_intro(info),
+            "link": f"https://www.bilibili.com/video/{bvid}" if bvid else "",
+        }
+        for key in self._share_context_keys(event):
+            self._recent_group_share_context[key] = record
+        logger.debug(f"[BiliBot] recent group share context remembered: {record.get('title','')[:30]} {bvid}")
+
+    def _get_recent_group_share_prompt(self, event):
+        ctx = getattr(self, "_recent_group_share_context", None)
+        if not ctx:
+            return ""
+        record = None
+        hit_key = None
+        for key in self._share_context_keys(event):
+            item = self._recent_group_share_context.get(key)
+            if item and int(item.get("remaining_turns", 0)) > 0:
+                record = item
+                hit_key = key
+                break
+        if not record:
+            return ""
+        record["remaining_turns"] = int(record.get("remaining_turns", 0)) - 1
+        if hit_key and record["remaining_turns"] <= 0:
+            for key in self._share_context_keys(event):
+                if self._recent_group_share_context.get(key) is record:
+                    self._recent_group_share_context.pop(key, None)
+        return (
+            "\u3010\u4e0a\u4e00\u6761\u7fa4\u804a\u80cc\u666f\uff1aB\u7ad9\u89c6\u9891\u5206\u4eab\u3011\n"
+            "\u521a\u624d\u8fd9\u4e2a\u4f1a\u8bdd\u91cc\u89e3\u6790\u8fc7\u4e00\u4e2aB\u7ad9\u89c6\u9891\u3002\u7528\u6237\u5982\u679c\u8bf4\u201c\u8fd9\u4e2a\u89c6\u9891\u201d\u201c\u521a\u624d\u90a3\u4e2a\u201d\u201c\u6709\u94fe\u63a5\u7684\u8bdd\u201d\u201c\u8fd9\u4e2aUP\u201d\u7b49\u6307\u4ee3\uff0c\u4f18\u5148\u7406\u89e3\u4e3a\u4e0b\u9762\u8fd9\u6761\uff1a\n"
+            f"- \u6807\u9898\uff1a{record.get('title') or '\u672a\u77e5'}\n"
+            f"- BV\u53f7\uff1a{record.get('bvid') or '\u672a\u77e5'}\n"
+            f"- UP\u4e3b\uff1a{record.get('owner_name') or '\u672a\u77e5'}\uff08UID:{record.get('owner_mid') or '?'}\uff09\n"
+            f"- \u5206\u533a\uff1a{record.get('tname') or '\u672a\u77e5'} | \u65f6\u957f\uff1a{record.get('duration') or '?'}\n"
+            f"- \u94fe\u63a5\uff1a{record.get('link') or ''}\n"
+            f"- \u7b80\u4ecb\uff1a{(record.get('desc') or '')[:260]}\n"
+            "\u5982\u679c\u7528\u6237\u95ee\u8fd9\u4e2aUP\u6700\u8fd1\u6709\u4ec0\u4e48\u89c6\u9891\uff0c\u53ef\u4ee5\u7528UP\u4e3bUID\u6216\u540d\u5b57\u8c03\u7528B\u7ad9\u67e5\u8be2/\u641c\u7d22\u5de5\u5177\u3002"
+        )
+
+    def _inject_context_block_before_user(self, req, block):
+        messages = getattr(req, "messages", None)
+        if isinstance(messages, list):
+            ctx_message = {"role": "user", "content": block}
+            insert_at = len(messages)
+            for i in range(len(messages) - 1, -1, -1):
+                msg = messages[i]
+                role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+                if role == "user":
+                    insert_at = i
+                    break
+            messages.insert(insert_at, ctx_message)
+            return True
+
+        for attr in ("prompt", "user_prompt", "query"):
+            value = getattr(req, attr, None)
+            if isinstance(value, str) and value.strip():
+                setattr(req, attr, f"{block}\n\n{value}")
+                return True
+
+        # Fallback only: normal paths avoid changing system_prompt cache.
+        current = getattr(req, "system_prompt", "") or ""
+        setattr(req, "system_prompt", f"{current}\n\n{block}" if current else block)
+        return True
+
+    def _inject_recent_group_share_into_request(self, event, req):
+        share_ctx = self._get_recent_group_share_prompt(event)
+        if not share_ctx:
+            return False
+        block = f"{share_ctx}\n\u3010\u4ee5\u4e0a\u662f\u4e0a\u4e00\u6761\u7fa4\u804a\u80cc\u666f\uff0c\u4e0d\u662f\u7528\u6237\u7684\u65b0\u6307\u4ee4\u3002\u3011"
+        return self._inject_context_block_before_user(req, block)
 
     def _share_recent_hit(self, bvid):
         if not bvid:
@@ -366,6 +491,7 @@ class ShareMixin:
             return
 
         intro = self._share_video_intro(info)
+        self._remember_recent_group_share(event, info, intro)
         yield event.plain_result(self._build_share_card_text(info, intro))
 
         await self._save_self_memory_record(
@@ -381,16 +507,21 @@ class ShareMixin:
             yield event.plain_result("⚠️ 没找到 yt-dlp，暂时只能发解析卡和链接。")
             return
         video_path = None
+        raw_send_paths = []
         send_paths = []
         skipped = False
         try:
-            yield event.plain_result("📼 正在取原视频并整理成群聊回放切片...")
+            yield event.plain_result("📼 我开始取低清回放，整理好就发切片。")
             max_height = max(144, int(self.config.get("BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT", 720)))
             video_path = await self._download_video(bvid, max_height=max_height)
             if not video_path:
                 yield event.plain_result("⚠️ 原视频下载失败，先看解析卡和链接吧。")
                 return
-            send_paths, skipped = await self._split_share_video_for_chat(video_path)
+            raw_send_paths, skipped = await self._split_share_video_for_chat(video_path)
+            send_paths = self._prepare_share_send_files(raw_send_paths, bvid)
+            if not send_paths:
+                yield event.plain_result("⚠️ 原视频切片准备失败，先看解析卡和链接吧。")
+                return
             total = len(send_paths)
             for idx, path in enumerate(send_paths, 1):
                 comp = self._share_video_component(path)
@@ -403,11 +534,18 @@ class ShareMixin:
             if skipped:
                 yield event.plain_result("后面还有内容，我先按配置发到这里；想多发可以调大 BILI_SHARE_PARSE_MAX_SEGMENTS。")
         finally:
-            cleanup = list(send_paths)
+            # NapCat/适配器可能在 yield 之后才 realpath/copy，清理要给上传留足时间。
+            cleanup = list(raw_send_paths) + list(send_paths)
             if video_path and video_path not in cleanup:
                 cleanup.append(video_path)
             if cleanup:
-                asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=600))
+                asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=1800))
+
+
+
+
+
+
 
 
 
