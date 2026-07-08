@@ -7,12 +7,12 @@ import re
 import shutil
 import time
 from datetime import datetime
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import aiohttp
 from astrbot.api import logger
 
-from .config import TEMP_VIDEO_DIR, SHARE_SEND_VIDEO_DIR, VIDEO_MEMORY_FILE
+from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
 
 
 class ShareMixin:
@@ -272,31 +272,9 @@ class ShareMixin:
             lines.append("\n📼 我去取低清回放，整理好就发切片。")
         return "\n".join(lines)
 
-    def _share_video_public_url(self, video_path):
-        base_url = str(self.config.get("BILI_SHARE_PARSE_VIDEO_PUBLIC_BASE_URL", "") or "").strip()
-        if not base_url:
-            return ""
-        try:
-            rel = os.path.relpath(video_path, SHARE_SEND_VIDEO_DIR)
-        except ValueError:
-            return ""
-        rel = rel.replace("\\", "/")
-        if rel.startswith("../") or rel == "..":
-            return ""
-        return base_url.rstrip("/") + "/" + "/".join(quote(part) for part in rel.split("/") if part)
-
     def _share_video_component(self, video_path):
         try:
             import astrbot.api.message_components as Comp
-            video_cls = getattr(Comp, "Video", None)
-            public_url = self._share_video_public_url(video_path)
-            if public_url and video_cls:
-                fn = getattr(video_cls, "fromURL", None)
-                if fn:
-                    try:
-                        return fn(url=public_url)
-                    except TypeError:
-                        return fn(public_url)
             for cls_name in ("Video", "File"):
                 cls = getattr(Comp, cls_name, None)
                 if not cls:
@@ -349,7 +327,7 @@ class ShareMixin:
 
     def _prepare_share_send_files(self, paths, bvid):
         """复制一份专供适配器发送的文件，避免原下载/切片文件被后续清理影响。"""
-        send_dir = os.path.join(SHARE_SEND_VIDEO_DIR, f"{bvid}_{int(time.time() * 1000)}")
+        send_dir = os.path.join(TEMP_VIDEO_DIR, f"share_send_{bvid}_{int(time.time() * 1000)}")
         os.makedirs(send_dir, exist_ok=True)
         send_paths = []
         for idx, path in enumerate(paths or [], 1):
@@ -372,7 +350,8 @@ class ShareMixin:
                 pass
         for folder in dict.fromkeys(d for d in touched_dirs if d):
             try:
-                if os.path.commonpath([os.path.abspath(folder), os.path.abspath(SHARE_SEND_VIDEO_DIR)]) == os.path.abspath(SHARE_SEND_VIDEO_DIR):
+                base = os.path.basename(folder)
+                if base.startswith("share_send_") and os.path.commonpath([os.path.abspath(folder), os.path.abspath(TEMP_VIDEO_DIR)]) == os.path.abspath(TEMP_VIDEO_DIR):
                     os.rmdir(folder)
             except OSError:
                 pass
@@ -568,13 +547,12 @@ class ShareMixin:
             if skipped:
                 yield event.plain_result("后面还有内容，我先按配置发到这里；想多发可以调大 BILI_SHARE_PARSE_MAX_SEGMENTS。")
         finally:
-            # NapCat/适配器可能在 yield 之后才 realpath/copy。
-            # 发送缓存 share_send_videos 不在这里删，只交给全局清理处理旧目录。
+            # 协议端可能在 yield 之后才 realpath/copy，发送缓存交给全局清理按 20 分钟窗口处理。
             cleanup = list(raw_send_paths)
             if video_path and video_path not in cleanup:
                 cleanup.append(video_path)
             if cleanup:
-                asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=1800))
+                asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=1200))
 
 
 

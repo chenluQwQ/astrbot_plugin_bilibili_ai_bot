@@ -407,12 +407,6 @@
         "default": 720,
         "hint": "下载原视频时优先尝试低清格式，例如 360p、480p、720p；默认 720p。实际可用清晰度由 B站返回决定。"
     },
-    "BILI_SHARE_PARSE_VIDEO_PUBLIC_BASE_URL": {
-        "description": "【群聊分享解析】原视频公开视频URL前缀",
-        "type": "string",
-        "default": "",
-        "hint": "协议端和 AstrBot 不在同一系统时使用。把 share_send_videos 目录通过 HTTP 暴露后填写基础URL，例如 http://host:port/share_send_videos；留空则使用本地文件路径发送。"
-    },
     "BILI_SHARE_PARSE_COOLDOWN": {
         "description": "【群聊分享解析】同一视频重复解析冷却秒数",
         "type": "int",
