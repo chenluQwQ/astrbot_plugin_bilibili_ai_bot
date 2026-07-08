@@ -7,7 +7,7 @@ import re
 import shutil
 import time
 from datetime import datetime
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import aiohttp
 from astrbot.api import logger
@@ -272,9 +272,31 @@ class ShareMixin:
             lines.append("\n📼 我去取低清回放，整理好就发切片。")
         return "\n".join(lines)
 
+    def _share_video_public_url(self, video_path):
+        base_url = str(self.config.get("BILI_SHARE_PARSE_VIDEO_PUBLIC_BASE_URL", "") or "").strip()
+        if not base_url:
+            return ""
+        try:
+            rel = os.path.relpath(video_path, SHARE_SEND_VIDEO_DIR)
+        except ValueError:
+            return ""
+        rel = rel.replace("\\", "/")
+        if rel.startswith("../") or rel == "..":
+            return ""
+        return base_url.rstrip("/") + "/" + "/".join(quote(part) for part in rel.split("/") if part)
+
     def _share_video_component(self, video_path):
         try:
             import astrbot.api.message_components as Comp
+            video_cls = getattr(Comp, "Video", None)
+            public_url = self._share_video_public_url(video_path)
+            if public_url and video_cls:
+                fn = getattr(video_cls, "fromURL", None)
+                if fn:
+                    try:
+                        return fn(url=public_url)
+                    except TypeError:
+                        return fn(public_url)
             for cls_name in ("Video", "File"):
                 cls = getattr(Comp, cls_name, None)
                 if not cls:
