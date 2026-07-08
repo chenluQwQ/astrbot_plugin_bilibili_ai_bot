@@ -38,6 +38,9 @@ class ShareMixin:
         try:
             for comp in getattr(event.message_obj, "message", []) or []:
                 parts.append(str(comp))
+                if isinstance(comp, dict):
+                    parts.extend(self._flatten_share_payload(comp))
+                    continue
                 for attr in (*self.MINIAPP_KEYS, "data", "meta"):
                     val = getattr(comp, attr, None)
                     if val:
@@ -118,8 +121,12 @@ class ShareMixin:
                     queue.extend(self._share_text_variants(extra))
         return "\n".join(parts)
 
+    def _clean_share_url(self, url):
+        text = unquote(html.unescape((url or "").replace("\\/", "/")))
+        return text.rstrip("。，、,;；:：)）]】}>\\\"'")
+
     def _target_from_url(self, url):
-        text = unquote(html.unescape((url or "").replace("\\/", "/"))).rstrip("。，、)）]】>\"'")
+        text = self._clean_share_url(url)
         m = self.BVID_RE.search(text)
         if m:
             return {"bvid": m.group(1), "source": "url", "url": text}
@@ -168,7 +175,7 @@ class ShareMixin:
         urls = []
         for candidate in self._share_text_variants(blob):
             for url in self.URL_RE.findall(candidate):
-                clean = url.rstrip("。，、)）]】>\"'")
+                clean = self._clean_share_url(url)
                 if clean not in urls:
                     urls.append(clean)
         for url in urls:
@@ -237,14 +244,19 @@ class ShareMixin:
             self._save_json(VIDEO_MEMORY_FILE, vc)
         return summary
 
-    def _build_share_card_text(self, info, summary):
+    def _share_video_intro(self, info):
+        intro = (info.get("desc") or "这个视频没有简介。").strip()
+        intro = re.sub(r"\s+", " ", intro)
+        return intro[:260]
+
+    def _build_share_card_text(self, info, intro):
         bvid = info.get("bvid", "")
         link = f"https://www.bilibili.com/video/{bvid}" if bvid else ""
         title = info.get("title") or "未知标题"
         owner = info.get("owner_name") or "未知UP"
         owner_mid = info.get("owner_mid") or "?"
         tname = info.get("tname") or "未知分区"
-        summary = (summary or info.get("desc") or "暂时没有内容概括。").strip()
+        intro = (intro or self._share_video_intro(info)).strip()
         lines = [
             "🎞️ B站视频解析",
             "━━━━━━━━━━━━",
@@ -254,7 +266,7 @@ class ShareMixin:
         ]
         if link:
             lines.append(f"原链接：{link}")
-        lines.extend(["", f"内容：{summary[:420]}"])
+        lines.extend(["", f"简介：{intro}"])
         if self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
             lines.append("\n📼 已开启原视频回放，我会继续尝试发送可播放切片。")
         return "\n".join(lines)
@@ -338,9 +350,11 @@ class ShareMixin:
         if not self.config.get("ENABLE_BILI_SHARE_PARSE", False):
             return
         msg = (event.message_str or "").strip()
-        if not msg or msg.startswith("/"):
+        if msg.startswith("/"):
             return
         text = self._collect_share_text(event)
+        if not text.strip():
+            return
         target = await self._extract_bili_share_target(text)
         if not target:
             return
@@ -351,12 +365,12 @@ class ShareMixin:
         if self._share_recent_hit(bvid):
             return
 
-        summary = await self._summarize_shared_video(info)
-        yield event.plain_result(self._build_share_card_text(info, summary))
+        intro = self._share_video_intro(info)
+        yield event.plain_result(self._build_share_card_text(info, intro))
 
         await self._save_self_memory_record(
             f"group_share:{bvid}",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，内容概括:{summary[:180]}",
+            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，简介:{intro[:180]}",
             memory_type="video",
             extra={"bvid": bvid, "owner_mid": str(info.get("owner_mid", "")), "video_title": info.get("title", ""), "tname": info.get("tname", "")},
         )
@@ -371,7 +385,8 @@ class ShareMixin:
         skipped = False
         try:
             yield event.plain_result("📼 正在取原视频并整理成群聊回放切片...")
-            video_path = await self._download_video(bvid)
+            max_height = max(144, int(self.config.get("BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT", 720)))
+            video_path = await self._download_video(bvid, max_height=max_height)
             if not video_path:
                 yield event.plain_result("⚠️ 原视频下载失败，先看解析卡和链接吧。")
                 return
@@ -393,3 +408,7 @@ class ShareMixin:
                 cleanup.append(video_path)
             if cleanup:
                 asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=600))
+
+
+
+

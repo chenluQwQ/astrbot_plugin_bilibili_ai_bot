@@ -286,14 +286,28 @@ UP主：{video_info.get('up_name', '未知')}
     # ── 视频下载 / 压缩 / 截帧 ──
 
     # 分辨率回退链：先尝试无需合并的 MP4，避免无 ffmpeg 时只留下 m4a；再尝试高质量音视频合并。
-    _FORMAT_FALLBACKS = [
-        "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]/best[height<=480][vcodec!=none][acodec!=none]",
-        "best[ext=mp4][vcodec!=none][acodec!=none][height<=720]/best[height<=720][vcodec!=none][acodec!=none]",
-        "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "bestvideo+bestaudio/best",
-        "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
-    ]
+    def _format_fallbacks(self, max_height=480):
+        try:
+            cap = max(144, int(max_height or 480))
+        except Exception:
+            cap = 480
+        heights = [h for h in (360, 480, 720) if h <= cap]
+        if not heights:
+            heights = [cap]
+        elif heights[-1] != cap and cap not in (360, 480, 720):
+            heights.append(cap)
+
+        formats = []
+        for h in heights:
+            formats.extend([
+                f"best[ext=mp4][vcodec!=none][acodec!=none][height<={h}]/best[height<={h}][vcodec!=none][acodec!=none]",
+                f"bestvideo[ext=mp4][height<={h}]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best[height<={h}]",
+            ])
+        formats.extend([
+            "bestvideo+bestaudio/best",
+            "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
+        ])
+        return formats
     _VIDEO_FILE_EXTS = {".mp4", ".mkv", ".webm", ".mov"}
     _AUDIO_FILE_EXTS = {".m4a", ".mp3", ".aac", ".opus", ".flac", ".wav"}
 
@@ -320,7 +334,7 @@ UP主：{video_info.get('up_name', '未知')}
         candidates.sort(reverse=True)
         return candidates[0][2]
 
-    async def _download_video(self, bvid):
+    async def _download_video(self, bvid, max_height=480):
         output_template = os.path.join(TEMP_VIDEO_DIR, f"{bvid}.%(ext)s")
         # 生成 Netscape 格式 cookie 文件，兼容新版 yt-dlp
         cookie_file = os.path.join(TEMP_VIDEO_DIR, f"{bvid}_cookies.txt")
@@ -345,7 +359,7 @@ UP主：{video_info.get('up_name', '未知')}
 
         last_err = ""
         try:
-            for fmt in self._FORMAT_FALLBACKS:
+            for fmt in self._format_fallbacks(max_height):
                 # 清理上一轮可能残留的部分文件
                 self._cleanup_partial_downloads(bvid)
                 code, _, stderr = await self._run_process(
@@ -780,4 +794,6 @@ UP主：{video_info.get('up_name', '未知')}
         except Exception as e:
             logger.debug(f"[BiliBot] 动态详情API获取失败(id={dynamic_id}): {e}")
         return ""
+
+
 
