@@ -393,13 +393,13 @@
         "description": "【群聊分享解析】原视频切片秒数",
         "type": "int",
         "default": 180,
-        "hint": "原视频过长或过大时，每段切多少秒；建议 120-300。"
+        "hint": "原视频过长或过大时，每段切多少秒；建议 120-300。填 0 表示不分段，直接尝试发送整段视频。"
     },
     "BILI_SHARE_PARSE_MAX_SEGMENTS": {
         "description": "【群聊分享解析】每次最多发送几个切片",
         "type": "int",
-        "default": 3,
-        "hint": "避免群聊刷屏。后续内容会提示用户可调大此值。"
+        "default": 5,
+        "hint": "避免群聊刷屏；仅在启用分段时生效。后续内容会提示用户可调大此值。"
     },
     "BILI_SHARE_PARSE_MAX_VIDEO_MB": {
         "description": "【群聊分享解析】单个视频文件大小阈值MB",
@@ -408,10 +408,10 @@
         "hint": "超过此大小会尝试切片；不同 QQ 适配器可能还有自己的上传大小限制。"
     },
     "BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT": {
-        "description": "???????????????????",
+        "description": "【群聊分享解析】原视频下载最高分辨率",
         "type": "int",
         "default": 720,
-        "hint": "????????????? 360p ? 480p ? 720p ????????? 720p?????????????"
+        "hint": "下载原视频时优先尝试低清格式，例如 360p、480p、720p；默认 720p。实际可用清晰度由 B站返回决定。"
     },
     "BILI_SHARE_PARSE_COOLDOWN": {
         "description": "【群聊分享解析】同一视频重复解析冷却秒数",

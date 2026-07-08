@@ -291,11 +291,15 @@ class ShareMixin:
         return None
 
     async def _split_share_video_for_chat(self, video_path):
-        segment_sec = max(30, int(self.config.get("BILI_SHARE_PARSE_SEGMENT_SECONDS", 180)))
-        max_segments = max(1, int(self.config.get("BILI_SHARE_PARSE_MAX_SEGMENTS", 3)))
+        segment_sec = int(self.config.get("BILI_SHARE_PARSE_SEGMENT_SECONDS", 180))
+        max_segments = max(1, int(self.config.get("BILI_SHARE_PARSE_MAX_SEGMENTS", 5)))
         max_mb = max(1, int(self.config.get("BILI_SHARE_PARSE_MAX_VIDEO_MB", 80)))
         duration = await self._get_video_duration(video_path)
         size_mb = os.path.getsize(video_path) / 1024 / 1024 if os.path.exists(video_path) else 0
+        if segment_sec <= 0:
+            logger.info("[BiliBot] 群聊原视频分段已关闭，直接尝试发送整段视频")
+            return [video_path], False
+        segment_sec = max(30, segment_sec)
         if duration <= segment_sec and size_mb <= max_mb:
             return [video_path], False
 
@@ -542,8 +546,9 @@ class ShareMixin:
             if skipped:
                 yield event.plain_result("后面还有内容，我先按配置发到这里；想多发可以调大 BILI_SHARE_PARSE_MAX_SEGMENTS。")
         finally:
-            # NapCat/适配器可能在 yield 之后才 realpath/copy，清理要给上传留足时间。
-            cleanup = list(raw_send_paths) + list(send_paths)
+            # NapCat/适配器可能在 yield 之后才 realpath/copy。
+            # 发送缓存 share_send_videos 不在这里删，只交给全局清理处理旧目录。
+            cleanup = list(raw_send_paths)
             if video_path and video_path not in cleanup:
                 cleanup.append(video_path)
             if cleanup:
