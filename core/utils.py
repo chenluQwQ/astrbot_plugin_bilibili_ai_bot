@@ -1,11 +1,12 @@
-﻿"""基础工具方法：HTTP请求、JSON读写、进程管理、环境检测、临时文件清理。"""
+"""基础工具方法：HTTP请求、JSON读写、进程管理、环境检测、临时文件清理。"""
 import os
 import json
 import shutil
+import time
 import asyncio
 import aiohttp
 from astrbot.api import logger
-from .config import DATA_DIR, TEMP_IMAGE_DIR, TEMP_VIDEO_DIR, USER_AGENT
+from .config import DATA_DIR, TEMP_IMAGE_DIR, TEMP_VIDEO_DIR, SHARE_SEND_VIDEO_DIR, USER_AGENT
 
 
 class UtilsMixin:
@@ -16,6 +17,7 @@ class UtilsMixin:
         os.makedirs(DATA_DIR, exist_ok=True)
         os.makedirs(TEMP_IMAGE_DIR, exist_ok=True)
         os.makedirs(TEMP_VIDEO_DIR, exist_ok=True)
+        os.makedirs(SHARE_SEND_VIDEO_DIR, exist_ok=True)
         self._cleanup_temp_files()
 
     # ── Cookie / Header ──
@@ -238,6 +240,23 @@ class UtilsMixin:
                         cleaned += 1
                 except OSError:
                     pass
+        # Keep fresh send-cache files alive because NapCat may realpath/copy them later.
+        share_cutoff = time.time() - 3600
+        if os.path.isdir(SHARE_SEND_VIDEO_DIR):
+            for name in os.listdir(SHARE_SEND_VIDEO_DIR):
+                fp = os.path.join(SHARE_SEND_VIDEO_DIR, name)
+                try:
+                    if os.path.getmtime(fp) > share_cutoff:
+                        continue
+                    if os.path.isfile(fp):
+                        os.remove(fp)
+                        cleaned += 1
+                    elif os.path.isdir(fp):
+                        shutil.rmtree(fp)
+                        cleaned += 1
+                except OSError:
+                    pass
+
         qr_path = os.path.join(DATA_DIR, "login_qr.png")
         if os.path.exists(qr_path):
             try:

@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 import aiohttp
 from astrbot.api import logger
 
-from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
+from .config import TEMP_VIDEO_DIR, SHARE_SEND_VIDEO_DIR, VIDEO_MEMORY_FILE
 
 
 class ShareMixin:
@@ -323,7 +323,7 @@ class ShareMixin:
 
     def _prepare_share_send_files(self, paths, bvid):
         """复制一份专供适配器发送的文件，避免原下载/切片文件被后续清理影响。"""
-        send_dir = os.path.join(TEMP_VIDEO_DIR, f"share_send_{bvid}_{int(time.time() * 1000)}")
+        send_dir = os.path.join(SHARE_SEND_VIDEO_DIR, f"{bvid}_{int(time.time() * 1000)}")
         os.makedirs(send_dir, exist_ok=True)
         send_paths = []
         for idx, path in enumerate(paths or [], 1):
@@ -336,10 +336,18 @@ class ShareMixin:
         return send_paths
 
     def _cleanup_share_video_files(self, paths):
+        touched_dirs = []
         for path in dict.fromkeys(p for p in paths if p):
             try:
                 if os.path.isfile(path):
+                    touched_dirs.append(os.path.dirname(path))
                     os.remove(path)
+            except OSError:
+                pass
+        for folder in dict.fromkeys(d for d in touched_dirs if d):
+            try:
+                if os.path.commonpath([os.path.abspath(folder), os.path.abspath(SHARE_SEND_VIDEO_DIR)]) == os.path.abspath(SHARE_SEND_VIDEO_DIR):
+                    os.rmdir(folder)
             except OSError:
                 pass
 
