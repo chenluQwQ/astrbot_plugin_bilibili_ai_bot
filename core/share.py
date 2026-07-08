@@ -1,11 +1,16 @@
 ﻿"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
-import os
 import asyncio
+import html
+import json
+import os
 import re
 import time
-import aiohttp
 from datetime import datetime
+from urllib.parse import parse_qs, unquote, urlparse
+
+import aiohttp
 from astrbot.api import logger
+
 from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
 
 
@@ -15,6 +20,12 @@ class ShareMixin:
     BVID_RE = re.compile(r"\b(BV[0-9A-Za-z]{10,})\b")
     AV_RE = re.compile(r"(?:\bav|aid=)(\d+)\b", re.IGNORECASE)
     URL_RE = re.compile(r"https?://[^\s\]\[\)\(\"'<>]+", re.IGNORECASE)
+    CQ_JSON_RE = re.compile(r"\[CQ:json,data=(.*?)\]", re.IGNORECASE | re.DOTALL)
+    MINIAPP_KEYS = (
+        "url", "jumpUrl", "jump_url", "qqdocurl", "preview", "sourceUrl",
+        "pagepath", "pagePath", "webUrl", "web_url", "shareUrl", "share_url",
+        "title", "desc", "content", "text", "summary",
+    )
 
     def _collect_share_text(self, event):
         parts = [event.message_str or ""]
@@ -27,13 +38,109 @@ class ShareMixin:
         try:
             for comp in getattr(event.message_obj, "message", []) or []:
                 parts.append(str(comp))
-                for attr in ("url", "title", "content", "desc", "text", "data"):
+                for attr in (*self.MINIAPP_KEYS, "data", "meta"):
                     val = getattr(comp, attr, None)
                     if val:
-                        parts.append(str(val))
+                        parts.extend(self._flatten_share_payload(val))
         except Exception:
             pass
         return "\n".join(p for p in parts if p)
+
+    def _flatten_share_payload(self, payload):
+        """把 QQ 小程序/CQ JSON 里的嵌套字段尽量摊平成可搜索文本。"""
+        out = []
+        if payload is None:
+            return out
+        if isinstance(payload, (list, tuple, set)):
+            for item in payload:
+                out.extend(self._flatten_share_payload(item))
+            return out
+        if isinstance(payload, dict):
+            for key, value in payload.items():
+                if key in self.MINIAPP_KEYS or isinstance(value, (dict, list, tuple)):
+                    out.extend(self._flatten_share_payload(value))
+                elif isinstance(value, str):
+                    out.append(value)
+            return out
+
+        text = str(payload)
+        out.append(text)
+        for candidate in self._share_text_variants(text):
+            stripped = candidate.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("{") or stripped.startswith("["):
+                try:
+                    out.extend(self._flatten_share_payload(json.loads(stripped)))
+                except Exception:
+                    pass
+        return out
+
+    def _share_text_variants(self, text):
+        text = text or ""
+        variants = []
+
+        def add(value):
+            if value and value not in variants:
+                variants.append(value)
+
+        add(text)
+        add(html.unescape(text))
+        add(text.replace("\\/", "/"))
+        add(html.unescape(text).replace("\\/", "/"))
+        try:
+            add(unquote(text))
+            add(unquote(html.unescape(text).replace("\\/", "/")))
+        except Exception:
+            pass
+        for m in self.CQ_JSON_RE.finditer(text):
+            data = m.group(1)
+            add(data)
+            add(html.unescape(data).replace("\\/", "/"))
+            try:
+                add(unquote(html.unescape(data).replace("\\/", "/")))
+            except Exception:
+                pass
+        return variants
+
+    def _normalized_share_blob(self, text):
+        queue = list(self._share_text_variants(text))
+        seen = set()
+        parts = []
+        while queue:
+            item = queue.pop(0)
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            parts.append(item)
+            for extra in self._flatten_share_payload(item):
+                if extra not in seen:
+                    queue.extend(self._share_text_variants(extra))
+        return "\n".join(parts)
+
+    def _target_from_url(self, url):
+        text = unquote(html.unescape((url or "").replace("\\/", "/"))).rstrip("。，、)）]】>\"'")
+        m = self.BVID_RE.search(text)
+        if m:
+            return {"bvid": m.group(1), "source": "url", "url": text}
+        m = self.AV_RE.search(text)
+        if m:
+            return {"aid": int(m.group(1)), "source": "url", "url": text}
+        try:
+            parsed = urlparse(text)
+            qs = parse_qs(parsed.query)
+            for key in ("bvid", "bv", "video_id"):
+                value = (qs.get(key) or [""])[0]
+                m = self.BVID_RE.search(value)
+                if m:
+                    return {"bvid": m.group(1), "source": "url", "url": text}
+            for key in ("aid", "av"):
+                value = (qs.get(key) or [""])[0]
+                if str(value).isdigit():
+                    return {"aid": int(value), "source": "url", "url": text}
+        except Exception:
+            pass
+        return None
 
     async def _resolve_share_url(self, url):
         try:
@@ -50,26 +157,33 @@ class ShareMixin:
             return url
 
     async def _extract_bili_share_target(self, text):
-        text = text or ""
-        m = self.BVID_RE.search(text)
+        blob = self._normalized_share_blob(text)
+        m = self.BVID_RE.search(blob)
         if m:
             return {"bvid": m.group(1), "source": "bvid"}
-        m = self.AV_RE.search(text)
+        m = self.AV_RE.search(blob)
         if m:
             return {"aid": int(m.group(1)), "source": "aid"}
-        urls = self.URL_RE.findall(text)
+
+        urls = []
+        for candidate in self._share_text_variants(blob):
+            for url in self.URL_RE.findall(candidate):
+                clean = url.rstrip("。，、)）]】>\"'")
+                if clean not in urls:
+                    urls.append(clean)
         for url in urls:
-            clean = url.rstrip("。，、)）]】>\"'")
-            if not any(host in clean.lower() for host in ("bilibili.com", "b23.tv")):
+            lower = url.lower()
+            if not any(host in lower for host in ("bilibili.com", "b23.tv", "bili2233.cn")):
                 continue
-            resolved = await self._resolve_share_url(clean) if "b23.tv" in clean.lower() else clean
-            combined = f"{clean}\n{resolved}"
-            m = self.BVID_RE.search(combined)
-            if m:
-                return {"bvid": m.group(1), "source": "url", "url": resolved}
-            m = self.AV_RE.search(combined)
-            if m:
-                return {"aid": int(m.group(1)), "source": "url", "url": resolved}
+            direct = self._target_from_url(url)
+            if direct:
+                return direct
+            if any(host in lower for host in ("b23.tv", "bili2233.cn")):
+                resolved = await self._resolve_share_url(url)
+                target = self._target_from_url(resolved)
+                if target:
+                    target["url"] = resolved
+                    return target
         return None
 
     async def _get_video_info_by_share_target(self, target):
@@ -126,18 +240,23 @@ class ShareMixin:
     def _build_share_card_text(self, info, summary):
         bvid = info.get("bvid", "")
         link = f"https://www.bilibili.com/video/{bvid}" if bvid else ""
+        title = info.get("title") or "未知标题"
+        owner = info.get("owner_name") or "未知UP"
+        owner_mid = info.get("owner_mid") or "?"
+        tname = info.get("tname") or "未知分区"
+        summary = (summary or info.get("desc") or "暂时没有内容概括。").strip()
         lines = [
-            "🎞️ B站分享解析卡",
+            "🎞️ B站视频解析",
             "━━━━━━━━━━━━",
-            f"《{info.get('title', '未知标题')}》",
-            f"UP：{info.get('owner_name', '未知')}（UID:{info.get('owner_mid', '?')}）",
-            f"分区：{info.get('tname', '未知')} | 时长：{self._format_duration(info.get('duration', 0))}",
+            f"标题：{title}",
+            f"UP主：{owner}（UID:{owner_mid}）",
+            f"分区：{tname} | 时长：{self._format_duration(info.get('duration', 0))}",
         ]
         if link:
-            lines.append(f"链接：{link}")
+            lines.append(f"原链接：{link}")
         lines.extend(["", f"内容：{summary[:420]}"])
         if self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
-            lines.append("\n我试着把原视频整理成群聊可看的回放切片。")
+            lines.append("\n📼 已开启原视频回放，我会继续尝试发送可播放切片。")
         return "\n".join(lines)
 
     def _share_video_component(self, video_path):
@@ -274,5 +393,3 @@ class ShareMixin:
                 cleanup.append(video_path)
             if cleanup:
                 asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=600))
-
-

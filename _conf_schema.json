@@ -34,6 +34,146 @@
         "type": "string",
         "default": ""
     },
+    "LLM_PROVIDER_ID": {
+        "description": "【人设】选择用于回复/记忆压缩的LLM（留空用AstrBot默认）",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider"
+    },
+    "EMBED_API_KEY": {
+        "description": "【记忆】Embedding API Key（记忆向量化用）",
+        "type": "string",
+        "default": ""
+    },
+    "EMBED_API_BASE": {
+        "description": "【记忆】Embedding API Base URL",
+        "type": "string",
+        "default": "https://api.siliconflow.cn/v1"
+    },
+    "EMBED_MODEL": {
+        "description": "【记忆】Embedding 模型名称",
+        "type": "string",
+        "default": "BAAI/bge-m3"
+    },
+    "VIDEO_VISION_PROVIDER_ID": {
+        "description": "【视觉模型】视频分析使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider"
+    },
+    "VIDEO_VISION_API_KEY": {
+        "description": "【视觉模型】视频分析 API Key",
+        "type": "string",
+        "default": "",
+        "hint": "留空则回退为纯文本LLM分析"
+    },
+    "VIDEO_VISION_API_BASE": {
+        "description": "【视觉模型】视频分析 API Base URL",
+        "type": "string",
+        "default": ""
+    },
+    "VIDEO_VISION_MODEL": {
+        "description": "【视觉模型】视频分析模型名称",
+        "type": "string",
+        "default": "",
+        "hint": "如 google/gemma-3-27b-it 等；主动看视频的直读/截帧分析还需要本机安装 yt-dlp 和 ffmpeg"
+    },
+    "VIDEO_VISION_FORMAT": {
+        "description": "【视觉模型】视频直读的接口格式（请根据你使用的模型选择）",
+        "type": "string",
+        "default": "none",
+        "hint": "gemini=Gemini原生格式 | qwen=通义千问/硅基流动格式 | none=跳过直读，使用截帧分析",
+        "enum": [
+            "gemini",
+            "qwen",
+            "none"
+        ]
+    },
+    "VIDEO_VISION_FPS": {
+        "description": "【视觉模型】视频直读抽帧率（仅Qwen格式生效）",
+        "type": "int",
+        "default": 2,
+        "hint": "每秒抽取的帧数，值越大越精细但token消耗越多，建议1~4"
+    },
+    "IMAGE_VISION_PROVIDER_ID": {
+        "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider"
+    },
+    "IMAGE_VISION_API_KEY": {
+        "description": "【视觉模型】图片识别 API Key",
+        "type": "string",
+        "default": "",
+        "hint": "留空则不识别评论图片"
+    },
+    "IMAGE_VISION_API_BASE": {
+        "description": "【视觉模型】图片识别 API Base URL",
+        "type": "string",
+        "default": ""
+    },
+    "IMAGE_VISION_MODEL": {
+        "description": "【视觉模型】图片识别模型名称",
+        "type": "string",
+        "default": "",
+        "hint": "如 google/gemma-3-27b-it 等"
+    },
+    "IMAGE_GEN_API_KEY": {
+        "description": "【图片生成】API Key（动态配图用）",
+        "type": "string",
+        "default": "",
+        "hint": "留空则复用 VIDEO_VISION_API_KEY"
+    },
+    "IMAGE_GEN_API_BASE": {
+        "description": "【图片生成】API Base URL",
+        "type": "string",
+        "default": ""
+    },
+    "IMAGE_GEN_MODEL": {
+        "description": "【图片生成】模型名称",
+        "type": "string",
+        "default": "",
+        "hint": "如 Flux 系列模型"
+    },
+    "ENABLE_WEB_SEARCH": {
+        "description": "【联网搜索】启用联网搜索",
+        "type": "bool",
+        "default": false
+    },
+    "WEB_SEARCH_JUDGE_PROVIDER_ID": {
+        "description": "【联网搜索】搜索判断模型（建议选轻量模型）",
+        "type": "string",
+        "default": "",
+        "_special": "select_provider"
+    },
+    "WEB_SEARCH_BACKEND": {
+        "description": "【联网搜索】搜索后端",
+        "type": "string",
+        "default": "tavily",
+        "hint": "可选：tavily / perplexity / bocha / custom"
+    },
+    "WEB_SEARCH_API_KEY": {
+        "description": "【联网搜索】搜索 API Key",
+        "type": "string",
+        "default": ""
+    },
+    "WEB_SEARCH_API_BASE": {
+        "description": "【联网搜索】自定义搜索接口地址（仅 custom 后端）",
+        "type": "string",
+        "default": ""
+    },
+    "WEB_SEARCH_MODEL": {
+        "description": "【联网搜索】搜索模型名（仅 custom / perplexity 后端）",
+        "type": "string",
+        "default": "",
+        "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
+    },
+    "WEB_SEARCH_MAX_RESULTS": {
+        "description": "【联网搜索】搜索返回最大条数",
+        "type": "int",
+        "default": 5,
+        "hint": "建议 3-8"
+    },
     "USE_ASTRBOT_PERSONA": {
         "description": "【人设】使用AstrBot自带人设",
         "type": "bool",
@@ -43,12 +183,6 @@
         "description": "【人设】自定义系统提示词（USE_ASTRBOT_PERSONA关闭时使用）",
         "type": "text",
         "default": "你是一个活跃在B站的角色，会回复评论、看视频、发动态。用自然的口语化风格交流。"
-    },
-    "LLM_PROVIDER_ID": {
-        "description": "【人设】选择用于回复/记忆压缩的LLM（留空用AstrBot默认）",
-        "type": "string",
-        "default": "",
-        "_special": "select_provider"
     },
     "ENABLE_REPLY": {
         "description": "【功能开关】启用评论自动回复",
@@ -224,6 +358,18 @@
         "type": "list",
         "default": [],
         "hint": "这些UP主的新视频会优先观看（主动行为+特关巡视共用）"
+    },
+    "VIDEO_SEGMENT_MINUTES": {
+        "description": "【视频分析】长视频自动切片长度（分钟/段）",
+        "type": "int",
+        "default": 5,
+        "hint": "超过此时长的视频会按段分析再整合。默认 5 分钟较稳，建议 3~8 分钟；越短越细但 token 消耗越大。"
+    },
+    "VIDEO_SEGMENT_MAX_COUNT": {
+        "description": "【视频分析】长视频最多分析多少段",
+        "type": "int",
+        "default": 10,
+        "hint": "超长视频最多分析几段，超出部分跳过。建议不要超过 10 段，避免 token 和耗时过高。"
     },
     "ENABLE_BILI_SHARE_PARSE": {
         "description": "【群聊分享解析】识别群聊里的B站视频分享",
@@ -432,152 +578,6 @@
         "type": "text",
         "default": "",
         "hint": "可用变量：{old_traits} {old_habits} {old_opinions} {recent_texts} {owner_name}。回复必须为JSON格式含 new_trait/trigger/speech_habits/opinions/reflection 字段"
-    },
-    "EMBED_API_KEY": {
-        "description": "【记忆】Embedding API Key（记忆向量化用）",
-        "type": "string",
-        "default": ""
-    },
-    "EMBED_API_BASE": {
-        "description": "【记忆】Embedding API Base URL",
-        "type": "string",
-        "default": "https://api.siliconflow.cn/v1"
-    },
-    "EMBED_MODEL": {
-        "description": "【记忆】Embedding 模型名称",
-        "type": "string",
-        "default": "BAAI/bge-m3"
-    },
-    "VIDEO_VISION_PROVIDER_ID": {
-        "description": "【视觉模型】视频分析使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
-        "type": "string",
-        "default": "",
-        "_special": "select_provider"
-    },
-    "VIDEO_VISION_API_KEY": {
-        "description": "【视觉模型】视频分析 API Key",
-        "type": "string",
-        "default": "",
-        "hint": "留空则回退为纯文本LLM分析"
-    },
-    "VIDEO_VISION_API_BASE": {
-        "description": "【视觉模型】视频分析 API Base URL",
-        "type": "string",
-        "default": ""
-    },
-    "VIDEO_VISION_MODEL": {
-        "description": "【视觉模型】视频分析模型名称",
-        "type": "string",
-        "default": "",
-        "hint": "如 google/gemma-3-27b-it 等；主动看视频的直读/截帧分析还需要本机安装 yt-dlp 和 ffmpeg"
-    },
-    "VIDEO_VISION_FORMAT": {
-        "description": "【视觉模型】视频直读的接口格式（请根据你使用的模型选择）",
-        "type": "string",
-        "default": "none",
-        "hint": "gemini=Gemini原生格式 | qwen=通义千问/硅基流动格式 | none=跳过直读，使用截帧分析",
-        "enum": [
-            "gemini",
-            "qwen",
-            "none"
-        ]
-    },
-    "VIDEO_VISION_FPS": {
-        "description": "【视觉模型】视频直读抽帧率（仅Qwen格式生效）",
-        "type": "int",
-        "default": 2,
-        "hint": "每秒抽取的帧数，值越大越精细但token消耗越多，建议1~4"
-    },
-    "VIDEO_SEGMENT_MINUTES": {
-        "description": "【视频分析】长视频自动切片长度（分钟/段）",
-        "type": "int",
-        "default": 5,
-        "hint": "超过此时长的视频会按段分析再整合。默认 5 分钟较稳，建议 3~8 分钟；越短越细但 token 消耗越大。"
-    },
-    "VIDEO_SEGMENT_MAX_COUNT": {
-        "description": "【视频分析】长视频最多分析多少段",
-        "type": "int",
-        "default": 10,
-        "hint": "超长视频最多分析几段，超出部分跳过。建议不要超过 10 段，避免 token 和耗时过高。"
-    },
-    "IMAGE_VISION_PROVIDER_ID": {
-        "description": "【视觉模型】图片识别使用的 AstrBot 模型提供商",
-        "type": "string",
-        "default": "",
-        "_special": "select_provider"
-    },
-    "IMAGE_VISION_API_KEY": {
-        "description": "【视觉模型】图片识别 API Key",
-        "type": "string",
-        "default": "",
-        "hint": "留空则不识别评论图片"
-    },
-    "IMAGE_VISION_API_BASE": {
-        "description": "【视觉模型】图片识别 API Base URL",
-        "type": "string",
-        "default": ""
-    },
-    "IMAGE_VISION_MODEL": {
-        "description": "【视觉模型】图片识别模型名称",
-        "type": "string",
-        "default": "",
-        "hint": "如 google/gemma-3-27b-it 等"
-    },
-    "ENABLE_WEB_SEARCH": {
-        "description": "【联网搜索】启用联网搜索",
-        "type": "bool",
-        "default": false
-    },
-    "WEB_SEARCH_JUDGE_PROVIDER_ID": {
-        "description": "【联网搜索】搜索判断模型（建议选轻量模型）",
-        "type": "string",
-        "default": "",
-        "_special": "select_provider"
-    },
-    "WEB_SEARCH_BACKEND": {
-        "description": "【联网搜索】搜索后端",
-        "type": "string",
-        "default": "tavily",
-        "hint": "可选：tavily / perplexity / bocha / custom"
-    },
-    "WEB_SEARCH_API_KEY": {
-        "description": "【联网搜索】搜索 API Key",
-        "type": "string",
-        "default": ""
-    },
-    "WEB_SEARCH_API_BASE": {
-        "description": "【联网搜索】自定义搜索接口地址（仅 custom 后端）",
-        "type": "string",
-        "default": ""
-    },
-    "WEB_SEARCH_MODEL": {
-        "description": "【联网搜索】搜索模型名（仅 custom / perplexity 后端）",
-        "type": "string",
-        "default": "",
-        "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
-    },
-    "WEB_SEARCH_MAX_RESULTS": {
-        "description": "【联网搜索】搜索返回最大条数",
-        "type": "int",
-        "default": 5,
-        "hint": "建议 3-8"
-    },
-    "IMAGE_GEN_API_KEY": {
-        "description": "【图片生成】API Key（动态配图用）",
-        "type": "string",
-        "default": "",
-        "hint": "留空则复用 VIDEO_VISION_API_KEY"
-    },
-    "IMAGE_GEN_API_BASE": {
-        "description": "【图片生成】API Base URL",
-        "type": "string",
-        "default": ""
-    },
-    "IMAGE_GEN_MODEL": {
-        "description": "【图片生成】模型名称",
-        "type": "string",
-        "default": "",
-        "hint": "如 Flux 系列模型"
     },
     "ABUSE_ALERT_MODE": {
         "description": "【恶意告警】检测到恶意评论时通知主人（通过QQ私信）",
