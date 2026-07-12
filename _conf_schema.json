@@ -372,10 +372,10 @@
         "hint": "超长视频最多分析几段，超出部分跳过。建议不要超过 10 段，避免 token 和耗时过高。"
     },
     "ENABLE_BILI_SHARE_PARSE": {
-        "description": "【群聊分享解析】识别群聊里的B站视频分享",
+        "description": "【分享解析】识别群聊和私聊里的B站视频分享",
         "type": "bool",
         "default": false,
-        "hint": "开启后，群里有人发 B站视频链接、b23短链或QQ小程序文本时，Bot 会自动发解析卡。也可用 /bili开关 解析 切换。"
+        "hint": "开启后，群聊或私聊收到 B站视频链接、b23短链或QQ小程序文本时，Bot 会自动发解析卡。也可用 /bili开关 解析 切换。"
     },
     "BILI_SHARE_PARSE_SEND_VIDEO": {
         "description": "【群聊分享解析】解析后发送原视频/切片",

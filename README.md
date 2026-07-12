@@ -28,7 +28,7 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **聊天里直接让 Bot 去看视频** — 在 QQ 聊天里说”去刷刷 B 站吧”之类的话，Bot 会用 LLM 判断意图，若确认是请求则在后台启动一次主动看视频
 - **自动发动态** — 定时发布动态，支持 AI 生成配图
 - **周总结图片卡片** — 每周总结可渲染为固定模板 PNG，只替换文字内容，QQ/B站动态优先发送图片
-- **群聊B站分享解析** — 识别群里的 B站链接/短链/小程序分享，发送解析卡，并可把原视频整理成群聊回放切片
+- **群聊/私聊B站分享解析** — 识别聊天里的 B站链接/短链/小程序分享，发送解析卡，并可把原视频整理成聊天回放切片
 - **看片前标题筛选** — 主动看探索视频下载前，可让 LLM 根据标题/UP/分区/简介先判断想不想看；关注和口味分区直接放行
 
 ### 📺 番剧能力
@@ -179,7 +179,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`ENABLE_WEB_SEARCH`          |可选|启用联网查询（回复时按需搜索最新信息）                                                  |
 |`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
-|`ENABLE_BILI_SHARE_PARSE`    |可选|启用群聊B站分享解析（`/bili开关 解析`）                                      |
+|`ENABLE_BILI_SHARE_PARSE`    |可选|启用群聊/私聊B站分享解析（`/bili开关 解析`）                                 |
 |`BILI_SHARE_PARSE_SEND_VIDEO` |可选|解析后尝试发送原视频/切片，失败则只发解析卡和链接                                  |
 |`ENABLE_PROACTIVE`           |可选|启用主动看视频                                                              |
 |`PROACTIVE_VIDEO_POOLS`      |可选|主动视频来源池，可填中文：热门 / 推荐 / 排行榜:游戏 / 最新:单机游戏；兼容 `ranking:4`、`newlist:17`|
