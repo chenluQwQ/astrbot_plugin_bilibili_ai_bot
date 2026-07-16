@@ -540,7 +540,7 @@ UP主：{video_info.get('up_name', '未知')}
                 )
                 await self._save_self_memory_record(
                     f"video:{bvid}", memory_text, memory_type="video",
-                    extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "video_title": c["title"]},
+                    extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c["title"]},
                 )
                 logger.info(f"[BiliBot] 📹 补录视频记忆：《{c['title']}》")
             ctx = f"【当前视频】\n标题：{c['title']}\nUP主：{c['owner_name']}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{c.get('analysis', '')}"
@@ -568,7 +568,7 @@ UP主：{video_info.get('up_name', '未知')}
         )
         await self._save_self_memory_record(
             f"video:{bvid}", memory_text, memory_type="video",
-            extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "video_title": vi["title"]},
+            extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"]},
         )
         ctx = f"【当前视频】\n标题：{vi['title']}\nUP主：{vi['owner_name']}（UID:{vi['owner_mid']}）\n分区：{vi['tname']}\n简介：{vi.get('desc', '')[:150]}\n内容概括：{analysis}"
         tags = await self._get_video_tags(bvid)

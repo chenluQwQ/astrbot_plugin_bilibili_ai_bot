@@ -120,21 +120,70 @@ class AffectionMixin:
         return f"<user_comment>\n{content}\n</user_comment>"
 
     # ── 用户画像 ──
+    @staticmethod
+    def _normalize_user_profile(profile):
+        p = dict(profile) if isinstance(profile, dict) else {}
+        p.setdefault("username", "")
+        p.setdefault("impression", "")
+        p.setdefault("facts", [])
+        p.setdefault("tags", [])
+        legacy_encounters = p.get("video_encounters", [])
+        refs = p.setdefault("video_refs", [])
+        if not isinstance(refs, list):
+            refs = []
+            p["video_refs"] = refs
+        # 旧数据兼容：video_encounters 表示曾在该视频评论区交流。
+        known = {(str(item.get("bvid", "")), item.get("relation", "")) for item in refs if isinstance(item, dict)}
+        for item in legacy_encounters:
+            if not isinstance(item, dict) or not item.get("bvid"):
+                continue
+            key = (str(item["bvid"]), "commented_under")
+            if key not in known:
+                refs.append({
+                    "bvid": str(item["bvid"]),
+                    "title": str(item.get("title", "")),
+                    "relation": "commented_under",
+                    "time": str(item.get("time", "")),
+                })
+                known.add(key)
+        p["video_refs"] = refs[-50:]
+        p.pop("video_encounters", None)
+        live = p.setdefault("live", {})
+        if not isinstance(live, dict):
+            live = {}
+            p["live"] = live
+        live.setdefault("event_counts", {})
+        live.setdefault("memory_refs", [])
+        return p
+
     def _get_user_profile_context(self, mid):
         profiles = self._load_json(USER_PROFILE_FILE, {})
-        p = profiles.get(str(mid))
+        p = self._normalize_user_profile(profiles.get(str(mid))) if profiles.get(str(mid)) else None
         if not p:
             return ""
         entries = []
         if p.get("username"):
             entries.append(f"昵称：{p['username']}")
-        # 视频遭遇记录：在哪些视频下和这个人聊过
-        encounters = p.get("video_encounters", [])
-        if encounters:
-            recent = encounters[-5:]  # 最近5个视频
-            enc_strs = [f"《{e['title']}》({e['bvid']}, {e['time']})" for e in recent if e.get("title")]
-            if enc_strs:
-                entries.append(f"曾在以下视频下交流过：{'；'.join(enc_strs)}")
+        refs = p.get("video_refs", [])
+        relation_labels = {
+            "commented_under": "曾在这些视频下交流",
+            "uploaded_by": "该用户发布的视频",
+            "about_user": "内容与该用户有关的视频",
+        }
+        for relation, label in relation_labels.items():
+            recent = [item for item in refs if isinstance(item, dict) and item.get("relation") == relation][-5:]
+            ref_texts = [
+                f"《{item.get('title') or item.get('bvid')}》({item.get('bvid')}, {item.get('time', '?')})"
+                for item in recent if item.get("bvid")
+            ]
+            if ref_texts:
+                entries.append(f"{label}：{'；'.join(ref_texts)}")
+        live = p.get("live") if isinstance(p.get("live"), dict) else {}
+        counts = live.get("event_counts") if isinstance(live.get("event_counts"), dict) else {}
+        if counts:
+            count_text = "、".join(f"{key}:{value}" for key, value in counts.items() if value)
+            if count_text:
+                entries.append(f"直播互动：{count_text}；最近出现：{live.get('last_seen', '未知')}")
         if p.get("facts"):
             for f in p["facts"][-10:]:
                 entries.append(f)
@@ -144,13 +193,12 @@ class AffectionMixin:
             entries.append(f"印象：{p['impression']}")
         return "【对该用户的了解】\n" + "\n".join(entries) if entries else ""
 
-    def _update_user_profile(self, mid, username=None, impression=None, new_facts=None, new_tags=None, video_encounter=None):
-        """更新用户画像。video_encounter: {"bvid": "...", "title": "...", "time": "..."} 可选"""
+    def _update_user_profile(self, mid, username=None, impression=None, new_facts=None, new_tags=None, video_encounter=None, video_ref=None, live_event=None):
+        """更新用户画像；视频与直播只保存轻量引用，不复制正文记忆。"""
         profiles = self._load_json(USER_PROFILE_FILE, {})
         uid = str(mid)
-        if uid not in profiles:
-            profiles[uid] = {"username": "", "impression": "", "facts": [], "tags": [], "video_encounters": []}
-        if username and not profiles[uid].get("username"):
+        profiles[uid] = self._normalize_user_profile(profiles.get(uid))
+        if username:
             profiles[uid]["username"] = username
         if impression:
             profiles[uid]["impression"] = impression
@@ -169,13 +217,54 @@ class AffectionMixin:
                     et.append(t)
             profiles[uid]["tags"] = et[-10:]
         if video_encounter and video_encounter.get("bvid"):
-            ve = profiles[uid].setdefault("video_encounters", [])
-            # 同一个bvid只记一次（更新时间）
-            existing_bvids = {e.get("bvid") for e in ve}
-            if video_encounter["bvid"] not in existing_bvids:
-                ve.append(video_encounter)
-                profiles[uid]["video_encounters"] = ve[-20:]  # 最多保留20个
+            video_ref = {
+                "bvid": video_encounter["bvid"],
+                "title": video_encounter.get("title", ""),
+                "time": video_encounter.get("time", ""),
+                "relation": "commented_under",
+            }
+        if video_ref and video_ref.get("bvid"):
+            refs = profiles[uid].setdefault("video_refs", [])
+            ref = {
+                "bvid": str(video_ref["bvid"]),
+                "title": str(video_ref.get("title", "")),
+                "relation": str(video_ref.get("relation") or "related"),
+                "time": str(video_ref.get("time") or datetime.now().strftime("%Y-%m-%d")),
+            }
+            key = (ref["bvid"], ref["relation"])
+            refs = [item for item in refs if not (isinstance(item, dict) and (str(item.get("bvid", "")), item.get("relation", "")) == key)]
+            refs.append(ref)
+            profiles[uid]["video_refs"] = refs[-50:]
+        if live_event:
+            live = profiles[uid].setdefault("live", {"event_counts": {}, "memory_refs": []})
+            counts = live.setdefault("event_counts", {})
+            event_type = str(live_event.get("event_type") or "interaction")
+            counts[event_type] = int(counts.get(event_type, 0) or 0) + 1
+            live["last_seen"] = str(live_event.get("time") or datetime.now().strftime("%Y-%m-%d %H:%M"))
+            if live_event.get("session_id"):
+                live["last_session_id"] = str(live_event["session_id"])
+            memory_ref = str(live_event.get("memory_ref") or "")
+            if memory_ref:
+                memory_refs = [str(item) for item in live.setdefault("memory_refs", []) if item]
+                if memory_ref in memory_refs:
+                    memory_refs.remove(memory_ref)
+                memory_refs.append(memory_ref)
+                live["memory_refs"] = memory_refs[-30:]
         self._save_json(USER_PROFILE_FILE, profiles)
+
+    def _link_video_to_user_profile(self, user_id, username, bvid, title="", relation="uploaded_by"):
+        if str(user_id or "").strip() in {"", "0"} or not bvid:
+            return
+        self._update_user_profile(
+            str(user_id),
+            username=username or None,
+            video_ref={
+                "bvid": str(bvid),
+                "title": str(title or ""),
+                "relation": relation,
+                "time": datetime.now().strftime("%Y-%m-%d"),
+            },
+        )
 
     # ── 心情 ──
     def _get_today_mood(self):

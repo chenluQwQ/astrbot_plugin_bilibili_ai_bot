@@ -271,12 +271,47 @@
         "default": "这个人多次恶意攻击你。平静坚定划清界限，回复极简短，不恶语相向。"
     },
     "ENABLE_PROACTIVE": {
-        "description": "【功能开关】启用主动看视频/评论",
+        "description": "【主动看片·总开关】启用主动看视频与互动",
         "type": "bool",
-        "default": false
+        "default": false,
+        "hint": "关闭后，定时自动、/bili主动、聊天判断和 LLM 工具都不能触发看片。"
+    },
+    "PROACTIVE_VIDEO_COUNT": {
+        "description": "【主动看片·数量】每次计划观看几个视频",
+        "type": "int",
+        "default": 3,
+        "hint": "来源按当天累计观看数在关注→搜索→视频池之间均分：当天第1个取关注，第2个取搜索，第3个取视频池，第4个再回关注；分多次触发也会承接当天进度，来源不足时自动补位。"
+    },
+    "PROACTIVE_DAILY_LIMIT": {
+        "description": "【主动看片·数量】每天最多看几个视频（所有来源合计，0=不限制）",
+        "type": "int",
+        "default": 0
+    },
+    "PROACTIVE_TIMES_COUNT": {
+        "description": "【主动看片·时间】每天生成几次定时触发",
+        "type": "int",
+        "default": 2,
+        "hint": "主动看片总开关开启后，按这里的次数生成每日随机触发时间。"
+    },
+    "PROACTIVE_COMMENT_COUNT": {
+        "description": "【主动看片·数量】每天最多主动评论几条",
+        "type": "int",
+        "default": 2
+    },
+    "PROACTIVE_FOLLOW_UIDS": {
+        "description": "【主动看片·来源1】特别关注的UP主UID列表",
+        "type": "list",
+        "default": [],
+        "hint": "特别关注优先进入“关注”来源，其后才检查普通关注列表的今日更新；也与独立特关巡视共用。"
+    },
+    "PROACTIVE_SEARCH_QUERY_PROMPT": {
+        "description": "【主动看片·来源2】Bot 决定B站搜索词的提示词",
+        "type": "text",
+        "default": "你要去B站主动找自己现在想看的视频。请结合你的人设、近期看过的视频和感受，自由决定1至3个适合在B站搜索的关键词。可以延续已有兴趣，也可以临时探索完全不同的内容，不必只围绕历史偏好，也不必迎合主人。",
+        "hint": "Bot 会按这段提示词决定本轮提交给B站搜索框的关键词；近期记录只作为参考，它可以选择完全不同的内容。模型失败时才使用内置分区兜底。"
     },
     "PROACTIVE_VIDEO_POOLS": {
-        "description": "【主动行为】主动视频来源池（可填中文，不用记 rid/tid）",
+        "description": "【主动看片·来源3】视频池/地址池（可填中文，不用记 rid/tid）",
         "type": "list",
         "default": [
             "popular",
@@ -284,37 +319,17 @@
         ],
         "hint": "可填：热门 / 推荐 / 每周必看 / 入站必刷 / 排行榜:游戏 / 最新:单机游戏；也可直接填主分区名如 游戏（等同排行榜:游戏）或子分区名如 单机游戏（等同最新:单机游戏）。旧写法 ranking:4、newlist:17 仍兼容。用 /bili分区 查看完整中文名称。"
     },
-    "PROACTIVE_VIDEO_COUNT": {
-        "description": "【主动行为】每次主动看几个视频",
-        "type": "int",
-        "default": 3
-    },
-    "PROACTIVE_DAILY_LIMIT": {
-        "description": "【主动行为】每天最多看几个视频（所有来源合计，0=不限制）",
-        "type": "int",
-        "default": 0
-    },
     "ENABLE_PROACTIVE_LLM_PREFILTER": {
-        "description": "【主动行为】下载/观看前让LLM按标题筛选探索视频",
+        "description": "【主动看片·筛选】观看前让 LLM 按标题筛选搜索/视频池候选",
         "type": "bool",
         "default": false,
-        "hint": "开启后，主动看视频在下载前会让 LLM 根据标题、UP、分区和简介判断想不想看。特别关注、关注更新、口味分区会直接看，不走筛选。可用 /bili开关 筛选 切换。"
+        "hint": "开启后，根据标题、UP、分区和简介判断想不想看。关注来源直接放行；符合历史口味的候选也会直接放行。可用 /bili开关 筛选 切换。"
     },
     "PROACTIVE_LLM_PREFILTER_MAX_REJECTS": {
-        "description": "【主动行为】标题筛选每轮最多拒绝几个视频",
+        "description": "【主动看片·筛选】每轮最多拒绝几个候选",
         "type": "int",
         "default": 3,
-        "hint": "避免 Bot 挑太久。达到上限后，本轮后续探索视频默认放行。"
-    },
-    "PROACTIVE_TIMES_COUNT": {
-        "description": "【主动行为】每天触发几次主动行为",
-        "type": "int",
-        "default": 2
-    },
-    "PROACTIVE_COMMENT_COUNT": {
-        "description": "【主动行为】每天主动评论几条",
-        "type": "int",
-        "default": 2
+        "hint": "避免 Bot 挑太久。达到上限后，本轮后续搜索/视频池候选默认放行。"
     },
     "PROACTIVE_LIKE": {
         "description": "【主动行为】主动点赞（≥6分）",
@@ -353,11 +368,17 @@
         "default": "",
         "hint": "例如：推荐语要简短可爱，带点撒娇。会影响@主人时的推荐语风格。"
     },
-    "PROACTIVE_FOLLOW_UIDS": {
-        "description": "【主动行为】特别关注的UP主UID列表",
-        "type": "list",
-        "default": [],
-        "hint": "这些UP主的新视频会优先观看（主动行为+特关巡视共用）"
+    "RECOMMEND_OWNER_MIN_SCORE": {
+        "description": "【主动行为】推荐给主人所需最低视频评分",
+        "type": "int",
+        "default": 8,
+        "hint": "建议 8-10；除模型认为适合主人外，还必须达到此评分才会@推荐。"
+    },
+    "RECOMMEND_OWNER_DAILY_LIMIT": {
+        "description": "【主动行为】每天最多@主人推荐几次",
+        "type": "int",
+        "default": 1,
+        "hint": "0=不限制；默认每天最多一次，避免频繁打扰。"
     },
     "VIDEO_SEGMENT_MINUTES": {
         "description": "【视频分析】长视频自动切片长度（分钟/段）",
@@ -375,40 +396,64 @@
         "description": "【分享解析】识别群聊和私聊里的B站视频分享",
         "type": "bool",
         "default": false,
-        "hint": "开启后，群聊或私聊收到 B站视频链接、b23短链或QQ小程序文本时，Bot 会自动发解析卡。也可用 /bili开关 解析 切换。"
+        "hint": "视频解析总开关；关闭后自动识别、/bili解析 手动命令和 LLM 工具都不能触发。可用 /bili开关 解析 切换。"
+    },
+    "BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED": {
+        "description": "【分享解析·触发】自动识别聊天中的B站视频",
+        "type": "bool",
+        "default": true,
+        "hint": "群聊或私聊收到B站链接、b23短链、BV号或QQ小程序时自动解析。可用 /bili开关 自动解析 切换。"
+    },
+    "BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED": {
+        "description": "【分享解析·触发】允许 /bili解析 手动触发",
+        "type": "bool",
+        "default": true,
+        "hint": "允许使用 /bili解析 [链接或BV号]；省略参数时解析回复引用或本会话最近的视频。不影响自动识别和 LLM 工具。可用 /bili开关 手动解析 切换。"
+    },
+    "BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED": {
+        "description": "【分享解析·触发】允许 LLM 工具触发",
+        "type": "bool",
+        "default": true,
+        "hint": "允许模型调用 bili_parse_video，将解析卡和视频直接发送到当前会话；还受 LLM 工具总开关控制。可用 /bili开关 LLM解析 切换。"
+    },
+    "BILI_SHARE_PENDING_MAX_AGE": {
+        "description": "【分享解析】上一个待解析视频保留秒数",
+        "type": "int",
+        "default": 1800,
+        "hint": "自动解析关闭时仍会按会话记住最近出现的B站视频，供回复后发送 /bili解析 或让 LLM 解析“上面那个”；默认保留30分钟。"
     },
     "BILI_SHARE_PARSE_SEND_VIDEO": {
-        "description": "【群聊分享解析】解析后发送原视频/切片",
+        "description": "【分享解析】解析后发送原视频/切片",
         "type": "bool",
         "default": true,
         "hint": "开启后会尝试用 yt-dlp 下载原视频，并按配置切成群聊可发送的回放切片；失败时只发解析卡和链接。"
     },
     "BILI_SHARE_PARSE_SEGMENT_SECONDS": {
-        "description": "【群聊分享解析】原视频切片秒数",
+        "description": "【分享解析】原视频切片秒数",
         "type": "int",
         "default": 180,
         "hint": "原视频过长或过大时，每段切多少秒；建议 120-300。填 0 表示不分段，直接尝试发送整段视频。"
     },
     "BILI_SHARE_PARSE_MAX_SEGMENTS": {
-        "description": "【群聊分享解析】每次最多发送几个切片",
+        "description": "【分享解析】每次最多发送几个切片",
         "type": "int",
         "default": 5,
         "hint": "避免群聊刷屏；仅在启用分段时生效。后续内容会提示用户可调大此值。"
     },
     "BILI_SHARE_PARSE_MAX_VIDEO_MB": {
-        "description": "【群聊分享解析】单个视频文件大小阈值MB",
+        "description": "【分享解析】单个视频文件大小阈值MB",
         "type": "int",
         "default": 80,
         "hint": "超过此大小会尝试切片；不同 QQ 适配器可能还有自己的上传大小限制。"
     },
     "BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT": {
-        "description": "【群聊分享解析】原视频下载最高分辨率",
+        "description": "【分享解析】原视频下载最高分辨率",
         "type": "int",
         "default": 720,
         "hint": "下载原视频时优先尝试低清格式，例如 360p、480p、720p；默认 720p。实际可用清晰度由 B站返回决定。"
     },
     "BILI_SHARE_PARSE_COOLDOWN": {
-        "description": "【群聊分享解析】同一视频重复解析冷却秒数",
+        "description": "【分享解析】同一视频重复解析冷却秒数",
         "type": "int",
         "default": 90,
         "hint": "同一群里短时间重复发送同一个视频时，避免重复刷解析。"

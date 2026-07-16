@@ -17,19 +17,19 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 
 - **语义记忆** — Embedding 向量化 + 余弦相似度检索，支持记忆压缩、永久记忆
 - **好感度系统** — 陌生人 → 粉丝 → 熟人 → 好友 → 主人，不同等级不同语气；辱骂自动拉黑
-- **用户画像** — 词条式档案：昵称、喜好、个人信息、标签、印象
+- **用户画像** — 词条式档案：昵称、喜好、个人信息、标签、印象，以及轻量视频关系和直播互动统计
 - **心情系统** — 每日随机心情 + 节日彩蛋（含农历）
 - **性格演化** — 每日反思互动经历，渐进式性格成长
 
 ### 🎯 主动行为
 
-- **主动看视频** — 自动刷 B 站、评价视频、点赞 / 投币 / 收藏 / 关注 / 评论
-- **`/bili主动` 手动触发** — 命令式立刻触发一次主动看视频流程
-- **聊天里直接让 Bot 去看视频** — 在 QQ 聊天里说”去刷刷 B 站吧”之类的话，Bot 会用 LLM 判断意图，若确认是请求则在后台启动一次主动看视频
+- **主动看视频** — 从关注更新、关键词搜索、视频池三条路径均衡选片，再评价、点赞 / 投币 / 收藏 / 关注 / 评论
+- **来源按当天数量均分** — 当天第 1 个取关注、第 2 个取搜索、第 3 个取视频池、第 4 个再回关注；分多次触发也承接当天进度，缺少候选时自动补位
 - **自动发动态** — 定时发布动态，支持 AI 生成配图
 - **周总结图片卡片** — 每周总结可渲染为固定模板 PNG，只替换文字内容，QQ/B站动态优先发送图片
-- **群聊/私聊B站分享解析** — 识别聊天里的 B站链接/短链/小程序分享，发送解析卡，并可把原视频整理成聊天回放切片
-- **看片前标题筛选** — 主动看探索视频下载前，可让 LLM 根据标题/UP/分区/简介先判断想不想看；关注和口味分区直接放行
+- **跨插件记忆接口** — 直播伴侣等插件可按 B站 UID 读取画像/语义记忆，并写入可检索的直播记忆
+- **群聊/私聊B站分享解析** — 支持聊天链接自动识别、`/bili解析` 手动命令和 `bili_parse_video` LLM 工具三种入口，各自可独立启停；需要发送原视频时只提示“请稍等...视频一会发出”，随后直接发送视频/切片
+- **看片前标题筛选** — 可让 LLM 根据标题/UP/分区/简介筛选搜索和视频池候选；关注与符合历史口味的候选直接放行
 
 ### 📺 番剧能力
 
@@ -180,10 +180,16 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
 |`ENABLE_BILI_SHARE_PARSE`    |可选|启用群聊/私聊B站分享解析（`/bili开关 解析`）                                 |
+|`BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED`|可选|允许聊天中的链接、小程序或BV号自动触发解析（`/bili开关 自动解析`）|
+|`BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED`|可选|允许 `/bili解析 <链接/BV号>` 手动触发（`/bili开关 手动解析`）|
+|`BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED`|可选|允许模型调用 `bili_parse_video` 工具触发（`/bili开关 LLM解析`）|
+|`BILI_SHARE_PENDING_MAX_AGE`|可选|最近待解析视频按会话保留秒数，默认30分钟；供 `/bili解析` 或“解析上面那个”使用|
 |`BILI_SHARE_PARSE_SEND_VIDEO` |可选|解析后尝试发送原视频/切片，失败则只发解析卡和链接                                  |
 |`ENABLE_PROACTIVE`           |可选|启用主动看视频                                                              |
-|`PROACTIVE_VIDEO_POOLS`      |可选|主动视频来源池，可填中文：热门 / 推荐 / 排行榜:游戏 / 最新:单机游戏；兼容 `ranking:4`、`newlist:17`|
-|`ENABLE_PROACTIVE_LLM_PREFILTER`|可选|主动看探索视频前让 LLM 按标题判断想不想看（`/bili开关 筛选`）|
+|`PROACTIVE_FOLLOW_UIDS`      |可选|特别关注 UID，优先进入关注来源；普通关注的今日更新随后补充|
+|`PROACTIVE_SEARCH_QUERY_PROMPT`|可选|Bot 决定本轮B站搜索词的提示词；可延续偏好，也可自由探索其他内容|
+|`PROACTIVE_VIDEO_POOLS`      |可选|视频池/地址池，可填中文：热门 / 推荐 / 排行榜:游戏 / 最新:单机游戏；兼容旧写法|
+|`ENABLE_PROACTIVE_LLM_PREFILTER`|可选|让 LLM 筛选搜索/视频池候选（`/bili开关 筛选`）|
 |`PROACTIVE_LLM_PREFILTER_MAX_REJECTS`|可选|标题筛选每轮最多拒绝几个视频，默认 3，达到上限后放行|
 |`ENABLE_DYNAMIC`             |可选|启用自动发动态                                                              |
 |`DYNAMIC_TIMES_COUNT`        |可选|每天触发几次动态发布                                                           |
@@ -219,7 +225,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili启动`      |启动 Bot                 |
 |`/bili停止`      |停止 Bot                 |
 |`/bili主动`      |立刻触发一次主动看视频            |
-|`/bili开关 <功能>` |切换功能开关，支持 `解析`、`解析视频`、`筛选` 等 |
+|`/bili解析 [链接/BV号]`|手动解析指定视频；省略参数时解析回复引用或本会话最近的视频|
+|`/bili开关 <功能>` |切换功能开关，支持 `解析`、`自动解析`、`手动解析`、`LLM解析`、`解析视频`、`筛选` 等 |
 |`/bili刷新`      |手动刷新 Cookie            |
 |`/bili记忆 <关键词>`|语义搜索记忆                 |
 |`/bili好感 [UID]`|查看好感度排行 / 查询           |
@@ -242,6 +249,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili番剧记忆`    |查看番剧观看记忆               |
 |`/bili日志 番剧`  |查看番剧记录                 |
 |`/bili周总结`     |手动生成本周B站生活总结，并渲染图片卡片 |
+|`/bili联动`       |查看统一记忆接口、用户画像和直播记忆状态       |
 |`/biliUMO`     |获取当前会话 UMO 并自动填入配置     |
 
 日志统一走 `/bili日志 <视频|番剧|动态|回复> [日期]`，例如 `/bili日志 视频 2026-07-01`。

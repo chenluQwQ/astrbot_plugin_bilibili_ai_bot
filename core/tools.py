@@ -95,51 +95,7 @@ def create_tools(plugin):
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
             target_date = kwargs.get("date", "") or datetime.now().strftime("%Y-%m-%d")
-            parts = []
-            # 1. 视频观看日志
-            from .config import WATCH_LOG_FILE, BANGUMI_WATCH_LOG_FILE, REPLY_LOG_FILE, PROACTIVE_LOG_FILE, DYNAMIC_LOG_FILE
-            wl = plugin._load_json(WATCH_LOG_FILE, [])
-            today_watch = [l for l in wl if l.get("time", "").startswith(target_date)]
-            if today_watch:
-                vlines = [f"🎬 看了 {len(today_watch)} 个视频:"]
-                for w in today_watch:
-                    vlines.append(f"  [{w.get('time','?').split(' ',1)[-1]}] 「{w.get('title','?')[:30]}」{w.get('score','?')}分 {w.get('mood','?')} {w.get('review','')[:40]}")
-                parts.append("\n".join(vlines))
-            # 2. 番剧日志
-            bl = plugin._load_json(BANGUMI_WATCH_LOG_FILE, [])
-            today_bangumi = [l for l in bl if l.get("time", "").startswith(target_date)]
-            if today_bangumi:
-                blines = [f"📺 看了 {len(today_bangumi)} 集番剧:"]
-                for b in today_bangumi:
-                    blines.append(f"  [{b.get('time','?').split(' ',1)[-1]}] 《{b.get('title','?')}》第{b.get('ep_index','?')}话 {b.get('score','?')}分 {b.get('mood','?')}")
-                parts.append("\n".join(blines))
-            # 3. 回复日志
-            rl = plugin._load_json(REPLY_LOG_FILE, [])
-            today_reply = [r for r in rl if r.get("time", "").startswith(target_date)]
-            if today_reply:
-                rlines = [f"💬 回复了 {len(today_reply)} 条评论:"]
-                for r in today_reply:
-                    rlines.append(f"  [{r.get('time','?').split(' ',1)[-1]}] {r.get('username','?')}: {r.get('content','')[:30]} → {r.get('reply','')[:30]}")
-                parts.append("\n".join(rlines))
-            # 4. 主动评论
-            pl = plugin._load_json(PROACTIVE_LOG_FILE, [])
-            today_comment = [c for c in pl if c.get("time", "").startswith(target_date)]
-            if today_comment:
-                clines = [f"📝 发了 {len(today_comment)} 条主动评论:"]
-                for c in today_comment:
-                    clines.append(f"  [{c.get('time','?').split(' ',1)[-1]}] 「{c.get('title','')[:20]}」{c.get('comment','')[:40]}")
-                parts.append("\n".join(clines))
-            # 5. 动态
-            dl = plugin._load_json(DYNAMIC_LOG_FILE, [])
-            today_dynamic = [d for d in dl if d.get("time", "").startswith(target_date)]
-            if today_dynamic:
-                dlines = [f"📢 发了 {len(today_dynamic)} 条动态:"]
-                for d in today_dynamic:
-                    dlines.append(f"  [{d.get('time','?').split(' ',1)[-1]}] {d.get('content','')[:50]}")
-                parts.append("\n".join(dlines))
-            if not parts:
-                return f"{target_date} 没有任何活动记录。"
-            return f"📋 {target_date} 活动总览:\n\n" + "\n\n".join(parts)
+            return plugin.memory_api.activity_overview(target_date)
 
     @dataclass
     class RecallVideoTool(FunctionTool[AstrAgentContext]):
@@ -219,6 +175,50 @@ def create_tools(plugin):
             return "\n\n".join(parts)
 
     # ── B站查询工具 ──
+
+    @dataclass
+    class ParseBiliShareTool(FunctionTool[AstrAgentContext]):
+        name: str = "bili_parse_video"
+        description: str = (
+            "Parse a Bilibili video link, short link, or BV ID and directly send the parse card "
+            "and optional original video to the current chat. Use when the user explicitly asks "
+            "to parse or send a Bilibili video."
+        )
+        parameters: dict = Field(default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Bilibili URL/BV ID; use 'recent' when the user means the video above",
+                },
+            },
+            "required": [],
+        })
+
+        async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            if not plugin.config.get("ENABLE_BILI_SHARE_PARSE", False):
+                return "B站视频解析总开关已关闭，管理员可用 /bili开关 解析 开启。"
+            if not plugin.config.get("BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED", True):
+                return "LLM解析触发已关闭，管理员可用 /bili开关 LLM解析 开启。"
+            target = str(kwargs.get("target", "") or "").strip()
+            event = getattr(getattr(context, "context", None), "event", None)
+            if event is None:
+                return "当前工具调用没有关联聊天事件，无法直接发送解析结果。"
+            if not target:
+                target = event.message_str or ""
+
+            sent_count = 0
+            async for result in plugin._handle_bili_share(
+                event,
+                text_override=target,
+                trigger_mode="llm",
+                show_errors=True,
+            ):
+                await event.send(result)
+                sent_count += 1
+            if not sent_count:
+                return "没有识别到可解析的B站视频，请让用户提供完整链接或BV号。"
+            return "解析结果已直接发送到当前聊天；不要重复输出解析卡或视频链接。"
 
     @dataclass
     class SearchBilibiliTool(FunctionTool[AstrAgentContext]):
@@ -367,7 +367,7 @@ def create_tools(plugin):
                 )
                 await plugin._save_self_memory_record(
                     f"tool_watch:{bvid}", memory_text, memory_type="video",
-                    extra={"bvid": bvid, "owner_mid": str(vi.get("owner_mid", "")), "video_title": vi.get("title", "")},
+                    extra={"bvid": bvid, "owner_mid": str(vi.get("owner_mid", "")), "owner_name": vi.get("owner_name", ""), "video_title": vi.get("title", "")},
                 )
                 link = f"https://www.bilibili.com/video/{bvid}"
                 return (
@@ -750,6 +750,7 @@ def create_tools(plugin):
         RecallDynamicTool(),
         RecallBangumiTool(),
         # B站查询
+        ParseBiliShareTool(),
         SearchBilibiliTool(),
         GetUpInfoTool(),
         WatchVideoTool(),

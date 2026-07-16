@@ -46,7 +46,7 @@ class MemoryMixin:
 
     @staticmethod
     def _memory_type_label(memory_type):
-        return {"chat": "交流", "video": "视频", "dynamic": "动态", "user_summary": "用户总结"}.get(memory_type, memory_type)
+        return {"chat": "交流", "video": "视频", "dynamic": "动态", "live": "直播", "user_summary": "用户总结"}.get(memory_type, memory_type)
 
     def _match_memory_type(self, memory, memory_types=None):
         if not memory_types:
@@ -80,7 +80,7 @@ class MemoryMixin:
     async def _save_self_memory_record(self, thread_id, text, source="bilibili", memory_type="chat", user_id="self", extra=None):
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         # 视频/动态类记忆默认 importance 更高
-        default_imp = 6 if memory_type in ("video", "dynamic") else 5
+        default_imp = 6 if memory_type in ("video", "dynamic", "live") else 5
         rec = {
             "rpid": f"{thread_id}_{int(datetime.now().timestamp())}",
             "thread_id": str(thread_id),
@@ -95,6 +95,14 @@ class MemoryMixin:
         if emb:
             rec["embedding"] = emb
         self._save_memory_entry(rec)
+        if memory_type == "video" and rec.get("owner_mid") and rec.get("bvid"):
+            self._link_video_to_user_profile(
+                rec.get("owner_mid"),
+                rec.get("owner_name") or rec.get("up_name") or "",
+                rec.get("bvid"),
+                rec.get("video_title") or rec.get("title") or "",
+                "uploaded_by",
+            )
 
     # ══════════════════════════════════════
     #  检索
@@ -535,7 +543,7 @@ class MemoryMixin:
         parts = []
         # 类型
         mtype = m.get("memory_type", "chat")
-        type_labels = {"chat": "交流", "video": "视频", "dynamic": "动态", "user_summary": "总结"}
+        type_labels = {"chat": "交流", "video": "视频", "dynamic": "动态", "live": "直播", "user_summary": "总结"}
         parts.append(f"[{type_labels.get(mtype, mtype)}]")
         # 级别
         level = m.get("level")
