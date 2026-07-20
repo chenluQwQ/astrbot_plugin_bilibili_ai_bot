@@ -296,7 +296,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     @filter.command("bili解析")
     async def cmd_bili_parse(self, event: AstrMessageEvent):
         parts = (event.message_str or "").strip().split(maxsplit=1)
-        target_text = parts[1].strip() if len(parts) >= 2 else self._collect_share_text(event)
+        target_text = parts[1].strip() if len(parts) >= 2 else self._collect_share_text(
+            event,
+            include_reply=True,
+        )
         async for result in self._handle_bili_share(
             event,
             text_override=target_text,

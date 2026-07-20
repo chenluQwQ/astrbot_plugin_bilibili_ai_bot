@@ -28,7 +28,7 @@ class ShareMixin:
         "title", "desc", "content", "text", "summary",
     )
 
-    def _collect_share_text(self, event):
+    def _collect_share_text(self, event, include_reply=False):
         parts = [event.message_str or ""]
         try:
             raw = getattr(event.message_obj, "raw_message", None)
@@ -38,11 +38,23 @@ class ShareMixin:
             pass
         try:
             for comp in getattr(event.message_obj, "message", []) or []:
+                is_reply = (
+                    comp.__class__.__name__.lower() == "reply"
+                    or (
+                        isinstance(comp, dict)
+                        and str(comp.get("type", "")).lower() == "reply"
+                    )
+                )
+                if is_reply and not include_reply:
+                    continue
                 parts.append(str(comp))
                 if isinstance(comp, dict):
                     parts.extend(self._flatten_share_payload(comp))
                     continue
-                for attr in (*self.MINIAPP_KEYS, "message_str", "data", "meta"):
+                attrs = (*self.MINIAPP_KEYS, "data", "meta")
+                if include_reply:
+                    attrs = (*attrs, "message_str")
+                for attr in attrs:
                     val = getattr(comp, attr, None)
                     if val:
                         parts.extend(self._flatten_share_payload(val))
@@ -510,7 +522,8 @@ class ShareMixin:
             return False
         if not hasattr(self, "_bili_share_recent"):
             self._bili_share_recent = {}
-        cooldown = max(0, int(self.config.get("BILI_SHARE_PARSE_COOLDOWN", 90)))
+        # 已解析视频至少 10 分钟内不重复，避免引用/工具链造成连续下载和刷屏。
+        cooldown = max(600, int(self.config.get("BILI_SHARE_PARSE_COOLDOWN", 600)))
         now = time.time()
         self._bili_share_recent = {k: v for k, v in self._bili_share_recent.items() if now - v < cooldown * 3}
         session_key = self._share_context_keys(event)[0]

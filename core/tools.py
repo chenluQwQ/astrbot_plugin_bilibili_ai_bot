@@ -182,7 +182,8 @@ def create_tools(plugin):
         description: str = (
             "Parse a Bilibili video link, short link, or BV ID and directly send the parse card "
             "and optional original video to the current chat. Use when the user explicitly asks "
-            "to parse or send a Bilibili video."
+            "to parse or send a Bilibili video. Do not call it merely because a quoted message "
+            "contains a Bilibili link; the user's current message must show parse intent."
         )
         parameters: dict = Field(default_factory=lambda: {
             "type": "object",
@@ -204,8 +205,9 @@ def create_tools(plugin):
             event = getattr(getattr(context, "context", None), "event", None)
             if event is None:
                 return "当前工具调用没有关联聊天事件，无法直接发送解析结果。"
-            if not target:
-                target = event.message_str or ""
+            # 工具仅在 LLM 已判断用户有解析意图后调用；此时才读取引用正文。
+            event_text = plugin._collect_share_text(event, include_reply=True)
+            target = f"{target}\n{event_text}" if target else event_text
 
             sent_count = 0
             async for result in plugin._handle_bili_share(

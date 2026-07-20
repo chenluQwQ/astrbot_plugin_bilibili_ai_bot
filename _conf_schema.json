@@ -455,8 +455,8 @@
     "BILI_SHARE_PARSE_COOLDOWN": {
         "description": "【分享解析】同一视频重复解析冷却秒数",
         "type": "int",
-        "default": 90,
-        "hint": "同一群里短时间重复发送同一个视频时，避免重复刷解析。"
+        "default": 600,
+        "hint": "同一会话解析过的同一视频至少10分钟内不会重复解析；可设置更长时间，但低于600秒仍按600秒执行。"
     },
     "SPECIAL_FOLLOW_ENABLED": {
         "description": "【特别关注】启用定时特关巡视（独立于主动刷视频）",
