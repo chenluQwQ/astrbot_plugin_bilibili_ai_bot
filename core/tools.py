@@ -4,6 +4,7 @@
 from datetime import datetime
 import asyncio
 import random
+import time
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
@@ -20,6 +21,8 @@ def create_tools(plugin):
     bot_uid = plugin.config.get("DEDE_USER_ID", "未知")
     owner_uid = plugin.config.get("OWNER_MID", "未知")
     owner_name = plugin.config.get("OWNER_NAME", "未知")
+    private_share_last_sent = {}
+    private_share_lock = asyncio.Lock()
 
     # ── 记忆类工具 ──
 
@@ -225,19 +228,37 @@ def create_tools(plugin):
     @dataclass
     class SearchBilibiliTool(FunctionTool[AstrAgentContext]):
         name: str = "search_bilibili"
-        description: str = "Search Bilibili for videos, UPs, or anime/bangumi. Also use when user wants content recommendations."
+        description: str = (
+            "Search Bilibili videos, users, UP details, anime, followed-UP updates, "
+            "or current live streams. Also use when the user wants content recommendations."
+        )
         parameters: dict = Field(default_factory=lambda: {
             "type": "object",
             "properties": {
                 "keyword": {"type": "string", "description": "search keyword"},
-                "search_type": {"type": "string", "description": "video, user, or bangumi", "default": "video"},
+                "search_type": {
+                    "type": "string",
+                    "enum": [
+                        "video", "user", "up_info", "bangumi",
+                        "following_updates", "following_live",
+                    ],
+                    "description": "what to search; following_* types don't require a keyword",
+                    "default": "video",
+                },
             },
-            "required": ["keyword"],
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
             keyword = kwargs.get("keyword", "")
             search_type = kwargs.get("search_type", "video")
+            if search_type == "following_updates":
+                return await CheckFollowingUpdatesTool().call(context)
+            if search_type == "following_live":
+                return await CheckFollowingLiveTool().call(context)
+            if not keyword:
+                return "请提供搜索关键词。"
+            if search_type == "up_info":
+                return await GetUpInfoTool().call(context, query=keyword)
             if search_type == "user":
                 results = await plugin.search_bilibili_users(keyword, ps=5)
                 if not results:
@@ -323,8 +344,18 @@ def create_tools(plugin):
                 for d in dynamics:
                     dlines.append(f"  [{d['pub_time']}] {d['text'][:60] or '(无文字)'}")
                 parts.append("\n".join(dlines))
-            parts.append(f"（UID={mid}，如需关注可调用follow_up）")
+            parts.append(f"（UID={mid}，如需关注可调用 bili_action(action=follow)）")
             return "\n\n".join(parts)
+
+    async def _watch_video_for_tool(bvid):
+        result = await plugin._watch_video_and_save_memory(
+            bvid, memory_source="tool_watch"
+        )
+        if result.get("ok"):
+            result["message"] += (
+                "\n（如需互动可调用 bili_action：点赞/投币/收藏/关注UP主/评论）"
+            )
+        return result
 
     @dataclass
     class WatchVideoTool(FunctionTool[AstrAgentContext]):
@@ -339,54 +370,76 @@ def create_tools(plugin):
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
-            bvid = kwargs.get("bvid", "")
+            result = await _watch_video_for_tool(kwargs.get("bvid", ""))
+            return result["message"]
+
+    @dataclass
+    class WatchAndShareVideoPrivateTool(FunctionTool[AstrAgentContext]):
+        name: str = "watch_and_share_video_private"
+        description: str = (
+            "Watch a Bilibili video completely, save the video memory, then send its native "
+            "Bilibili share card to the owner's Bilibili UID. Only call when the user "
+            "explicitly asks to watch and privately share a video with the owner."
+        )
+        parameters: dict = Field(default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "bvid": {"type": "string", "description": "BV ID, e.g. BV1xx411x7xx"},
+            },
+            "required": ["bvid"],
+        })
+
+        async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            if not plugin.config.get("BILI_PRIVATE_SHARE_TOOL_ENABLED", False):
+                return "⚠️ 看完后私信给主人功能未开启，请管理员先在插件配置中开启。"
+            receiver_mid = str(
+                plugin.config.get("OWNER_MID", "") or ""
+            ).strip()
+            if not receiver_mid.isdigit():
+                return "⚠️ 主人的B站 UID（OWNER_MID）未配置或格式错误。"
+            if receiver_mid == str(plugin.config.get("DEDE_USER_ID", "") or "").strip():
+                return "⚠️ 主人的B站 UID 不能与当前 Bot 的B站 UID 相同，否则无法给自己发私信。"
+
+            requested_bvid = str(kwargs.get("bvid", "") or "").strip()
+            if not requested_bvid:
+                return "请提供要观看并私信分享的视频 BV 号。"
             try:
-                oid = await plugin._get_video_oid(bvid)
-                if not oid:
-                    return f"找不到视频 {bvid}"
-                vi = await plugin._get_video_info(oid)
-                if not vi:
-                    return f"获取视频信息失败 {bvid}"
-                analysis_info = {
-                    "bvid": vi.get("bvid", bvid), "title": vi.get("title", ""),
-                    "desc": vi.get("desc", ""), "up_name": vi.get("owner_name", ""),
-                    "up_mid": vi.get("owner_mid", ""), "tname": vi.get("tname", ""),
-                    "duration": vi.get("duration", 0), "pic": vi.get("pic", ""),
-                    "cid": vi.get("cid", 0), "oid": oid,
-                }
-                video_description = await plugin._analyze_video_with_vision(analysis_info)
-                evaluation = await plugin._evaluate_video(analysis_info, video_description)
-                score = (evaluation or {}).get("score", 5)
-                mood = (evaluation or {}).get("mood", "平静")
-                review = (evaluation or {}).get("review", "")
-                # 存记忆
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-                memory_text = (
-                    f"[{now_str}] Bot看了视频《{vi.get('title', '')}》"
-                    f"(UP主:{vi.get('owner_name', '')}) "
-                    f"评分:{score}/10 心情:{mood} "
-                    f"感想:{review[:80]} 内容:{video_description[:500]}"
+                cooldown = max(
+                    0,
+                    int(plugin.config.get("BILI_PRIVATE_SHARE_COOLDOWN", 60) or 0),
                 )
-                await plugin._save_self_memory_record(
-                    f"tool_watch:{bvid}", memory_text, memory_type="video",
-                    extra={"bvid": bvid, "owner_mid": str(vi.get("owner_mid", "")), "owner_name": vi.get("owner_name", ""), "video_title": vi.get("title", "")},
+            except (TypeError, ValueError):
+                cooldown = 60
+            key = f"{receiver_mid}:{requested_bvid.lower()}"
+            async with private_share_lock:
+                now = time.monotonic()
+                remaining = cooldown - (now - private_share_last_sent.get(key, 0))
+                if remaining > 0:
+                    return f"⚠️ 该视频刚刚已分享，约 {int(remaining) + 1} 秒后才能再次测试。"
+
+                result = await _watch_video_for_tool(requested_bvid)
+                if not result["ok"]:
+                    return result["message"]
+                success = await plugin._send_bili_private_video_share(
+                    receiver_mid,
+                    result["video_info"],
                 )
-                link = f"https://www.bilibili.com/video/{bvid}"
+                if not success:
+                    return (
+                        f"{result['message']}\n\n"
+                        "⚠️ 视频已看完并写入记忆，但 B站原生视频卡片发送失败；请检查 Cookie、CSRF、接收 UID 和风控日志。"
+                    )
+                actual_key = f"{receiver_mid}:{result['bvid'].lower()}"
+                sent_at = time.monotonic()
+                private_share_last_sent[key] = sent_at
+                private_share_last_sent[actual_key] = sent_at
                 return (
-                    f"[已看完视频]\n"
-                    f"标题：{vi.get('title', '')}\n"
-                    f"UP主：{vi.get('owner_name', '')}(UID:{vi.get('owner_mid', '')}) | 分区：{vi.get('tname', '')}\n"
-                    f"链接：{link}\n"
-                    f"视频简介：{vi.get('desc', '')[:150]}\n"
-                    f"内容详情：{video_description[:800]}\n"
-                    f"我的感受：{review[:200]}\n"
-                    f"个人评分：{score}/10 | 看完心情：{mood}\n"
-                    f"oid={oid}\n"
-                    f"（如需互动可调用：like_video点赞/coin_video投币/fav_video收藏/follow_up关注UP主/post_comment评论）"
+                    f"[已看完并私信分享给主人]\n"
+                    f"视频：{result['video_info'].get('title', result['bvid'])}\n"
+                    f"BV号：{result['bvid']}\n"
+                    f"接收 UID：{receiver_mid}\n"
+                    "已先完成视频分析和记忆写入，再发送 B站原生视频卡片。"
                 )
-            except Exception as e:
-                logger.error(f"[BiliBot] watch_video工具异常: {e}")
-                return f"看视频时出错了: {e}"
 
     # ── B站操作工具 ──
 
@@ -729,6 +782,165 @@ def create_tools(plugin):
                     description=f"UID:{uid} 已加入本地黑名单，但B站API调用失败（可能需要重新登录）。",
                 )
 
+    # ── 精简后的组合工具 ──
+
+    @dataclass
+    class RecallBiliTool(FunctionTool[AstrAgentContext]):
+        name: str = "bili_recall"
+        description: str = (
+            "Recall BiliBot memory. Select user profile, conversation, today's activity, "
+            "watched video, dynamic/post, or bangumi memory. Call once per topic."
+        )
+        parameters: dict = Field(default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "memory_type": {
+                    "type": "string",
+                    "enum": ["user", "conversation", "today", "video", "dynamic", "bangumi"],
+                    "description": "memory category",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "UID/name for user, keyword for other memory types, or YYYY-MM-DD for today",
+                    "default": "",
+                },
+                "user_id": {
+                    "type": "string",
+                    "description": "optional UID filter for conversation memory",
+                    "default": "",
+                },
+            },
+            "required": ["memory_type"],
+        })
+
+        async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            memory_type = str(kwargs.get("memory_type", "") or "").strip().lower()
+            query = str(kwargs.get("query", "") or "").strip()
+            if memory_type == "user":
+                if not query:
+                    return "请提供要查询的用户 UID 或昵称。"
+                return await RecallUserTool().call(context, user_id=query)
+            if memory_type == "conversation":
+                if not query:
+                    return "请提供对话记忆关键词。"
+                return await RecallConversationTool().call(
+                    context,
+                    keyword=query,
+                    user_id=str(kwargs.get("user_id", "") or ""),
+                )
+            if memory_type == "today":
+                return await RecallTodayTool().call(context, date=query)
+            if memory_type == "video":
+                if not query:
+                    return "请提供视频记忆关键词。"
+                return await RecallVideoTool().call(context, keyword=query)
+            if memory_type == "dynamic":
+                if not query:
+                    return "请提供动态记忆关键词。"
+                return await RecallDynamicTool().call(context, keyword=query)
+            if memory_type == "bangumi":
+                if not query:
+                    return "请提供番剧记忆关键词。"
+                return await RecallBangumiTool().call(context, keyword=query)
+            return "不支持的记忆类型。"
+
+    @dataclass
+    class BiliActionTool(FunctionTool[AstrAgentContext]):
+        name: str = "bili_action"
+        description: str = (
+            "Perform one explicit Bilibili interaction: comment, like, coin, favorite, or follow. "
+            "Only call when the user has agreed or directly requested the action."
+        )
+        parameters: dict = Field(default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["comment", "like", "coin", "favorite", "follow"],
+                },
+                "target": {
+                    "type": "string",
+                    "description": "video oid for comment/like/coin/favorite; UP UID or name for follow",
+                },
+                "text": {
+                    "type": "string",
+                    "description": "comment text; only used by comment",
+                    "default": "",
+                },
+                "num": {
+                    "type": "integer",
+                    "description": "coin count, 1 or 2",
+                    "default": 1,
+                },
+            },
+            "required": ["action", "target"],
+        })
+
+        async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            action = str(kwargs.get("action", "") or "").strip().lower()
+            target = str(kwargs.get("target", "") or "").strip()
+            if not target:
+                return "请提供操作目标。"
+            if action == "comment":
+                text = str(kwargs.get("text", "") or "").strip()
+                if not text:
+                    return "评论内容不能为空。"
+                return await PostCommentTool().call(context, oid=target, comment_text=text)
+            if action == "like":
+                return await LikeVideoTool().call(context, oid=target)
+            if action == "coin":
+                return await CoinVideoTool().call(context, oid=target, num=str(kwargs.get("num", 1)))
+            if action == "favorite":
+                return await FavVideoTool().call(context, oid=target)
+            if action == "follow":
+                return await FollowUpTool().call(context, query=target)
+            return "不支持的互动操作。"
+
+    @dataclass
+    class BiliBangumiTool(FunctionTool[AstrAgentContext]):
+        name: str = "bili_bangumi"
+        description: str = (
+            "Search or inspect anime, view trending/timeline/followed updates, or watch an episode. "
+            "Use the matching action instead of choosing among several bangumi tools."
+        )
+        parameters: dict = Field(default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["search", "info", "trending", "timeline", "updates", "watch"],
+                },
+                "keyword": {"type": "string", "description": "title keyword for search", "default": ""},
+                "season_id": {"type": "integer", "description": "season ID for info/watch", "default": 0},
+                "ep_id": {"type": "integer", "description": "optional episode ID for watch", "default": 0},
+                "season_type": {"type": "integer", "description": "1=番剧, 4=国创 for trending", "default": 1},
+            },
+            "required": ["action"],
+        })
+
+        async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+            action = str(kwargs.get("action", "") or "").strip().lower()
+            if action == "search":
+                keyword = str(kwargs.get("keyword", "") or "").strip()
+                if not keyword:
+                    return "请提供番剧搜索关键词。"
+                return await SearchBilibiliTool().call(context, keyword=keyword, search_type="bangumi")
+            if action == "info":
+                return await GetBangumiInfoTool().call(context, season_id=kwargs.get("season_id", 0))
+            if action == "trending":
+                return await GetBangumiTrendingTool().call(context, season_type=kwargs.get("season_type", 1))
+            if action == "timeline":
+                return await GetBangumiTimelineTool().call(context)
+            if action == "updates":
+                return await GetBangumiUpdatesTool().call(context)
+            if action == "watch":
+                return await WatchBangumiTool().call(
+                    context,
+                    season_id=kwargs.get("season_id", 0),
+                    ep_id=kwargs.get("ep_id", 0),
+                )
+            return "不支持的番剧操作。"
+
     # ── 一键开关守卫：ENABLE_LLM_TOOLS=False 时所有工具直接返回提示 ──
 
     def _guard_tool(tool):
@@ -742,35 +954,19 @@ def create_tools(plugin):
         tool.call = guarded_call
         return tool
 
-    # 返回所有工具实例（带守卫）
-    return [_guard_tool(t) for t in [
-        # 记忆类
-        RecallUserTool(),
-        RecallConversationTool(),
-        RecallTodayTool(),
-        RecallVideoTool(),
-        RecallDynamicTool(),
-        RecallBangumiTool(),
-        # B站查询
+    # 默认只向模型暴露少量、职责清晰的入口。
+    tools = [
+        RecallBiliTool(),
         ParseBiliShareTool(),
         SearchBilibiliTool(),
-        GetUpInfoTool(),
         WatchVideoTool(),
-        # 番剧
-        GetBangumiInfoTool(),
-        GetBangumiTrendingTool(),
-        GetBangumiTimelineTool(),
-        GetBangumiUpdatesTool(),
-        WatchBangumiTool(),
-        # B站操作
-        PostCommentTool(),
-        LikeVideoTool(),
-        CoinVideoTool(),
-        FavVideoTool(),
-        FollowUpTool(),
-        CheckFollowingUpdatesTool(),
-        CheckFollowingLiveTool(),
+        BiliBangumiTool(),
+        BiliActionTool(),
         WatchVideosTool(),
-        # 用户管理
+        # 拉黑具有更高风险，保留独立工具名和独立确认语义。
         BlockBiliUserTool(),
-    ]]
+    ]
+    # 私信分享工具默认隐藏，只有管理员显式开启后才注册给 LLM。
+    if plugin.config.get("BILI_PRIVATE_SHARE_TOOL_ENABLED", False):
+        tools.append(WatchAndShareVideoPrivateTool())
+    return [_guard_tool(t) for t in tools]

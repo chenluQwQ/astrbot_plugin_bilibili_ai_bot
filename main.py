@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.3.1
+AstrBot Plugin - Bilibili Bot 1.3.2
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
@@ -17,7 +17,7 @@ from .core import (
     AffectionMixin, PersonalityMixin, BilibiliAPIMixin,
     BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin,
     ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin,
-    ConsolidationEngine, BiliBotMemoryAPI,
+    PrivateMessageMixin, ConsolidationEngine, BiliBotMemoryAPI,
 )
 
 _ACTIVE_BILIBOT = None
@@ -32,8 +32,8 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.3.1","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
-class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin):
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、性格演化、动态发布、LLM工具调用","1.3.2","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
@@ -65,6 +65,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._special_follow_task = None
         self._bili_share_recent = {}
         self._pending_bili_shares = {}
+        self._private_message_next_poll_at = 0.0
+        self._private_message_backoff_seconds = 0
         self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
         # ── 记忆清算引擎 & 外部接口 ──
@@ -78,7 +80,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
         # 注册 FunctionTool 工具（结果回到 LLM 重新生成）
         from .core.tools import create_tools
-        self.context.add_llm_tools(*create_tools(self))
+        llm_tools = create_tools(self)
+        self.context.add_llm_tools(*llm_tools)
+        tool_names = ", ".join(tool.name for tool in llm_tools)
+        logger.info(f"[BiliBot] LLM工具已精简注册: {len(llm_tools)} 个 ({tool_names})")
 
     async def _auto_start(self):
         await asyncio.sleep(3)
@@ -115,6 +120,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             self._special_follow_task = None
         self._bili_share_recent = {}
         self._pending_bili_shares = {}
+        self._private_message_next_poll_at = 0.0
+        self._private_message_backoff_seconds = 0
         if self._consolidation_task and not self._consolidation_task.done():
             self._consolidation_task.cancel()
             self._consolidation_task = None
@@ -193,7 +200,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                                 self._save_dynamic_schedule_state(self._dynamic_times, self._dynamic_triggered)
                                 logger.info(f"[BiliBot] 📢 触发动态发布（{key}）")
                                 break
-                if self.config.get("ENABLE_REPLY", True): await self._poll_unified()
+                if self.config.get("ENABLE_PRIVATE_MESSAGES", False):
+                    await self._poll_private_messages()
+                if self.config.get("ENABLE_REPLY", True):
+                    await self._poll_unified()
                 # 番剧主动看番（随机时间调度，与视频/动态一致）
                 if self.config.get("ENABLE_BANGUMI", False) and self.config.get("BANGUMI_PROACTIVE", False):
                     now_dt = datetime.now()
@@ -379,8 +389,22 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         today_dynamic=len([l for l in dl if l.get("time","").startswith(datetime.now().strftime("%Y-%m-%d"))])
         schedule = self._get_schedule_snapshot()
         live_memory_count = sum(1 for m in self._memory if self._match_memory_type(m, {"live"}))
+        owner_recommend_delivery = {
+            "private_message": "B站私信",
+            "comment": "评论区@",
+            "both": "私信+评论区",
+            "off": "关闭",
+        }.get(self._owner_recommend_delivery(), "B站私信")
+        private_scope = {
+            "owner": "仅主人",
+            "whitelist": "主人+白名单",
+            "all": "全部安全用户",
+        }.get(
+            str(self.config.get("PRIVATE_MESSAGE_REPLY_SCOPE", "owner") or "owner").lower(),
+            "关闭",
+        )
         lines = [
-            f"📺 BiliBot 1.3.1 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.3.2 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
@@ -392,13 +416,15 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"✅ 已触发主动:{', '.join(schedule['proactive_triggered']) if schedule['proactive_triggered'] else '暂无'}",
             f"✅ 已触发动态:{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
+            f"✉️ B站私信:{'✅' if self.config.get('ENABLE_PRIVATE_MESSAGES',False) else '❌'} 回复:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_REPLY',True) else '❌'}({private_scope}) 视频先看:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_WATCH_VIDEO',True) else '❌'} 间隔:{self.config.get('PRIVATE_MESSAGE_POLL_INTERVAL',30)}秒 危险拉黑:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_BLOCK',True) else '❌'}",
             f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'} 工具:{'✅' if self.config.get('ENABLE_LLM_TOOLS',True) else '❌'}",
+            f"✉️ 主人推荐:{owner_recommend_delivery} | 最低{self.config.get('RECOMMEND_OWNER_MIN_SCORE', 8)}分 | 每日上限:{self.config.get('RECOMMEND_OWNER_DAILY_LIMIT', 1)}",
             f"🔍 联网搜索:{'✅ '+feature_status['web_search_backend'] if feature_status['web_search'] else '❌'} 判断模型:{'✅' if feature_status['web_search_judge'] else '❌(用主模型)'}",
             f"🧭 看片来源:关注 → 搜索(Bot自主决定) → 视频池({self._format_video_pool_config()})",
             f"🔗 群/私聊解析:{'✅' if self.config.get('ENABLE_BILI_SHARE_PARSE', False) else '❌'} 发原视频:{'✅' if self.config.get('BILI_SHARE_PARSE_SEND_VIDEO', True) else '❌'}",
             f"   解析触发 自动:{'✅' if self.config.get('BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED',True) else '❌'} 手动:{'✅' if self.config.get('BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED',True) else '❌'} LLM:{'✅' if self.config.get('BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED',True) else '❌'}",
             f"🎙️ 直播记忆:{live_memory_count}条 | 外部接口:v{self.memory_api.api_version}",
-            f"🧭 看片筛选:{'✅' if self.config.get('ENABLE_PROACTIVE_LLM_PREFILTER', False) else '❌'} 最多拒绝:{self.config.get('PROACTIVE_LLM_PREFILTER_MAX_REJECTS', 3)}次",
+            f"🧭 看片筛选:{'✅' if self.config.get('ENABLE_PROACTIVE_LLM_PREFILTER', False) else '❌'} 最多拒绝:{self.config.get('PROACTIVE_LLM_PREFILTER_MAX_REJECTS', 3)}次 | 分区口味:{self._taste_window_days()}天",
             f"🎞️ 视频分段:{self.config.get('VIDEO_SEGMENT_MINUTES', 5)}分钟/段，最多{self.config.get('VIDEO_SEGMENT_MAX_COUNT', 10)}段",
             f"视频视觉Provider:{'✅' if env['llm']['video_provider'] else '❌'} 独立API:{'✅' if env['llm']['video_api'] else '❌'}",
             f"图片识别Provider:{'✅' if env['llm']['image_provider'] else '❌'} 独立API:{'✅' if env['llm']['image_api'] else '❌'}",
@@ -499,6 +525,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     def _bili_toggle_items(self):
         return {
             "回复": "ENABLE_REPLY",
+            "私信": "ENABLE_PRIVATE_MESSAGES",
+            "私信回复": "PRIVATE_MESSAGE_AUTO_REPLY",
+            "私信拉黑": "PRIVATE_MESSAGE_AUTO_BLOCK",
             "主动": "ENABLE_PROACTIVE",
             "动态": "ENABLE_DYNAMIC",
             "好感": "ENABLE_AFFECTION",
@@ -530,14 +559,21 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
         # ── 一键全部开/关 ──
         if name == "全部":
+            # 私信监听和真实拉黑不纳入“一键全部”，避免误开启外部写操作。
+            bulk_keys = [
+                key for label, key in tm.items()
+                if label not in {"私信", "私信回复", "私信拉黑"}
+            ]
             # 任一主功能开着 → 全关；全关了 → 全开
-            any_on = any(self.config.get(k, True) for k in tm.values())
+            any_on = any(self.config.get(k, True) for k in bulk_keys)
             new_state = not any_on
-            for k in tm.values():
+            for k in bulk_keys:
                 self.config[k] = new_state
             self.config.save_config()
             emoji = "✅ 全部开启" if new_state else "❌ 全部关闭"
-            yield event.plain_result(f"{emoji}（{len(tm)}项）")
+            yield event.plain_result(
+                f"{emoji}（{len(bulk_keys)}项；B站私信与私信拉黑需单独切换）"
+            )
             return
 
         key=tm.get(name)

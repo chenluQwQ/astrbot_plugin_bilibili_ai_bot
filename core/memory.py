@@ -474,10 +474,16 @@ class MemoryMixin:
         td = self._get_thread_memories(thread_id)
         if td:
             formatted = [self._format_conversation_turn(m) for m in td[-10:]]
-            parts.append(
-                "【当前评论线上下文】以下是你和这位用户在同一评论线里的历史对话，"
-                "按时间顺序排列：\n" + "\n".join(formatted)
-            )
+            if str(thread_id).startswith("private:"):
+                parts.append(
+                    "【当前私信对话上下文】以下是你和这位用户此前的一对一私信，"
+                    "按时间顺序排列：\n" + "\n".join(formatted)
+                )
+            else:
+                parts.append(
+                    "【当前评论线上下文】以下是你和这位用户在同一评论线里的历史对话，"
+                    "按时间顺序排列：\n" + "\n".join(formatted)
+                )
 
         # 1.4 本评论区其他对话（同oid，排除当前thread，不限用户）
         if oid:

@@ -28,6 +28,7 @@ TEMP_VIDEO_DIR = os.path.join(DATA_DIR, "temp_videos")
 REPLIED_AT_FILE = os.path.join(DATA_DIR, "replied_at.json")
 REPLIED_CONTENT_KEYS_FILE = os.path.join(DATA_DIR, "replied_content_keys.json")
 REPLY_LOG_FILE = os.path.join(DATA_DIR, "reply_log.json")
+PRIVATE_MESSAGE_STATE_FILE = os.path.join(DATA_DIR, "private_message_state.json")
 BANGUMI_MEMORY_FILE = os.path.join(DATA_DIR, "bangumi_memory.json")
 WEEKLY_SUMMARY_FILE = os.path.join(DATA_DIR, "weekly_summary.json")
 BANGUMI_WATCH_LOG_FILE = os.path.join(DATA_DIR, "bangumi_watch_log.json")
@@ -66,6 +67,9 @@ BILI_MENTION_KEYWORDS = ["b站", "B站", "阿b", "阿B", "啊b", "啊B", "bil", 
 
 BILI_NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 BILI_REPLY_URL = "https://api.bilibili.com/x/v2/reply/add"
+BILI_PRIVATE_MSG_SEND_URL = "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg"
+BILI_PRIVATE_SESSIONS_URL = "https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions"
+BILI_PRIVATE_MESSAGES_URL = "https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs"
 BILI_NOTIFY_URL = "https://api.bilibili.com/x/msgfeed/reply"
 BILI_AT_NOTIFY_URL = "https://api.bilibili.com/x/msgfeed/at"
 BILI_COOKIE_INFO_URL = "https://passport.bilibili.com/x/passport-login/web/cookie/info"

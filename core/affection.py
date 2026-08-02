@@ -87,6 +87,7 @@ class AffectionMixin:
             d, _ = await self._http_post(
                 "https://api.bilibili.com/x/relation/modify",
                 data={"fid": mid, "act": 5, "re_src": 11, "csrf": self.config.get("BILI_JCT", "")},
+                retries=0,
             )
             return d["code"] == 0
         except Exception:

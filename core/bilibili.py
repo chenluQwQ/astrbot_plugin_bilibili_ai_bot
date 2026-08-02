@@ -1,14 +1,17 @@
 """B站 API 交互：Cookie管理、WBI签名、扫码登录、评论、视频信息、互动。"""
+import json
 import re
 import time
 import hashlib
+import uuid
 import aiohttp
 from functools import reduce
 from astrbot.api import logger
 from .config import (
     BILI_COOKIE_CONFIRM_URL, BILI_COOKIE_INFO_URL, BILI_COOKIE_REFRESH_URL,
     BILI_DYNAMIC_IMAGE_URL, BILI_DYNAMIC_TEXT_URL, BILI_NAV_URL,
-    BILI_QR_GENERATE_URL, BILI_QR_POLL_URL, BILI_REPLY_URL,
+    BILI_PRIVATE_MSG_SEND_URL, BILI_QR_GENERATE_URL, BILI_QR_POLL_URL,
+    BILI_REPLY_URL,
     BILI_RSA_PUBLIC_KEY, BILI_UPLOAD_IMAGE_URL,
     MIXIN_KEY_ENC_TAB, USER_AGENT,
 )
@@ -233,6 +236,107 @@ class BilibiliAPIMixin:
             logger.error(f"[BiliBot] 发送评论异常: {e}")
             return False
 
+    async def _send_bili_private_payload(self, receiver_mid, msg_type, content, label="私信"):
+        """发送 B站网页私信载荷；写操作不自动重试，避免重复发送。"""
+        sender_mid = str(self.config.get("DEDE_USER_ID", "") or "").strip()
+        receiver_mid = str(receiver_mid or "").strip()
+        csrf = str(self.config.get("BILI_JCT", "") or "").strip()
+        if not self._has_cookie() or not csrf or not sender_mid.isdigit():
+            logger.warning(f"[BiliBot] 发送B站{label}失败：登录 Cookie、CSRF 或 Bot UID 不完整")
+            return False
+        if not receiver_mid.isdigit():
+            logger.warning(f"[BiliBot] 发送B站{label}失败：接收 UID 未填写或格式错误")
+            return False
+        if sender_mid == receiver_mid:
+            logger.warning(f"[BiliBot] 发送B站{label}失败：接收 UID 与 Bot UID 相同")
+            return False
+        if not isinstance(content, dict) or not content:
+            logger.warning(f"[BiliBot] 发送B站{label}失败：消息内容为空")
+            return False
+        payload = {
+            "msg[sender_uid]": sender_mid,
+            "msg[receiver_id]": receiver_mid,
+            "msg[receiver_type]": 1,
+            "msg[msg_type]": int(msg_type),
+            "msg[msg_status]": 0,
+            "msg[dev_id]": str(uuid.uuid4()).upper(),
+            "msg[timestamp]": int(time.time()),
+            "msg[new_face_version]": 0,
+            "msg[content]": json.dumps(
+                content,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            "csrf": csrf,
+            "csrf_token": csrf,
+            "from_firework": 0,
+            "build": 0,
+            "mobi_app": "web",
+        }
+        headers = {
+            **self._headers(),
+            "Origin": "https://message.bilibili.com",
+            "Referer": "https://message.bilibili.com/",
+        }
+        try:
+            result, _ = await self._http_post(
+                BILI_PRIVATE_MSG_SEND_URL,
+                headers=headers,
+                data=payload,
+                retries=0,
+            )
+            code = result.get("code", -1)
+            if code == 0:
+                return True
+            logger.warning(
+                f"[BiliBot] 发送B站{label}失败({receiver_mid}): "
+                f"code={code} {result.get('message', '')}"
+            )
+            return False
+        except Exception as e:
+            logger.warning(f"[BiliBot] 发送B站{label}异常({receiver_mid}): {e}")
+            return False
+
+    async def _send_bili_private_message(self, receiver_mid, text):
+        """通过 B站网页私信发送纯文本；写操作不自动重试，避免重复发送。"""
+        message = str(text or "").strip()
+        if not message:
+            logger.warning("[BiliBot] 发送B站私信失败：消息为空")
+            return False
+        return await self._send_bili_private_payload(
+            receiver_mid,
+            1,
+            {"content": message},
+        )
+
+    async def _send_bili_private_video_share(self, receiver_mid, video_info):
+        """通过 B站网页私信发送原生视频分享卡片。"""
+        info = video_info if isinstance(video_info, dict) else {}
+        bvid = str(info.get("bvid", "") or "").strip()
+        aid = info.get("aid") or info.get("oid") or info.get("id")
+        try:
+            aid = int(aid)
+        except (TypeError, ValueError):
+            aid = 0
+        if not bvid or aid <= 0:
+            logger.warning("[BiliBot] 发送B站视频私信失败：视频 BV 号或 aid 无效")
+            return False
+        content = {
+            "author": str(info.get("owner_name", "") or ""),
+            "headline": "",
+            "id": aid,
+            "source": 5,
+            "thumb": str(info.get("pic", "") or ""),
+            "title": str(info.get("title", "") or bvid),
+            "bvid": bvid,
+        }
+        return await self._send_bili_private_payload(
+            receiver_mid,
+            7,
+            content,
+            label="视频私信",
+        )
+
     # ── 关注列表 ──
     async def get_followings(self, mid=None):
         target = mid or self.config.get("DEDE_USER_ID", "")
@@ -283,15 +387,16 @@ class BilibiliAPIMixin:
             subtitles = (d.get("data") or {}).get("subtitle", {}).get("subtitles", [])
             if not subtitles:
                 return ""
-            # 优先中文字幕
-            sub_url = ""
+            # 优先中文字幕，并保留轨道信息供日志排查 B站自动字幕错配。
+            selected_subtitle = None
             for s in subtitles:
                 lan = s.get("lan", "")
                 if "zh" in lan or "cn" in lan:
-                    sub_url = s.get("subtitle_url", "")
+                    selected_subtitle = s
                     break
-            if not sub_url and subtitles:
-                sub_url = subtitles[0].get("subtitle_url", "")
+            if selected_subtitle is None and subtitles:
+                selected_subtitle = subtitles[0]
+            sub_url = (selected_subtitle or {}).get("subtitle_url", "")
             if not sub_url:
                 return ""
             if sub_url.startswith("//"):
@@ -308,7 +413,12 @@ class BilibiliAPIMixin:
             full_text = " ".join(lines)
             if len(full_text) > 2000:
                 full_text = full_text[:2000] + "…（字幕过长已截断）"
-            logger.info(f"[BiliBot] 📝 获取字幕成功: {len(lines)}条 {len(full_text)}字")
+            lan = (selected_subtitle or {}).get("lan", "?")
+            subtitle_id = (selected_subtitle or {}).get("id_str") or (selected_subtitle or {}).get("id", "?")
+            logger.info(
+                f"[BiliBot] 📝 获取候选字幕: bvid={bvid} cid={cid} "
+                f"lan={lan} id={subtitle_id} {len(lines)}条 {len(full_text)}字"
+            )
             return full_text
         except Exception as e:
             logger.debug(f"[BiliBot] 字幕获取失败: {e}")

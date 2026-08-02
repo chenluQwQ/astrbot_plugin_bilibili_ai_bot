@@ -4,7 +4,7 @@ import json
 import random
 import asyncio
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from astrbot.api import logger
 from .config import (
     BILI_ZONES, COMMENTED_FILE, EXTERNAL_MEMORY_FILE, PROACTIVE_LOG_FILE,
@@ -18,7 +18,7 @@ class ProactiveMixin:
     # 兜底分区（口味数据不足时使用）
     FALLBACK_TIDS = [17, 160, 211, 3, 13, 167, 321, 36, 129]
     DEFAULT_SEARCH_QUERY_PROMPT = (
-        "你要去B站主动找自己现在想看的视频。请结合你的人设、近期看过的视频和感受，"
+        "你要去B站主动找自己现在想看的视频。请结合你的人设、最近一周按评分归纳的分区口味、近期看过的视频和感受，"
         "自由决定1至3个适合在B站搜索的关键词。可以延续已有兴趣，也可以临时探索完全不同的内容，"
         "不必只围绕历史偏好，也不必迎合主人。"
     )
@@ -140,25 +140,91 @@ class ProactiveMixin:
                 m[name] = tid
         return m
 
+    def _taste_window_days(self):
+        try:
+            return max(1, int(self.config.get("PROACTIVE_TASTE_WINDOW_DAYS", 7) or 7))
+        except (TypeError, ValueError):
+            return 7
+
+    def _recent_taste_entries(self, watch_log=None, days=None):
+        history = watch_log if isinstance(watch_log, list) else self._load_json(WATCH_LOG_FILE, [])
+        window_days = max(1, int(days or self._taste_window_days()))
+        cutoff = (datetime.now() - timedelta(days=window_days)).strftime("%Y-%m-%d %H:%M")
+        return [
+            entry for entry in history
+            if isinstance(entry, dict) and str(entry.get("time", "")) >= cutoff
+        ]
+
+    def _get_recent_taste_stats(self, watch_log=None, days=None):
+        """按分区汇总近期有效评分，供搜索词和偏好分区共同使用。"""
+        from collections import defaultdict
+
+        grouped = defaultdict(list)
+        for entry in self._recent_taste_entries(watch_log, days=days):
+            tname = re.sub(r"\s+", " ", str(entry.get("tname", "") or "")).strip()
+            try:
+                score = float(entry.get("score", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if tname and 1 <= score <= 10:
+                grouped[tname].append(score)
+
+        stats = []
+        for tname, scores in grouped.items():
+            stats.append({
+                "tname": tname,
+                "count": len(scores),
+                "average": sum(scores) / len(scores),
+                "high_count": sum(1 for score in scores if score >= 7),
+                "low_count": sum(1 for score in scores if score <= 4),
+                "scores": scores,
+            })
+        return stats
+
+    def _format_recent_taste_summary(self, watch_log=None, days=None):
+        window_days = max(1, int(days or self._taste_window_days()))
+        stats = self._get_recent_taste_stats(watch_log, days=window_days)
+        if not stats:
+            return f"- 最近{window_days}天暂无带分区的有效评分，可以自由探索"
+
+        ranked = sorted(
+            stats,
+            key=lambda item: (item["average"], item["count"]),
+            reverse=True,
+        )
+        selected = ranked[:5]
+        disliked = sorted(
+            (item for item in stats if item["average"] <= 5),
+            key=lambda item: (item["average"], -item["count"]),
+        )
+        for item in disliked[:2]:
+            if item not in selected:
+                selected.append(item)
+
+        lines = []
+        for item in selected[:7]:
+            average = item["average"]
+            label = "偏喜欢" if average >= 7 else "不太喜欢" if average <= 4 else "感觉一般"
+            lines.append(
+                f"- {item['tname']}：{item['count']}个，平均{average:.1f}/10（{label}）"
+            )
+        return "\n".join(lines)
+
     def _get_taste_tids(self, min_score=7, min_count=2):
-        """从历史高分视频中提取偏好分区 tid 列表（按加权得分排序）。
+        """从最近一周高分视频中提取偏好分区 tid 列表（按加权得分排序）。
 
         返回 list[int]，最多10个。空列表表示口味数据不足。
         """
         watch_log = self._load_json(WATCH_LOG_FILE, [])
         tname_map = self._build_tname_to_tid_map()
-        # 统计：每个分区的高分次数和总分
-        from collections import Counter, defaultdict
-        tid_count = Counter()
-        tid_score_sum = defaultdict(float)
-        for entry in watch_log:
-            score = entry.get("score", 0)
-            tname = entry.get("tname", "")
-            if score >= min_score and tname:
-                tid = tname_map.get(tname)
-                if tid:
-                    tid_count[tid] += 1
-                    tid_score_sum[tid] += score
+        tid_count = {}
+        tid_score_sum = {}
+        for item in self._get_recent_taste_stats(watch_log):
+            tid = tname_map.get(item["tname"])
+            high_scores = [score for score in item["scores"] if score >= min_score]
+            if tid and high_scores:
+                tid_count[tid] = len(high_scores)
+                tid_score_sum[tid] = sum(high_scores)
         # 过滤：至少出现 min_count 次的分区才算稳定偏好
         qualified = {tid: cnt for tid, cnt in tid_count.items() if cnt >= min_count}
         if not qualified:
@@ -170,7 +236,9 @@ class ProactiveMixin:
             reverse=True,
         )
         result = ranked[:10]
-        logger.info(f"[BiliBot] 🎯 口味偏好TID: {result}（来自{len(watch_log)}条历史记录）")
+        logger.info(
+            f"[BiliBot] 🎯 口味偏好TID: {result}（最近{self._taste_window_days()}天）"
+        )
         return result
 
     def _tag_video_source(self, video, source, detail=""):
@@ -226,7 +294,8 @@ class ProactiveMixin:
         """LLM 无法决定搜索词时，用近期高分分区和随机兜底分区继续搜索。"""
         keywords = []
         history = watch_log if isinstance(watch_log, list) else self._load_json(WATCH_LOG_FILE, [])
-        for entry in reversed(history[-80:]):
+        recent_history = self._recent_taste_entries(history)
+        for entry in reversed(recent_history[-80:]):
             try:
                 score = int(entry.get("score", 0) or 0)
             except (TypeError, ValueError):
@@ -308,7 +377,11 @@ class ProactiveMixin:
             or self.DEFAULT_SEARCH_QUERY_PROMPT
         ).strip()
         history_block = "\n".join(recent_lines) if recent_lines else "- 暂无观看记录，可以完全自由探索"
+        taste_block = self._format_recent_taste_summary(history)
         prompt = f"""{decision_prompt}
+
+【最近{self._taste_window_days()}天按评分归纳的分区口味（用于倾向，不是硬性限制）】
+{taste_block}
 
 【近期观看记录（仅供参考，不是限制）】
 {history_block}
@@ -703,7 +776,31 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         result = await self._llm_call(prompt, system_prompt=sp, max_tokens=100)
         return result or "这个细节还挺有意思"
 
+    def _owner_recommend_delivery(self):
+        value = str(
+            self.config.get("RECOMMEND_OWNER_DELIVERY", "private_message") or ""
+        ).strip().lower()
+        aliases = {
+            "private": "private_message",
+            "dm": "private_message",
+            "私信": "private_message",
+            "comment": "comment",
+            "评论": "comment",
+            "both": "both",
+            "两者": "both",
+            "off": "off",
+            "关闭": "off",
+        }
+        value = aliases.get(value, value)
+        return value if value in {"private_message", "comment", "both", "off"} else "private_message"
+
+    @staticmethod
+    def _is_owner_recommend_action(action):
+        return "推荐给主人" in str(action or "")
+
     def _can_recommend_owner(self, evaluation, score, recommended_today):
+        if self._owner_recommend_delivery() == "off":
+            return False
         if not evaluation.get("recommend_owner", False):
             return False
         try:
@@ -783,7 +880,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         today_watched = [l for l in watch_log if l.get("time", "").startswith(today_str)]
         owner_recommend_count = sum(
             1 for item in today_watched
-            if "📢推荐给主人" in (item.get("actions") or [])
+            if any(self._is_owner_recommend_action(action) for action in (item.get("actions") or []))
         )
         daily_limit = self.config.get("PROACTIVE_DAILY_LIMIT", 0)
         if daily_limit > 0 and len(today_watched) >= daily_limit:
@@ -1000,14 +1097,22 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             self._save_json(PROACTIVE_LOG_FILE, pl[-100:])
                     if self._can_recommend_owner(evaluation, score, owner_recommend_count):
                         on = self.config.get("OWNER_NAME", "") or "主人"
+                        owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
                         owner_bili = self.config.get("OWNER_BILI_NAME", "")
-                        if owner_bili:
-                            try:
-                                rec_reason = evaluation.get("recommend_reason", "")
-                                owner_interest = await self._owner_recommendation_context(
-                                    f"{video.get('title', '')} {(video_description or '')[:500]}"
-                                )
-                                rec_prompt = f"""你刚看完一个B站视频，确实想到{on}可能会喜欢。现在要在这个视频的评论区@对方，并附一句像私下丢链接时的短话。
+                        delivery = self._owner_recommend_delivery()
+                        try:
+                            rec_reason = evaluation.get("recommend_reason", "")
+                            owner_interest = await self._owner_recommendation_context(
+                                f"{video.get('title', '')} {(video_description or '')[:500]}"
+                            )
+                            delivery_scene = (
+                                "通过B站私信把链接分享给对方"
+                                if delivery == "private_message"
+                                else "在视频评论区@对方"
+                                if delivery == "comment"
+                                else "通过B站私信分享，并在视频评论区@对方"
+                            )
+                            rec_prompt = f"""你刚看完一个B站视频，确实想到{on}可能会喜欢。现在要{delivery_scene}，请写一句像熟人私下丢链接时的短话。
 
 视频信息：
 - 标题：「{video.get('title', '')}」
@@ -1016,30 +1121,55 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
 - 你想推荐给ta的原因：{rec_reason or '单纯想分享'}
 {('- 对方画像与相关记忆（只使用其中明确的信息）：' + owner_interest) if owner_interest else ''}
 
-只写@后面的那句话。要求：
+只写推荐时附带的那句话。要求：
 - 选视频里一个具体细节，说清楚“为什么会想到对方”；没有可靠兴趣线索就只说自己的真实感受，不假装了解对方
 - 像熟人随手丢链接，不像广告文案，也不要替对方断言“你一定喜欢”
 - 禁止“快来看”“超好看”“强烈推荐”“不看后悔”“墙裂安利”等催促和营销腔
 - 不复述完整标题，不写“这个视频”，不要堆感叹号或连续撒娇
 - 12-32字，通常一句
-- 不要带@符号、不要带人名或称呼（系统会自动加@）
+- 不要带@符号、不要带人名或称呼（系统会按发送方式处理）
 - 直接输出内容"""
-                                custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
-                                if custom_rec_inst:
-                                    rec_prompt += f"\n【补充提示词】{custom_rec_inst}"
-                                rec_text = await self._llm_call(rec_prompt, system_prompt=await self._get_system_prompt(), max_tokens=60)
-                                rec_text = re.sub(r'@\S+\s*', '', rec_text or "看到这个细节时突然想起你")
-                                rec_text = re.sub(r'[\r\n]+', ' ', rec_text).strip(' "“”\'')[:48]
-                                owner_name = (self.config.get("OWNER_NAME", "") or "").strip()
-                                _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
-                                rec_text = re.sub(rf'^({"|".join(_name_patterns)})[，,\s]*', '', rec_text)
-                                rec_msg = f"@{owner_bili} {rec_text}"
-                                if await self._send_comment(oid, rec_msg):
-                                    actions.append("📢推荐给主人")
-                                    owner_recommend_count += 1
-                                    logger.info(f"[BiliBot] 📢 已@主人：{rec_msg}")
-                            except Exception as e:
-                                logger.warning(f"[BiliBot] 生成或发送主人推荐失败: {e}")
+                            custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
+                            if custom_rec_inst:
+                                rec_prompt += f"\n【补充提示词】{custom_rec_inst}"
+                            rec_text = await self._llm_call(rec_prompt, system_prompt=await self._get_system_prompt(), max_tokens=60)
+                            rec_text = re.sub(r'@\S+\s*', '', rec_text or "看到这个细节时突然想起你")
+                            rec_text = re.sub(r'[\r\n]+', ' ', rec_text).strip(' "“”\'')[:48]
+                            owner_name = (self.config.get("OWNER_NAME", "") or "").strip()
+                            _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
+                            rec_text = re.sub(rf'^({"|".join(_name_patterns)})[，,\s]*', '', rec_text)
+                            sent_owner_recommend = False
+                            if delivery in {"private_message", "both"}:
+                                if owner_mid:
+                                    private_msg = (
+                                        f"{rec_text}\n"
+                                        f"https://www.bilibili.com/video/{bvid}"
+                                    )
+                                    if await self._send_bili_private_message(owner_mid, private_msg):
+                                        actions.append("✉️私信推荐给主人")
+                                        sent_owner_recommend = True
+                                        logger.info(
+                                            f"[BiliBot] ✉️ 已通过B站私信给主人分享：{bvid}"
+                                        )
+                                else:
+                                    logger.warning(
+                                        "[BiliBot] 跳过B站私信推荐：未配置 OWNER_MID"
+                                    )
+                            if delivery in {"comment", "both"}:
+                                if owner_bili:
+                                    rec_msg = f"@{owner_bili} {rec_text}"
+                                    if await self._send_comment(oid, rec_msg):
+                                        actions.append("📢评论区推荐给主人")
+                                        sent_owner_recommend = True
+                                        logger.info(f"[BiliBot] 📢 已在评论区@主人：{rec_msg}")
+                                else:
+                                    logger.warning(
+                                        "[BiliBot] 跳过评论区推荐：未配置 OWNER_BILI_NAME"
+                                    )
+                            if sent_owner_recommend:
+                                owner_recommend_count += 1
+                        except Exception as e:
+                            logger.warning(f"[BiliBot] 生成或发送主人推荐失败: {e}")
             if not interaction_failed and (score >= 9 or want_follow) and self.config.get("PROACTIVE_FOLLOW", True):
                 if str(video.get("up_mid", "")) != str(self.config.get("OWNER_MID", "")):
                     if await self._follow_user(video["up_mid"]):
@@ -1048,7 +1178,12 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "source": video.get("_source", ""), "source_detail": video.get("_source_detail", ""), "manual": is_manual}
             watch_log.append(log_entry)
             self._save_json(WATCH_LOG_FILE, watch_log[-200:])
-            recommended_owner = "📢推荐给主人" in actions
+            recommended_by_private_message = "✉️私信推荐给主人" in actions
+            recommended_by_comment = any(
+                action in {"📢推荐给主人", "📢评论区推荐给主人"}
+                for action in actions
+            )
+            recommended_owner = recommended_by_private_message or recommended_by_comment
             on = self.config.get("OWNER_NAME", "") or "主人"
             memory_text = (
                 f"[{log_entry['time']}] Bot看了视频《{video.get('title', '')}》"
@@ -1058,7 +1193,12 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 f"内容:{video_description[:120]}"
             )
             if recommended_owner:
-                memory_text += f" | 觉得不错，在评论区@了{on}来看"
+                if recommended_by_private_message and recommended_by_comment:
+                    memory_text += f" | 觉得不错，通过B站私信分享给{on}，也在评论区@了对方"
+                elif recommended_by_private_message:
+                    memory_text += f" | 觉得不错，通过B站私信分享给{on}"
+                else:
+                    memory_text += f" | 觉得不错，在评论区@了{on}来看"
             await self._save_self_memory_record("proactive_watch", memory_text, memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")})
             if bvid not in external_memory:
                 external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": video_description, "score": score, "mood": mood, "review": review, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}

@@ -1,6 +1,8 @@
 ﻿"""视频分析：内容概括、媒体处理、视频/动态上下文构建。"""
 import os
 import base64
+import json
+import re
 import shutil
 from datetime import datetime
 from astrbot.api import logger
@@ -9,6 +11,142 @@ from .config import VIDEO_MEMORY_FILE, TEMP_VIDEO_DIR
 
 class VideoMixin:
     """视频分析、下载、截帧、上下文。"""
+
+    @staticmethod
+    def _analysis_has_subtitle_mismatch(analysis):
+        """识别旧缓存中已经暴露字幕错配的分析，命中后应重新分析。"""
+        text = str(analysis or "")[:240]
+        markers = (
+            "字幕与本视频内容不符",
+            "字幕与本视频不符",
+            "字幕内容与本视频不符",
+            "字幕内容不符，需要先说明",
+            "字幕似乎与视频内容无关",
+            "字幕抓取时串了片源",
+        )
+        return any(marker in text for marker in markers)
+
+    async def _watch_video_and_save_memory(self, video_id, memory_source="tool_watch"):
+        """完整分析一个 BV/av 视频并写入统一视频记忆，供工具和私信共用。"""
+        raw_id = str(video_id or "").strip()
+        if not raw_id:
+            return {"ok": False, "message": "没有找到要观看的视频编号"}
+        try:
+            if raw_id.lower().startswith("av") and raw_id[2:].isdigit():
+                oid = int(raw_id[2:])
+            elif raw_id.isdigit():
+                oid = int(raw_id)
+            else:
+                oid = await self._get_video_oid(raw_id)
+            if not oid:
+                return {"ok": False, "message": f"找不到视频 {raw_id}"}
+
+            vi = await self._get_video_info(oid)
+            if not vi:
+                return {"ok": False, "message": f"获取视频信息失败 {raw_id}"}
+            actual_bvid = str(vi.get("bvid", "") or raw_id).strip()
+            analysis_info = {
+                "bvid": actual_bvid,
+                "title": vi.get("title", ""),
+                "desc": vi.get("desc", ""),
+                "up_name": vi.get("owner_name", ""),
+                "up_mid": vi.get("owner_mid", ""),
+                "tname": vi.get("tname", ""),
+                "duration": vi.get("duration", 0),
+                "pic": vi.get("pic", ""),
+                "cid": vi.get("cid", 0),
+                "oid": oid,
+            }
+
+            video_cache = self._load_json(VIDEO_MEMORY_FILE, {})
+            cached = video_cache.get(actual_bvid, {})
+            cached_analysis = str(cached.get("analysis", "") or "").strip()
+            if self._analysis_has_subtitle_mismatch(cached_analysis):
+                logger.warning(
+                    f"[BiliBot] 丢弃疑似字幕错配的旧视频缓存，重新分析: {actual_bvid}"
+                )
+                cached_analysis = ""
+            if cached_analysis:
+                video_description = cached_analysis
+                score = cached.get("score", 5)
+                mood = cached.get("mood", "平静")
+                review = str(cached.get("review", "") or "以前已经看过并记住了")
+                from_cache = True
+                logger.info(f"[BiliBot] 📹 私信看片命中视频记忆：《{vi.get('title', '')}》")
+            else:
+                logger.info(f"[BiliBot] 🎬 开始观看私信分享视频：《{vi.get('title', '')}》")
+                video_description = str(
+                    await self._analyze_video_with_vision(analysis_info) or ""
+                )
+                evaluation = await self._evaluate_video(
+                    analysis_info, video_description
+                )
+                score = (evaluation or {}).get("score", 5)
+                mood = (evaluation or {}).get("mood", "平静")
+                review = str((evaluation or {}).get("review", "") or "")
+                from_cache = False
+
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                video_cache[actual_bvid] = {
+                    "bvid": actual_bvid,
+                    "title": vi.get("title", ""),
+                    "desc": str(vi.get("desc", "") or "")[:200],
+                    "owner_name": vi.get("owner_name", ""),
+                    "owner_mid": str(vi.get("owner_mid", "")),
+                    "tname": vi.get("tname", ""),
+                    "analysis": video_description,
+                    "score": score,
+                    "mood": mood,
+                    "review": review,
+                    "time": now_str,
+                    "source": memory_source,
+                }
+                self._save_json(VIDEO_MEMORY_FILE, video_cache)
+
+                memory_text = (
+                    f"[{now_str}] Bot看了视频《{vi.get('title', '')}》"
+                    f"(UP主:{vi.get('owner_name', '')}) "
+                    f"评分:{score}/10 心情:{mood} "
+                    f"感想:{review[:80]} 内容:{video_description[:500]}"
+                )
+                await self._save_self_memory_record(
+                    f"{memory_source}:{actual_bvid}",
+                    memory_text,
+                    memory_type="video",
+                    extra={
+                        "bvid": actual_bvid,
+                        "owner_mid": str(vi.get("owner_mid", "")),
+                        "owner_name": vi.get("owner_name", ""),
+                        "video_title": vi.get("title", ""),
+                        "tname": vi.get("tname", ""),
+                    },
+                )
+                logger.info(f"[BiliBot] ✅ 私信分享视频已看完并写入记忆：{actual_bvid}")
+
+            link = f"https://www.bilibili.com/video/{actual_bvid}"
+            message = (
+                f"[{'已从记忆读取视频' if from_cache else '已看完视频'}]\n"
+                f"标题：{vi.get('title', '')}\n"
+                f"UP主：{vi.get('owner_name', '')}(UID:{vi.get('owner_mid', '')}) | 分区：{vi.get('tname', '')}\n"
+                f"链接：{link}\n"
+                f"视频简介：{str(vi.get('desc', '') or '')[:150]}\n"
+                f"内容详情：{video_description[:800]}\n"
+                f"我的感受：{review[:200]}\n"
+                f"个人评分：{score}/10 | 看完心情：{mood}\n"
+                f"oid={oid}"
+            )
+            share_info = dict(vi)
+            share_info.update({"bvid": actual_bvid, "aid": oid, "oid": oid})
+            return {
+                "ok": True,
+                "message": message,
+                "video_info": share_info,
+                "bvid": actual_bvid,
+                "from_cache": from_cache,
+            }
+        except Exception as exc:
+            logger.error(f"[BiliBot] 看视频异常: {exc}")
+            return {"ok": False, "message": f"看视频时出错了: {exc}"}
 
     # ── 补充上下文（标签+热评+联网搜索） ──
     async def _enrich_video_context(self, video_info):
@@ -31,6 +169,39 @@ class VideoMixin:
         return extra
 
     # ── 联合上下文（字幕+热评统一构建，所有分析路径共用） ──
+    async def _validate_video_subtitle(self, video_info, subtitle_text, extra=""):
+        """只在字幕明显属于别的视频时拒绝；不确定时保留，避免误伤正常字幕。"""
+        if not subtitle_text:
+            return ""
+        prompt = f"""你是视频字幕归属校验器。判断下面的候选字幕是否明显不属于这个视频。
+
+判断原则：
+- 只有主题、人物或事件明显完全冲突时判 false。
+- 音乐、混剪、玩梗、反差内容或信息不足时判 true，宁可保留。
+- 不要概括视频，只输出 JSON：{{"relevant": true或false, "reason": "15字以内原因"}}
+
+视频标题：{video_info.get('title', '')}
+视频简介：{str(video_info.get('desc', '') or '')[:350]}
+视频分区：{video_info.get('tname', '')}
+补充信息：{str(extra or '')[:500]}
+候选字幕：{subtitle_text[:1000]}"""
+        try:
+            result = await self._llm_call(prompt, max_tokens=100)
+            if not result:
+                return subtitle_text
+            cleaned = self._repair_llm_json(result)
+            match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+            decision = json.loads(match.group() if match else cleaned)
+            if decision.get("relevant") is False:
+                logger.warning(
+                    f"[BiliBot] 已忽略疑似错配字幕: bvid={video_info.get('bvid', '')} "
+                    f"reason={str(decision.get('reason', '主题明显不符'))[:40]}"
+                )
+                return ""
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 字幕归属校验失败，交由最终分析兜底: {exc}")
+        return subtitle_text
+
     async def _build_joint_context(self, video_info):
         """构建字幕+热评联合上下文。
 
@@ -44,15 +215,20 @@ class VideoMixin:
         subtitle_text = await self._get_video_subtitles(
             video_info.get("bvid", ""), video_info.get("cid", 0)
         )
+        subtitle_text = await self._validate_video_subtitle(
+            video_info, subtitle_text, extra
+        )
         subtitle_section = ""
         if subtitle_text:
-            subtitle_section = f"\n字幕内容：{subtitle_text[:1500]}"
+            subtitle_section = f"\n候选字幕内容：{subtitle_text[:1500]}"
         has_comments = "热门评论" in extra
         joint_hint = ""
         if subtitle_text or has_comments:
             hint_parts = []
             if subtitle_text:
-                hint_parts.append("字幕反映视频实际讲了什么，以字幕为准概括内容")
+                hint_parts.append(
+                    "候选字幕可能由B站自动生成；仅在它与标题、简介、画面和标签一致时采用，明显冲突时静默忽略"
+                )
             if has_comments:
                 hint_parts.append("热门评论反映观众的真实反应，结尾用1-2句描述评论区的氛围、观众在玩什么梗或在讨论什么")
             joint_hint = "\n联合分析要求：" + "；".join(hint_parts) + "。"
@@ -74,7 +250,7 @@ class VideoMixin:
 {joint.get('subtitle', '')}
 【补充信息】{joint.get('extra', '') or '无'}
 {joint.get('joint_hint', '')}
-整合要点：画面分析与字幕互相印证视频内容；若两者冲突，以字幕为准。直接输出概括内容，不要加前缀。"""
+整合要点：画面分析与可靠字幕互相印证；信息冲突时优先相信实际画面、标题、简介和标签，忽略明显错配的候选字幕。不要在结果中说明字幕抓取、数据冲突或内部判断过程。直接输出概括内容，不要加前缀。"""
         result = await self._llm_call(prompt, max_tokens=600)
         if result:
             logger.info("[BiliBot] 🔗 视觉+字幕+热评联合整合完成")
@@ -530,27 +706,32 @@ UP主：{video_info.get('up_name', '未知')}
             return "", None
         if bvid in vc:
             c = vc[bvid]
-            has_mem = any(m.get("bvid") == bvid or m.get("thread_id") == f"video:{bvid}" for m in self._memory)
-            if not has_mem:
-                mem_time = c.get("time", datetime.now().strftime("%Y-%m-%d %H:%M"))
-                memory_text = (
-                    f"[{mem_time}] 视频分析记忆：标题《{c['title']}》 "
-                    f"UP主:{c['owner_name']} 分区:{c.get('tname', '')} "
-                    f"简介:{c.get('desc', '')[:120]} 内容概括:{c.get('analysis', '')[:200]}"
-                )
-                await self._save_self_memory_record(
-                    f"video:{bvid}", memory_text, memory_type="video",
-                    extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c["title"]},
-                )
-                logger.info(f"[BiliBot] 📹 补录视频记忆：《{c['title']}》")
-            ctx = f"【当前视频】\n标题：{c['title']}\nUP主：{c['owner_name']}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{c.get('analysis', '')}"
-            tags = await self._get_video_tags(bvid)
-            comments = await self._get_hot_comments(oid)
-            if tags:
-                ctx += f"\n标签：{'、'.join(tags[:10])}"
-            if comments:
-                ctx += "\n热门评论：" + " / ".join(comments[:3])
-            return ctx, c
+            if self._analysis_has_subtitle_mismatch(c.get("analysis", "")):
+                logger.warning(f"[BiliBot] 评论上下文丢弃字幕错配缓存: {bvid}")
+                vc.pop(bvid, None)
+                self._save_json(VIDEO_MEMORY_FILE, vc)
+            else:
+                has_mem = any(m.get("bvid") == bvid or m.get("thread_id") == f"video:{bvid}" for m in self._memory)
+                if not has_mem:
+                    mem_time = c.get("time", datetime.now().strftime("%Y-%m-%d %H:%M"))
+                    memory_text = (
+                        f"[{mem_time}] 视频分析记忆：标题《{c['title']}》 "
+                        f"UP主:{c['owner_name']} 分区:{c.get('tname', '')} "
+                        f"简介:{c.get('desc', '')[:120]} 内容概括:{c.get('analysis', '')[:200]}"
+                    )
+                    await self._save_self_memory_record(
+                        f"video:{bvid}", memory_text, memory_type="video",
+                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c["title"]},
+                    )
+                    logger.info(f"[BiliBot] 📹 补录视频记忆：《{c['title']}》")
+                ctx = f"【当前视频】\n标题：{c['title']}\nUP主：{c['owner_name']}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{c.get('analysis', '')}"
+                tags = await self._get_video_tags(bvid)
+                comments = await self._get_hot_comments(oid)
+                if tags:
+                    ctx += f"\n标签：{'、'.join(tags[:10])}"
+                if comments:
+                    ctx += "\n热门评论：" + " / ".join(comments[:3])
+                return ctx, c
         vi = await self._get_video_info(oid)
         if not vi:
             return "", None

@@ -12,6 +12,8 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **图片识别** — 评论中的图片自动识别内容后参与回复
 - **视频上下文** — 自动获取被评论视频的信息，支持视觉模型分析视频封面 / 内容
 - **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Perplexity / 博查 / 自定义 OpenAI 兼容接口
+- **B站私信回复** — 监听新的纯文字和视频分享私信；收到视频卡片后先完成视频分析和记忆写入，再按真实内容回复；首次开启跳过历史消息
+- **私信安全隔离** — 不明外链、IP 链接和疑似色情引流不会进入 LLM，可自动调用 B站拉黑；支持只回复主人、白名单或全部安全用户
 
 ### 🧠 记忆与人格
 
@@ -24,7 +26,9 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 ### 🎯 主动行为
 
 - **主动看视频** — 从关注更新、关键词搜索、视频池三条路径均衡选片，再评价、点赞 / 投币 / 收藏 / 关注 / 评论
+- **一周分区口味** — 最近 7 天按分区汇总观看数和平均评分，交给 Bot 决定搜索词和标题筛选；仍允许自由探索其他内容
 - **来源按当天数量均分** — 当天第 1 个取关注、第 2 个取搜索、第 3 个取视频池、第 4 个再回关注；分多次触发也承接当天进度，缺少候选时自动补位
+- **给主人分享视频** — Bot 觉得某个视频适合主人时，可通过 B站私信发送推荐语和视频链接；也可改为评论区 @，或两者都发
 - **自动发动态** — 定时发布动态，支持 AI 生成配图
 - **周总结图片卡片** — 每周总结可渲染为固定模板 PNG，只替换文字内容，QQ/B站动态优先发送图片
 - **跨插件记忆接口** — 直播伴侣等插件可按 B站 UID 读取画像/语义记忆，并写入可检索的直播记忆
@@ -44,19 +48,15 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 
 Bot 可在聊天中通过自然语言触发以下能力，工具结果回到 LLM 后由 Bot 用自己的话转述：
 
-- **记忆查询** — 查用户画像 / 对话记忆 / 视频记忆 / 动态记忆
-- **B站搜索** — 搜视频、搜 UP 主，用户说”我想看猫咪”就能推荐视频
-- **查 UP 主** — 查详细信息 + 最近投稿 + 最近动态，支持用名字或 UID
+- **记忆查询** — `bili_recall` 统一查询用户画像 / 对话 / 今日活动 / 视频 / 动态 / 番剧记忆
+- **B站搜索** — `search_bilibili` 搜视频、用户、UP 详情、关注更新与直播，用户说“我想看猫咪”就能推荐视频
 - **看视频** — 去看一个视频、AI 分析内容、评分、存入记忆，看完可链式点赞 / 投币 / 收藏 / 评论
-- **关注动态** — 查看今天关注的人有没有更新
-- **直播查询** — 查看关注的人谁在直播
-- **互动操作** — 点赞 / 投币 / 收藏 / 关注 / 评论，需用户同意后执行
-- **番剧搜索** — 搜索番剧、查看评分与详情
-- **番剧观看** — 完整观看指定番剧单集并生成分析
-- **新番时间线** — 查询最近更新的新番
-- **番剧排行** — 获取热门番剧排行
-- **追番更新** — 查看追番是否更新
+- **私信分享给主人** — `watch_and_share_video_private` 会先看完并写入视频记忆，再把B站原生视频卡片发给 `OWNER_MID`；默认关闭
+- **互动操作** — `bili_action` 统一执行点赞 / 投币 / 收藏 / 关注 / 评论，需用户同意后执行
+- **番剧能力** — `bili_bangumi` 统一搜索、详情、观看、新番时间线、排行与追番更新
 - **B站拉黑** — 主人确认后拉黑指定 UID 的用户（v1.1.31 新增）
+
+默认仅注册 8 个职责清晰的工具；开启私信分享开关时注册 9 个，减少工具说明占用和模型选错入口的概率。
 
 ### 🛠️ 运维与安全
 
@@ -165,8 +165,9 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`BILI_JCT`                   |自动|B站 CSRF Token（扫码自动填入）                                                |
 |`DEDE_USER_ID`               |自动|Bot 的 B站 UID（扫码自动填入）                                                 |
 |`REFRESH_TOKEN`              |自动|Cookie 自动刷新用（扫码自动填入）                                                 |
-|`OWNER_MID`                  |推荐|主人的 B站 UID（好感度特殊处理）                                                  |
+|`OWNER_MID`                  |推荐|主人的 B站 UID（好感度特殊处理，也是私信推荐的接收 UID）                              |
 |`OWNER_NAME`                 |推荐|主人名称（用于 prompt）                                                      |
+|`OWNER_BILI_NAME`            |可选|主人的 B站昵称，仅用于评论区 @ 推荐                                                |
 |`EMBED_API_KEY`              |可选|Embedding API 密钥（记忆向量化用）                                             |
 |`EMBED_API_BASE`             |可选|Embedding API 地址，默认 SiliconFlow                                      |
 |`EMBED_MODEL`                |可选|Embedding 模型名，默认 `BAAI/bge-m3`                                       |
@@ -179,18 +180,30 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`ENABLE_WEB_SEARCH`          |可选|启用联网查询（回复时按需搜索最新信息）                                                  |
 |`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
+|`ENABLE_PRIVATE_MESSAGES`    |可选|启用B站新私信监听；首次开启跳过历史，默认关闭，可用 `/bili开关 私信` 单独切换|
+|`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|私信独立轮询间隔，默认30秒；遇到B站 -509 时自动从5分钟开始退避，最长30分钟|
+|`PRIVATE_MESSAGE_REPLY_SCOPE`|可选|`owner` 只回复主人 / `whitelist` 主人和白名单 / `all` 全部安全用户；默认 `owner`|
+|`PRIVATE_MESSAGE_AUTO_WATCH_VIDEO`|可选|收到允许回复用户的视频分享卡片后，先分析、写入视频记忆，再根据真实内容回复；默认开启|
+|`PRIVATE_MESSAGE_AUTO_BLOCK` |可选|危险私信自动调用B站拉黑；不明链接/色情内容始终先隔离且不进入LLM|
+|`PRIVATE_MESSAGE_TRUSTED_DOMAINS`|可选|私信允许出现的域名，默认 `bilibili.com`、`b23.tv`|
 |`ENABLE_BILI_SHARE_PARSE`    |可选|启用群聊/私聊B站分享解析（`/bili开关 解析`）                                 |
 |`BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED`|可选|允许聊天中的链接、小程序或BV号自动触发解析（`/bili开关 自动解析`）|
 |`BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED`|可选|允许 `/bili解析 <链接/BV号>` 手动触发（`/bili开关 手动解析`）|
 |`BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED`|可选|允许模型调用 `bili_parse_video` 工具触发（`/bili开关 LLM解析`）|
+|`BILI_PRIVATE_SHARE_TOOL_ENABLED`|可选|允许 `watch_and_share_video_private` 看完后向 `OWNER_MID` 发送原生视频私信卡片；默认关闭|
+|`BILI_PRIVATE_SHARE_COOLDOWN`|可选|同一视频重复私信分享给主人时的冷却，默认 60 秒|
 |`BILI_SHARE_PENDING_MAX_AGE`|可选|最近待解析视频按会话保留秒数，默认30分钟；供 `/bili解析` 或“解析上面那个”使用|
 |`BILI_SHARE_PARSE_SEND_VIDEO` |可选|解析后尝试发送原视频/切片，失败则只发解析卡和链接                                  |
 |`ENABLE_PROACTIVE`           |可选|启用主动看视频                                                              |
 |`PROACTIVE_FOLLOW_UIDS`      |可选|特别关注 UID，优先进入关注来源；普通关注的今日更新随后补充|
-|`PROACTIVE_SEARCH_QUERY_PROMPT`|可选|Bot 决定本轮B站搜索词的提示词；可延续偏好，也可自由探索其他内容|
+|`PROACTIVE_SEARCH_QUERY_PROMPT`|可选|Bot 决定本轮B站搜索词的提示词；会收到近期视频及按评分归纳的分区口味|
+|`PROACTIVE_TASTE_WINDOW_DAYS`|可选|分区评分口味统计窗口，默认最近 7 天|
 |`PROACTIVE_VIDEO_POOLS`      |可选|视频池/地址池，可填中文：热门 / 推荐 / 排行榜:游戏 / 最新:单机游戏；兼容旧写法|
 |`ENABLE_PROACTIVE_LLM_PREFILTER`|可选|让 LLM 筛选搜索/视频池候选（`/bili开关 筛选`）|
 |`PROACTIVE_LLM_PREFILTER_MAX_REJECTS`|可选|标题筛选每轮最多拒绝几个视频，默认 3，达到上限后放行|
+|`RECOMMEND_OWNER_DELIVERY`   |可选|推荐发送方式：`private_message`（B站私信文字+链接）/ `comment` / `both` / `off`|
+|`RECOMMEND_OWNER_MIN_SCORE`  |可选|推荐给主人所需最低评分，默认 8|
+|`RECOMMEND_OWNER_DAILY_LIMIT`|可选|每天最多推荐次数，默认 1；`0` 表示不限制|
 |`ENABLE_DYNAMIC`             |可选|启用自动发动态                                                              |
 |`DYNAMIC_TIMES_COUNT`        |可选|每天触发几次动态发布                                                           |
 |`DYNAMIC_DAILY_COUNT`        |可选|每天最多发几条动态                                                            |
@@ -226,7 +239,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili停止`      |停止 Bot                 |
 |`/bili主动`      |立刻触发一次主动看视频            |
 |`/bili解析 [链接/BV号]`|手动解析指定视频；省略参数时解析回复引用或本会话最近的视频|
-|`/bili开关 <功能>` |切换功能开关，支持 `解析`、`自动解析`、`手动解析`、`LLM解析`、`解析视频`、`筛选` 等 |
+|`/bili开关 <功能>` |切换功能开关，支持 `私信`、`私信回复`、`私信拉黑`、`解析`、`自动解析`、`手动解析`、`LLM解析`、`解析视频`、`筛选` 等；私信相关不包含在“一键全部”中 |
 |`/bili刷新`      |手动刷新 Cookie            |
 |`/bili记忆 <关键词>`|语义搜索记忆                 |
 |`/bili好感 [UID]`|查看好感度排行 / 查询           |
@@ -294,7 +307,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 
 ## ⚠️ 风险提示
 
-- 使用本插件意味着 Bot 会使用你登录的 B站 账号进行自动化操作（评论、点赞、投币、收藏、关注、发动态等），**存在账号被风控的风险**，请谨慎调节轮询间隔、主动行为频率
+- 使用本插件意味着 Bot 会使用你登录的 B站 账号进行自动化操作（评论、私信、点赞、投币、收藏、关注、发动态等），**存在账号被风控的风险**，请谨慎调节轮询间隔、主动行为频率
 - 建议不要用主号测试，必要时准备小号
 - Web 面板若开启，请务必修改默认密码
 - 请合理配置 `POLL_INTERVAL`、`PROACTIVE_VIDEO_COUNT` 等参数，避免高频请求

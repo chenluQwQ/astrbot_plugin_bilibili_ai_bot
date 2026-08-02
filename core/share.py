@@ -236,8 +236,12 @@ class ShareMixin:
         bvid = info.get("bvid", "")
         vc = self._load_json(VIDEO_MEMORY_FILE, {})
         cached = vc.get(bvid, {}) if bvid else {}
-        if cached.get("analysis"):
+        if cached.get("analysis") and not self._analysis_has_subtitle_mismatch(
+            cached.get("analysis", "")
+        ):
             return cached["analysis"]
+        if cached.get("analysis"):
+            logger.warning(f"[BiliBot] 分享解析忽略字幕错配缓存: {bvid}")
         if not self.config.get("BILI_SHARE_PARSE_ANALYZE", True):
             return (info.get("desc") or "这个视频没有简介。")[:220]
         result = await self._analyze_video_text(info)
