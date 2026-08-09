@@ -126,6 +126,18 @@
         "default": true,
         "hint": "仅对回复范围内且通过安全检查的用户生效；先完成视频分析和记忆写入，再让人设根据真实观看结果回复。已看过的视频直接读取视频记忆。"
     },
+    "PRIVATE_MESSAGE_BILI_SEARCH_ENABLED": {
+        "description": "【B站私信·查询】允许按私信要求搜索视频和UP主",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后可在B站私信中搜索/推荐视频、查询UP主资料与最近投稿；用户明确要求Bot观看时，会搜索后选择最相关结果并复用私信自动看片能力。"
+    },
+    "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT": {
+        "description": "【B站私信·查询】每次最多返回几个搜索结果",
+        "type": "int",
+        "default": 5,
+        "hint": "范围1-5；结果会交给当前人设组织成自然的私信回复。"
+    },
     "BILI_PRIVATE_SHARE_TOOL_ENABLED": {
         "description": "【B站私信·分享】允许 Bot 看完视频后私信给主人",
         "type": "bool",
@@ -141,8 +153,8 @@
     "PRIVATE_MESSAGE_POLL_INTERVAL": {
         "description": "【B站私信·监听】检查新私信的间隔（秒）",
         "type": "int",
-        "default": 30,
-        "hint": "默认30秒，也是允许的最短间隔。遇到B站 -509 频控时会自动暂停5分钟，并按需延长至最多30分钟。"
+        "default": 60,
+        "hint": "默认60秒，也是允许的最短间隔，并会加入少量随机偏移。遇到B站 -509 频控时会从10分钟开始倍增退避，最长60分钟；连续成功3轮后恢复正常。"
     },
     "ENABLE_BILI_SHARE_PARSE": {
         "description": "【分享解析·总开关】识别群聊和私聊里的B站视频分享",

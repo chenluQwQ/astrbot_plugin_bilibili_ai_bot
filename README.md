@@ -181,9 +181,11 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
 |`ENABLE_PRIVATE_MESSAGES`    |可选|启用B站新私信监听；首次开启跳过历史，默认关闭，可用 `/bili开关 私信` 单独切换|
-|`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|私信独立轮询间隔，默认30秒；遇到B站 -509 时自动从5分钟开始退避，最长30分钟|
+|`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|私信独立轮询间隔，默认且最短60秒，附带少量随机偏移；遇到B站 -509 时从10分钟开始倍增退避，最长60分钟，连续成功3轮后恢复|
 |`PRIVATE_MESSAGE_REPLY_SCOPE`|可选|`owner` 只回复主人 / `whitelist` 主人和白名单 / `all` 全部安全用户；默认 `owner`|
 |`PRIVATE_MESSAGE_AUTO_WATCH_VIDEO`|可选|收到允许回复用户的视频分享卡片后，先分析、写入视频记忆，再根据真实内容回复；默认开启|
+|`PRIVATE_MESSAGE_BILI_SEARCH_ENABLED`|可选|允许在B站私信中搜索/推荐视频、查询UP主资料和最近投稿；明确要求Bot观看时可搜索后看片，默认开启|
+|`PRIVATE_MESSAGE_BILI_SEARCH_LIMIT`|可选|私信站内查询最多返回几条结果，范围1-5，默认5|
 |`PRIVATE_MESSAGE_AUTO_BLOCK` |可选|危险私信自动调用B站拉黑；不明链接/色情内容始终先隔离且不进入LLM|
 |`PRIVATE_MESSAGE_TRUSTED_DOMAINS`|可选|私信允许出现的域名，默认 `bilibili.com`、`b23.tv`|
 |`ENABLE_BILI_SHARE_PARSE`    |可选|启用群聊/私聊B站分享解析（`/bili开关 解析`）                                 |

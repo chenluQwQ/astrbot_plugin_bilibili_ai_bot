@@ -3,9 +3,11 @@
 仅处理个人会话中的纯文本和 B站视频分享卡片。首次开启时建立游标，
 不会补回历史私信；危险链接判断只解析文字，不访问目标地址。
 """
+import asyncio
 import ipaddress
 import json
 import os
+import random
 import re
 import time
 import unicodedata
@@ -237,6 +239,173 @@ class PrivateMessageMixin:
         if scope == "whitelist":
             return bool(uid and (uid == owner or uid in whitelist))
         return False
+
+    @staticmethod
+    def _private_bili_fallback_query(text, action):
+        value = str(text or "").strip()
+        if action == "up_info":
+            patterns = (
+                r"(?:查|搜|搜索|看看|看下|了解)?(?:一下)?\s*([\w\-·\u4e00-\u9fff]{1,30}?)\s*(?:这个|这位)?\s*(?:UP主|up主|UP|up)",
+                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:最近)?(?:发了什么|有什么|有哪些)(?:视频|投稿)",
+            )
+            for pattern in patterns:
+                match = re.search(pattern, value)
+                if match:
+                    query = re.sub(r"^(?:请|麻烦|帮我|给我|一下)+", "", match.group(1))
+                    if query:
+                        return query[:80]
+        value = re.sub(
+            r"(?i)(?:请|麻烦|可以|能不能|能否|帮我|给我|一下|在B站|在b站|"
+            r"B站|b站|哔哩哔哩|搜索|搜搜|搜|查找|查|找找|找|推荐|"
+            r"你去|你能|看完|看看|看下|看一下|分析一下|点评一下|"
+            r"有没有|有哪些|有什么|相关的|相关|几个|一些|一个|个|这个|这位|UP主|up主)",
+            " ",
+            value,
+        )
+        value = re.sub(r"(?:视频|投稿)[吗呢呀吧啊？?！!。]*$", "", value)
+        value = re.sub(r"\s+", " ", value).strip(" ，,。？?！!：:")
+        return value[:80]
+
+    async def _classify_private_bili_request(self, content):
+        """Route only clear Bilibili lookup/watch requests; ordinary PMs stay untouched."""
+        text = str(content or "").strip()
+        if not text or not self.config.get("PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", True):
+            return "none", ""
+        has_subject = bool(
+            re.search(r"(?i)(?:B站|b站|哔哩|视频|投稿|UP主|up主|\bUP\b|\bup\b)", text)
+        )
+        has_lookup = bool(
+            re.search(r"(?:搜|找|查|推荐|看看|看下|看一下|分析|点评|有什么|有哪些|最近发)", text)
+        )
+        if not ((has_subject and has_lookup) or re.search(r"(?:搜|搜索|查找)一下", text)):
+            return "none", ""
+
+        prompt = f"""判断下面这条B站私信是否要求使用B站站内能力。只输出JSON，不要回答用户。
+可选 action：
+- video_search：搜索、查找或推荐相关视频，只需要列出候选
+- search_and_watch：用户明确要求你亲自找一个相关视频并观看、分析或点评
+- up_info：查询某个UP主是谁、有什么/最近发布了哪些视频或投稿
+- none：普通聊天，或意图不明确
+
+query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮我、搜索、视频、UP主”等命令词。
+用户私信：{json.dumps(text, ensure_ascii=False)}
+输出：{{"action":"video_search|search_and_watch|up_info|none","query":"..."}}"""
+        action = "none"
+        query = ""
+        try:
+            raw = await self._llm_call(prompt)
+            parsed = json.loads(self._repair_llm_json(raw or "{}"))
+            if isinstance(parsed, dict):
+                candidate = str(parsed.get("action") or "none").strip().lower()
+                if candidate in {"video_search", "search_and_watch", "up_info", "none"}:
+                    action = candidate
+                query = str(parsed.get("query") or "").strip()[:80]
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 私信B站查询意图解析失败，使用规则兜底: {exc}")
+
+        if action == "none":
+            if re.search(r"(?i)(?:UP主|up主|\bUP\b|\bup\b|投稿|最近发)", text):
+                action = "up_info"
+            elif re.search(r"(?:你去|帮我)(?:找|搜)?.{0,12}(?:看完|看看|看一下|分析|点评)", text):
+                action = "search_and_watch"
+            elif has_lookup:
+                action = "video_search"
+        if action != "none" and not query:
+            query = self._private_bili_fallback_query(text, action)
+        return (action, query) if query else ("none", "")
+
+    async def _build_private_bili_context(self, content):
+        action, query = await self._classify_private_bili_request(content)
+        if action == "none":
+            return ""
+        try:
+            limit = max(
+                1,
+                min(5, int(self.config.get("PRIVATE_MESSAGE_BILI_SEARCH_LIMIT", 5) or 5)),
+            )
+        except (TypeError, ValueError):
+            limit = 5
+
+        if action in {"video_search", "search_and_watch"}:
+            videos = await self.search_bilibili_videos(query, ps=limit)
+            if not videos:
+                logger.info(f"[BiliBot] 🔎 私信视频搜索无结果：{query}")
+                return f"站内视频搜索“{query}”没有找到结果。请如实告诉用户，可以请其换个关键词。"
+            lines = [f"站内视频搜索“{query}”结果："]
+            for index, video in enumerate(videos, 1):
+                bvid = str(video.get("bvid") or "")
+                lines.append(
+                    f"{index}. 《{video.get('title', '')}》｜UP：{video.get('author', '')}｜"
+                    f"{bvid}｜播放：{video.get('play', 0)}｜时长：{video.get('duration', '')}｜"
+                    f"https://www.bilibili.com/video/{bvid}"
+                )
+            if action == "search_and_watch":
+                selected = videos[0]
+                selected_bvid = str(selected.get("bvid") or "")
+                if self.config.get("PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", True) and selected_bvid:
+                    watch_result = await self._watch_video_and_save_memory(
+                        selected_bvid, memory_source="private_search"
+                    )
+                    if watch_result.get("ok"):
+                        lines.extend((
+                            "",
+                            f"已按相关度选择第1条并实际看完：{selected_bvid}",
+                            str(watch_result.get("message") or ""),
+                        ))
+                    else:
+                        lines.extend((
+                            "",
+                            f"已选择第1条尝试观看，但读取失败：{selected_bvid}",
+                            str(watch_result.get("message") or "未知错误"),
+                        ))
+                else:
+                    lines.append("\n用户要求观看，但私信自动看片未开启；只能提供搜索结果，不要声称已经看过。")
+            logger.info(f"[BiliBot] 🔎 私信执行 {action}：{query}（{len(videos)} 条）")
+            return "\n".join(lines)
+
+        users = await self.search_bilibili_users(query, ps=3)
+        if not users:
+            logger.info(f"[BiliBot] 🔎 私信UP查询无结果：{query}")
+            return f"站内没有找到名为“{query}”的UP主。请如实告诉用户，可以请其提供准确昵称或UID。"
+        normalized_query = re.sub(r"\s+", "", query).casefold()
+        exact = [
+            user for user in users
+            if re.sub(r"\s+", "", str(user.get("uname") or "")).casefold() == normalized_query
+        ]
+        selected = (exact or users)[0]
+        selected_mid = str(selected.get("mid") or "")
+        info, videos = await asyncio.gather(
+            self.get_up_info(selected_mid),
+            self.get_up_recent_videos(selected_mid, ps=limit),
+        )
+        lines = [
+            f"UP搜索“{query}”最相关结果：{selected.get('uname', '')}（UID：{selected_mid}，"
+            f"粉丝：{selected.get('fans', 0)}，投稿数：{selected.get('videos', 0)}）"
+        ]
+        if info:
+            lines.append(
+                f"签名：{info.get('sign', '') or '未填写'}；认证："
+                f"{info.get('official_title', '') or '无'}"
+            )
+        if videos:
+            lines.append("最近投稿：")
+            for index, video in enumerate(videos, 1):
+                bvid = str(video.get("bvid") or "")
+                created = int(video.get("created") or 0)
+                date_text = datetime.fromtimestamp(created).strftime("%Y-%m-%d") if created else "日期未知"
+                lines.append(
+                    f"{index}. [{date_text}]《{video.get('title', '')}》｜{bvid}｜"
+                    f"播放：{video.get('play', 0)}｜https://www.bilibili.com/video/{bvid}"
+                )
+        else:
+            lines.append("最近投稿列表为空或暂时读取失败。")
+        if not exact and len(users) > 1:
+            candidates = "、".join(
+                f"{user.get('uname', '')}(UID:{user.get('mid', '')})" for user in users[:3]
+            )
+            lines.append(f"昵称可能有歧义，本次按最相关结果查询；其他候选：{candidates}")
+        logger.info(f"[BiliBot] 🔎 私信执行 up_info：{query} -> {selected_mid}")
+        return "\n".join(lines)
 
     async def _get_private_sessions(self):
         data, _ = await self._http_get(
@@ -509,20 +678,24 @@ class PrivateMessageMixin:
 
         try:
             poll_interval = max(
-                30,
+                60,
                 min(
                     1800,
-                    int(self.config.get("PRIVATE_MESSAGE_POLL_INTERVAL", 30) or 30),
+                    int(self.config.get("PRIVATE_MESSAGE_POLL_INTERVAL", 60) or 60),
                 ),
             )
         except (TypeError, ValueError):
-            poll_interval = 30
+            poll_interval = 60
+
+        def jittered(delay):
+            """Use a small positive jitter so requests do not form a fixed pattern."""
+            return float(delay) + random.uniform(0, min(15.0, float(delay) * 0.2))
 
         now = time.monotonic()
         if now < getattr(self, "_private_message_next_poll_at", 0.0):
             return
         # 请求发出前先占住下一次时间，异常时也不会跟随评论主循环连续重试。
-        self._private_message_next_poll_at = now + poll_interval
+        self._private_message_next_poll_at = now + jittered(poll_interval)
         try:
             messages = await self._poll_private_inbox()
         except Exception as exc:
@@ -531,11 +704,12 @@ class PrivateMessageMixin:
                     getattr(self, "_private_message_backoff_seconds", 0) or 0
                 )
                 backoff = min(
-                    1800,
-                    max(300, poll_interval * 2, previous * 2),
+                    3600,
+                    max(600, previous * 2),
                 )
                 self._private_message_backoff_seconds = backoff
-                self._private_message_next_poll_at = time.monotonic() + backoff
+                self._private_message_success_streak = 0
+                self._private_message_next_poll_at = time.monotonic() + jittered(backoff)
                 logger.warning(
                     f"[BiliBot] 私信接口请求过于频繁，已暂停轮询 {backoff} 秒，"
                     "期间不会重复请求"
@@ -544,8 +718,27 @@ class PrivateMessageMixin:
                 logger.warning(f"[BiliBot] 私信轮询失败: {exc}")
             return
 
-        self._private_message_backoff_seconds = 0
-        self._private_message_next_poll_at = time.monotonic() + poll_interval
+        backoff = int(getattr(self, "_private_message_backoff_seconds", 0) or 0)
+        if backoff:
+            success_streak = int(
+                getattr(self, "_private_message_success_streak", 0) or 0
+            ) + 1
+            self._private_message_success_streak = success_streak
+            if success_streak >= 3:
+                self._private_message_backoff_seconds = 0
+                self._private_message_success_streak = 0
+                next_delay = poll_interval
+                logger.info("[BiliBot] 私信接口已连续成功 3 轮，恢复正常轮询")
+            else:
+                next_delay = backoff
+                logger.info(
+                    f"[BiliBot] 私信接口恢复观察中：连续成功 {success_streak}/3，"
+                    f"下一轮仍等待约 {backoff} 秒"
+                )
+        else:
+            self._private_message_success_streak = 0
+            next_delay = poll_interval
+        self._private_message_next_poll_at = time.monotonic() + jittered(next_delay)
 
         trusted_domains = self.config.get("PRIVATE_MESSAGE_TRUSTED_DOMAINS", []) or None
         for message in messages:
@@ -594,6 +787,7 @@ class PrivateMessageMixin:
                 f"[BiliBot] ✉️ 收到私信 {username}（{LEVEL_NAMES[self._get_level(score, mid)]}|{score}分）：{content[:100]}"
             )
             reply_content = content
+            bili_context = ""
             if (
                 message.get("content_type") == "video_share"
                 and self.config.get("PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", True)
@@ -615,6 +809,8 @@ class PrivateMessageMixin:
                             "不要声称已经看完】\n"
                             + str(watch_result.get("message", "未知错误"))
                         )
+            elif message.get("content_type") == "text":
+                bili_context = await self._build_private_bili_context(content)
             result = await self._generate_reply(
                 reply_content,
                 mid,
@@ -623,6 +819,7 @@ class PrivateMessageMixin:
                 0,
                 0,
                 channel="private",
+                reference_context=bili_context,
             )
             if not result or not result.get("reply"):
                 logger.warning(f"[BiliBot] 私信回复生成失败，已跳过：{username}({mid})")
