@@ -246,7 +246,9 @@ class PrivateMessageMixin:
         if action == "up_info":
             patterns = (
                 r"(?:查|搜|搜索|看看|看下|了解)?(?:一下)?\s*([\w\-·\u4e00-\u9fff]{1,30}?)\s*(?:这个|这位)?\s*(?:UP主|up主|UP|up)",
-                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:最近)?(?:发了什么|有什么|有哪些)(?:视频|投稿)",
+                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:最近|近期)?(?:发了什么|有什么|有哪些)(?:新)?(?:视频|投稿)",
+                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:最近|近期)?(?:有没有|有无|有)?(?:更新|新发|发新)(?:了)?(?:什么|哪些)?(?:视频|投稿)",
+                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:的)?(?:最新|最近)(?:视频|投稿)",
             )
             for pattern in patterns:
                 match = re.search(pattern, value)
@@ -275,10 +277,21 @@ class PrivateMessageMixin:
             re.search(r"(?i)(?:B站|b站|哔哩|视频|投稿|UP主|up主|\bUP\b|\bup\b)", text)
         )
         has_lookup = bool(
-            re.search(r"(?:搜|找|查|推荐|看看|看下|看一下|分析|点评|有什么|有哪些|最近发)", text)
+            re.search(r"(?:搜|找|查|推荐|看看|看下|看一下|分析|点评|有什么|有哪些|最近发|近期|更新|最新|新视频)", text)
         )
         if not ((has_subject and has_lookup) or re.search(r"(?:搜|搜索|查找)一下", text)):
             return "none", ""
+
+        # UP 主“最近更新了吗”是高频、明确的站内查询。直接规则命中可避免
+        # 意图模型把它误判成普通事实问题，继而落到通用联网搜索。
+        explicit_up_update = bool(
+            re.search(r"(?:最近|近期|最新).{0,12}(?:更新|新发|发新|视频|投稿)", text)
+            and re.search(r"(?:视频|投稿|UP主|up主|\bUP\b|\bup\b)", text, re.IGNORECASE)
+        )
+        if explicit_up_update:
+            query = self._private_bili_fallback_query(text, "up_info")
+            if query:
+                return "up_info", query
 
         prompt = f"""判断下面这条B站私信是否要求使用B站站内能力。只输出JSON，不要回答用户。
 可选 action：
@@ -304,7 +317,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             logger.debug(f"[BiliBot] 私信B站查询意图解析失败，使用规则兜底: {exc}")
 
         if action == "none":
-            if re.search(r"(?i)(?:UP主|up主|\bUP\b|\bup\b|投稿|最近发)", text):
+            if re.search(r"(?i)(?:UP主|up主|\bUP\b|\bup\b|投稿|最近发|最近更新|近期更新|最新视频)", text):
                 action = "up_info"
             elif re.search(r"(?:你去|帮我)(?:找|搜)?.{0,12}(?:看完|看看|看一下|分析|点评)", text):
                 action = "search_and_watch"
