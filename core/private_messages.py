@@ -909,7 +909,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             # "new一下", "/new" and messages merely containing the word stay normal chat.
             if message.get("content_type") == "text" and content.strip() == "new":
                 new_thread_id = self._reset_private_conversation(mid)
-                reset_reply = "当前私信上下文已经清空啦，我们重新聊。"
+                reset_reply = "已清除当前私信的对话上下文。"
                 sent = await self._send_bili_private_message(mid, reset_reply)
                 if sent:
                     logger.info(
