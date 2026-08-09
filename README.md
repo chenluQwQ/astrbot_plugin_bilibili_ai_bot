@@ -12,7 +12,7 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **图片识别** — 评论中的图片自动识别内容后参与回复
 - **视频上下文** — 自动获取被评论视频的信息，支持视觉模型分析视频封面 / 内容
 - **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Perplexity / 博查 / 自定义 OpenAI 兼容接口
-- **B站私信回复** — 监听新的纯文字和视频分享私信；收到视频卡片后先完成视频分析和记忆写入，再按真实内容回复；首次开启跳过历史消息
+- **B站私信回复** — 监听新的纯文字和视频分享私信；回复模型可按需在后台查询UP/视频或联网搜索，先短回应、查完再整合回复，最多发送两条；精确发送 `new` 可重置当前私信上下文
 - **私信安全隔离** — 不明外链、IP 链接和疑似色情引流不会进入 LLM，可自动调用 B站拉黑；支持只回复主人、白名单或全部安全用户
 
 ### 🧠 记忆与人格
@@ -184,7 +184,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|私信独立轮询间隔，默认且最短60秒，附带少量随机偏移；遇到B站 -509 时从10分钟开始倍增退避，最长60分钟，连续成功3轮后恢复|
 |`PRIVATE_MESSAGE_REPLY_SCOPE`|可选|`owner` 只回复主人 / `whitelist` 主人和白名单 / `all` 全部安全用户；默认 `owner`|
 |`PRIVATE_MESSAGE_AUTO_WATCH_VIDEO`|可选|收到允许回复用户的视频分享卡片后，先分析、写入视频记忆，再根据真实内容回复；默认开启|
-|`PRIVATE_MESSAGE_BILI_SEARCH_ENABLED`|可选|允许在B站私信中搜索/推荐视频、查询UP主资料和最近投稿；明确要求Bot观看时可搜索后看片，默认开启|
+|`PRIVATE_MESSAGE_BILI_SEARCH_ENABLED`|可选|允许回复模型按需在后台搜索/推荐视频、查询UP主资料和最近投稿；查询时最多回复两条，默认开启|
 |`PRIVATE_MESSAGE_BILI_SEARCH_LIMIT`|可选|私信站内查询最多返回几条结果，范围1-5，默认5|
 |`PRIVATE_MESSAGE_AUTO_BLOCK` |可选|危险私信自动调用B站拉黑；不明链接/色情内容始终先隔离且不进入LLM|
 |`PRIVATE_MESSAGE_TRUSTED_DOMAINS`|可选|私信允许出现的域名，默认 `bilibili.com`、`b23.tv`|

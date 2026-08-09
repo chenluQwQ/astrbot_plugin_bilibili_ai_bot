@@ -154,7 +154,43 @@ class PrivateMessageMixin:
             "device_id": str(uuid.uuid4()).upper(),
             "sessions": {},
             "processed_keys": [],
+            "conversation_ids": {},
         }
+
+    def _private_conversation_thread_id(self, mid):
+        """Return the current lightweight conversation id for one Bilibili UID."""
+        uid = str(mid or "").strip()
+        state = self._load_json(
+            PRIVATE_MESSAGE_STATE_FILE,
+            self._default_private_message_state(
+                self.config.get("DEDE_USER_ID", "")
+            ),
+        )
+        if not isinstance(state, dict):
+            state = self._default_private_message_state(
+                self.config.get("DEDE_USER_ID", "")
+            )
+        conversation_ids = state.setdefault("conversation_ids", {})
+        conversation_id = str(conversation_ids.get(uid) or "").strip()
+        return f"private:{uid}:{conversation_id}" if conversation_id else f"private:{uid}"
+
+    def _reset_private_conversation(self, mid):
+        """Start a new private-message context without deleting profile or long-term memory."""
+        uid = str(mid or "").strip()
+        state = self._load_json(
+            PRIVATE_MESSAGE_STATE_FILE,
+            self._default_private_message_state(
+                self.config.get("DEDE_USER_ID", "")
+            ),
+        )
+        if not isinstance(state, dict):
+            state = self._default_private_message_state(
+                self.config.get("DEDE_USER_ID", "")
+            )
+        conversation_id = uuid.uuid4().hex[:12]
+        state.setdefault("conversation_ids", {})[uid] = conversation_id
+        self._save_json(PRIVATE_MESSAGE_STATE_FILE, state)
+        return f"private:{uid}:{conversation_id}"
 
     @staticmethod
     def _private_json_text(raw):
@@ -245,10 +281,13 @@ class PrivateMessageMixin:
         value = str(text or "").strip()
         if action == "up_info":
             patterns = (
+                # 优先取“看看/查一下/搜一下”后、最近/最新前的名字。
+                # 这样“霜序 试一下 看看泛式最新的几个视频”不会把称呼和口令吞进去。
+                r"(?:看一下|看下|看看|查一下|查查|查询一下|查询|搜一下|搜搜|搜索一下|搜索|找一下|找找|了解一下)\s*([\w\-·\u4e00-\u9fff]{1,30}?)\s*(?:的)?\s*(?:最近|近期|最新)",
                 r"(?:查|搜|搜索|看看|看下|了解)?(?:一下)?\s*([\w\-·\u4e00-\u9fff]{1,30}?)\s*(?:这个|这位)?\s*(?:UP主|up主|UP|up)",
                 r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:最近|近期)?(?:发了什么|有什么|有哪些)(?:新)?(?:视频|投稿)",
                 r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:最近|近期)?(?:有没有|有无|有)?(?:更新|新发|发新)(?:了)?(?:什么|哪些)?(?:视频|投稿)",
-                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:的)?(?:最新|最近)(?:视频|投稿)",
+                r"([\w\-·\u4e00-\u9fff]{1,30}?)(?:的)?(?:最新|最近)(?:的)?(?:几个|几期|一些|什么|哪些)?(?:新)?(?:视频|投稿)",
             )
             for pattern in patterns:
                 match = re.search(pattern, value)
@@ -325,12 +364,38 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 action = "video_search"
         if action != "none" and not query:
             query = self._private_bili_fallback_query(text, action)
+        if action != "none" and query:
+            # 意图模型偶尔会把“看看/帮我查”等命令词留在 query 里，
+            # 在调用 B站搜索 API 前统一剥掉，避免搜索“看看泛式”。
+            query = re.sub(
+                r"^(?:(?:请|麻烦|帮我|给我|试一下|测试一下|看一下|看下|看看|"
+                r"查一下|查查|查询一下|查询|搜一下|搜搜|搜索一下|搜索|"
+                r"找一下|找找|了解一下)[\s，,。？?！!：:]*)+",
+                "",
+                query,
+            )
+            if action == "up_info":
+                query = re.sub(
+                    r"\s*(?:这个|这位)?(?:UP主|up主|UP|up)[吗呢呀吧啊？?！!。]*$",
+                    "",
+                    query,
+                    flags=re.IGNORECASE,
+                )
+            query = re.sub(r"\s+", " ", query).strip(" ，,。？?！!：:")[:80]
         return (action, query) if query else ("none", "")
 
     async def _build_private_bili_context(self, content):
         action, query = await self._classify_private_bili_request(content)
         if action == "none":
             return ""
+        return await self._execute_private_bili_request(action, query)
+
+    async def _execute_private_bili_request(self, action, query):
+        """Execute one model-selected, read-only Bilibili lookup/watch request."""
+        action = str(action or "").strip().lower()
+        query = str(query or "").strip()[:100]
+        if action not in {"video_search", "search_and_watch", "up_info"} or not query:
+            return "后台B站查询参数不完整，未执行查询。"
         try:
             limit = max(
                 1,
@@ -419,6 +484,51 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             lines.append(f"昵称可能有歧义，本次按最相关结果查询；其他候选：{candidates}")
         logger.info(f"[BiliBot] 🔎 私信执行 up_info：{query} -> {selected_mid}")
         return "\n".join(lines)
+
+    async def _execute_private_model_tool(self, tool_request):
+        """Execute the single read-only tool selected by the private-message reply model."""
+        request = tool_request if isinstance(tool_request, dict) else {}
+        name = str(request.get("name") or "none").strip().lower()
+        query = str(request.get("query") or "").strip()[:100]
+        if name == "none":
+            return ""
+        if not query:
+            return "后台查询缺少关键词，未执行。"
+
+        action_map = {
+            "bili_up_info": "up_info",
+            "bili_video_search": "video_search",
+            "bili_search_and_watch": "search_and_watch",
+        }
+        if name in action_map:
+            if not self.config.get("PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", True):
+                return "B站私信站内查询当前未开启，未执行。"
+            action = action_map[name]
+            if action == "up_info":
+                # 即使模型偶尔留下“看看/最新视频”，也在真正调用API前做一次兜底清洗。
+                extracted = self._private_bili_fallback_query(query, action)
+                if extracted and re.search(r"(?:最近|近期|最新|视频|投稿|UP主|up主)", query):
+                    query = extracted
+            query = re.sub(
+                r"^(?:(?:请|麻烦|帮我|给我|试一下|测试一下|看一下|看下|看看|"
+                r"查一下|查查|查询一下|查询|搜一下|搜搜|搜索一下|搜索|"
+                r"找一下|找找|了解一下)[\s，,。？?！!：:]*)+",
+                "",
+                query,
+            ).strip(" ，,。？?！!：:")
+            logger.info(f"[BiliBot] 🧰 私信回复模型选择工具 {name}：{query}")
+            return await self._execute_private_bili_request(action, query)
+
+        if name == "web_search":
+            if not self.config.get("ENABLE_WEB_SEARCH", False):
+                return "联网搜索当前未开启，未执行。"
+            logger.info(f"[BiliBot] 🧰 私信回复模型选择工具 web_search：{query}")
+            result = await self._web_search(query)
+            return (
+                f"联网搜索“{query}”结果：\n{result}"
+                if result else f"联网搜索“{query}”暂时没有取得结果。"
+            )
+        return "回复模型选择了不受支持的后台能力，未执行。"
 
     async def _get_private_sessions(self):
         data, _ = await self._http_get(
@@ -609,11 +719,11 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         }
         self._save_json(block_file, block_log)
 
-    async def _apply_private_reply_result(self, message, result):
+    async def _apply_private_reply_result(self, message, result, thread_id=None):
         mid = str(message["sender_uid"])
         username = message["username"]
         content = message["content"]
-        thread_id = f"private:{mid}"
+        thread_id = thread_id or self._private_conversation_thread_id(mid)
         current_score = self._affection.get(mid, 0)
         score_delta = result.get("score_delta", 1)
         ai_reply = str(result.get("reply", "") or "").strip()
@@ -795,12 +905,27 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             ):
                 continue
 
+            # Deliberately exact: only the standalone text "new" resets context.
+            # "new一下", "/new" and messages merely containing the word stay normal chat.
+            if message.get("content_type") == "text" and content.strip() == "new":
+                new_thread_id = self._reset_private_conversation(mid)
+                reset_reply = "当前私信上下文已经清空啦，我们重新聊。"
+                sent = await self._send_bili_private_message(mid, reset_reply)
+                if sent:
+                    logger.info(
+                        f"[BiliBot] 🆕 已重置私信上下文：{username}({mid}) -> {new_thread_id}"
+                    )
+                else:
+                    logger.warning(f"[BiliBot] 私信上下文已重置，但确认消息发送失败：{mid}")
+                continue
+
             score = self._affection.get(mid, 0)
             logger.info(
                 f"[BiliBot] ✉️ 收到私信 {username}（{LEVEL_NAMES[self._get_level(score, mid)]}|{score}分）：{content[:100]}"
             )
             reply_content = content
-            bili_context = ""
+            reference_context = ""
+            allow_tool_request = message.get("content_type") == "text"
             if (
                 message.get("content_type") == "video_share"
                 and self.config.get("PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", True)
@@ -822,19 +947,54 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                             "不要声称已经看完】\n"
                             + str(watch_result.get("message", "未知错误"))
                         )
-            elif message.get("content_type") == "text":
-                bili_context = await self._build_private_bili_context(content)
+            thread_id = self._private_conversation_thread_id(mid)
             result = await self._generate_reply(
                 reply_content,
                 mid,
                 username,
-                f"private:{mid}",
+                thread_id,
                 0,
                 0,
                 channel="private",
-                reference_context=bili_context,
+                reference_context=reference_context,
+                allow_tool_request=allow_tool_request,
             )
             if not result or not result.get("reply"):
                 logger.warning(f"[BiliBot] 私信回复生成失败，已跳过：{username}({mid})")
                 continue
-            await self._apply_private_reply_result(message, result)
+            tool_request = result.get("tool_request") or {}
+            tool_name = str(tool_request.get("name") or "none").strip().lower()
+            if tool_name != "none":
+                progress_reply = str(result.get("reply") or "").strip() or "我查一下。"
+                if await self._send_bili_private_message(mid, progress_reply):
+                    logger.info(
+                        f"[BiliBot] ✉️ 私信工具查询前回复 {username}：{progress_reply[:80]}"
+                    )
+                else:
+                    logger.warning(f"[BiliBot] 私信工具查询前回复发送失败：{mid}")
+
+                reference_context = await self._execute_private_model_tool(tool_request)
+                final_result = await self._generate_reply(
+                    content,
+                    mid,
+                    username,
+                    thread_id,
+                    0,
+                    0,
+                    channel="private",
+                    reference_context=reference_context,
+                    allow_tool_request=False,
+                )
+                if not final_result or not final_result.get("reply"):
+                    logger.warning(
+                        f"[BiliBot] 私信工具结果整合失败，已保留查询前回复：{username}({mid})"
+                    )
+                    continue
+                await self._apply_private_reply_result(
+                    message, final_result, thread_id=thread_id
+                )
+                continue
+
+            await self._apply_private_reply_result(
+                message, result, thread_id=thread_id
+            )

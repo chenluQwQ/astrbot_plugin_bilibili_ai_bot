@@ -118,7 +118,7 @@
         "description": "【B站私信·回复】自动回复安全私信",
         "type": "bool",
         "default": true,
-        "hint": "使用当前 AstrBot 人设、BiliBot 记忆、用户画像和好感度回复。"
+        "hint": "使用当前 AstrBot 人设、BiliBot 记忆、用户画像和好感度回复；私信精确发送 new 可清空当前对话上下文。"
     },
     "PRIVATE_MESSAGE_AUTO_WATCH_VIDEO": {
         "description": "【B站私信·视频】收到视频分享后先看完再回复",
@@ -130,7 +130,7 @@
         "description": "【B站私信·查询】允许按私信要求搜索视频和UP主",
         "type": "bool",
         "default": true,
-        "hint": "开启后可在B站私信中搜索/推荐视频、查询UP主资料与最近投稿；用户明确要求Bot观看时，会搜索后选择最相关结果并复用私信自动看片能力。"
+        "hint": "回复模型可在后台选择搜索/推荐视频、查询UP主资料与最近投稿；需要查询时先短回复一次，查完整合结果再回复，最多两条。"
     },
     "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT": {
         "description": "【B站私信·查询】每次最多返回几个搜索结果",
