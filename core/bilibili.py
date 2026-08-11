@@ -54,13 +54,14 @@ class BilibiliAPIMixin:
             return False, f"❌ 检查失败: {e}"
 
     async def check_need_refresh(self):
+        # 返回 (True, msg)=需要刷新 / (False, msg)=确认无需刷新 / (None, msg)=检查出错，无法判断
         try:
             d, _ = await self._http_get(BILI_COOKIE_INFO_URL, params={"csrf": self.config.get("BILI_JCT", "")})
             if d["code"] != 0:
-                return False, f"检查失败: {d.get('message', '')}"
+                return None, f"检查失败: {d.get('message', '')}"
             return (True, "需要刷新") if d["data"].get("refresh", False) else (False, "Cookie 仍然有效")
         except Exception as e:
-            return False, f"检查出错: {e}"
+            return None, f"检查出错: {e}"
 
     def _generate_correspond_path(self, ts):
         from cryptography.hazmat.primitives.asymmetric import padding
@@ -80,6 +81,8 @@ class BilibiliAPIMixin:
             return False, "SESSDATA 为空"
         try:
             need, msg = await self.check_need_refresh()
+            if need is None:
+                return False, f"无法确认是否需要刷新（{msg}），本次跳过"
             if not need:
                 return True, msg
             cp = self._generate_correspond_path(int(time.time() * 1000))
@@ -125,9 +128,16 @@ class BilibiliAPIMixin:
 
     # ── WBI 签名 ──
     async def _get_wbi_keys(self):
+        # wbi key 官方约一天一换，缓存 6 小时避免每次签名都请求 nav 接口
+        cached = getattr(self, "_wbi_keys_cache", None)
+        if cached and time.time() - cached[0] < 6 * 3600:
+            return cached[1], cached[2]
         d, _ = await self._http_get(BILI_NAV_URL)
         d = d["data"]["wbi_img"]
-        return d["img_url"].rsplit("/", 1)[1].split(".")[0], d["sub_url"].rsplit("/", 1)[1].split(".")[0]
+        ik = d["img_url"].rsplit("/", 1)[1].split(".")[0]
+        sk = d["sub_url"].rsplit("/", 1)[1].split(".")[0]
+        self._wbi_keys_cache = (time.time(), ik, sk)
+        return ik, sk
 
     def _get_mixin_key(self, orig):
         return reduce(lambda s, i: s + orig[i], MIXIN_KEY_ENC_TAB, "")[:32]
@@ -140,7 +150,8 @@ class BilibiliAPIMixin:
             params = dict(sorted(params.items()))
             params["w_rid"] = hashlib.md5(("&".join(f"{k}={v}" for k, v in params.items()) + mk).encode()).hexdigest()
             return params
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[BiliBot] WBI 签名失败，将以未签名参数请求（接口大概率返回 -352）: {e}")
             return params
 
     # ── 扫码登录 ──

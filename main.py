@@ -83,7 +83,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         from .core.tools import create_tools
         llm_tools = create_tools(self)
         self.context.add_llm_tools(*llm_tools)
-        tool_names = ", ".join(tool.name for tool in llm_tools)
+        self._registered_tool_names = [tool.name for tool in llm_tools]
+        tool_names = ", ".join(self._registered_tool_names)
         logger.info(f"[BiliBot] LLM工具已精简注册: {len(llm_tools)} 个 ({tool_names})")
 
     async def initialize(self):
@@ -91,10 +92,14 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         if not self._has_cookie():
             logger.warning("[BiliBot] Cookie未配置，后台任务未启动")
             return
-        valid, _ = await self.check_cookie()
+        valid, msg = await self.check_cookie()
         if valid:
             await self._start_bot()
             logger.info("[BiliBot] 自动启动")
+        elif "检查失败" in str(msg):
+            # 网络暂时不可用 ≠ Cookie 失效（如开机自启时网络未就绪），仍启动主循环靠周期检查兜底
+            logger.warning(f"[BiliBot] Cookie 检查暂时失败（{msg}），仍启动后台任务等待网络恢复")
+            await self._start_bot()
         else:
             logger.warning("[BiliBot] Cookie无效")
 
@@ -178,7 +183,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 h = datetime.now().hour
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
-                if ss <= h < se:
+                # 支持跨午夜的休眠区间（如 23 → 7）
+                in_sleep = (ss <= h < se) if ss <= se else (h >= ss or h < se)
+                if in_sleep:
                     # ── 日终清算：在睡眠时段触发 ──
                     if self._consolidation.should_run_today():
                         if self._consolidation_task is None or self._consolidation_task.done():
@@ -194,7 +201,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
                 if time.time() - self._last_cookie_check > ci:
                     await self._check_and_refresh_cookie()
-                self._last_cookie_check = time.time()
+                    self._last_cookie_check = time.time()
                 if self.config.get("ENABLE_PROACTIVE", False):
                     now_dt = datetime.now()
                     today_str = now_dt.strftime("%Y-%m-%d")
@@ -317,6 +324,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
+        # 注销 LLM 工具，避免热重载后旧实例被闭包持有、新旧工具混用
+        for name in getattr(self, "_registered_tool_names", []):
+            try:
+                self.context.unregister_llm_tool(name)
+            except Exception as e:
+                logger.warning(f"[BiliBot] 注销工具 {name} 失败: {e}")
         global _ACTIVE_BILIBOT
         if _ACTIVE_BILIBOT is self:
             _ACTIVE_BILIBOT = None
