@@ -51,13 +51,10 @@ class BangumiMixin:
     async def search_bilibili_bangumi(self, keyword, ps=5):
         """搜索B站番剧，返回番剧列表。"""
         try:
-            params = await self.sign_wbi_params({
+            d, _ = await self._wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/type", {
                 "keyword": keyword, "search_type": "media_bangumi",
                 "page": 1, "page_size": ps,
             })
-            d, _ = await self._http_get(
-                "https://api.bilibili.com/x/web-interface/wbi/search/type", params=params,
-            )
             if not self._pgc_ok(d, "搜索番剧"):
                 return []
             results = []
@@ -718,8 +715,12 @@ want_continue：是否值得继续追，烂番可以果断弃。
             found = False
             for i, ep in enumerate(all_eps):
                 if ep.get("ep_id") == start_ep_id:
-                    # 从指定集开始，但仍跳过已看过的集，避免重复分析和重复发公开评论
-                    unwatched = [e for e in all_eps[i:] if e.get("ep_id") and e["ep_id"] not in watched_ids]
+                    # 显式指定的这一集尊重用户意图（即使已看也重看），
+                    # 但后续集仍跳过已看的，避免重复分析和重复发公开评论
+                    rest = [e for e in all_eps[i + 1:] if e.get("ep_id") and e["ep_id"] not in watched_ids]
+                    unwatched = [ep] + rest
+                    if ep.get("ep_id") in watched_ids:
+                        logger.info(f"[BiliBot] 指定的 ep_id={start_ep_id} 之前看过，按指定重看这一集")
                     found = True
                     break
             if not found:

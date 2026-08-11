@@ -103,7 +103,12 @@ class UtilsMixin:
                         params=params,
                         timeout=aiohttp.ClientTimeout(total=timeout),
                     ) as r:
-                        return await r.json(content_type=None), r
+                        d = await r.json(content_type=None)
+                        if isinstance(d, dict) and d.get("code") == -352 and getattr(self, "_wbi_keys_cache", None):
+                            # -352 通常意味着 wbi key 已轮换或签名失效，清缓存让下次请求重新拉取
+                            self._wbi_keys_cache = None
+                            logger.warning("[BiliBot] 收到 -352 风控码，已清除 WBI key 缓存待下次重签")
+                        return d, r
             except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError) as e:
                 last_err = e
                 if i < retries:
@@ -278,14 +283,19 @@ class UtilsMixin:
         text = text.replace('\uff02', "'")  # 全角双引号
         # 去掉尾逗号
         text = re.sub(r',\s*([}\]])', r'\1', text)
-        # 提取JSON对象或数组：按先出现的括号判断顶层类型，
-        # 避免把数组 [{...},{...}] 剥成非法的 {...},{...}，也避免把对象内的数组当成顶层
-        obj_pos, arr_pos = text.find('{'), text.find('[')
-        if arr_pos != -1 and (obj_pos == -1 or arr_pos < obj_pos):
-            m = re.search(r'\[.*\]', text, re.DOTALL)
-        else:
-            m = re.search(r'\{.*\}', text, re.DOTALL)
-        if m:
-            text = m.group()
+        # 从每个括号位置尝试完整解析，取第一个合法的 JSON 对象/数组；
+        # 既支持顶层数组，也不会把正文里的「[说明]」误当 JSON（解析失败会继续向后找）
+        decoder = json.JSONDecoder()
+        for idx, ch in enumerate(text):
+            if ch in "[{":
+                try:
+                    obj, end = decoder.raw_decode(text[idx:])
+                except ValueError:
+                    continue
+                if isinstance(obj, dict):
+                    return text[idx:idx + end]
+                # 数组只接受对象列表（如批量评估结果），跳过正文里的 [1,2]、[说明] 等
+                if isinstance(obj, list) and all(isinstance(x, dict) for x in obj):
+                    return text[idx:idx + end]
         return text
 

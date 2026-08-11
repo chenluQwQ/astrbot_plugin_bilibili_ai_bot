@@ -83,8 +83,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         from .core.tools import create_tools
         llm_tools = create_tools(self)
         self.context.add_llm_tools(*llm_tools)
-        self._registered_tool_names = [tool.name for tool in llm_tools]
-        tool_names = ", ".join(self._registered_tool_names)
+        tool_names = ", ".join(tool.name for tool in llm_tools)
         logger.info(f"[BiliBot] LLM工具已精简注册: {len(llm_tools)} 个 ({tool_names})")
 
     async def initialize(self):
@@ -324,12 +323,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
-        # 注销 LLM 工具，避免热重载后旧实例被闭包持有、新旧工具混用
-        for name in getattr(self, "_registered_tool_names", []):
-            try:
-                self.context.unregister_llm_tool(name)
-            except Exception as e:
-                logger.warning(f"[BiliBot] 注销工具 {name} 失败: {e}")
+        # LLM 工具不在此手动注销：unregister_llm_tool 按名称删除，同名工具可能已被其他插件
+        # 覆盖注册，按名删除会误删对方的工具；插件卸载时由 AstrBot 按 handler_module_path 清理
         global _ACTIVE_BILIBOT
         if _ACTIVE_BILIBOT is self:
             _ACTIVE_BILIBOT = None

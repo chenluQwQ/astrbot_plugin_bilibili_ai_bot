@@ -58,7 +58,8 @@ class AffectionMixin:
             for k, v in defaults.items()
         }
 
-    def _check_milestone(self, mid, old_score, new_score, username):
+    def _peek_milestone(self, mid, old_score, new_score, username):
+        """只检测是否触发里程碑，不写盘。返回 (阈值, 消息) 或 None。"""
         mm = {
             10: f"「{username}」，你对我来说不再是陌生人了哦。",
             30: f"不知不觉就和「{username}」变熟了呢。",
@@ -70,12 +71,26 @@ class AffectionMixin:
         um = triggered.get(str(mid), [])
         for t, msg in mm.items():
             if old_score < t <= new_score and t not in um:
-                um.append(t)
-                triggered[str(mid)] = um
-                self._save_json(MILESTONE_FILE, triggered)
-                logger.info(f"[BiliBot] 🏆 里程碑！{username} 达到 {t} 分")
-                return msg
+                return t, msg
         return None
+
+    def _commit_milestone(self, mid, threshold, username=""):
+        """里程碑消息成功送达后再持久化标记。"""
+        triggered = self._load_json(MILESTONE_FILE, {})
+        um = triggered.get(str(mid), [])
+        if threshold not in um:
+            um.append(threshold)
+            triggered[str(mid)] = um
+            self._save_json(MILESTONE_FILE, triggered)
+            logger.info(f"[BiliBot] 🏆 里程碑！{username} 达到 {threshold} 分")
+
+    def _check_milestone(self, mid, old_score, new_score, username):
+        peek = self._peek_milestone(mid, old_score, new_score, username)
+        if not peek:
+            return None
+        t, msg = peek
+        self._commit_milestone(mid, t, username)
+        return msg
 
     # ── 安全 ──
     @staticmethod

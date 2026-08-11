@@ -745,10 +745,12 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 new_score = 100
             else:
                 new_score = max(-99, min(99, current_score + score_delta))
-            milestone = self._check_milestone(mid, current_score, new_score, username)
-            if milestone:
-                ai_reply = milestone
+            # 只探测不落盘：发送失败时不能把里程碑标成已触发（否则以后再达标也不提示）
+            milestone_hit = self._peek_milestone(mid, current_score, new_score, username)
+            if milestone_hit:
+                ai_reply = milestone_hit[1]
         else:
+            milestone_hit = None
             new_score = current_score
 
         # 先发送私信；失败时不落任何副作用，避免"好感度/画像已更新但用户没收到回复"的不一致
@@ -760,6 +762,8 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         if self.config.get("ENABLE_AFFECTION", True):
             self._affection[mid] = new_score
             self._save_json(AFFECTION_FILE, self._affection)
+            if milestone_hit:
+                self._commit_milestone(mid, milestone_hit[0], username)
 
         impression = result.get("impression", "")
         user_facts = result.get("user_facts", [])

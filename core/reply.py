@@ -176,12 +176,17 @@ class ReplyMixin:
                 pass
             if r is None or not isinstance(r, dict):
                 rm = re.search(r'"reply"\s*:\s*"([^"]*)"', rt)
-                if not rm:
-                    # 连 reply 字段都提取不到时放弃本条，绝不把原始 LLM 输出（残缺 JSON 等）公开发出
-                    logger.warning(f"[BiliBot] JSON解析失败且无法提取reply，放弃本条: {rt[:80]}")
+                if rm:
+                    r = {"score_delta": 1, "reply": rm.group(1), "impression": "", "user_facts": [], "permanent_memory": ""}
+                    logger.warning(f"[BiliBot] JSON解析失败，使用正则提取的回复: {rm.group(1)[:30]}")
+                elif "{" in rt or '"' in rt:
+                    # 疑似残缺 JSON：绝不把原始输出（JSON 碎片等）公开发出
+                    logger.warning(f"[BiliBot] JSON解析失败且疑似残缺JSON，放弃本条: {rt[:80]}")
                     return None
-                r = {"score_delta": 1, "reply": rm.group(1), "impression": "", "user_facts": [], "permanent_memory": ""}
-                logger.warning(f"[BiliBot] JSON解析失败，使用正则提取的回复: {rm.group(1)[:30]}")
+                else:
+                    # 模型直接返回了纯文本回复，保留有限兼容
+                    r = {"score_delta": 1, "reply": rt[:50], "impression": "", "user_facts": [], "permanent_memory": ""}
+                    logger.warning(f"[BiliBot] JSON解析失败，按纯文本兜底: {rt[:30]}")
             # LLM 可能返回 "score_delta": "+2" 这类字符串，统一转 int，防止后续算术/比较崩溃
             try:
                 r["score_delta"] = int(float(str(r.get("score_delta", 1)).strip()))
@@ -446,6 +451,7 @@ class ReplyMixin:
 
             # ── 是否回复：主人 / @ / 高好感(熟人以上) / 必回白名单 一律绕过，其余走概率 + 语义去重 ──
             high_aff = lv in ("friend", "close", "special")
+            content_emb = None
             force_reply = (
                 self._is_owner(mid) or item.get("source") == "at"
                 or high_aff or self._is_reply_whitelisted(mid)
@@ -459,10 +465,12 @@ class ReplyMixin:
                     logger.info(f"[BiliBot] 🎲 概率跳过（掷{roll} > {prob}%）：{username}")
                     return
                 logger.info(f"[BiliBot] 🎲 概率命中（掷{roll} ≤ {prob}%），继续：{username}")
-                if self.config.get("ENABLE_SIMILAR_SKIP", False) and await self._is_semantically_repeated(content):
-                    self._log_security_event("similar_skip", mid, username, content, "语义相似去重")
-                    logger.info(f"[BiliBot] ♻️ 相似评论跳过：{username}：{content[:30]}")
-                    return
+                if self.config.get("ENABLE_SIMILAR_SKIP", False):
+                    repeated, content_emb = await self._is_semantically_repeated(content)
+                    if repeated:
+                        self._log_security_event("similar_skip", mid, username, content, "语义相似去重")
+                        logger.info(f"[BiliBot] ♻️ 相似评论跳过：{username}：{content[:30]}")
+                        return
 
             image_desc = ""
             image_urls = await self._get_comment_images(oid, rpid, comment_type)
@@ -477,14 +485,14 @@ class ReplyMixin:
                 logger.warning(f"[BiliBot] {username} 回复生成失败，已标记已读跳过")
                 return
 
-            await self._apply_reply_result(
+            sent = await self._apply_reply_result(
                 mid=mid, username=username, content=content,
                 oid=oid, rpid=rpid, comment_type=comment_type,
                 thread_id=thread_id, result=result,
             )
 
-            if self.config.get("ENABLE_SIMILAR_SKIP", False):
-                await self._record_replied_content(content)
+            if sent and self.config.get("ENABLE_SIMILAR_SKIP", False):
+                await self._record_replied_content(content, emb=content_emb)
 
             # 回复冷却：防止短时间内重复回复
             cooldown = max(int(self.config.get("REPLY_COOLDOWN", 15)), 5)
@@ -505,15 +513,15 @@ class ReplyMixin:
     # ── 语义去重 ──
 
     async def _is_semantically_repeated(self, content):
-        """与最近回复过的评论做语义比对。命中（相似度≥阈值）返回 True；
-        不命中只返回 False，由调用方在回复成功后调用 _record_replied_content 记录。
+        """与最近回复过的评论做语义比对。返回 (是否命中, embedding)；
+        embedding 传回调用方，回复成功后记录时复用，避免二次调用接口。
         没有 embedding 能力时不拦截。"""
         text = (content or "").strip()
         if not text:
-            return False
+            return False, None
         emb = await self._get_embedding(text)
         if not emb:
-            return False
+            return False, None
         threshold = max(0, min(100, int(self.config.get("REPLY_SIMILARITY_PERCENT", 90)))) / 100.0
         store = self._load_json(REPLIED_CONTENT_KEYS_FILE, [])
         if not isinstance(store, list):
@@ -521,15 +529,15 @@ class ReplyMixin:
         for it in store:
             e = it.get("embedding")
             if e and len(e) == len(emb) and self._cosine_similarity(emb, e) >= threshold:
-                return True
-        return False
+                return True, emb
+        return False, emb
 
-    async def _record_replied_content(self, content):
+    async def _record_replied_content(self, content, emb=None):
         """回复真正发出后才把内容记入语义去重库，避免生成失败的评论污染去重。"""
         text = (content or "").strip()
         if not text:
             return
-        emb = await self._get_embedding(text)
+        emb = emb or await self._get_embedding(text)
         if not emb:
             return
         store = self._load_json(REPLIED_CONTENT_KEYS_FILE, [])
