@@ -212,7 +212,7 @@ class MemoryMixin:
         if not qe:
             return []
         scored = [(self._cosine_similarity(qe, m["embedding"]), m["text"]) for m in um]
-        scored.sort(reverse=True)
+        scored.sort(key=lambda pair: pair[0], reverse=True)
         return [t for s, t in scored[:MAX_SEMANTIC_RESULTS] if s > 0.6]
 
     async def _search_memories_raw(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5):
@@ -230,7 +230,7 @@ class MemoryMixin:
         if not qe:
             return []
         scored = [(self._cosine_similarity(qe, m["embedding"]), m) for m in cands]
-        scored.sort(reverse=True)
+        scored.sort(key=lambda pair: pair[0], reverse=True)
         return [(s, m) for s, m in scored[:limit] if s > score_threshold]
 
     async def _search_memories(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5):
@@ -534,7 +534,7 @@ class MemoryMixin:
         if not qe:
             return []
         scored = [(self._cosine_similarity(qe, m["embedding"]), m) for m in cands]
-        scored.sort(reverse=True)
+        scored.sort(key=lambda pair: pair[0], reverse=True)
         # 取 top N，但最低要有基本的语义相关（0.5 以下基本是噪声）
         results = []
         for s, m in scored[:limit]:

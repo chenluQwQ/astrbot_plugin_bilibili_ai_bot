@@ -55,8 +55,22 @@ class UtilsMixin:
         return default
 
     def _save_json(self, path, data):
-        with open(path, "w", encoding="utf-8") as f:
+        # 原子写：先写临时文件再 rename，避免进程中断导致文件截断、数据全丢
+        tmp_path = f"{path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+
+    def _append_json_list(self, path, entry, cap=None):
+        """读最新数据→追加→写回（同步、无 await），避免并发任务用旧快照互相覆盖。"""
+        data = self._load_json(path, [])
+        if not isinstance(data, list):
+            data = []
+        data.append(entry)
+        if cap:
+            data = data[-cap:]
+        self._save_json(path, data)
+        return data
 
     # ── 外部命令 ──
     def _find_command(self, command_name):
@@ -264,8 +278,13 @@ class UtilsMixin:
         text = text.replace('\uff02', "'")  # 全角双引号
         # 去掉尾逗号
         text = re.sub(r',\s*([}\]])', r'\1', text)
-        # 提取JSON对象
-        m = re.search(r'\{.*\}', text, re.DOTALL)
+        # 提取JSON对象或数组：按先出现的括号判断顶层类型，
+        # 避免把数组 [{...},{...}] 剥成非法的 {...},{...}，也避免把对象内的数组当成顶层
+        obj_pos, arr_pos = text.find('{'), text.find('[')
+        if arr_pos != -1 and (obj_pos == -1 or arr_pos < obj_pos):
+            m = re.search(r'\[.*\]', text, re.DOTALL)
+        else:
+            m = re.search(r'\{.*\}', text, re.DOTALL)
         if m:
             text = m.group()
         return text
