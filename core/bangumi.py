@@ -587,7 +587,10 @@ want_continue：是否值得继续追，烂番可以果断弃。
                 logger.warning("[BiliBot] 番剧评价失败，使用保底")
                 evaluation = {"score": 5, "comment": "", "mood": "平静", "review": "没什么特别的感觉", "want_continue": False}
 
-            score = evaluation.get("score", 5)
+            try:
+                score = int(float(str(evaluation.get("score", 5)).strip()))
+            except (TypeError, ValueError):
+                score = 5
             comment = evaluation.get("comment", "")
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
@@ -715,7 +718,8 @@ want_continue：是否值得继续追，烂番可以果断弃。
             found = False
             for i, ep in enumerate(all_eps):
                 if ep.get("ep_id") == start_ep_id:
-                    unwatched = all_eps[i:]
+                    # 从指定集开始，但仍跳过已看过的集，避免重复分析和重复发公开评论
+                    unwatched = [e for e in all_eps[i:] if e.get("ep_id") and e["ep_id"] not in watched_ids]
                     found = True
                     break
             if not found:

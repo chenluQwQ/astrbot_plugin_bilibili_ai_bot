@@ -852,6 +852,9 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         msg = event.message_str or ""
         if not await self._should_trigger_proactive_from_text(msg):
             return
+        # LLM 判断期间可能有另一条消息也通过了上面的 done() 检查，创建前需复查
+        if self._proactive_task is not None and not self._proactive_task.done():
+            return
         self._proactive_task = asyncio.create_task(self._run_proactive(max_watch=1))
         trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
         trigger_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "type": "manual_proactive_request", "scheduled": "llm_request", "status": "triggered", "content": msg[:100]})
@@ -1051,11 +1054,14 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             if not evaluation:
                 logger.warning("[BiliBot] 评价失败，跳过互动")
                 watch_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "score": 0, "mood": "未知", "comment": "评价失败", "review": "", "actions": [], "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "source": video.get("_source", ""), "source_detail": video.get("_source_detail", ""), "manual": is_manual})
-                self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+                watch_log = self._append_json_list(WATCH_LOG_FILE, watch_log.pop(), cap=200)
                 watched_bvids.add(bvid)
                 watch_count += 1
                 continue
-            score = evaluation.get("score", 5)
+            try:
+                score = int(float(str(evaluation.get("score", 5)).strip()))
+            except (TypeError, ValueError):
+                score = 5
             comment = evaluation.get("comment", "")
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
@@ -1092,6 +1098,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             comment_count += 1
                             logger.info(f"[BiliBot] 💬 评论成功：{proactive_comment}")
                             commented_videos.add(bvid)
+                            commented_videos |= set(self._load_json(COMMENTED_FILE, []))
                             self._save_json(COMMENTED_FILE, list(commented_videos))
                             pl = self._load_json(PROACTIVE_LOG_FILE, [])
                             pl.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "comment": proactive_comment})
@@ -1180,7 +1187,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                         logger.info(f"[BiliBot] ➕ 关注了 {video.get('up_name', '')}")
             log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "source": video.get("_source", ""), "source_detail": video.get("_source_detail", ""), "manual": is_manual}
             watch_log.append(log_entry)
-            self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+            watch_log = self._append_json_list(WATCH_LOG_FILE, watch_log.pop(), cap=200)
             recommended_by_private_message = "✉️私信推荐给主人" in actions
             recommended_by_comment = any(
                 action in {"📢推荐给主人", "📢评论区推荐给主人"}
@@ -1300,12 +1307,15 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     "actions": [], "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""),
                     "source": "special_follow",
                 })
-                self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+                watch_log = self._append_json_list(WATCH_LOG_FILE, watch_log.pop(), cap=200)
                 watched_bvids.add(bvid)
                 watch_count += 1
                 continue
 
-            score = evaluation.get("score", 5)
+            try:
+                score = int(float(str(evaluation.get("score", 5)).strip()))
+            except (TypeError, ValueError):
+                score = 5
             comment = evaluation.get("comment", "")
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
@@ -1336,6 +1346,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             actions.append("💬评论")
                             comment_count += 1
                             commented_videos.add(bvid)
+                            commented_videos |= set(self._load_json(COMMENTED_FILE, []))
                             self._save_json(COMMENTED_FILE, list(commented_videos))
 
             log_entry = {
@@ -1347,7 +1358,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 "source": "special_follow",
             }
             watch_log.append(log_entry)
-            self._save_json(WATCH_LOG_FILE, watch_log[-200:])
+            watch_log = self._append_json_list(WATCH_LOG_FILE, watch_log.pop(), cap=200)
 
             memory_text = (
                 f"[{log_entry['time']}] 特别关注看了视频《{video.get('title', '')}》"

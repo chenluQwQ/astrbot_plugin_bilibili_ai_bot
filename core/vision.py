@@ -45,6 +45,9 @@ class VisionMixin:
 
     @staticmethod
     def _cosine_similarity(a, b):
+        if len(a) != len(b):
+            # 维度不同说明来自不同 embedding 模型，相似度无意义
+            return 0
         dot = sum(x * y for x, y in zip(a, b))
         na = math.sqrt(sum(x * x for x in a))
         nb = math.sqrt(sum(x * x for x in b))

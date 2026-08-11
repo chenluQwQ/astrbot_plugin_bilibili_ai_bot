@@ -646,7 +646,10 @@ class ShareMixin:
             if video_path and video_path not in cleanup:
                 cleanup.append(video_path)
             if cleanup:
-                asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=1200))
+                task = asyncio.create_task(self._cleanup_share_video_files_later(cleanup, delay=1200))
+                self._share_cleanup_tasks = getattr(self, "_share_cleanup_tasks", set())
+                self._share_cleanup_tasks.add(task)
+                task.add_done_callback(self._share_cleanup_tasks.discard)
 
 
 
