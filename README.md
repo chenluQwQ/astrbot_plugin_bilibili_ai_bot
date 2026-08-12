@@ -181,7 +181,9 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
 |`ENABLE_PRIVATE_MESSAGES`    |可选|启用B站新私信监听；首次开启跳过历史，默认关闭，可用 `/bili开关 私信` 单独切换|
-|`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|私信独立轮询间隔，默认且最短60秒，附带少量随机偏移；遇到B站 -509 时从10分钟开始倍增退避，最长60分钟，连续成功3轮后恢复|
+|`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|收到新私信后的活跃期轮询间隔，默认且最短60秒|
+|`PRIVATE_MESSAGE_IDLE_POLL_INTERVAL`|可选|空闲期轮询间隔，默认180秒，且不会短于活跃期|
+|`PRIVATE_MESSAGE_ACTIVE_WINDOW`|可选|收到新私信后保持活跃轮询的时间，默认600秒；遇到 -509 后从10分钟倍增退避，恢复时逐级缩短|
 |`PRIVATE_MESSAGE_REPLY_SCOPE`|可选|`owner` 只回复主人 / `whitelist` 主人和白名单 / `all` 全部安全用户；默认 `owner`|
 |`PRIVATE_MESSAGE_AUTO_WATCH_VIDEO`|可选|收到允许回复用户的视频分享卡片后，先分析、写入视频记忆，再根据真实内容回复；默认开启|
 |`PRIVATE_MESSAGE_BILI_SEARCH_ENABLED`|可选|允许回复模型按需在后台搜索/推荐视频、查询UP主资料和最近投稿；查询时最多回复两条，默认开启|

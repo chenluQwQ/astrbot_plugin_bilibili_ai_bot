@@ -2,11 +2,17 @@
 import os
 import json
 import shutil
+import tempfile
+import threading
 import time
 import asyncio
 import aiohttp
 from astrbot.api import logger
 from .config import DATA_DIR, TEMP_IMAGE_DIR, TEMP_VIDEO_DIR, USER_AGENT
+
+
+_JSON_SAVE_LOCKS = {}
+_JSON_SAVE_LOCKS_GUARD = threading.Lock()
 
 
 class UtilsMixin:
@@ -55,11 +61,34 @@ class UtilsMixin:
         return default
 
     def _save_json(self, path, data):
-        # 原子写：先写临时文件再 rename，避免进程中断导致文件截断、数据全丢
-        tmp_path = f"{path}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, path)
+        # 每次写入使用同目录的唯一临时文件：既保留 os.replace 的原子性，
+        # 也避免多个线程/任务争用固定的 ``path.tmp``（Windows 会报 WinError 32）。
+        target = os.path.abspath(os.fspath(path))
+        parent = os.path.dirname(target)
+        os.makedirs(parent, exist_ok=True)
+        with _JSON_SAVE_LOCKS_GUARD:
+            target_lock = _JSON_SAVE_LOCKS.setdefault(target, threading.Lock())
+        # Windows 也可能拒绝两个线程同时 replace 同一个目标，因此同路径串行提交；
+        # 不同数据文件仍各自使用独立锁。
+        with target_lock:
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=f".{os.path.basename(target)}.",
+                suffix=".tmp",
+                dir=parent,
+                text=True,
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, target)
+            finally:
+                # json.dump / os.replace 失败时不遗留临时文件；原目标文件保持不变。
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
 
     def _append_json_list(self, path, entry, cap=None):
         """读最新数据→追加→写回（同步、无 await），避免并发任务用旧快照互相覆盖。"""

@@ -151,10 +151,22 @@
         "hint": "成功发送后，同一视频在冷却期间不会再次私信给主人。"
     },
     "PRIVATE_MESSAGE_POLL_INTERVAL": {
-        "description": "【B站私信·监听】检查新私信的间隔（秒）",
+        "description": "【B站私信·监听】活跃期检查间隔（秒）",
         "type": "int",
         "default": 60,
-        "hint": "默认60秒，也是允许的最短间隔，并会加入少量随机偏移。遇到B站 -509 频控时会从10分钟开始倍增退避，最长60分钟；连续成功3轮后恢复正常。"
+        "hint": "收到新私信后的活跃期使用此间隔；默认60秒，也是允许的最短间隔。"
+    },
+    "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL": {
+        "description": "【B站私信·监听】空闲期检查间隔（秒）",
+        "type": "int",
+        "default": 180,
+        "hint": "长时间没有新私信时使用此间隔，默认180秒，且不会短于活跃期；可降低B站 -509 频控概率。"
+    },
+    "PRIVATE_MESSAGE_ACTIVE_WINDOW": {
+        "description": "【B站私信·监听】收到消息后保持活跃多久（秒）",
+        "type": "int",
+        "default": 600,
+        "hint": "收到新私信后在这段时间内使用活跃期检查间隔，默认600秒。遇到 -509 时仍会从10分钟开始倍增退避，最长60分钟，并在恢复后逐级缩短。"
     },
     "ENABLE_BILI_SHARE_PARSE": {
         "description": "【分享解析·总开关】识别群聊和私聊里的B站视频分享",
