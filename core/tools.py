@@ -39,7 +39,7 @@ def create_tools(plugin):
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
-            user_id = kwargs.get("user_id", "")
+            user_id = str(kwargs.get("user_id", ""))
             profiles = plugin._load_json(USER_PROFILE_FILE, {})
             if user_id in profiles or user_id in plugin._affection:
                 p = profiles.get(user_id, {})
@@ -305,7 +305,7 @@ def create_tools(plugin):
         })
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
-            query = kwargs.get("query", "")
+            query = str(kwargs.get("query", ""))
             mid = query
             # 如果不是纯数字，先搜索UP主名字
             if not query.isdigit():
@@ -479,7 +479,10 @@ def create_tools(plugin):
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
             await asyncio.sleep(random.uniform(2, 5))
-            success = await plugin._like_video(int(kwargs.get("oid", "0")))
+            oid = str(kwargs.get("oid", "")).strip()
+            if not oid.isdigit():
+                return "oid 无效：需要 watch_video 返回的数字 oid，不是 BV 号。"
+            success = await plugin._like_video(int(oid))
             return "点赞成功。" if success else "点赞失败。"
 
     @dataclass
@@ -497,8 +500,15 @@ def create_tools(plugin):
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
             await asyncio.sleep(random.uniform(2, 5))
-            num = int(kwargs.get("num", "1"))
-            success = await plugin._coin_video(int(kwargs.get("oid", "0")), num=num)
+            oid = str(kwargs.get("oid", "")).strip()
+            if not oid.isdigit():
+                return "oid 无效：需要 watch_video 返回的数字 oid，不是 BV 号。"
+            try:
+                num = int(str(kwargs.get("num", "1")).strip())
+            except ValueError:
+                num = 1
+            num = 1 if num < 2 else 2
+            success = await plugin._coin_video(int(oid), num=num)
             return f"投了{num}个币。" if success else "投币失败。"
 
     @dataclass
@@ -515,7 +525,10 @@ def create_tools(plugin):
 
         async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
             await asyncio.sleep(random.uniform(2, 5))
-            success = await plugin._fav_video(int(kwargs.get("oid", "0")))
+            oid = str(kwargs.get("oid", "")).strip()
+            if not oid.isdigit():
+                return "oid 无效：需要 watch_video 返回的数字 oid，不是 BV 号。"
+            success = await plugin._fav_video(int(oid))
             return "收藏成功。" if success else "收藏失败。"
 
     @dataclass
@@ -762,8 +775,9 @@ def create_tools(plugin):
             # 写入本地黑名单
             bl_path = os.path.join(DATA_DIR, "block_log.json")
             bl = plugin._load_json(bl_path, {})
+            profiles = plugin._load_json(USER_PROFILE_FILE, {})
             bl[uid] = {
-                "username": reason,
+                "username": (profiles.get(uid) or {}).get("username", ""),
                 "reason": reason,
                 "time": dt.now().strftime("%Y-%m-%d %H:%M"),
             }

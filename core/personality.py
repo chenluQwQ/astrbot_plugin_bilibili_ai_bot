@@ -119,13 +119,19 @@ class PersonalityMixin:
 {{"new_trait": "新的变化描述（没有就留空）", "trigger": "什么触发了这个变化", "speech_habits": ["当前所有说话习惯，含旧的，最多5条"], "opinions": ["当前所有看法，含旧的，最多5条"], "reflection": "一句话的睡前感想"}}"""
         custom_prompt = self.config.get("EVOLVE_PROMPT", "").strip()
         tpl = custom_prompt if custom_prompt else default_evolve_prompt
-        prompt = tpl.format(
+        fmt_args = dict(
             old_traits=json.dumps(old_traits[-5:], ensure_ascii=False) if old_traits else "暂无",
             old_habits=json.dumps(old_habits, ensure_ascii=False) if old_habits else "暂无",
             old_opinions=json.dumps(old_opinions, ensure_ascii=False) if old_opinions else "暂无",
             recent_texts=recent_texts,
             owner_name=on,
         )
+        try:
+            prompt = tpl.format(**fmt_args)
+        except (KeyError, IndexError, ValueError) as e:
+            # 自定义 EVOLVE_PROMPT 含未转义花括号（如 JSON 示例）时回退默认模板
+            logger.warning(f"[BiliBot] EVOLVE_PROMPT 模板格式化失败（{e}），已回退默认模板；JSON示例的花括号需写成双花括号")
+            prompt = default_evolve_prompt.format(**fmt_args)
         max_retries = self.config.get("EVOLVE_MAX_RETRIES", 2)
         for attempt in range(max_retries):
             try:

@@ -116,7 +116,7 @@ class WebSearchMixin:
                 ],
                 max_tokens=400,
             )
-            return resp.choices[0].message.content.strip() if resp.choices else ""
+            return (resp.choices[0].message.content or "").strip() if resp.choices else ""
         except Exception as e:
             logger.error(f"[BiliBot] Perplexity 调用失败: {e}")
             return ""
@@ -166,7 +166,7 @@ class WebSearchMixin:
                 ],
                 max_tokens=400,
             )
-            return resp.choices[0].message.content.strip() if resp.choices else ""
+            return (resp.choices[0].message.content or "").strip() if resp.choices else ""
         except Exception as e:
             logger.error(f"[BiliBot] 自定义搜索接口调用失败: {e}")
             return ""

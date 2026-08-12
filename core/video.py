@@ -527,7 +527,8 @@ UP主：{video_info.get('up_name', '未知')}
         if buvid3:
             cookie_content += f".bilibili.com\tTRUE\t/\tFALSE\t0\tbuvid3\t{buvid3}\n"
         try:
-            with open(cookie_file, "w") as f:
+            fd = os.open(cookie_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
                 f.write(cookie_content)
         except Exception as e:
             logger.warning(f"[BiliBot] Cookie文件写入失败: {e}")
@@ -715,16 +716,16 @@ UP主：{video_info.get('up_name', '未知')}
                 if not has_mem:
                     mem_time = c.get("time", datetime.now().strftime("%Y-%m-%d %H:%M"))
                     memory_text = (
-                        f"[{mem_time}] 视频分析记忆：标题《{c['title']}》 "
-                        f"UP主:{c['owner_name']} 分区:{c.get('tname', '')} "
+                        f"[{mem_time}] 视频分析记忆：标题《{c.get('title', '')}》 "
+                        f"UP主:{c.get('owner_name', '')} 分区:{c.get('tname', '')} "
                         f"简介:{c.get('desc', '')[:120]} 内容概括:{c.get('analysis', '')[:200]}"
                     )
                     await self._save_self_memory_record(
                         f"video:{bvid}", memory_text, memory_type="video",
-                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c["title"]},
+                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c.get("title", "")},
                     )
-                    logger.info(f"[BiliBot] 📹 补录视频记忆：《{c['title']}》")
-                ctx = f"【当前视频】\n标题：{c['title']}\nUP主：{c['owner_name']}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{c.get('analysis', '')}"
+                    logger.info(f"[BiliBot] 📹 补录视频记忆：《{c.get('title', '')}》")
+                ctx = f"【当前视频】\n标题：{c.get('title', '')}\nUP主：{c.get('owner_name', '')}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{c.get('analysis', '')}"
                 tags = await self._get_video_tags(bvid)
                 comments = await self._get_hot_comments(oid)
                 if tags:

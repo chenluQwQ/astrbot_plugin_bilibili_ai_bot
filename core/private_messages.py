@@ -154,6 +154,8 @@ class PrivateMessageMixin:
             "device_id": str(uuid.uuid4()).upper(),
             "sessions": {},
             "processed_keys": [],
+            "pending_messages": [],
+            "failed_messages": [],
             "conversation_ids": {},
         }
 
@@ -571,7 +573,6 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         return data.get("data") or {}
 
     async def _poll_private_inbox(self):
-        sessions = await self._get_private_sessions()
         self_uid = str(self.config.get("DEDE_USER_ID", "") or "").strip()
         state = self._load_json(
             PRIVATE_MESSAGE_STATE_FILE,
@@ -587,6 +588,36 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         session_state = state.setdefault("sessions", {})
         processed = [str(item) for item in state.get("processed_keys", [])]
         processed_set = set(processed)
+
+        try:
+            message_limit = max(
+                1,
+                min(20, int(self.config.get("PRIVATE_MESSAGE_MAX_PER_POLL", 3) or 3)),
+            )
+        except (TypeError, ValueError):
+            message_limit = 3
+
+        now = int(time.time())
+        pending = [
+            dict(item)
+            for item in state.get("pending_messages", [])
+            if isinstance(item, dict) and str(item.get("msg_key") or "")
+        ]
+        # 优先处理已经持久化且到期的消息。即使 B 站接口暂时 -509，或进程在抓取后
+        # 重启，也可以继续完成本地待处理消息，而不依赖远端游标再次返回它们。
+        due_pending = [
+            item
+            for item in pending
+            if int(item.get("next_retry_at") or 0) <= now
+        ]
+        if state.get("initialized") and due_pending:
+            due_pending.sort(key=lambda item: (
+                int(item.get("timestamp") or 0),
+                int(item.get("msg_seqno") or 0),
+            ))
+            return due_pending[:message_limit]
+
+        sessions = await self._get_private_sessions()
 
         if not state.get("initialized"):
             for session in sessions:
@@ -610,16 +641,9 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             )
         except (TypeError, ValueError):
             max_age = 3600
-        try:
-            message_limit = max(
-                1,
-                min(20, int(self.config.get("PRIVATE_MESSAGE_MAX_PER_POLL", 3) or 3)),
-            )
-        except (TypeError, ValueError):
-            message_limit = 3
 
-        now = int(time.time())
         new_messages = []
+        pending_keys = {str(item.get("msg_key")) for item in pending}
         for session in sessions:
             if len(new_messages) >= message_limit:
                 break
@@ -660,6 +684,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 if (
                     not msg_key
                     or msg_key in processed_set
+                    or msg_key in pending_keys
                     or sender_uid == self_uid
                     or msg_type not in (1, 7)
                     or (last_seqno and msg_seqno and msg_seqno <= last_seqno)
@@ -672,7 +697,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 if not content:
                     continue
                 account = session.get("account_info") or {}
-                new_messages.append({
+                queued_message = {
                     "msg_key": msg_key,
                     "msg_seqno": msg_seqno,
                     "talker_id": talker_id,
@@ -682,9 +707,13 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                     "content": content,
                     "content_type": content_type,
                     "timestamp": timestamp,
-                })
-                processed.append(msg_key)
-                processed_set.add(msg_key)
+                    "retry_count": 0,
+                    "next_retry_at": 0,
+                    "queued_at": now,
+                }
+                new_messages.append(queued_message)
+                pending.append(queued_message)
+                pending_keys.add(msg_key)
                 if len(new_messages) >= message_limit:
                     reached_limit = True
                     break
@@ -700,8 +729,89 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
 
         state["account_uid"] = self_uid
         state["processed_keys"] = processed[-1000:]
+        state["pending_messages"] = pending
+        # 本方法 load 与 save 之间有多次网络 await，期间 _reset_private_conversation
+        # 可能写入了新的 conversation_id，保存前合并磁盘上的最新值避免回滚
+        disk_state = self._load_json(PRIVATE_MESSAGE_STATE_FILE, {})
+        if isinstance(disk_state, dict) and isinstance(disk_state.get("conversation_ids"), dict):
+            merged_ids = dict(state.get("conversation_ids") or {})
+            merged_ids.update(disk_state["conversation_ids"])  # 磁盘上是 reset 刚写入的新值，优先
+            state["conversation_ids"] = merged_ids
         self._save_json(PRIVATE_MESSAGE_STATE_FILE, state)
         return new_messages
+
+    def _finish_private_message(self, message, error=None):
+        """确认成功消息，或为失败消息安排有限重试。
+
+        抓取阶段已经把完整消息写入 pending_messages，因此远端会话游标可以安全
+        前进。只有处理成功才加入 processed_keys；连续失败三次后进入失败隔离记录，
+        避免一条坏消息永久阻塞收件箱。
+        """
+        self_uid = str(self.config.get("DEDE_USER_ID", "") or "").strip()
+        state = self._load_json(
+            PRIVATE_MESSAGE_STATE_FILE,
+            self._default_private_message_state(self_uid),
+        )
+        if not isinstance(state, dict):
+            state = self._default_private_message_state(self_uid)
+
+        msg_key = str(message.get("msg_key") or "")
+        pending = [
+            dict(item)
+            for item in state.get("pending_messages", [])
+            if isinstance(item, dict) and str(item.get("msg_key") or "")
+        ]
+        current = next(
+            (item for item in pending if str(item.get("msg_key")) == msg_key),
+            dict(message),
+        )
+        pending = [
+            item for item in pending if str(item.get("msg_key")) != msg_key
+        ]
+        processed = [str(item) for item in state.get("processed_keys", [])]
+
+        if error is None:
+            if msg_key and msg_key not in processed:
+                processed.append(msg_key)
+            state["pending_messages"] = pending
+            state["processed_keys"] = processed[-1000:]
+            self._save_json(PRIVATE_MESSAGE_STATE_FILE, state)
+            return "acknowledged", 0
+
+        retry_count = int(current.get("retry_count") or 0) + 1
+        error_text = str(error)[:500]
+        if retry_count >= 3:
+            if msg_key and msg_key not in processed:
+                processed.append(msg_key)
+            failed = [
+                dict(item)
+                for item in state.get("failed_messages", [])
+                if isinstance(item, dict)
+            ]
+            failed.append({
+                "msg_key": msg_key,
+                "sender_uid": str(message.get("sender_uid") or ""),
+                "username": str(message.get("username") or ""),
+                "content": str(message.get("content") or "")[:500],
+                "retry_count": retry_count,
+                "last_error": error_text,
+                "failed_at": int(time.time()),
+            })
+            state["failed_messages"] = failed[-100:]
+            state["pending_messages"] = pending
+            state["processed_keys"] = processed[-1000:]
+            self._save_json(PRIVATE_MESSAGE_STATE_FILE, state)
+            return "quarantined", retry_count
+
+        delay = 30 * (2 ** (retry_count - 1))
+        current["retry_count"] = retry_count
+        current["last_error"] = error_text
+        current["next_retry_at"] = int(time.time()) + delay
+        pending.append(current)
+        state["pending_messages"] = pending
+        state["processed_keys"] = processed[-1000:]
+        self._save_json(PRIVATE_MESSAGE_STATE_FILE, state)
+        return "retry", delay
 
     def _record_private_block(self, message, reason, blocked):
         mid = str(message.get("sender_uid") or "")
@@ -725,7 +835,10 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         content = message["content"]
         thread_id = thread_id or self._private_conversation_thread_id(mid)
         current_score = self._affection.get(mid, 0)
-        score_delta = result.get("score_delta", 1)
+        try:
+            score_delta = int(float(str(result.get("score_delta", 1)).strip()))
+        except (ValueError, TypeError):
+            score_delta = 1
         ai_reply = str(result.get("reply", "") or "").strip()
         if not ai_reply:
             return False
@@ -734,14 +847,26 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             if self._is_owner(mid):
                 new_score = 100
             else:
-                new_score = max(0, min(99, current_score + score_delta))
+                new_score = max(-99, min(99, current_score + score_delta))
+            # 只探测不落盘：发送失败时不能把里程碑标成已触发（否则以后再达标也不提示）
+            milestone_hit = self._peek_milestone(mid, current_score, new_score, username)
+            if milestone_hit:
+                ai_reply = milestone_hit[1]
+        else:
+            milestone_hit = None
+            new_score = current_score
+
+        # 先发送私信；失败时不落任何副作用，避免"好感度/画像已更新但用户没收到回复"的不一致
+        success = await self._send_bili_private_message(mid, ai_reply)
+        if not success:
+            logger.warning(f"[BiliBot] 私信回复发送失败，UID={mid}，不会自动重发")
+            return False
+
+        if self.config.get("ENABLE_AFFECTION", True):
             self._affection[mid] = new_score
             self._save_json(AFFECTION_FILE, self._affection)
-            milestone = self._check_milestone(mid, current_score, new_score, username)
-            if milestone:
-                ai_reply = milestone
-        else:
-            new_score = current_score
+            if milestone_hit:
+                self._commit_milestone(mid, milestone_hit[0], username)
 
         impression = result.get("impression", "")
         user_facts = result.get("user_facts", [])
@@ -762,11 +887,6 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                     "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 })
                 self._save_json(PERMANENT_MEMORY_FILE, memories)
-
-        success = await self._send_bili_private_message(mid, ai_reply)
-        if not success:
-            logger.warning(f"[BiliBot] 私信回复发送失败，UID={mid}，不会自动重发")
-            return False
 
         reply_log = self._load_json(REPLY_LOG_FILE, [])
         reply_log.append({
@@ -800,7 +920,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             return
 
         try:
-            poll_interval = max(
+            active_interval = max(
                 60,
                 min(
                     1800,
@@ -808,7 +928,33 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 ),
             )
         except (TypeError, ValueError):
-            poll_interval = 60
+            active_interval = 60
+        try:
+            idle_interval = max(
+                active_interval,
+                min(
+                    3600,
+                    int(
+                        self.config.get("PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", 180)
+                        or 180
+                    ),
+                ),
+            )
+        except (TypeError, ValueError):
+            idle_interval = max(active_interval, 180)
+        try:
+            active_window = max(
+                60,
+                min(
+                    3600,
+                    int(
+                        self.config.get("PRIVATE_MESSAGE_ACTIVE_WINDOW", 600)
+                        or 600
+                    ),
+                ),
+            )
+        except (TypeError, ValueError):
+            active_window = 600
 
         def jittered(delay):
             """Use a small positive jitter so requests do not form a fixed pattern."""
@@ -817,8 +963,16 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         now = time.monotonic()
         if now < getattr(self, "_private_message_next_poll_at", 0.0):
             return
+        last_activity = float(
+            getattr(self, "_private_message_last_activity_at", 0.0) or 0.0
+        )
+        current_interval = (
+            active_interval
+            if last_activity > 0 and now - last_activity <= active_window
+            else idle_interval
+        )
         # 请求发出前先占住下一次时间，异常时也不会跟随评论主循环连续重试。
-        self._private_message_next_poll_at = now + jittered(poll_interval)
+        self._private_message_next_poll_at = now + jittered(current_interval)
         try:
             messages = await self._poll_private_inbox()
         except Exception as exc:
@@ -833,123 +987,207 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 self._private_message_backoff_seconds = backoff
                 self._private_message_success_streak = 0
                 self._private_message_next_poll_at = time.monotonic() + jittered(backoff)
-                logger.warning(
-                    f"[BiliBot] 私信接口请求过于频繁，已暂停轮询 {backoff} 秒，"
-                    "期间不会重复请求"
-                )
+                if backoff != int(
+                    getattr(self, "_private_message_last_warned_backoff", 0) or 0
+                ):
+                    self._private_message_last_warned_backoff = backoff
+                    logger.warning(
+                        f"[BiliBot] 私信接口请求过于频繁，已暂停轮询 {backoff} 秒，"
+                        "期间不会重复请求"
+                    )
+                else:
+                    logger.info(
+                        f"[BiliBot] 私信接口仍处于频控，继续等待 {backoff} 秒"
+                    )
             else:
                 logger.warning(f"[BiliBot] 私信轮询失败: {exc}")
             return
 
+        completed_at = time.monotonic()
+        if messages:
+            self._private_message_last_activity_at = completed_at
+        last_activity = float(
+            getattr(self, "_private_message_last_activity_at", 0.0) or 0.0
+        )
+        normal_delay = (
+            active_interval
+            if last_activity > 0 and completed_at - last_activity <= active_window
+            else idle_interval
+        )
         backoff = int(getattr(self, "_private_message_backoff_seconds", 0) or 0)
         if backoff:
             success_streak = int(
                 getattr(self, "_private_message_success_streak", 0) or 0
             ) + 1
             self._private_message_success_streak = success_streak
-            if success_streak >= 3:
-                self._private_message_backoff_seconds = 0
+            if success_streak >= 2:
+                reduced_backoff = max(idle_interval, backoff // 2)
                 self._private_message_success_streak = 0
-                next_delay = poll_interval
-                logger.info("[BiliBot] 私信接口已连续成功 3 轮，恢复正常轮询")
+                self._private_message_last_warned_backoff = 0
+                if reduced_backoff < backoff:
+                    self._private_message_backoff_seconds = reduced_backoff
+                    next_delay = reduced_backoff
+                    logger.info(
+                        f"[BiliBot] 私信接口连续成功 2 轮，恢复间隔由 "
+                        f"{backoff} 秒降至 {reduced_backoff} 秒"
+                    )
+                else:
+                    self._private_message_backoff_seconds = 0
+                    next_delay = normal_delay
+                    logger.info(
+                        f"[BiliBot] 私信接口已稳定恢复，进入自适应轮询："
+                        f"活跃 {active_interval} 秒 / 空闲 {idle_interval} 秒"
+                    )
             else:
                 next_delay = backoff
                 logger.info(
-                    f"[BiliBot] 私信接口恢复观察中：连续成功 {success_streak}/3，"
+                    f"[BiliBot] 私信接口恢复观察中：连续成功 {success_streak}/2，"
                     f"下一轮仍等待约 {backoff} 秒"
                 )
         else:
             self._private_message_success_streak = 0
-            next_delay = poll_interval
+            next_delay = normal_delay
         self._private_message_next_poll_at = time.monotonic() + jittered(next_delay)
 
         trusted_domains = self.config.get("PRIVATE_MESSAGE_TRUSTED_DOMAINS", []) or None
         for message in messages:
-            mid = str(message["sender_uid"])
-            username = message["username"]
-            content = message["content"]
-            decision = assess_private_message(content, trusted_domains)
-            if decision.should_block:
-                if self._private_sender_protected(mid):
-                    self._log_security_event(
-                        "private_message_protected",
-                        mid,
-                        username,
-                        content,
-                        decision.reason,
+            try:
+                handled = await self._handle_private_message(message, trusted_domains)
+                if handled is False:
+                    raise RuntimeError("消息处理未完成")
+            except Exception as e:
+                outcome, value = self._finish_private_message(message, error=e)
+                if outcome == "retry":
+                    retry_at = time.monotonic() + value
+                    self._private_message_next_poll_at = min(
+                        float(getattr(self, "_private_message_next_poll_at", retry_at)),
+                        retry_at,
                     )
                     logger.warning(
-                        f"[BiliBot] 私信命中安全规则但用户受保护，未拉黑：{username}({mid})"
+                        f"[BiliBot] 处理单条私信失败，将在约 {value} 秒后重试"
+                        f"（发送者 {message.get('sender_uid')}）: {e}"
                     )
-                    continue
-                blocked = False
-                if self.config.get("PRIVATE_MESSAGE_AUTO_BLOCK", True):
-                    blocked = await self._block_user(int(mid))
-                action = "已拉黑" if blocked else "已隔离，未完成拉黑"
-                self._record_private_block(message, decision.reason, blocked)
+                else:
+                    logger.error(
+                        f"[BiliBot] 单条私信连续失败 {value} 次，已写入失败隔离记录"
+                        f"（发送者 {message.get('sender_uid')}）: {e}"
+                    )
+            else:
+                self._finish_private_message(message)
+
+    async def _handle_private_message(self, message, trusted_domains):
+        mid = str(message["sender_uid"])
+        username = message["username"]
+        content = message["content"]
+        decision = assess_private_message(content, trusted_domains)
+        if decision.should_block:
+            if self._private_sender_protected(mid):
                 self._log_security_event(
-                    "private_message_auto_block" if blocked else "private_message_quarantined",
+                    "private_message_protected",
                     mid,
                     username,
                     content,
-                    f"{decision.reason}；{action}",
+                    decision.reason,
                 )
                 logger.warning(
-                    f"[BiliBot] 🚫 私信安全拦截 {username}({mid})：{decision.reason}；{action}"
+                    f"[BiliBot] 私信命中安全规则但用户受保护，未拉黑：{username}({mid})"
                 )
-                continue
+                return True
+            blocked = False
+            if self.config.get("PRIVATE_MESSAGE_AUTO_BLOCK", True):
+                blocked = await self._block_user(int(mid))
+            action = "已拉黑" if blocked else "已隔离，未完成拉黑"
+            self._record_private_block(message, decision.reason, blocked)
+            self._log_security_event(
+                "private_message_auto_block" if blocked else "private_message_quarantined",
+                mid,
+                username,
+                content,
+                f"{decision.reason}；{action}",
+            )
+            logger.warning(
+                f"[BiliBot] 🚫 私信安全拦截 {username}({mid})：{decision.reason}；{action}"
+            )
+            return True
 
-            if (
-                not self.config.get("PRIVATE_MESSAGE_AUTO_REPLY", True)
-                or not self._private_reply_scope_allows(mid)
-            ):
-                continue
+        if (
+            not self.config.get("PRIVATE_MESSAGE_AUTO_REPLY", True)
+            or not self._private_reply_scope_allows(mid)
+        ):
+            return True
 
-            # Deliberately exact: only the standalone text "new" resets context.
-            # "new一下", "/new" and messages merely containing the word stay normal chat.
-            if message.get("content_type") == "text" and content.strip() == "new":
-                new_thread_id = self._reset_private_conversation(mid)
-                reset_reply = "已清除当前私信的对话上下文。"
-                sent = await self._send_bili_private_message(mid, reset_reply)
-                if sent:
-                    logger.info(
-                        f"[BiliBot] 🆕 已重置私信上下文：{username}({mid}) -> {new_thread_id}"
+        # Deliberately exact: only the standalone text "new" resets context.
+        # "new一下", "/new" and messages merely containing the word stay normal chat.
+        if message.get("content_type") == "text" and content.strip() == "new":
+            new_thread_id = self._reset_private_conversation(mid)
+            reset_reply = "已清除当前私信的对话上下文。"
+            sent = await self._send_bili_private_message(mid, reset_reply)
+            if sent:
+                logger.info(
+                    f"[BiliBot] 🆕 已重置私信上下文：{username}({mid}) -> {new_thread_id}"
+                )
+            else:
+                logger.warning(f"[BiliBot] 私信上下文已重置，但确认消息发送失败：{mid}")
+            return True
+
+        score = self._affection.get(mid, 0)
+        logger.info(
+            f"[BiliBot] ✉️ 收到私信 {username}（{LEVEL_NAMES[self._get_level(score, mid)]}|{score}分）：{content[:100]}"
+        )
+        reply_content = content
+        reference_context = ""
+        allow_tool_request = message.get("content_type") == "text"
+        if (
+            message.get("content_type") == "video_share"
+            and self.config.get("PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", True)
+        ):
+            video_id = self._private_shared_video_id(content)
+            if video_id:
+                watch_result = await self._watch_video_and_save_memory(
+                    video_id, memory_source="private_share"
+                )
+                if watch_result.get("ok"):
+                    reply_content += (
+                        "\n\n【你已经实际看完该视频，必须基于以下观看结果回复，"
+                        "不要再说还没看或以后再看】\n"
+                        + watch_result["message"]
                     )
                 else:
-                    logger.warning(f"[BiliBot] 私信上下文已重置，但确认消息发送失败：{mid}")
-                continue
-
-            score = self._affection.get(mid, 0)
-            logger.info(
-                f"[BiliBot] ✉️ 收到私信 {username}（{LEVEL_NAMES[self._get_level(score, mid)]}|{score}分）：{content[:100]}"
-            )
-            reply_content = content
-            reference_context = ""
-            allow_tool_request = message.get("content_type") == "text"
-            if (
-                message.get("content_type") == "video_share"
-                and self.config.get("PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", True)
-            ):
-                video_id = self._private_shared_video_id(content)
-                if video_id:
-                    watch_result = await self._watch_video_and_save_memory(
-                        video_id, memory_source="private_share"
+                    reply_content += (
+                        "\n\n【本次尝试观看失败，请如实说明暂时没能读取，"
+                        "不要声称已经看完】\n"
+                        + str(watch_result.get("message", "未知错误"))
                     )
-                    if watch_result.get("ok"):
-                        reply_content += (
-                            "\n\n【你已经实际看完该视频，必须基于以下观看结果回复，"
-                            "不要再说还没看或以后再看】\n"
-                            + watch_result["message"]
-                        )
-                    else:
-                        reply_content += (
-                            "\n\n【本次尝试观看失败，请如实说明暂时没能读取，"
-                            "不要声称已经看完】\n"
-                            + str(watch_result.get("message", "未知错误"))
-                        )
-            thread_id = self._private_conversation_thread_id(mid)
-            result = await self._generate_reply(
-                reply_content,
+        thread_id = self._private_conversation_thread_id(mid)
+        result = await self._generate_reply(
+            reply_content,
+            mid,
+            username,
+            thread_id,
+            0,
+            0,
+            channel="private",
+            reference_context=reference_context,
+            allow_tool_request=allow_tool_request,
+        )
+        if not result or not result.get("reply"):
+            logger.warning(f"[BiliBot] 私信回复生成失败，稍后重试：{username}({mid})")
+            return False
+        tool_request = result.get("tool_request") or {}
+        tool_name = str(tool_request.get("name") or "none").strip().lower()
+        if tool_name != "none":
+            progress_reply = str(result.get("reply") or "").strip() or "我查一下。"
+            progress_sent = await self._send_bili_private_message(mid, progress_reply)
+            if progress_sent:
+                logger.info(
+                    f"[BiliBot] ✉️ 私信工具查询前回复 {username}：{progress_reply[:80]}"
+                )
+            else:
+                logger.warning(f"[BiliBot] 私信工具查询前回复发送失败：{mid}")
+
+            reference_context = await self._execute_private_model_tool(tool_request)
+            final_result = await self._generate_reply(
+                content,
                 mid,
                 username,
                 thread_id,
@@ -957,44 +1195,19 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 0,
                 channel="private",
                 reference_context=reference_context,
-                allow_tool_request=allow_tool_request,
+                allow_tool_request=False,
             )
-            if not result or not result.get("reply"):
-                logger.warning(f"[BiliBot] 私信回复生成失败，已跳过：{username}({mid})")
-                continue
-            tool_request = result.get("tool_request") or {}
-            tool_name = str(tool_request.get("name") or "none").strip().lower()
-            if tool_name != "none":
-                progress_reply = str(result.get("reply") or "").strip() or "我查一下。"
-                if await self._send_bili_private_message(mid, progress_reply):
-                    logger.info(
-                        f"[BiliBot] ✉️ 私信工具查询前回复 {username}：{progress_reply[:80]}"
-                    )
-                else:
-                    logger.warning(f"[BiliBot] 私信工具查询前回复发送失败：{mid}")
-
-                reference_context = await self._execute_private_model_tool(tool_request)
-                final_result = await self._generate_reply(
-                    content,
-                    mid,
-                    username,
-                    thread_id,
-                    0,
-                    0,
-                    channel="private",
-                    reference_context=reference_context,
-                    allow_tool_request=False,
+            if not final_result or not final_result.get("reply"):
+                logger.warning(
+                    f"[BiliBot] 私信工具结果整合失败，已保留查询前回复：{username}({mid})"
                 )
-                if not final_result or not final_result.get("reply"):
-                    logger.warning(
-                        f"[BiliBot] 私信工具结果整合失败，已保留查询前回复：{username}({mid})"
-                    )
-                    continue
-                await self._apply_private_reply_result(
-                    message, final_result, thread_id=thread_id
-                )
-                continue
-
-            await self._apply_private_reply_result(
-                message, result, thread_id=thread_id
+                return bool(progress_sent)
+            applied = await self._apply_private_reply_result(
+                message, final_result, thread_id=thread_id
             )
+            return bool(applied)
+
+        applied = await self._apply_private_reply_result(
+            message, result, thread_id=thread_id
+        )
+        return bool(applied)

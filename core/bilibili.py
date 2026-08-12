@@ -54,13 +54,14 @@ class BilibiliAPIMixin:
             return False, f"❌ 检查失败: {e}"
 
     async def check_need_refresh(self):
+        # 返回 (True, msg)=需要刷新 / (False, msg)=确认无需刷新 / (None, msg)=检查出错，无法判断
         try:
             d, _ = await self._http_get(BILI_COOKIE_INFO_URL, params={"csrf": self.config.get("BILI_JCT", "")})
             if d["code"] != 0:
-                return False, f"检查失败: {d.get('message', '')}"
+                return None, f"检查失败: {d.get('message', '')}"
             return (True, "需要刷新") if d["data"].get("refresh", False) else (False, "Cookie 仍然有效")
         except Exception as e:
-            return False, f"检查出错: {e}"
+            return None, f"检查出错: {e}"
 
     def _generate_correspond_path(self, ts):
         from cryptography.hazmat.primitives.asymmetric import padding
@@ -80,6 +81,8 @@ class BilibiliAPIMixin:
             return False, "SESSDATA 为空"
         try:
             need, msg = await self.check_need_refresh()
+            if need is None:
+                return False, f"无法确认是否需要刷新（{msg}），本次跳过"
             if not need:
                 return True, msg
             cp = self._generate_correspond_path(int(time.time() * 1000))
@@ -125,9 +128,16 @@ class BilibiliAPIMixin:
 
     # ── WBI 签名 ──
     async def _get_wbi_keys(self):
+        # wbi key 官方约一天一换，缓存 6 小时避免每次签名都请求 nav 接口
+        cached = getattr(self, "_wbi_keys_cache", None)
+        if cached and time.time() - cached[0] < 6 * 3600:
+            return cached[1], cached[2]
         d, _ = await self._http_get(BILI_NAV_URL)
         d = d["data"]["wbi_img"]
-        return d["img_url"].rsplit("/", 1)[1].split(".")[0], d["sub_url"].rsplit("/", 1)[1].split(".")[0]
+        ik = d["img_url"].rsplit("/", 1)[1].split(".")[0]
+        sk = d["sub_url"].rsplit("/", 1)[1].split(".")[0]
+        self._wbi_keys_cache = (time.time(), ik, sk)
+        return ik, sk
 
     def _get_mixin_key(self, orig):
         return reduce(lambda s, i: s + orig[i], MIXIN_KEY_ENC_TAB, "")[:32]
@@ -140,8 +150,19 @@ class BilibiliAPIMixin:
             params = dict(sorted(params.items()))
             params["w_rid"] = hashlib.md5(("&".join(f"{k}={v}" for k, v in params.items()) + mk).encode()).hexdigest()
             return params
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[BiliBot] WBI 签名失败，将以未签名参数请求（接口大概率返回 -352）: {e}")
             return params
+
+    async def _wbi_get(self, url, params):
+        """签名并请求 wbi 接口；遇 -352 时清缓存、用原始参数重新签名并立即重试一次。"""
+        raw = dict(params)
+        d, r = await self._http_get(url, params=await self.sign_wbi_params(dict(raw)))
+        if isinstance(d, dict) and d.get("code") == -352:
+            self._wbi_keys_cache = None
+            logger.warning("[BiliBot] wbi 接口返回 -352，重新签名重试一次")
+            d, r = await self._http_get(url, params=await self.sign_wbi_params(dict(raw)))
+        return d, r
 
     # ── 扫码登录 ──
     async def _qr_login_generate(self):
@@ -592,8 +613,7 @@ class BilibiliAPIMixin:
     # ── UP主最新视频 ──
     async def _get_up_latest_video(self, mid):
         try:
-            params = await self.sign_wbi_params({"mid": mid, "ps": 1, "pn": 1, "order": "pubdate"})
-            d, _ = await self._http_get("https://api.bilibili.com/x/space/wbi/arc/search", params=params)
+            d, _ = await self._wbi_get("https://api.bilibili.com/x/space/wbi/arc/search", {"mid": mid, "ps": 1, "pn": 1, "order": "pubdate"})
             if d.get("code") != 0:
                 return None
             vlist = d.get("data", {}).get("list", {}).get("vlist", [])
@@ -610,13 +630,10 @@ class BilibiliAPIMixin:
     async def search_bilibili_videos(self, keyword, ps=5):
         """搜索B站视频，返回视频列表"""
         try:
-            params = await self.sign_wbi_params({
+            d, _ = await self._wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/type", {
                 "keyword": keyword, "search_type": "video",
                 "page": 1, "page_size": ps, "order": "totalrank",
             })
-            d, _ = await self._http_get(
-                "https://api.bilibili.com/x/web-interface/wbi/search/type", params=params,
-            )
             if d.get("code") != 0:
                 logger.debug(f"[BiliBot] 搜索视频失败: code={d.get('code')} msg={d.get('message')}")
                 return []
@@ -642,13 +659,10 @@ class BilibiliAPIMixin:
     async def search_bilibili_users(self, keyword, ps=3):
         """搜索B站用户/UP主"""
         try:
-            params = await self.sign_wbi_params({
+            d, _ = await self._wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/type", {
                 "keyword": keyword, "search_type": "bili_user",
                 "page": 1, "page_size": ps,
             })
-            d, _ = await self._http_get(
-                "https://api.bilibili.com/x/web-interface/wbi/search/type", params=params,
-            )
             if d.get("code") != 0:
                 return []
             results = []
@@ -669,10 +683,7 @@ class BilibiliAPIMixin:
     async def get_up_info(self, mid):
         """获取UP主详细信息"""
         try:
-            params = await self.sign_wbi_params({"mid": mid})
-            d, _ = await self._http_get(
-                "https://api.bilibili.com/x/space/wbi/acc/info", params=params,
-            )
+            d, _ = await self._wbi_get("https://api.bilibili.com/x/space/wbi/acc/info", {"mid": mid})
             if d.get("code") != 0:
                 return None
             data = d.get("data") or {}
@@ -692,12 +703,9 @@ class BilibiliAPIMixin:
     async def get_up_recent_videos(self, mid, ps=5):
         """获取UP主最近的N个视频"""
         try:
-            params = await self.sign_wbi_params({
+            d, _ = await self._wbi_get("https://api.bilibili.com/x/space/wbi/arc/search", {
                 "mid": mid, "ps": ps, "pn": 1, "order": "pubdate",
             })
-            d, _ = await self._http_get(
-                "https://api.bilibili.com/x/space/wbi/arc/search", params=params,
-            )
             if d.get("code") != 0:
                 return []
             vlist = (d.get("data") or {}).get("list", {}).get("vlist", [])

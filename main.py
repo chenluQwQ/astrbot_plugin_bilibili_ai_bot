@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.3.4
+AstrBot Plugin - Bilibili Bot 1.3.5
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
@@ -33,7 +33,7 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.3.4","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.3.5","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
 class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -70,6 +70,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._private_message_next_poll_at = 0.0
         self._private_message_backoff_seconds = 0
         self._private_message_success_streak = 0
+        self._private_message_last_activity_at = 0.0
+        self._private_message_last_warned_backoff = 0
         self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
         # ── 记忆清算引擎 & 外部接口 ──
@@ -91,10 +93,14 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         if not self._has_cookie():
             logger.warning("[BiliBot] Cookie未配置，后台任务未启动")
             return
-        valid, _ = await self.check_cookie()
+        valid, msg = await self.check_cookie()
         if valid:
             await self._start_bot()
             logger.info("[BiliBot] 自动启动")
+        elif "检查失败" in str(msg):
+            # 网络暂时不可用 ≠ Cookie 失效（如开机自启时网络未就绪），仍启动主循环靠周期检查兜底
+            logger.warning(f"[BiliBot] Cookie 检查暂时失败（{msg}），仍启动后台任务等待网络恢复")
+            await self._start_bot()
         else:
             logger.warning("[BiliBot] Cookie无效")
 
@@ -124,6 +130,31 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
             await self._ensure_buvid()
             self._mark_overdue_schedule_as_triggered_on_startup()
+            if self.config.get("ENABLE_PRIVATE_MESSAGES", False):
+                private_state = self._load_json(PRIVATE_MESSAGE_STATE_FILE, {})
+                if isinstance(private_state, dict) and private_state.get("initialized"):
+                    try:
+                        startup_delay = max(
+                            60,
+                            min(
+                                3600,
+                                int(
+                                    self.config.get(
+                                        "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", 180
+                                    )
+                                    or 180
+                                ),
+                            ),
+                        )
+                    except (TypeError, ValueError):
+                        startup_delay = 180
+                    self._private_message_next_poll_at = (
+                        time.monotonic() + startup_delay
+                    )
+                    logger.info(
+                        f"[BiliBot] 私信监听将在 {startup_delay} 秒启动，"
+                        "避免重载后立即重试接口"
+                    )
             self._running = True
             self._task = asyncio.create_task(
                 self._main_loop(), name=_BILIBOT_MAIN_TASK_NAME
@@ -156,6 +187,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._private_message_next_poll_at = 0.0
         self._private_message_backoff_seconds = 0
         self._private_message_success_streak = 0
+        self._private_message_last_activity_at = 0.0
+        self._private_message_last_warned_backoff = 0
         if self._consolidation_task and not self._consolidation_task.done():
             self._consolidation_task.cancel()
             self._consolidation_task = None
@@ -178,7 +211,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 h = datetime.now().hour
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
-                if ss <= h < se:
+                # 支持跨午夜的休眠区间（如 23 → 7）
+                in_sleep = (ss <= h < se) if ss <= se else (h >= ss or h < se)
+                if in_sleep:
                     # ── 日终清算：在睡眠时段触发 ──
                     if self._consolidation.should_run_today():
                         if self._consolidation_task is None or self._consolidation_task.done():
@@ -194,7 +229,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
                 if time.time() - self._last_cookie_check > ci:
                     await self._check_and_refresh_cookie()
-                self._last_cookie_check = time.time()
+                    self._last_cookie_check = time.time()
                 if self.config.get("ENABLE_PROACTIVE", False):
                     now_dt = datetime.now()
                     today_str = now_dt.strftime("%Y-%m-%d")
@@ -317,6 +352,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
+        # LLM 工具不在此手动注销：unregister_llm_tool 按名称删除，同名工具可能已被其他插件
+        # 覆盖注册，按名删除会误删对方的工具；插件卸载时由 AstrBot 按 handler_module_path 清理
         global _ACTIVE_BILIBOT
         if _ACTIVE_BILIBOT is self:
             _ACTIVE_BILIBOT = None
@@ -437,8 +474,22 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             str(self.config.get("PRIVATE_MESSAGE_REPLY_SCOPE", "owner") or "owner").lower(),
             "关闭",
         )
+        try:
+            private_active_interval = max(
+                60,
+                int(self.config.get("PRIVATE_MESSAGE_POLL_INTERVAL", 60) or 60),
+            )
+            private_idle_interval = max(
+                private_active_interval,
+                int(
+                    self.config.get("PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", 180)
+                    or 180
+                ),
+            )
+        except (TypeError, ValueError):
+            private_active_interval, private_idle_interval = 60, 180
         lines = [
-            f"📺 BiliBot 1.3.4 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.3.5 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
@@ -450,7 +501,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"✅ 已触发主动:{', '.join(schedule['proactive_triggered']) if schedule['proactive_triggered'] else '暂无'}",
             f"✅ 已触发动态:{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
-            f"✉️ B站私信:{'✅' if self.config.get('ENABLE_PRIVATE_MESSAGES',False) else '❌'} 回复:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_REPLY',True) else '❌'}({private_scope}) 模型按需查询:{'✅' if self.config.get('PRIVATE_MESSAGE_BILI_SEARCH_ENABLED',True) else '❌'} 视频先看:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_WATCH_VIDEO',True) else '❌'} 上下文重置:new 间隔:{max(60, int(self.config.get('PRIVATE_MESSAGE_POLL_INTERVAL',60) or 60))}秒 危险拉黑:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_BLOCK',True) else '❌'}",
+            f"✉️ B站私信:{'✅' if self.config.get('ENABLE_PRIVATE_MESSAGES',False) else '❌'} 回复:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_REPLY',True) else '❌'}({private_scope}) 模型按需查询:{'✅' if self.config.get('PRIVATE_MESSAGE_BILI_SEARCH_ENABLED',True) else '❌'} 视频先看:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_WATCH_VIDEO',True) else '❌'} 上下文重置:new 间隔:活跃{private_active_interval}/空闲{private_idle_interval}秒 危险拉黑:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_BLOCK',True) else '❌'}",
             f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'} 工具:{'✅' if self.config.get('ENABLE_LLM_TOOLS',True) else '❌'}",
             f"✉️ 主人推荐:{owner_recommend_delivery} | 最低{self.config.get('RECOMMEND_OWNER_MIN_SCORE', 8)}分 | 每日上限:{self.config.get('RECOMMEND_OWNER_DAILY_LIMIT', 1)}",
             f"🔍 联网搜索:{'✅ '+feature_status['web_search_backend'] if feature_status['web_search'] else '❌'} 判断模型:{'✅' if feature_status['web_search_judge'] else '❌(用主模型)'}",
