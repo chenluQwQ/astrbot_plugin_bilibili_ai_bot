@@ -12,8 +12,19 @@ import inspect
 import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Awaitable, Callable, Mapping, Optional
+from enum import Enum, IntEnum
+from typing import Any, Awaitable, Callable, Iterable, Mapping, Optional
+
+
+class EventPriority(IntEnum):
+    """跨入口统一的事件优先级；数值越小越先处理。"""
+
+    ADMIN = 0
+    DIRECT_MENTION = 10
+    ACTIVE_CONVERSATION = 20
+    INTERESTING = 30
+    NORMAL = 40
+    BACKGROUND = 50
 
 
 class EventState(str, Enum):
@@ -45,6 +56,7 @@ class InboundEvent:
     account_id: str = ""
     occurred_at: float = 0.0
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    priority: int | EventPriority | None = None
     platform: str = "bilibili"
 
     def __post_init__(self):
@@ -68,13 +80,40 @@ class InboundEvent:
         object.__setattr__(self, "target_id", str(self.target_id or "").strip())
         object.__setattr__(self, "account_id", str(self.account_id or "").strip())
         object.__setattr__(self, "platform", str(self.platform or "bilibili").strip())
-        object.__setattr__(self, "metadata", dict(self.metadata or {}))
+        metadata = dict(self.metadata or {})
+        object.__setattr__(self, "metadata", metadata)
+        priority = self.priority
+        if priority is None:
+            if metadata.get("is_admin"):
+                priority = EventPriority.ADMIN
+            elif metadata.get("direct_mention"):
+                priority = EventPriority.DIRECT_MENTION
+            elif metadata.get("conversation_active"):
+                priority = EventPriority.ACTIVE_CONVERSATION
+            elif metadata.get("interesting"):
+                priority = EventPriority.INTERESTING
+            elif metadata.get("background"):
+                priority = EventPriority.BACKGROUND
+            else:
+                priority = EventPriority.NORMAL
+        try:
+            priority = max(0, min(100, int(priority)))
+        except (TypeError, ValueError):
+            priority = int(EventPriority.NORMAL)
+        object.__setattr__(self, "priority", priority)
         if not self.occurred_at:
             object.__setattr__(self, "occurred_at", time.time())
 
     @property
     def key(self) -> str:
         return f"{self.platform}:{self.source}:{self.event_id}"
+
+    @property
+    def priority_name(self) -> str:
+        try:
+            return EventPriority(int(self.priority)).name.lower()
+        except ValueError:
+            return f"custom_{int(self.priority)}"
 
 
 @dataclass(frozen=True)
@@ -176,6 +215,36 @@ class EventRuntime:
             if len(self._actions) <= self.max_actions and now - record.updated_at <= self.action_ttl:
                 break
             self._actions.pop(key, None)
+
+    @staticmethod
+    def event_sort_key(
+        event: InboundEvent,
+        *,
+        newest_first: bool = False,
+    ) -> tuple[int, float, str]:
+        """返回稳定排序键：先按优先级，再按事件时间。"""
+
+        occurred_at = float(event.occurred_at or 0.0)
+        return (
+            int(event.priority),
+            -occurred_at if newest_first else occurred_at,
+            event.key,
+        )
+
+    def rank_events(
+        self,
+        events: Iterable[InboundEvent],
+        *,
+        newest_first: bool = False,
+    ) -> list[InboundEvent]:
+        """按统一优先级排列一个轮询批次，不改变调用方的持久化队列。"""
+
+        return sorted(
+            list(events),
+            key=lambda event: self.event_sort_key(
+                event, newest_first=newest_first
+            ),
+        )
 
     async def claim(
         self,
@@ -345,14 +414,29 @@ class EventRuntime:
             self._prune_locked()
             event_states = {state.value: 0 for state in EventState}
             action_states = {state.value: 0 for state in ActionState}
+            event_priorities: dict[str, int] = {}
             for record in self._events.values():
                 event_states[record.state.value] += 1
+                label = record.event.priority_name
+                event_priorities[label] = event_priorities.get(label, 0) + 1
             for record in self._actions.values():
                 action_states[record.state.value] += 1
+            recent_events = [
+                {
+                    "source": record.event.source,
+                    "state": record.state.value,
+                    "priority": record.event.priority_name,
+                    "reason": record.reason,
+                    "updated_ago": max(0, int(time.monotonic() - record.updated_at)),
+                }
+                for record in list(self._events.values())[-50:]
+            ]
             return {
                 "events": len(self._events),
                 "event_states": event_states,
+                "event_priorities": event_priorities,
                 "actions": len(self._actions),
                 "action_states": action_states,
+                "recent_events": recent_events,
                 "recent_failures": list(self._recent_failures),
             }

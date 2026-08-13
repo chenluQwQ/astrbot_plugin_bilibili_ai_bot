@@ -531,6 +531,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             private_active_interval, private_idle_interval = 60, 180
         live_status = self._live_danmaku_status()
         runtime_status = await self.event_runtime.snapshot()
+        runtime_priorities = runtime_status.get("event_priorities", {})
         lines = [
             f"📺 BiliBot 1.4.0 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
@@ -554,6 +555,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"   解析触发 自动:{'✅' if self.config.get('BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED',True) else '❌'} 手动:{'✅' if self.config.get('BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED',True) else '❌'} LLM:{'✅' if self.config.get('BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED',True) else '❌'}",
             f"🎙️ 直播记忆:{live_memory_count}条 | 外部接口:v{self.memory_api.api_version}",
             f"🧱 统一事件:处理中{runtime_status['event_states']['processing']} | 已发送{runtime_status['event_states']['sent']} | 失败{runtime_status['event_states']['failed']} | 动作{runtime_status['actions']}",
+            f"🧭 近期优先级:管理员{runtime_priorities.get('admin', 0)} | @提及{runtime_priorities.get('direct_mention', 0)} | 对话{runtime_priorities.get('active_conversation', 0)} | 兴趣{runtime_priorities.get('interesting', 0)} | 普通{runtime_priorities.get('normal', 0)} | 后台{runtime_priorities.get('background', 0)}",
             f"🧭 看片筛选:{'✅' if self.config.get('ENABLE_PROACTIVE_LLM_PREFILTER', False) else '❌'} 最多拒绝:{self.config.get('PROACTIVE_LLM_PREFILTER_MAX_REJECTS', 3)}次 | 分区口味:{self._taste_window_days()}天",
             f"🎞️ 视频分段:{self.config.get('VIDEO_SEGMENT_MINUTES', 5)}分钟/段，最多{self.config.get('VIDEO_SEGMENT_MAX_COUNT', 10)}段",
             f"视频视觉Provider:{'✅' if env['llm']['video_provider'] else '❌'} 独立API:{'✅' if env['llm']['video_api'] else '❌'}",

@@ -33,6 +33,7 @@ _EXPORTS: dict[str, str] = {
     "ConsolidationEngine": "consolidation",
     "BiliBotMemoryAPI": "memory_api",
     "ActionRequest": "runtime",
+    "EventPriority": "runtime",
     "EventRuntime": "runtime",
     "EventState": "runtime",
     "InboundEvent": "runtime",
@@ -71,7 +72,7 @@ if TYPE_CHECKING:  # pragma: no cover - 仅供类型检查器看见真实符号
     from .private_messages import PrivateMessageMixin
     from .proactive import ProactiveMixin
     from .reply import ReplyMixin
-    from .runtime import ActionRequest, EventRuntime, EventState, InboundEvent
+    from .runtime import ActionRequest, EventPriority, EventRuntime, EventState, InboundEvent
     from .schedule_mixin import ScheduleMixin
     from .search import WebSearchMixin
     from .share import ShareMixin
