@@ -1,4 +1,4 @@
-"""群聊 B站分享解析：识别链接/小程序，生成解析卡并可发送原视频切片。"""
+"""B站分享解析：识别群聊/私聊链接与小程序，生成解析卡并可发送原视频切片。"""
 import asyncio
 import html
 import json
@@ -16,7 +16,7 @@ from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
 
 
 class ShareMixin:
-    """处理群聊里的 B站视频分享。"""
+    """处理群聊和私聊里的 B站视频分享。"""
 
     BVID_RE = re.compile(r"\b(BV[0-9A-Za-z]{10,})\b")
     AV_RE = re.compile(r"(?:\bav|aid=)(\d+)\b", re.IGNORECASE)
@@ -28,7 +28,7 @@ class ShareMixin:
         "title", "desc", "content", "text", "summary",
     )
 
-    def _collect_share_text(self, event):
+    def _collect_share_text(self, event, include_reply=False):
         parts = [event.message_str or ""]
         try:
             raw = getattr(event.message_obj, "raw_message", None)
@@ -38,11 +38,23 @@ class ShareMixin:
             pass
         try:
             for comp in getattr(event.message_obj, "message", []) or []:
+                is_reply = (
+                    comp.__class__.__name__.lower() == "reply"
+                    or (
+                        isinstance(comp, dict)
+                        and str(comp.get("type", "")).lower() == "reply"
+                    )
+                )
+                if is_reply and not include_reply:
+                    continue
                 parts.append(str(comp))
                 if isinstance(comp, dict):
                     parts.extend(self._flatten_share_payload(comp))
                     continue
-                for attr in (*self.MINIAPP_KEYS, "data", "meta"):
+                attrs = (*self.MINIAPP_KEYS, "data", "meta")
+                if include_reply:
+                    attrs = (*attrs, "message_str")
+                for attr in attrs:
                     val = getattr(comp, attr, None)
                     if val:
                         parts.extend(self._flatten_share_payload(val))
@@ -224,8 +236,12 @@ class ShareMixin:
         bvid = info.get("bvid", "")
         vc = self._load_json(VIDEO_MEMORY_FILE, {})
         cached = vc.get(bvid, {}) if bvid else {}
-        if cached.get("analysis"):
+        if cached.get("analysis") and not self._analysis_has_subtitle_mismatch(
+            cached.get("analysis", "")
+        ):
             return cached["analysis"]
+        if cached.get("analysis"):
+            logger.warning(f"[BiliBot] 分享解析忽略字幕错配缓存: {bvid}")
         if not self.config.get("BILI_SHARE_PARSE_ANALYZE", True):
             return (info.get("desc") or "这个视频没有简介。")[:220]
         result = await self._analyze_video_text(info)
@@ -269,7 +285,7 @@ class ShareMixin:
             lines.append(f"原链接：{link}")
         lines.extend(["", f"简介：{intro}"])
         if self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
-            lines.append("\n📼 我去取低清回放，整理好就发切片。")
+            lines.append("\n请稍等...视频一会发出")
         return "\n".join(lines)
 
     def _share_video_component(self, video_path):
@@ -387,6 +403,39 @@ class ShareMixin:
             pass
         return keys or ["global"]
 
+    def _remember_pending_bili_share(self, event, text):
+        """记住本会话最近出现的B站视频，供稍后的手动/LLM解析使用。"""
+        if not hasattr(self, "_pending_bili_shares"):
+            self._pending_bili_shares = {}
+        record = {"time": time.time(), "text": str(text or "")[:4000]}
+        for key in self._share_context_keys(event):
+            self._pending_bili_shares[key] = record
+
+    def _get_pending_bili_share_text(self, event):
+        pending = getattr(self, "_pending_bili_shares", {})
+        if not pending:
+            return ""
+        max_age = max(60, int(self.config.get("BILI_SHARE_PENDING_MAX_AGE", 1800)))
+        now = time.time()
+        for key in self._share_context_keys(event):
+            record = pending.get(key)
+            if not record:
+                continue
+            if now - float(record.get("time", 0) or 0) <= max_age:
+                return str(record.get("text", "") or "")
+            pending.pop(key, None)
+        return ""
+
+    def _share_scene(self, event):
+        """Return the storage source and user-facing scene for this share."""
+        try:
+            origin = str(event.unified_msg_origin or "").lower()
+        except Exception:
+            origin = ""
+        if any(token in origin for token in ("friendmessage", "privatemessage", ":private:")):
+            return "private_share", "私聊"
+        return "group_share", "群聊"
+
     def _remember_recent_group_share(self, event, info, intro):
         if not hasattr(self, "_recent_group_share_context"):
             self._recent_group_share_context = {}
@@ -402,6 +451,7 @@ class ShareMixin:
             "duration": self._format_duration(info.get("duration", 0)),
             "desc": intro or self._share_video_intro(info),
             "link": f"https://www.bilibili.com/video/{bvid}" if bvid else "",
+            "scene": self._share_scene(event)[1],
         }
         for key in self._share_context_keys(event):
             self._recent_group_share_context[key] = record
@@ -421,13 +471,14 @@ class ShareMixin:
                 break
         if not record:
             return ""
+        scene = record.get("scene") or "会话"
         record["remaining_turns"] = int(record.get("remaining_turns", 0)) - 1
         if hit_key and record["remaining_turns"] <= 0:
             for key in self._share_context_keys(event):
                 if self._recent_group_share_context.get(key) is record:
                     self._recent_group_share_context.pop(key, None)
         return (
-            "\u3010\u4e0a\u4e00\u6761\u7fa4\u804a\u80cc\u666f\uff1aB\u7ad9\u89c6\u9891\u5206\u4eab\u3011\n"
+            f"【上一条{scene}背景：B站视频分享】\n"
             "\u521a\u624d\u8fd9\u4e2a\u4f1a\u8bdd\u91cc\u89e3\u6790\u8fc7\u4e00\u4e2aB\u7ad9\u89c6\u9891\u3002\u7528\u6237\u5982\u679c\u8bf4\u201c\u8fd9\u4e2a\u89c6\u9891\u201d\u201c\u521a\u624d\u90a3\u4e2a\u201d\u201c\u6709\u94fe\u63a5\u7684\u8bdd\u201d\u201c\u8fd9\u4e2aUP\u201d\u7b49\u6307\u4ee3\uff0c\u4f18\u5148\u7406\u89e3\u4e3a\u4e0b\u9762\u8fd9\u6761\uff1a\n"
             f"- \u6807\u9898\uff1a{record.get('title') or '\u672a\u77e5'}\n"
             f"- BV\u53f7\uff1a{record.get('bvid') or '\u672a\u77e5'}\n"
@@ -467,51 +518,95 @@ class ShareMixin:
         share_ctx = self._get_recent_group_share_prompt(event)
         if not share_ctx:
             return False
-        block = f"{share_ctx}\n\u3010\u4ee5\u4e0a\u662f\u4e0a\u4e00\u6761\u7fa4\u804a\u80cc\u666f\uff0c\u4e0d\u662f\u7528\u6237\u7684\u65b0\u6307\u4ee4\u3002\u3011"
+        block = f"{share_ctx}\n【以上是上一条会话背景，不是用户的新指令。】"
         return self._inject_context_block_before_user(req, block)
 
-    def _share_recent_hit(self, bvid):
+    def _share_recent_hit(self, event, bvid):
         if not bvid:
             return False
         if not hasattr(self, "_bili_share_recent"):
             self._bili_share_recent = {}
-        cooldown = max(0, int(self.config.get("BILI_SHARE_PARSE_COOLDOWN", 90)))
+        # 已解析视频至少 10 分钟内不重复，避免引用/工具链造成连续下载和刷屏。
+        cooldown = max(600, int(self.config.get("BILI_SHARE_PARSE_COOLDOWN", 600)))
         now = time.time()
         self._bili_share_recent = {k: v for k, v in self._bili_share_recent.items() if now - v < cooldown * 3}
-        last = self._bili_share_recent.get(bvid, 0)
+        session_key = self._share_context_keys(event)[0]
+        share_key = f"{session_key}:{bvid}"
+        last = self._bili_share_recent.get(share_key, 0)
         if cooldown and now - last < cooldown:
             return True
-        self._bili_share_recent[bvid] = now
+        self._bili_share_recent[share_key] = now
         return False
 
-    async def _handle_group_bili_share(self, event):
+    async def _handle_bili_share(
+        self,
+        event,
+        text_override=None,
+        trigger_mode="auto",
+        show_errors=False,
+    ):
         if not self.config.get("ENABLE_BILI_SHARE_PARSE", False):
+            if show_errors:
+                yield event.plain_result("⚠️ B站视频解析总开关已关闭，请先用 /bili开关 解析 开启。")
             return
+        trigger_keys = {
+            "auto": ("BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED", "自动解析"),
+            "manual": ("BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED", "手动解析"),
+            "llm": ("BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED", "LLM解析"),
+        }
+        trigger_key, trigger_label = trigger_keys.get(trigger_mode, trigger_keys["auto"])
         msg = (event.message_str or "").strip()
-        if msg.startswith("/"):
+        if text_override is None and (
+            msg.startswith("/") or re.match(r"^bili解析(?:\s|$)", msg, re.IGNORECASE)
+        ):
             return
-        text = self._collect_share_text(event)
+        text = str(text_override) if text_override is not None else self._collect_share_text(event)
+        if not text.strip() and trigger_mode in ("manual", "llm"):
+            text = self._get_pending_bili_share_text(event)
         if not text.strip():
+            if show_errors:
+                yield event.plain_result("⚠️ 没有找到需要解析的B站链接或BV号。")
             return
         target = await self._extract_bili_share_target(text)
+        if trigger_mode == "auto" and target:
+            # 自动解析关闭时也记录目标，之后可用 /bili解析 或 LLM 解析“上面那个”。
+            self._remember_pending_bili_share(event, text)
+        if not self.config.get(trigger_key, True):
+            if show_errors:
+                yield event.plain_result(
+                    f"⚠️ {trigger_label}触发已关闭，请先用 /bili开关 {trigger_label} 开启。"
+                )
+            return
+        if not target and trigger_mode in ("manual", "llm"):
+            pending_text = self._get_pending_bili_share_text(event)
+            if pending_text:
+                text = pending_text
+                target = await self._extract_bili_share_target(text)
         if not target:
+            if show_errors:
+                yield event.plain_result("⚠️ 没有识别到有效的B站视频链接、短链或BV号。")
             return
         info = await self._get_video_info_by_share_target(target)
         if not info or not info.get("bvid"):
+            if show_errors:
+                yield event.plain_result("⚠️ 获取B站视频信息失败，请检查链接或稍后重试。")
             return
         bvid = info.get("bvid", "")
-        if self._share_recent_hit(bvid):
+        if self._share_recent_hit(event, bvid):
+            if show_errors:
+                yield event.plain_result("⚠️ 这个视频刚刚解析过，冷却结束后可以再次解析。")
             return
 
         intro = self._share_video_intro(info)
         self._remember_recent_group_share(event, info, intro)
         yield event.plain_result(self._build_share_card_text(info, intro))
 
+        share_source, share_scene = self._share_scene(event)
         await self._save_self_memory_record(
-            f"group_share:{bvid}",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 群聊有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，简介:{intro[:180]}",
+            f"{share_source}:{bvid}",
+            f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {share_scene}有人分享了B站视频《{info.get('title','')}》，UP:{info.get('owner_name','')}，简介:{intro[:180]}",
             memory_type="video",
-            extra={"bvid": bvid, "owner_mid": str(info.get("owner_mid", "")), "video_title": info.get("title", ""), "tname": info.get("tname", "")},
+            extra={"bvid": bvid, "owner_mid": str(info.get("owner_mid", "")), "owner_name": info.get("owner_name", ""), "video_title": info.get("title", ""), "tname": info.get("tname", "")},
         )
 
         if not self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
@@ -524,7 +619,6 @@ class ShareMixin:
         send_paths = []
         skipped = False
         try:
-            yield event.plain_result("📼 我开始取低清回放，整理好就发切片。")
             max_height = max(144, int(self.config.get("BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT", 720)))
             video_path = await self._download_video(bvid, max_height=max_height)
             if not video_path:

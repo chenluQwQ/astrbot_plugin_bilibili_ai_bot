@@ -16,7 +16,19 @@ class VisionMixin:
                 return None
             from openai import AsyncOpenAI
             base_url = self.config.get("EMBED_API_BASE", "https://api.siliconflow.cn/v1")
-            self._embed_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            try:
+                timeout = max(
+                    3,
+                    min(60, int(self.config.get("EMBED_TIMEOUT_SECONDS", 10) or 10)),
+                )
+            except (TypeError, ValueError):
+                timeout = 10
+            self._embed_client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+                max_retries=0,
+            )
         return self._embed_client
 
     async def _get_embedding(self, text):
@@ -28,7 +40,7 @@ class VisionMixin:
             resp = await client.embeddings.create(model=embed_model, input=text)
             return resp.data[0].embedding
         except Exception as e:
-            logger.error(f"[BiliBot] Embedding 失败: {e}")
+            logger.warning(f"[BiliBot] Embedding 暂不可用，本次跳过向量检索: {e}")
             return None
 
     @staticmethod

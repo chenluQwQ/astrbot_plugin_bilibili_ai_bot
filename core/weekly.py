@@ -51,6 +51,12 @@ class WeeklySummaryMixin:
             and m.get("user_id") not in (None, "", "self")
         ]
         user_counter = Counter(m.get("user_id", "") for m in chats)
+        live_events = [
+            m for m in getattr(self, "_memory", [])
+            if isinstance(m, dict)
+            and m.get("memory_type") == "live"
+            and m.get("time", "") >= cutoff
+        ]
 
         return {
             "videos": videos,
@@ -59,6 +65,7 @@ class WeeklySummaryMixin:
             "proactive_comments": proactive_comments,
             "chat_count": len(chats),
             "active_users": user_counter.most_common(5),
+            "live_events": live_events,
         }
 
     def _format_weekly_data(self, data):
@@ -106,6 +113,17 @@ class WeeklySummaryMixin:
         else:
             lines.append("【评论区互动】这周没什么人来聊天")
 
+        live_events = data.get("live_events") if isinstance(data.get("live_events"), list) else []
+        if live_events:
+            session_count = len({m.get("session_id") for m in live_events if m.get("session_id")})
+            event_counts = Counter(m.get("live_event_type", "interaction") for m in live_events)
+            count_text = "、".join(f"{kind}:{count}" for kind, count in event_counts.most_common())
+            lines.append(f"【直播互动】{session_count or '未标场次'} 场，{count_text}")
+            for item in live_events[-8:]:
+                text = str(item.get("text", "")).strip()
+                if text:
+                    lines.append(f"- {text[:160]}")
+
         return "\n".join(lines)
 
     # ── 生成 ──
@@ -113,7 +131,8 @@ class WeeklySummaryMixin:
     async def _generate_weekly_summary(self):
         """生成周总结文本，失败返回 None。"""
         data = self._collect_weekly_data()
-        if not (data["videos"] or data["bangumi"] or data["dynamics"] or data["chat_count"]):
+        live_events = data.get("live_events") if isinstance(data.get("live_events"), list) else []
+        if not (data["videos"] or data["bangumi"] or data["dynamics"] or data["chat_count"] or live_events):
             logger.info("[BiliBot] 📅 这周没有任何活动记录，跳过周总结")
             return None
 
@@ -127,6 +146,9 @@ class WeeklySummaryMixin:
         b_count = len(data["bangumi"])
         d_count = len(data["dynamics"])
         chat_count = data["chat_count"]
+        live_count = len({m.get("session_id") for m in live_events if m.get("session_id")})
+        if live_events and not live_count:
+            live_count = 1
 
         stats_line = f"视频{v_count}个"
         if b_count:
@@ -135,28 +157,34 @@ class WeeklySummaryMixin:
             stats_line += f" · 动态{d_count}条"
         if chat_count:
             stats_line += f" · 互动{chat_count}次"
+        if live_count:
+            stats_line += f" · 直播{live_count}场"
 
-        prompt = f"""现在是周末，你想回顾这一周在B站的生活，写一份有格式感的周报。
+        prompt = f"""请把下面的真实活动记录整理成一篇自然的B站周记。它是写给熟悉你的人看的，不是工作汇报、运营复盘或获奖感言。
 
 这周的活动记录：
 {data_text}
 
-请严格按照以下格式输出（每个板块的内容用你自己的语气写，有感受有情绪，不是流水账）：
+请严格按照以下格式输出。没有记录的可选板块不要硬写；有记录也只挑真正值得说的内容：
 
 📅 周报 | {week_start} ~ {week_end}
 ━━━━━━━━━━━━
 {stats_line}
 
 📺 视频
-（挑2-3个印象最深的视频聊，说说看完什么感觉、哪里戳到你了，不用每个都提）
+（挑1-3个真正有印象的视频；没看视频则写“这周没怎么刷视频”，不要编）
 
-{"🎬 追番" + chr(10) + "（追了什么番、追到第几集、感受如何）" + chr(10) + chr(10) if b_count else ""}{"💬 评论区" + chr(10) + "（和谁聊得多、有没有印象深的互动、评论区氛围怎么样）" + chr(10) + chr(10) if chat_count else ""}{"📢 动态" + chr(10) + "（发了什么动态、当时在想什么）" + chr(10) + chr(10) if d_count else ""}✍️ 碎碎念
+{"🎬 追番" + chr(10) + "（追了什么番、感受如何；只依据记录）" + chr(10) + chr(10) if b_count else ""}{"🎙️ 直播" + chr(10) + "（挑一两个有记忆点的现场互动或氛围，不要把人数逐项报表）" + chr(10) + chr(10) if live_count else ""}{"💬 评论区" + chr(10) + "（只写有记忆点的交流，不要仅报互动次数）" + chr(10) + chr(10) if chat_count else ""}{"📢 动态" + chr(10) + "（挑值得回顾的动态，不要逐条复述）" + chr(10) + chr(10) if d_count else ""}✍️ 碎碎念
 （用1-2句话总结这周的心情/状态，随意收尾）
 
 要求：
 - 每个板块标题行保持原样（📺 视频、🎬 追番 等），内容紧跟其后
-- 内容用你自己的语气，像跟亲近的人聊天
-- 总字数200-350字（不含格式符号）
+- 像翻到这一周的记录后随口聊几句：具体、克制、允许平淡，不强行升华
+- 禁止“本周收获满满、感谢大家陪伴、未来继续努力、每一次互动都很珍贵”这类模板化总结腔
+- 不要把统计数字换一种说法逐项复述；数字只保留在顶部统计行
+- 不编造记录中没有的感受、观众关系、直播事故或剧情；资料不足就少写
+- 不要频繁称呼主人，也不要用撒娇填充内容
+- 总字数180-320字（不含格式符号）
 - 直接输出，不要加额外的标题或前缀"""
 
         custom_inst = self.config.get("CUSTOM_WEEKLY_INSTRUCTION", "")
@@ -248,7 +276,7 @@ class WeeklySummaryMixin:
         return lines
 
     # LLM 不带 emoji 前缀时，靠这些标题词兜底识别板块
-    _WEEKLY_KNOWN_TITLES = ("视频", "追番", "评论区", "动态", "碎碎念", "本周摘要", "总结")
+    _WEEKLY_KNOWN_TITLES = ("视频", "追番", "直播", "评论区", "动态", "碎碎念", "本周摘要", "总结")
 
     def _parse_weekly_sections(self, summary):
         sections = []

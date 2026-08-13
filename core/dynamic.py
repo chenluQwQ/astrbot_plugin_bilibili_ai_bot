@@ -103,18 +103,20 @@ class DynamicMixin:
         sp = await self._get_system_prompt()
         prompt = f"""{sp}{perm_section}
 
-{time_hint}，你想发一条B站动态。主题方向：{topic}{history_section}
+你准备发一条B站动态。当前时段是：{time_hint}。主题方向：{topic}{history_section}
 
 B站动态的感觉：
-- 像在朋友圈/微博随手发的状态，不要太正式
-- 可以是碎碎念、感慨、分享日常、发表看法、吐槽、或者单纯因为无聊
-- 结合当前时间（{time_hint}）让内容有真实感——比如早上可能犯困，下午可能在摸鱼，晚上可能在追番
+- 像本人忽然想起一个具体小事、感受或吐槽后随手发出来，不像在完成“发动态”任务
+- 一条只说一个中心，先让读者看得懂发生了什么或你在想什么；不要故作深沉、写成谜语或强行升华
+- 当前时段只是背景，确实和内容有关时再自然带到；不要为了“真实感”凭空声称自己在摸鱼、追番、出门或经历了某件事
+- 不写运营口吻、鸡汤结尾、每日打卡式开场，也不要习惯性向大家提问或讨互动
+- 句式和长短可以变化，通常1到2句、15到80字；没有足够内容时宁可短，不凑到固定篇幅
 - 不要和最近发过的动态内容重复或相似
 
 请以JSON格式回复：
-{{"text": "动态文案（50-150字）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
+{{"text": "动态文案（通常15-80字）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
 
-注意：不是每条动态都需要配图。"""
+注意：默认不配图；只有内容里确实有一个适合呈现的具体画面、且图片能补充文字时才将need_image设为true。"""
         custom_dynamic_inst = self.config.get("CUSTOM_DYNAMIC_INSTRUCTION", "")
         if custom_dynamic_inst:
             prompt += f"\n\n【补充提示词】{custom_dynamic_inst}"

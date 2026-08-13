@@ -28,6 +28,7 @@ TEMP_VIDEO_DIR = os.path.join(DATA_DIR, "temp_videos")
 REPLIED_AT_FILE = os.path.join(DATA_DIR, "replied_at.json")
 REPLIED_CONTENT_KEYS_FILE = os.path.join(DATA_DIR, "replied_content_keys.json")
 REPLY_LOG_FILE = os.path.join(DATA_DIR, "reply_log.json")
+PRIVATE_MESSAGE_STATE_FILE = os.path.join(DATA_DIR, "private_message_state.json")
 BANGUMI_MEMORY_FILE = os.path.join(DATA_DIR, "bangumi_memory.json")
 WEEKLY_SUMMARY_FILE = os.path.join(DATA_DIR, "weekly_summary.json")
 BANGUMI_WATCH_LOG_FILE = os.path.join(DATA_DIR, "bangumi_watch_log.json")
@@ -66,6 +67,9 @@ BILI_MENTION_KEYWORDS = ["b站", "B站", "阿b", "阿B", "啊b", "啊B", "bil", 
 
 BILI_NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 BILI_REPLY_URL = "https://api.bilibili.com/x/v2/reply/add"
+BILI_PRIVATE_MSG_SEND_URL = "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg"
+BILI_PRIVATE_SESSIONS_URL = "https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions"
+BILI_PRIVATE_MESSAGES_URL = "https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs"
 BILI_NOTIFY_URL = "https://api.bilibili.com/x/msgfeed/reply"
 BILI_AT_NOTIFY_URL = "https://api.bilibili.com/x/msgfeed/at"
 BILI_COOKIE_INFO_URL = "https://passport.bilibili.com/x/passport-login/web/cookie/info"
@@ -116,10 +120,10 @@ CONSOLIDATION_HOUR = 3                # 日终清算触发时间（小时，建�
 CONSOLIDATION_STATE_FILE = os.path.join(DATA_DIR, "consolidation_state.json")
 
 DEFAULT_DYNAMIC_TOPICS = [
-    "针对今天的某个热点新闻，用你的风格讽刺或点评一下",
-    "看到了什么社会现象，冷冷地吐槽一下",
-    "分享今天的日常，比如深夜还在干什么、天气、心情",
-    "结合现在的时间和天气，说说此刻的感受",
-    "像写日记一样，记录今天一个小小的瞬间或想法",
-    "对某个互联网现象发表一句毒舌但精准的评价",
+    "写一个此刻能说清楚缘由的小情绪或小念头",
+    "从最近真实记得的事情里挑一个细节，随口说说留下的感觉",
+    "吐槽一个日常里具体、微小但有共鸣的现象，不编造当天经历",
+    "分享一个最近仍在脑子里打转的兴趣点，只说最有感觉的部分",
+    "记录一个简短且能让人读懂的自我观察，不写鸡汤",
+    "如果当前时段确实影响心情，就自然说一句；否则完全不必提时间",
 ]
