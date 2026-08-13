@@ -20,6 +20,33 @@ from .runtime import ActionRequest, EventState, InboundEvent
 class ReplyMixin:
     """回复生成与评论区轮询。"""
 
+    def _comment_runtime_event(self, item):
+        """把评论/@通知转换为统一事件，并计算跨入口优先级。"""
+
+        mid = str(item.get("mid") or "")
+        score = self._affection.get(mid, 0)
+        level = self._get_level(score, mid)
+        return InboundEvent(
+            source="comment",
+            event_id=str(item.get("rpid") or item.get("at_id") or ""),
+            actor_id=mid,
+            actor_name=item.get("username", ""),
+            content=item.get("content", ""),
+            conversation_id=str(item.get("thread_id") or ""),
+            target_id=str(item.get("oid") or ""),
+            account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
+            occurred_at=float(item.get("timestamp") or 0),
+            metadata={
+                "notification_source": item.get("source", "reply"),
+                "comment_type": item.get("comment_type", 1),
+                "at_id": item.get("at_id", ""),
+                "is_admin": self._is_owner(mid),
+                "direct_mention": item.get("source") == "at",
+                "conversation_active": level in ("friend", "close", "special"),
+                "interesting": self._is_reply_whitelisted(mid),
+            },
+        )
+
     async def _generate_reply(
         self,
         content,
@@ -456,7 +483,14 @@ class ReplyMixin:
             if not unique:
                 return
 
-            item = unique[0]
+            event_items = [
+                (self._comment_runtime_event(candidate), candidate)
+                for candidate in unique
+            ]
+            event_items.sort(
+                key=lambda pair: self.event_runtime.event_sort_key(pair[0])
+            )
+            runtime_event, item = event_items[0]
             rpid = item["rpid"]
             mid = item["mid"]
             username = item["username"]
@@ -465,21 +499,6 @@ class ReplyMixin:
             comment_type = item["comment_type"]
             thread_id = item["thread_id"]
 
-            runtime_event = InboundEvent(
-                source="comment",
-                event_id=rpid,
-                actor_id=mid,
-                actor_name=username,
-                content=content,
-                conversation_id=thread_id,
-                target_id=str(oid),
-                account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
-                metadata={
-                    "notification_source": item.get("source", "reply"),
-                    "comment_type": comment_type,
-                    "at_id": item.get("at_id", ""),
-                },
-            )
             claim = await self.event_runtime.claim(runtime_event)
             if not claim.accepted:
                 if rpid:

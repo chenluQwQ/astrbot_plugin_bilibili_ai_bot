@@ -314,6 +314,44 @@ class PrivateMessageReliabilityTests(unittest.TestCase):
         self.assertGreaterEqual(active_delay, 59)
         self.assertLessEqual(active_delay, 61)
 
+    def test_poll_loop_prioritizes_owner_before_older_normal_message(self):
+        bot = self.Bot()
+        bot.config.update({
+            "ENABLE_PRIVATE_MESSAGES": True,
+            "PRIVATE_MESSAGE_POLL_INTERVAL": 60,
+            "OWNER_MID": "42",
+        })
+        normal = self._message()
+        owner = {
+            **self._message(),
+            "msg_key": "message-owner",
+            "msg_seqno": 13,
+            "sender_uid": "42",
+            "talker_id": 42,
+            "username": "owner",
+            "timestamp": 101,
+        }
+        state = bot._default_private_message_state("999")
+        state["initialized"] = True
+        state["pending_messages"] = [normal, owner]
+        bot._save_json(self.state_file, state)
+        bot._private_message_next_poll_at = 0
+        bot._private_message_backoff_seconds = 0
+        handled = []
+
+        async def inbox():
+            return [normal, owner]
+
+        async def handler(message, _trusted_domains):
+            handled.append(message["sender_uid"])
+            return True
+
+        bot._poll_private_inbox = inbox
+        bot._handle_private_message = handler
+        asyncio.run(bot._poll_private_messages())
+
+        self.assertEqual(handled, ["42", "123"])
+
 
 if __name__ == "__main__":
     unittest.main()

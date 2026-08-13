@@ -139,6 +139,33 @@ def assess_private_message(text, trusted_domains=None):
 class PrivateMessageMixin:
     """轮询新私信，并复用当前人格、记忆、画像和好感度生成回复。"""
 
+    def _private_runtime_event(self, message):
+        """把持久化私信转换为统一事件，供排序、领取和重试共用。"""
+
+        mid = str(message.get("sender_uid") or "")
+        owner_check = getattr(self, "_is_owner", None)
+        is_admin = (
+            bool(owner_check(mid))
+            if callable(owner_check)
+            else mid == str(self.config.get("OWNER_MID", "") or "").strip()
+        )
+        return InboundEvent(
+            source="private",
+            event_id=str(message.get("msg_key") or message.get("msg_seqno") or ""),
+            actor_id=mid,
+            actor_name=message.get("username", ""),
+            content=message.get("content", ""),
+            conversation_id=self._private_conversation_thread_id(mid),
+            account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
+            occurred_at=float(message.get("timestamp") or 0),
+            metadata={
+                "content_type": message.get("content_type", "text"),
+                "is_admin": is_admin,
+                "conversation_active": True,
+                "retry": int(message.get("retry_count") or 0) > 0,
+            },
+        )
+
     def _private_message_headers(self):
         return {
             **self._headers(),
@@ -1059,6 +1086,15 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             next_delay = normal_delay
         self._private_message_next_poll_at = time.monotonic() + jittered(next_delay)
 
+        runtime = getattr(self, "event_runtime", None)
+
+        def private_sort_key(message):
+            event = self._private_runtime_event(message)
+            if runtime is not None:
+                return runtime.event_sort_key(event)
+            return int(event.priority), float(event.occurred_at), event.key
+
+        messages.sort(key=private_sort_key)
         trusted_domains = self.config.get("PRIVATE_MESSAGE_TRUSTED_DOMAINS", []) or None
         for message in messages:
             try:
@@ -1089,17 +1125,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         mid = str(message["sender_uid"])
         username = message["username"]
         content = message["content"]
-        runtime_event = InboundEvent(
-            source="private",
-            event_id=str(message["msg_key"]),
-            actor_id=mid,
-            actor_name=username,
-            content=content,
-            conversation_id=self._private_conversation_thread_id(mid),
-            account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
-            occurred_at=float(message.get("timestamp") or 0),
-            metadata={"content_type": message.get("content_type", "text")},
-        )
+        runtime_event = self._private_runtime_event(message)
         claim = await self.event_runtime.claim(
             runtime_event,
             allow_retry_failed=int(message.get("retry_count") or 0) > 0,
