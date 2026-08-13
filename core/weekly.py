@@ -92,7 +92,12 @@ class WeeklySummaryMixin:
             lines.append(f"【追的番】共 {len(bangumi)} 集：")
             for title, cnt in seasons.most_common(5):
                 eps = [b for b in bangumi if b.get("title") == title]
-                avg = sum(b.get("score", 0) for b in eps) / max(len(eps), 1)
+                def _num(v):
+                    try:
+                        return float(v)
+                    except (TypeError, ValueError):
+                        return 0.0
+                avg = sum(_num(b.get("score", 0)) for b in eps) / max(len(eps), 1)
                 lines.append(f"- 《{title[:25]}》看了{cnt}集，平均评分{avg:.0f}/10")
 
         dynamics = data["dynamics"]

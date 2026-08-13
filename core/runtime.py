@@ -177,8 +177,18 @@ class EventRuntime:
                 break
             self._actions.pop(key, None)
 
-    async def claim(self, event: InboundEvent) -> EventClaim:
-        """领取事件；TTL 内相同平台、来源和事件 ID 只允许处理一次。"""
+    async def claim(
+        self,
+        event: InboundEvent,
+        *,
+        allow_retry_failed: bool = False,
+    ) -> EventClaim:
+        """领取事件；TTL 内相同事件默认只允许处理一次。
+
+        持久化收件箱明确安排的失败重试可设置 ``allow_retry_failed``。只有已经
+        标记为失败的事件能重新进入处理中；已发送、已忽略或仍在处理的事件不会
+        被重复领取。
+        """
 
         now = time.monotonic()
         async with self._lock:
@@ -186,6 +196,11 @@ class EventRuntime:
             existing = self._events.get(event.key)
             if existing is not None:
                 self._events.move_to_end(event.key)
+                if allow_retry_failed and existing.state == EventState.FAILED:
+                    existing.state = EventState.PROCESSING
+                    existing.reason = "retry"
+                    existing.updated_at = now
+                    return EventClaim(True, event.key, "retry")
                 return EventClaim(False, event.key, f"duplicate:{existing.state.value}")
             self._events[event.key] = _EventRecord(
                 event=event,
@@ -341,4 +356,3 @@ class EventRuntime:
                 "action_states": action_states,
                 "recent_failures": list(self._recent_failures),
             }
-

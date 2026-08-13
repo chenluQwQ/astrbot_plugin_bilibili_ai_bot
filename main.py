@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.3.4
+AstrBot Plugin - Bilibili Bot 1.4.0
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
@@ -34,7 +34,7 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.3.4","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.4.0","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
 class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin, LiveDanmakuMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -96,10 +96,16 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         if not self._has_cookie():
             logger.warning("[BiliBot] Cookie未配置，后台任务未启动")
             return
-        valid, _ = await self.check_cookie()
+        valid, msg = await self.check_cookie()
         if valid:
             await self._start_bot()
             logger.info("[BiliBot] 自动启动")
+        elif "检查失败" in str(msg):
+            # 网络暂时不可用不等于 Cookie 失效；仍启动主循环等待网络恢复。
+            logger.warning(
+                f"[BiliBot] Cookie 检查暂时失败（{msg}），仍启动后台任务等待网络恢复"
+            )
+            await self._start_bot()
         else:
             logger.warning("[BiliBot] Cookie无效")
 
@@ -215,7 +221,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 h = datetime.now().hour
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
-                if ss <= h < se:
+                # 支持跨午夜的休眠区间（例如 23 → 7）。
+                in_sleep = (ss <= h < se) if ss <= se else (h >= ss or h < se)
+                if in_sleep:
                     # ── 日终清算：在睡眠时段触发 ──
                     if self._consolidation.should_run_today():
                         if self._consolidation_task is None or self._consolidation_task.done():
@@ -354,6 +362,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
+        # LLM 工具不在此手动注销：按名称删除可能误删其他插件覆盖注册的同名工具；
+        # AstrBot 会按 handler_module_path 清理当前插件的工具。
         global _ACTIVE_BILIBOT
         if _ACTIVE_BILIBOT is self:
             _ACTIVE_BILIBOT = None
@@ -491,7 +501,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         live_status = self._live_danmaku_status()
         runtime_status = await self.event_runtime.snapshot()
         lines = [
-            f"📺 BiliBot 1.3.4 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.4.0 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
@@ -1383,4 +1393,3 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             logger.error(f"[BiliBot] 记忆注入失败: {e}")
 
     # capture_qq_memory 已移除（v1.3.0），QQ记忆不再单独存储
-

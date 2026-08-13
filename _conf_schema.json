@@ -512,7 +512,7 @@
         "type": "string",
         "default": "random",
         "hint": "random=每天随机时间 | fixed=固定时间（需配置SPECIAL_FOLLOW_FIXED_TIMES）",
-        "enum": [
+        "options": [
             "random",
             "fixed"
         ]
@@ -644,6 +644,12 @@
         "type": "text",
         "default": ""
     },
+    "ENABLE_LLM_TOOLS": {
+        "description": "【功能开关】启用 LLM 工具（B站查询/看视频/搜索等函数调用）",
+        "type": "bool",
+        "default": true,
+        "hint": "关闭后所有已注册工具直接返回提示不执行"
+    },
     "ENABLE_PERSONALITY_EVOLUTION": {
         "description": "【功能开关】启用性格演化（每日反思）",
         "type": "bool",
@@ -716,7 +722,7 @@
         "type": "string",
         "default": "none",
         "hint": "gemini=Gemini原生格式 | qwen=通义千问/硅基流动格式 | none=跳过直读，使用截帧分析",
-        "enum": [
+        "options": [
             "gemini",
             "qwen",
             "none"
@@ -812,7 +818,7 @@
         "type": "string",
         "default": "off",
         "hint": "off=关闭 | score=仅根据好感度变化判断 | model=额外调一次模型二次确认（更准但多一次API调用）",
-        "enum": [
+        "options": [
             "off",
             "score",
             "model"

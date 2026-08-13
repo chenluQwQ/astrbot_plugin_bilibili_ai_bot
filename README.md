@@ -1,4 +1,4 @@
-﻿# astrbot_plugin_bilibili_ai_bot
+# astrbot_plugin_bilibili_ai_bot
 
 B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让你的 AI 角色在 B 站评论区”活”起来。
 
@@ -232,11 +232,11 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 完整配置说明详见插件配置页面，所有配置项都有 description 和 hint 可查。视频池不会背编号时，发送 `/bili分区` 查看中文分区名和示例。
 
 > 💡 Cookie 获取方式：发送 `/bili登录` 扫码即可，登录后 Cookie 会自动定期刷新。
-> 
+>
 > 💡 视觉模型留空时，视频分析回退为纯文本 LLM 分析，图片识别则跳过。
-> 
+>
 > 💡 主动看视频的”视频直读 / 截帧分析”依赖 `ffmpeg` / `ffprobe` 可执行文件在系统 `PATH` 中（`yt-dlp` 会由 pip 自动安装）。
-> 
+>
 > 💡 恶意告警功能需要同时配置 `ABUSE_ALERT_MODE` 和 `ABUSE_ALERT_QQ_UMO`。UMO 可从 AstrBot 日志或读空气插件的 UMO 注册表获取。告警时 Bot 会用人设口吻私信主人并询问是否拉黑，主人直接回复即可。
 
 ## 🎮 命令
@@ -253,7 +253,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili停止`      |停止 Bot                 |
 |`/bili主动`      |立刻触发一次主动看视频            |
 |`/bili解析 [链接/BV号]`|手动解析指定视频；省略参数时解析回复引用或本会话最近的视频|
-|`/bili开关 <功能>` |切换功能开关，支持 `私信`、`直播回复`、`解析`、`自动解析`、`手动解析`、`LLM解析`、`解析视频`、`筛选` 等；私信和直播外部写操作不包含在“一键全部”中 |
+|`/bili开关 <功能>` |切换功能开关，支持 `私信`、`私信回复`、`私信拉黑`、`直播回复`、`解析`、`自动解析`、`手动解析`、`LLM解析`、`解析视频`、`筛选` 等；私信和直播外部写操作不包含在“一键全部”中 |
 |`/bili刷新`      |手动刷新 Cookie            |
 |`/bili记忆 <关键词>`|语义搜索记忆                 |
 |`/bili好感 [UID]`|查看好感度排行 / 查询           |
@@ -345,5 +345,3 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 ## 📄 License
 
 MIT
-
-

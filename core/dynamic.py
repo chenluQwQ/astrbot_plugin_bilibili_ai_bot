@@ -157,7 +157,10 @@ B站动态的感觉：
         if not content:
             logger.error("[BiliBot] ❌ 生成动态内容失败")
             return
-        text = content.get("text", "")
+        text = str(content.get("text", "") or "").strip()
+        if not text:
+            logger.warning("[BiliBot] 动态文案为空，跳过本次发布")
+            return
         need_image = content.get("need_image", False)
         image_prompt = content.get("image_prompt", "")
         logger.info(f"[BiliBot] 📝 文案：{text[:50]}...")

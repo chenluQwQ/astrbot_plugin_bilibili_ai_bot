@@ -2,11 +2,17 @@
 import os
 import json
 import shutil
+import tempfile
+import threading
 import time
 import asyncio
 import aiohttp
 from astrbot.api import logger
 from .config import DATA_DIR, TEMP_IMAGE_DIR, TEMP_VIDEO_DIR, USER_AGENT
+
+
+_JSON_SAVE_LOCKS = {}
+_JSON_SAVE_LOCKS_GUARD = threading.Lock()
 
 
 class UtilsMixin:
@@ -55,8 +61,45 @@ class UtilsMixin:
         return default
 
     def _save_json(self, path, data):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # 每次写入使用同目录的唯一临时文件：既保留 os.replace 的原子性，
+        # 也避免多个线程/任务争用固定的 ``path.tmp``（Windows 会报 WinError 32）。
+        target = os.path.abspath(os.fspath(path))
+        parent = os.path.dirname(target)
+        os.makedirs(parent, exist_ok=True)
+        with _JSON_SAVE_LOCKS_GUARD:
+            target_lock = _JSON_SAVE_LOCKS.setdefault(target, threading.Lock())
+        # Windows 也可能拒绝两个线程同时 replace 同一个目标，因此同路径串行提交；
+        # 不同数据文件仍各自使用独立锁。
+        with target_lock:
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=f".{os.path.basename(target)}.",
+                suffix=".tmp",
+                dir=parent,
+                text=True,
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, target)
+            finally:
+                # json.dump / os.replace 失败时不遗留临时文件；原目标文件保持不变。
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
+
+    def _append_json_list(self, path, entry, cap=None):
+        """读最新数据→追加→写回（同步、无 await），避免并发任务用旧快照互相覆盖。"""
+        data = self._load_json(path, [])
+        if not isinstance(data, list):
+            data = []
+        data.append(entry)
+        if cap:
+            data = data[-cap:]
+        self._save_json(path, data)
+        return data
 
     # ── 外部命令 ──
     def _find_command(self, command_name):
@@ -89,7 +132,12 @@ class UtilsMixin:
                         params=params,
                         timeout=aiohttp.ClientTimeout(total=timeout),
                     ) as r:
-                        return await r.json(content_type=None), r
+                        d = await r.json(content_type=None)
+                        if isinstance(d, dict) and d.get("code") == -352 and getattr(self, "_wbi_keys_cache", None):
+                            # -352 通常意味着 wbi key 已轮换或签名失效，清缓存让下次请求重新拉取
+                            self._wbi_keys_cache = None
+                            logger.warning("[BiliBot] 收到 -352 风控码，已清除 WBI key 缓存待下次重签")
+                        return d, r
             except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionResetError) as e:
                 last_err = e
                 if i < retries:
@@ -264,9 +312,19 @@ class UtilsMixin:
         text = text.replace('\uff02', "'")  # 全角双引号
         # 去掉尾逗号
         text = re.sub(r',\s*([}\]])', r'\1', text)
-        # 提取JSON对象
-        m = re.search(r'\{.*\}', text, re.DOTALL)
-        if m:
-            text = m.group()
+        # 从每个括号位置尝试完整解析，取第一个合法的 JSON 对象/数组；
+        # 既支持顶层数组，也不会把正文里的「[说明]」误当 JSON（解析失败会继续向后找）
+        decoder = json.JSONDecoder()
+        for idx, ch in enumerate(text):
+            if ch in "[{":
+                try:
+                    obj, end = decoder.raw_decode(text[idx:])
+                except ValueError:
+                    continue
+                if isinstance(obj, dict):
+                    return text[idx:idx + end]
+                # 数组只接受对象列表（如批量评估结果），跳过正文里的 [1,2]、[说明] 等
+                if isinstance(obj, list) and all(isinstance(x, dict) for x in obj):
+                    return text[idx:idx + end]
         return text
 

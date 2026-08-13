@@ -162,6 +162,21 @@ class EventRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(second.success)
         self.assertEqual(calls, 2)
 
+    async def test_failed_event_can_be_reclaimed_only_for_explicit_retry(self):
+        manager = runtime.EventRuntime()
+        event = self.make_event()
+        claim = await manager.claim(event)
+        await manager.transition(claim.event_key, runtime.EventState.FAILED, "temporary")
+
+        duplicate = await manager.claim(event)
+        retry = await manager.claim(event, allow_retry_failed=True)
+        running_duplicate = await manager.claim(event, allow_retry_failed=True)
+
+        self.assertFalse(duplicate.accepted)
+        self.assertTrue(retry.accepted)
+        self.assertEqual(retry.reason, "retry")
+        self.assertFalse(running_duplicate.accepted)
+
     async def test_ignored_event_is_visible_in_snapshot(self):
         manager = runtime.EventRuntime()
         claim = await manager.claim(self.make_event())
@@ -191,8 +206,11 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 def _is_owner(self, _mid):
                     return False
 
-                def _check_milestone(self, *_args):
+                def _peek_milestone(self, *_args):
                     return None
+
+                def _commit_milestone(self, *_args):
+                    pass
 
                 async def _send_bili_private_message(self, _mid, _text):
                     return False
@@ -257,8 +275,11 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 def _is_owner(self, _mid):
                     return False
 
-                def _check_milestone(self, *_args):
+                def _peek_milestone(self, *_args):
                     return None
+
+                def _commit_milestone(self, *_args):
+                    pass
 
                 async def _send_bili_private_message(self, _mid, _text):
                     return True
