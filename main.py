@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.3.5
+AstrBot Plugin - Bilibili Bot 1.4.0
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
@@ -17,7 +17,8 @@ from .core import (
     AffectionMixin, PersonalityMixin, BilibiliAPIMixin,
     BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin,
     ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin,
-    PrivateMessageMixin, ConsolidationEngine, BiliBotMemoryAPI,
+    PrivateMessageMixin, LiveDanmakuMixin, ConsolidationEngine, BiliBotMemoryAPI,
+    EventRuntime,
 )
 
 _ACTIVE_BILIBOT = None
@@ -33,8 +34,8 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.3.5","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
-class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin):
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.4.0","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin, LiveDanmakuMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
@@ -72,6 +73,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._private_message_success_streak = 0
         self._private_message_last_activity_at = 0.0
         self._private_message_last_warned_backoff = 0
+        self.event_runtime = EventRuntime()
+        self._init_live_danmaku_state()
         self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
         # ── 记忆清算引擎 & 外部接口 ──
@@ -98,8 +101,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             await self._start_bot()
             logger.info("[BiliBot] 自动启动")
         elif "检查失败" in str(msg):
-            # 网络暂时不可用 ≠ Cookie 失效（如开机自启时网络未就绪），仍启动主循环靠周期检查兜底
-            logger.warning(f"[BiliBot] Cookie 检查暂时失败（{msg}），仍启动后台任务等待网络恢复")
+            # 网络暂时不可用不等于 Cookie 失效；仍启动主循环等待网络恢复。
+            logger.warning(
+                f"[BiliBot] Cookie 检查暂时失败（{msg}），仍启动后台任务等待网络恢复"
+            )
             await self._start_bot()
         else:
             logger.warning("[BiliBot] Cookie无效")
@@ -159,9 +164,14 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             self._task = asyncio.create_task(
                 self._main_loop(), name=_BILIBOT_MAIN_TASK_NAME
             )
+            if self.config.get("ENABLE_LIVE_DANMAKU_REPLY", False):
+                ok, message = await self._start_live_danmaku_listener()
+                if not ok:
+                    logger.warning(f"[BiliBot] 直播弹幕监听未启动: {message}")
             logger.info("[BiliBot] 启动")
 
     async def _stop_bot(self):
+        await self._stop_live_danmaku_listener()
         async with self._start_lock:
             self._running = False
             task = self._task
@@ -211,7 +221,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 h = datetime.now().hour
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
-                # 支持跨午夜的休眠区间（如 23 → 7）
+                # 支持跨午夜的休眠区间（例如 23 → 7）。
                 in_sleep = (ss <= h < se) if ss <= se else (h >= ss or h < se)
                 if in_sleep:
                     # ── 日终清算：在睡眠时段触发 ──
@@ -229,7 +239,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
                 if time.time() - self._last_cookie_check > ci:
                     await self._check_and_refresh_cookie()
-                    self._last_cookie_check = time.time()
+                self._last_cookie_check = time.time()
                 if self.config.get("ENABLE_PROACTIVE", False):
                     now_dt = datetime.now()
                     today_str = now_dt.strftime("%Y-%m-%d")
@@ -352,8 +362,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
-        # LLM 工具不在此手动注销：unregister_llm_tool 按名称删除，同名工具可能已被其他插件
-        # 覆盖注册，按名删除会误删对方的工具；插件卸载时由 AstrBot 按 handler_module_path 清理
+        # LLM 工具不在此手动注销：按名称删除可能误删其他插件覆盖注册的同名工具；
+        # AstrBot 会按 handler_module_path 清理当前插件的工具。
         global _ACTIVE_BILIBOT
         if _ACTIVE_BILIBOT is self:
             _ACTIVE_BILIBOT = None
@@ -488,8 +498,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             )
         except (TypeError, ValueError):
             private_active_interval, private_idle_interval = 60, 180
+        live_status = self._live_danmaku_status()
+        runtime_status = await self.event_runtime.snapshot()
         lines = [
-            f"📺 BiliBot 1.3.5 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.4.0 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
@@ -502,6 +514,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"✅ 已触发动态:{', '.join(schedule['dynamic_triggered']) if schedule['dynamic_triggered'] else '暂无'}",
             f"回复:{'✅' if self.config.get('ENABLE_REPLY',True) else '❌'} 好感:{'✅' if self.config.get('ENABLE_AFFECTION',True) else '❌'} 心情:{'✅' if self.config.get('ENABLE_MOOD',True) else '❌'}",
             f"✉️ B站私信:{'✅' if self.config.get('ENABLE_PRIVATE_MESSAGES',False) else '❌'} 回复:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_REPLY',True) else '❌'}({private_scope}) 模型按需查询:{'✅' if self.config.get('PRIVATE_MESSAGE_BILI_SEARCH_ENABLED',True) else '❌'} 视频先看:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_WATCH_VIDEO',True) else '❌'} 上下文重置:new 间隔:活跃{private_active_interval}/空闲{private_idle_interval}秒 危险拉黑:{'✅' if self.config.get('PRIVATE_MESSAGE_AUTO_BLOCK',True) else '❌'}",
+            f"🎙️ 直播弹幕回复:{'运行中' if live_status['running'] else ('已开启未运行' if live_status['enabled'] else '关闭')} | 房间:{live_status['room_id'] or '未配置'} | 轮询:{live_status['poll_interval']:g}秒 | 冷却:{live_status['cooldown']:g}秒 | 待回复:{live_status['pending_count']}",
             f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'} 工具:{'✅' if self.config.get('ENABLE_LLM_TOOLS',True) else '❌'}",
             f"✉️ 主人推荐:{owner_recommend_delivery} | 最低{self.config.get('RECOMMEND_OWNER_MIN_SCORE', 8)}分 | 每日上限:{self.config.get('RECOMMEND_OWNER_DAILY_LIMIT', 1)}",
             f"🔍 联网搜索:{'✅ '+feature_status['web_search_backend'] if feature_status['web_search'] else '❌'} 判断模型:{'✅' if feature_status['web_search_judge'] else '❌(用主模型)'}",
@@ -509,6 +522,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"🔗 群/私聊解析:{'✅' if self.config.get('ENABLE_BILI_SHARE_PARSE', False) else '❌'} 发原视频:{'✅' if self.config.get('BILI_SHARE_PARSE_SEND_VIDEO', True) else '❌'}",
             f"   解析触发 自动:{'✅' if self.config.get('BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED',True) else '❌'} 手动:{'✅' if self.config.get('BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED',True) else '❌'} LLM:{'✅' if self.config.get('BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED',True) else '❌'}",
             f"🎙️ 直播记忆:{live_memory_count}条 | 外部接口:v{self.memory_api.api_version}",
+            f"🧱 统一事件:处理中{runtime_status['event_states']['processing']} | 已发送{runtime_status['event_states']['sent']} | 失败{runtime_status['event_states']['failed']} | 动作{runtime_status['actions']}",
             f"🧭 看片筛选:{'✅' if self.config.get('ENABLE_PROACTIVE_LLM_PREFILTER', False) else '❌'} 最多拒绝:{self.config.get('PROACTIVE_LLM_PREFILTER_MAX_REJECTS', 3)}次 | 分区口味:{self._taste_window_days()}天",
             f"🎞️ 视频分段:{self.config.get('VIDEO_SEGMENT_MINUTES', 5)}分钟/段，最多{self.config.get('VIDEO_SEGMENT_MAX_COUNT', 10)}段",
             f"视频视觉Provider:{'✅' if env['llm']['video_provider'] else '❌'} 独立API:{'✅' if env['llm']['video_api'] else '❌'}",
@@ -517,6 +531,83 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"主动视频直读/截帧:{'✅' if feature_status['proactive_video_media'] else '❌'} 纯文本回退:{'✅' if feature_status['proactive_video_fallback_text'] else '❌'}",
         ]
         yield event.plain_result("\n".join(lines))
+    @filter.command("bili直播")
+    async def cmd_live_danmaku(self, event: AstrMessageEvent):
+        """管理 BiliBot 本体的直播弹幕监听与回复。"""
+        raw = event.message_str.strip().split(maxsplit=2)
+        action = raw[1].strip().lower() if len(raw) >= 2 else "状态"
+        status = self._live_danmaku_status()
+        if action in {"状态", "status"}:
+            errors = []
+            if status["listener_error"]:
+                errors.append(f"监听：{status['listener_error']}")
+            if status["send_error"]:
+                errors.append(f"发送：{status['send_error']}")
+            yield event.plain_result(
+                "🎙️ BiliBot 直播弹幕回复\n"
+                f"开关：{'开启' if status['enabled'] else '关闭'}\n"
+                f"监听：{'运行中' if status['running'] else '未运行'}"
+                f"（{'已建立当前位置' if status['initialized'] else '等待首次轮询'}）\n"
+                f"房间：{status['room_id'] or '未配置'}\n"
+                f"轮询：{status['poll_interval']:g}秒 | 回复冷却：{status['cooldown']:g}秒\n"
+                f"本次捕获：{status['recent_count']}条 | 待回复：{status['pending_count']}条\n"
+                f"最近弹幕：{status['last_event'] or '暂无'}\n"
+                f"发送退避：{status['send_backoff_seconds']}秒\n"
+                f"最近错误：{'；'.join(errors) if errors else '无'}"
+            )
+            return
+        if action in {"房间", "room"}:
+            room_text = raw[2].strip() if len(raw) >= 3 else ""
+            if not room_text.isdigit() or int(room_text) <= 0:
+                yield event.plain_result("用法：/bili直播 房间 <直播间号>")
+                return
+            was_running = self._live_listener_running()
+            if was_running:
+                await self._stop_live_danmaku_listener()
+            self.config["LIVE_DANMAKU_ROOM_ID"] = int(room_text)
+            self.config.save_config()
+            if was_running or self.config.get("ENABLE_LIVE_DANMAKU_REPLY", False):
+                ok, message = await self._start_live_danmaku_listener()
+                yield event.plain_result(
+                    f"直播间已设为 {room_text}。{'✅ ' if ok else '⚠️ '}{message}"
+                )
+            else:
+                yield event.plain_result(
+                    f"直播间已设为 {room_text}；用 /bili直播 开始 启动监听。"
+                )
+            return
+        if action in {"开始", "启动", "start"}:
+            self.config["ENABLE_LIVE_DANMAKU_REPLY"] = True
+            self.config.save_config()
+            ok, message = await self._start_live_danmaku_listener()
+            yield event.plain_result(("✅ " if ok else "⚠️ ") + message)
+            return
+        if action in {"停止", "stop"}:
+            self.config["ENABLE_LIVE_DANMAKU_REPLY"] = False
+            self.config.save_config()
+            await self._stop_live_danmaku_listener()
+            yield event.plain_result("已停止 BiliBot 直播弹幕回复。")
+            return
+        if action in {"测试", "test"}:
+            text = raw[2].strip() if len(raw) >= 3 else ""
+            if not text:
+                yield event.plain_result("用法：/bili直播 测试 <弹幕内容>")
+                return
+            sent = await self._send_live_danmaku_text(text)
+            yield event.plain_result(
+                f"✅ 已发送 {sent} 条测试弹幕。"
+                if sent
+                else f"❌ 发送失败：{self._live_send_last_error or '未知错误'}"
+            )
+            return
+        yield event.plain_result(
+            "用法：\n"
+            "/bili直播 状态\n"
+            "/bili直播 房间 <房间号>\n"
+            "/bili直播 开始\n"
+            "/bili直播 停止\n"
+            "/bili直播 测试 <文字>"
+        )
     @filter.command("bili计划")
     async def cmd_schedule(self, event: AstrMessageEvent):
         schedule = self._get_schedule_snapshot()
@@ -613,6 +704,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             "私信": "ENABLE_PRIVATE_MESSAGES",
             "私信回复": "PRIVATE_MESSAGE_AUTO_REPLY",
             "私信拉黑": "PRIVATE_MESSAGE_AUTO_BLOCK",
+            "直播回复": "ENABLE_LIVE_DANMAKU_REPLY",
             "主动": "ENABLE_PROACTIVE",
             "动态": "ENABLE_DYNAMIC",
             "好感": "ENABLE_AFFECTION",
@@ -647,7 +739,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             # 私信监听和真实拉黑不纳入“一键全部”，避免误开启外部写操作。
             bulk_keys = [
                 key for label, key in tm.items()
-                if label not in {"私信", "私信回复", "私信拉黑"}
+                if label not in {"私信", "私信回复", "私信拉黑", "直播回复"}
             ]
             # 任一主功能开着 → 全关；全关了 → 全开
             any_on = any(self.config.get(k, True) for k in bulk_keys)
@@ -668,6 +760,14 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         cur=self.config.get(key,True)
         self.config[key]=not cur
         self.config.save_config()
+        if key == "ENABLE_LIVE_DANMAKU_REPLY":
+            if not cur and self._running:
+                ok, message = await self._start_live_danmaku_listener()
+                if not ok:
+                    yield event.plain_result(f"直播回复: ⚠️ 已开启，但{message}")
+                    return
+            elif cur:
+                await self._stop_live_danmaku_listener()
         yield event.plain_result(f"{name}: {'✅ 已开启' if not cur else '❌ 已关闭'}")
     @filter.command("bili刷新")
     async def cmd_refresh_cookie(self, event: AstrMessageEvent):
@@ -1239,7 +1339,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     @filter.command("bili帮助")
     async def cmd_help(self, event: AstrMessageEvent):
-        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili计划 — 查看今日主动/动态/看番时间\n/bili分区 — 查看视频池中文填法和分区名\n/bili启动 — 启动\n/bili停止 — 停止\n/bili主动 — 立刻触发一次主动看视频\n/bili解析 [链接/BV号] — 解析指定、引用或上一个视频\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 视频 — 主动看视频&评论记录\n/bili日志 番剧 — 看番记录\n/bili日志 动态 — 动态发布记录\n/bili日志 回复 — 评论回复记录\n/bili开关 解析 — 视频解析总开关\n/bili开关 自动解析 — 聊天链接自动解析开关\n/bili开关 手动解析 — /bili解析 命令开关\n/bili开关 LLM解析 — bili_parse_video 工具开关\n/bili开关 解析视频 — 是否发送原视频切片\n/bili开关 筛选 — 主动看视频前标题筛选\n/bili联动 — 查看直播伴侣联动状态\n/bili看番 — 手动触发看番\n/bili番剧记忆 — 查看追番进度\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili清理 — 清理临时文件\n/bili帮助 — 本帮助\n/biliUMO — 获取当前UMO并自动填入配置\n━━━━━━━━━━━━\n💡 首次用 /bili登录\n💡 视频池配置不会背编号时，用 /bili分区 查中文填法")
+        yield event.plain_result("📺 BiliBot 命令\n━━━━━━━━━━━━\n/bili登录 — 扫码登录\n/bili确认 — 确认扫码\n/bili状态 — 运行状态\n/bili直播 — 本体直播弹幕回复\n/bili计划 — 查看今日主动/动态/看番时间\n/bili分区 — 查看视频池中文填法和分区名\n/bili启动 — 启动\n/bili停止 — 停止\n/bili主动 — 立刻触发一次主动看视频\n/bili解析 [链接/BV号] — 解析指定、引用或上一个视频\n/bili开关 — 功能开关\n/bili刷新 — 刷新Cookie\n/bili记忆 — 搜索记忆\n/bili好感 — 好感度\n/bili拉黑 — 手动拉黑\n/bili解黑 — 解除拉黑\n/bili黑名单 — 查看黑名单\n/bili性格 — 查看性格演化\n/bili性格编辑 — 手动编辑性格\n/bili性格删除 — 删除演化条目\n/bili日志 视频 — 主动看视频&评论记录\n/bili日志 番剧 — 看番记录\n/bili日志 动态 — 动态发布记录\n/bili日志 回复 — 评论回复记录\n/bili开关 解析 — 视频解析总开关\n/bili开关 自动解析 — 聊天链接自动解析开关\n/bili开关 手动解析 — /bili解析 命令开关\n/bili开关 LLM解析 — bili_parse_video 工具开关\n/bili开关 解析视频 — 是否发送原视频切片\n/bili开关 筛选 — 主动看视频前标题筛选\n/bili开关 直播回复 — 本体直播回复开关\n/bili联动 — 查看直播伴侣联动状态\n/bili看番 — 手动触发看番\n/bili番剧记忆 — 查看追番进度\n/bili永久记忆 — 查看/删除永久记忆\n/bili动态 — 手动发动态\n/bili绑定 — 绑定QQ与B站UID\n/bili解绑 — 解除绑定\n/bili清理 — 清理临时文件\n/bili帮助 — 本帮助\n/biliUMO — 获取当前UMO并自动填入配置\n━━━━━━━━━━━━\n💡 首次用 /bili登录\n💡 视频池配置不会背编号时，用 /bili分区 查中文填法")
 
     # ===== QQ↔B站 记忆互通 =====
     @filter.command("bili绑定")
@@ -1293,4 +1393,3 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             logger.error(f"[BiliBot] 记忆注入失败: {e}")
 
     # capture_qq_memory 已移除（v1.3.0），QQ记忆不再单独存储
-

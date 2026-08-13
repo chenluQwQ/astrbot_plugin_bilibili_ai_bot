@@ -168,6 +168,48 @@
         "default": 600,
         "hint": "收到新私信后在这段时间内使用活跃期检查间隔，默认600秒。遇到 -509 时仍会从10分钟开始倍增退避，最长60分钟，并在恢复后逐级缩短。"
     },
+    "ENABLE_LIVE_DANMAKU_REPLY": {
+        "description": "【直播弹幕·总开关】由 BiliBot 本体监听并回复直播弹幕",
+        "type": "bool",
+        "default": false,
+        "hint": "BiliBot 本体直接读取直播间新弹幕，使用当前 AstrBot 人设、BiliBot 记忆、用户画像和好感度生成短回复，再由 Bot 的B站账号发回直播间。首次启动只建立当前位置，不回复历史弹幕。"
+    },
+    "LIVE_DANMAKU_ROOM_ID": {
+        "description": "【直播弹幕】监听和回复的B站直播间号",
+        "type": "int",
+        "default": 0,
+        "hint": "填写直播页面链接末尾的房间号，也可使用 /bili直播 房间 <房间号> 设置。"
+    },
+    "LIVE_DANMAKU_POLL_INTERVAL": {
+        "description": "【直播弹幕】检查新弹幕间隔（秒）",
+        "type": "float",
+        "default": 5,
+        "hint": "使用历史弹幕接口低频轮询，默认5秒；最低2秒。"
+    },
+    "LIVE_DANMAKU_REPLY_COOLDOWN": {
+        "description": "【直播弹幕】两次自动回复最短间隔（秒）",
+        "type": "float",
+        "default": 12,
+        "hint": "冷却期间的新弹幕会合并等待，并优先回复最新一条，避免刷屏。"
+    },
+    "LIVE_DANMAKU_MAX_PER_MINUTE": {
+        "description": "【直播弹幕】每分钟最多自动回复次数",
+        "type": "int",
+        "default": 4,
+        "hint": "0表示不限制；建议保持3-6次，避免过密回复和接口风控。"
+    },
+    "LIVE_DANMAKU_REPLY_MAX_LENGTH": {
+        "description": "【直播弹幕】单次回复最大总字数",
+        "type": "int",
+        "default": 60,
+        "hint": "回复会自动按约20字拆成最多3条B站弹幕，超出部分截断。"
+    },
+    "CUSTOM_LIVE_DANMAKU_INSTRUCTION": {
+        "description": "【直播弹幕】回复补充提示词",
+        "type": "text",
+        "default": "",
+        "hint": "仅追加到直播弹幕回复，不影响评论和私信。默认提示词已要求短、口语化并避免频繁欢迎。"
+    },
     "ENABLE_BILI_SHARE_PARSE": {
         "description": "【分享解析·总开关】识别群聊和私聊里的B站视频分享",
         "type": "bool",

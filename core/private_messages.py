@@ -28,6 +28,7 @@ from .config import (
     PRIVATE_MESSAGE_STATE_FILE,
     REPLY_LOG_FILE,
 )
+from .runtime import ActionRequest, EventState, InboundEvent
 
 
 _URL_RE = re.compile(
@@ -856,9 +857,18 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             milestone_hit = None
             new_score = current_score
 
-        # 先发送私信；失败时不落任何副作用，避免"好感度/画像已更新但用户没收到回复"的不一致
-        success = await self._send_bili_private_message(mid, ai_reply)
-        if not success:
+        # 先发送私信；失败时不落任何副作用，避免"好感度/画像已更新但用户没收到回复"的不一致。
+        # 发送经过统一动作运行时，同一条持久化待处理消息不会并发重复发送。
+        outcome = await self.event_runtime.execute(
+            ActionRequest(
+                key=f"private_reply:{message['msg_key']}",
+                kind="private_reply",
+                event_key=f"bilibili:private:{message['msg_key']}",
+                target_id=mid,
+            ),
+            lambda: self._send_bili_private_message(mid, ai_reply),
+        )
+        if not outcome.success:
             logger.warning(f"[BiliBot] 私信回复发送失败，UID={mid}，不会自动重发")
             return False
 
@@ -1079,6 +1089,26 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         mid = str(message["sender_uid"])
         username = message["username"]
         content = message["content"]
+        runtime_event = InboundEvent(
+            source="private",
+            event_id=str(message["msg_key"]),
+            actor_id=mid,
+            actor_name=username,
+            content=content,
+            conversation_id=self._private_conversation_thread_id(mid),
+            account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
+            occurred_at=float(message.get("timestamp") or 0),
+            metadata={"content_type": message.get("content_type", "text")},
+        )
+        claim = await self.event_runtime.claim(
+            runtime_event,
+            allow_retry_failed=int(message.get("retry_count") or 0) > 0,
+        )
+        if not claim.accepted:
+            logger.debug(
+                f"[BiliBot] 私信事件运行时去重：{message['msg_key']} ({claim.reason})"
+            )
+            return True
         decision = assess_private_message(content, trusted_domains)
         if decision.should_block:
             if self._private_sender_protected(mid):
@@ -1092,10 +1122,22 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 logger.warning(
                     f"[BiliBot] 私信命中安全规则但用户受保护，未拉黑：{username}({mid})"
                 )
+                await self.event_runtime.transition(
+                    claim.event_key, EventState.IGNORED, "protected_sender"
+                )
                 return True
             blocked = False
             if self.config.get("PRIVATE_MESSAGE_AUTO_BLOCK", True):
-                blocked = await self._block_user(int(mid))
+                block_outcome = await self.event_runtime.execute(
+                    ActionRequest(
+                        key=f"private_block:{mid}:{message['msg_key']}",
+                        kind="block_user",
+                        event_key=claim.event_key,
+                        target_id=mid,
+                    ),
+                    lambda: self._block_user(int(mid)),
+                )
+                blocked = block_outcome.success
             action = "已拉黑" if blocked else "已隔离，未完成拉黑"
             self._record_private_block(message, decision.reason, blocked)
             self._log_security_event(
@@ -1108,12 +1150,19 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             logger.warning(
                 f"[BiliBot] 🚫 私信安全拦截 {username}({mid})：{decision.reason}；{action}"
             )
+            if not blocked:
+                await self.event_runtime.transition(
+                    claim.event_key, EventState.IGNORED, decision.reason
+                )
             return True
 
         if (
             not self.config.get("PRIVATE_MESSAGE_AUTO_REPLY", True)
             or not self._private_reply_scope_allows(mid)
         ):
+            await self.event_runtime.transition(
+                claim.event_key, EventState.IGNORED, "auto_reply_disabled_or_scope_denied"
+            )
             return True
 
         # Deliberately exact: only the standalone text "new" resets context.
@@ -1121,7 +1170,16 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         if message.get("content_type") == "text" and content.strip() == "new":
             new_thread_id = self._reset_private_conversation(mid)
             reset_reply = "已清除当前私信的对话上下文。"
-            sent = await self._send_bili_private_message(mid, reset_reply)
+            reset_outcome = await self.event_runtime.execute(
+                ActionRequest(
+                    key=f"private_reset_reply:{message['msg_key']}",
+                    kind="private_reply",
+                    event_key=claim.event_key,
+                    target_id=mid,
+                ),
+                lambda: self._send_bili_private_message(mid, reset_reply),
+            )
+            sent = reset_outcome.success
             if sent:
                 logger.info(
                     f"[BiliBot] 🆕 已重置私信上下文：{username}({mid}) -> {new_thread_id}"
@@ -1172,12 +1230,24 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         )
         if not result or not result.get("reply"):
             logger.warning(f"[BiliBot] 私信回复生成失败，稍后重试：{username}({mid})")
+            await self.event_runtime.transition(
+                claim.event_key, EventState.FAILED, "reply_generation_failed"
+            )
             return False
         tool_request = result.get("tool_request") or {}
         tool_name = str(tool_request.get("name") or "none").strip().lower()
         if tool_name != "none":
             progress_reply = str(result.get("reply") or "").strip() or "我查一下。"
-            progress_sent = await self._send_bili_private_message(mid, progress_reply)
+            progress_outcome = await self.event_runtime.execute(
+                ActionRequest(
+                    key=f"private_tool_progress:{message['msg_key']}:{tool_name}",
+                    kind="private_progress_reply",
+                    event_key=claim.event_key,
+                    target_id=mid,
+                ),
+                lambda: self._send_bili_private_message(mid, progress_reply),
+            )
+            progress_sent = progress_outcome.success
             if progress_sent:
                 logger.info(
                     f"[BiliBot] ✉️ 私信工具查询前回复 {username}：{progress_reply[:80]}"
@@ -1201,6 +1271,10 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 logger.warning(
                     f"[BiliBot] 私信工具结果整合失败，已保留查询前回复：{username}({mid})"
                 )
+                if not progress_sent:
+                    await self.event_runtime.transition(
+                        claim.event_key, EventState.FAILED, "tool_result_merge_failed"
+                    )
                 return bool(progress_sent)
             applied = await self._apply_private_reply_result(
                 message, final_result, thread_id=thread_id
