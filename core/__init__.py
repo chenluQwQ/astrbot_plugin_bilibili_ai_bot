@@ -25,7 +25,7 @@ _EXPORTS: dict[str, str] = {
     "ReplyMixin": "reply",
     "ProactiveMixin": "proactive",
     "DynamicMixin": "dynamic",
-    "ScheduleMixin": "schedule",
+    "ScheduleMixin": "schedule_mixin",
     "WeeklySummaryMixin": "weekly",
     "ShareMixin": "share",
     "PrivateMessageMixin": "private_messages",
@@ -72,7 +72,7 @@ if TYPE_CHECKING:  # pragma: no cover - 仅供类型检查器看见真实符号
     from .proactive import ProactiveMixin
     from .reply import ReplyMixin
     from .runtime import ActionRequest, EventRuntime, EventState, InboundEvent
-    from .schedule import ScheduleMixin
+    from .schedule_mixin import ScheduleMixin
     from .search import WebSearchMixin
     from .share import ShareMixin
     from .utils import UtilsMixin

@@ -477,17 +477,19 @@ class ShareMixin:
             for key in self._share_context_keys(event):
                 if self._recent_group_share_context.get(key) is record:
                     self._recent_group_share_context.pop(key, None)
+        desc_excerpt = (record.get('desc') or '')[:260]
         return (
             f"【上一条{scene}背景：B站视频分享】\n"
-            "\u521a\u624d\u8fd9\u4e2a\u4f1a\u8bdd\u91cc\u89e3\u6790\u8fc7\u4e00\u4e2aB\u7ad9\u89c6\u9891\u3002\u7528\u6237\u5982\u679c\u8bf4\u201c\u8fd9\u4e2a\u89c6\u9891\u201d\u201c\u521a\u624d\u90a3\u4e2a\u201d\u201c\u6709\u94fe\u63a5\u7684\u8bdd\u201d\u201c\u8fd9\u4e2aUP\u201d\u7b49\u6307\u4ee3\uff0c\u4f18\u5148\u7406\u89e3\u4e3a\u4e0b\u9762\u8fd9\u6761\uff1a\n"
-            f"- \u6807\u9898\uff1a{record.get('title') or '\u672a\u77e5'}\n"
-            f"- BV\u53f7\uff1a{record.get('bvid') or '\u672a\u77e5'}\n"
-            f"- UP\u4e3b\uff1a{record.get('owner_name') or '\u672a\u77e5'}\uff08UID:{record.get('owner_mid') or '?'}\uff09\n"
-            f"- \u5206\u533a\uff1a{record.get('tname') or '\u672a\u77e5'} | \u65f6\u957f\uff1a{record.get('duration') or '?'}\n"
-            f"- \u94fe\u63a5\uff1a{record.get('link') or ''}\n"
-            f"- \u7b80\u4ecb\uff1a{(record.get('desc') or '')[:260]}\n"
-            "\u5982\u679c\u7528\u6237\u95ee\u8fd9\u4e2aUP\u6700\u8fd1\u6709\u4ec0\u4e48\u89c6\u9891\uff0c\u53ef\u4ee5\u7528UP\u4e3bUID\u6216\u540d\u5b57\u8c03\u7528B\u7ad9\u67e5\u8be2/\u641c\u7d22\u5de5\u5177\u3002"
+            "刚才这个会话里解析过一个B站视频。用户如果说\"这个视频\"\"刚才那个\"\"有链接的话\"\"这个UP\"等指代，优先理解为下面这条：\n"
+            f"- 标题：{record.get('title') or '未知'}\n"
+            f"- BV号：{record.get('bvid') or '未知'}\n"
+            f"- UP主：{record.get('owner_name') or '未知'}（UID:{record.get('owner_mid') or '?'}）\n"
+            f"- 分区：{record.get('tname') or '未知'} | 时长：{record.get('duration') or '?'}\n"
+            f"- 链接：{record.get('link') or ''}\n"
+            f"- 简介：{desc_excerpt}\n"
+            "如果用户问这个UP最近有什么视频，可以用UP主UID或名字调用B站查询/搜索工具。"
         )
+
 
     def _inject_context_block_before_user(self, req, block):
         messages = getattr(req, "messages", None)

@@ -20,6 +20,97 @@ from .runtime import ActionRequest, EventState, InboundEvent
 class ReplyMixin:
     """回复生成与评论区轮询。"""
 
+    @staticmethod
+    def _normalized_interaction_text(content):
+        return re.sub(r"[\W_]+", "", str(content or "").lower(), flags=re.UNICODE)
+
+    def _today_reply_count(self, channel="comment"):
+        today = datetime.now().strftime("%Y-%m-%d")
+        logs = self._load_json(REPLY_LOG_FILE, [])
+        return sum(
+            1 for item in logs if isinstance(item, dict)
+            and str(item.get("time", "")).startswith(today)
+            and ((item.get("channel") == "private") if channel == "private" else (item.get("channel") != "private"))
+        )
+
+    def _daily_reply_limit_reached(self, channel="comment"):
+        hard_key = "AUTONOMOUS_PRIVATE_DAILY_LIMIT" if channel == "private" else "AUTONOMOUS_REPLY_DAILY_LIMIT"
+        limit = max(0, int(self.config.get(hard_key, 0) or 0))
+        if not self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
+            fixed_key = "FIXED_PRIVATE_DAILY_TARGET" if channel == "private" else "FIXED_REPLY_DAILY_TARGET"
+            fixed_target = max(0, int(self.config.get(fixed_key, limit) or 0))
+            limit = min(limit, fixed_target) if limit and fixed_target else fixed_target or limit
+        return bool(limit and self._today_reply_count(channel) >= limit)
+
+    def _interaction_filter_reason(self, content, channel="comment"):
+        text = str(content or "").strip()
+        compact = self._normalized_interaction_text(text)
+        if not compact:
+            return "empty_or_symbol_only"
+        if self.config.get("FILTER_LOW_VALUE_MESSAGES", True):
+            low_value = {"顶", "路过", "来了", "打卡", "哈哈", "哈哈哈", "呵呵", "哦", "嗯", "6", "666", "1", "支持", "关注了"}
+            if compact in low_value or len(compact) <= 1:
+                return "low_value_message"
+            if re.fullmatch(r"(.)\1{3,}", compact):
+                return "repeated_character_spam"
+        if self.config.get("FILTER_AD_MESSAGES", True):
+            ad_patterns = (
+                r"(?:加|+)(?:微|v|vx|q|qq)", r"(?:微信|vx|qq)[:：]?\s*[a-z0-9_-]{4,}",
+                r"(?:代刷|代充|返利|兼职|引流|推广|低价|免费领取|进群|私聊我|联系我)",
+                r"(?:https?://|www\.|t\.me/)", r"[群裙]\s*[:：]?\s*\d{5,}",
+            )
+            if any(re.search(pattern, text, re.I) for pattern in ad_patterns):
+                return "advertisement_or_contact_spam"
+        if self.config.get("FILTER_DUPLICATE_MESSAGES", True):
+            logs = self._load_json(REPLY_LOG_FILE, [])
+            for item in reversed(logs[-120:] if isinstance(logs, list) else []):
+                if not isinstance(item, dict):
+                    continue
+                same_channel = (item.get("channel") == "private") if channel == "private" else (item.get("channel") != "private")
+                if same_channel and self._normalized_interaction_text(item.get("content", "")) == compact:
+                    return "exact_duplicate_message"
+        return None
+
+    def _allowed_bili_tool_names(self):
+        supported = {
+            "bili_up_info", "get_up_info", "bili_video_search", "search_bilibili",
+            "bili_search_and_watch", "watch_video", "bili_parse_video",
+            "check_following_updates", "check_following_live", "get_bangumi_info",
+            "get_bangumi_trending", "get_bangumi_timeline", "get_bangumi_updates",
+            "web_search",
+        }
+        if not self.config.get("BILI_ALLOW_SEARCH_TOOLS", True):
+            return set()
+        configured = self.config.get("BILI_TOOL_ALLOWLIST", list(supported))
+        allowed = {str(name).strip().lower() for name in configured if str(name).strip()} if isinstance(configured, list) else set()
+        # Backend-supported read-only tools are the absolute ceiling. AstrBot/QQ
+        # commands, filesystem and shell tools are never reachable from B站 input.
+        return supported & allowed if self.config.get("BILI_TOOL_ISOLATION_ENABLED", True) else supported
+
+    async def _should_reply_by_interest(self, content, username, channel="comment"):
+        if not self.config.get("ENABLE_INTEREST_BASED_REPLY", True):
+            return True, "interest_filter_disabled"
+        if channel == "private" and not self.config.get("INTEREST_APPLY_TO_PRIVATE", True):
+            return True, "private_interest_filter_disabled"
+        prompt = f"""判断一个B站角色是否值得回复下面这条{('私信' if channel == 'private' else '评论')}。
+只输出严格 JSON：{{"reply":true,"reason":"不超过30字"}}。
+选择规则：{str(self.config.get('INTEREST_SELECTION_PROMPT', ''))[:900]}
+用户：{str(username)[:40]}
+内容：{str(content)[:800]}
+不要因为礼貌就默认回复；低价值、广告、复读、无交流空间的内容应为 false。"""
+        try:
+            raw = str(await self._llm_call(prompt, max_tokens=120) or "").strip()
+            raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S)
+            match = re.search(r"\{.*?\}", raw, re.S)
+            data = json.loads(match.group(0) if match else raw)
+            if isinstance(data, dict) and isinstance(data.get("reply"), bool):
+                return data["reply"], str(data.get("reason") or "模型兴趣判断")[:80]
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 兴趣筛选解析失败，使用确定性回退：{exc}")
+        compact = self._normalized_interaction_text(content)
+        fallback = len(compact) >= 8 or bool(re.search(r"[?？]|怎么|为什么|觉得|喜欢|推荐|请问", str(content)))
+        return fallback, "deterministic_interest_fallback"
+
     async def _generate_reply(
         self,
         content,
@@ -86,24 +177,34 @@ class ReplyMixin:
             tool_request_prompt = ""
             if is_private and allow_tool_request and not is_suspicious:
                 available_tools = []
+                allowed_tool_names = self._allowed_bili_tool_names()
                 if self.config.get("PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", True):
-                    available_tools.extend((
-                        "- bili_up_info：按UP主昵称/UID查询资料、最近投稿和动态；询问某UP最近/最新视频时优先选它",
-                        "- bili_video_search：按关键词搜索或推荐B站视频，只列候选",
-                        "- bili_search_and_watch：用户明确要求你找一个相关视频并亲自观看/分析时使用",
-                    ))
-                if self.config.get("ENABLE_WEB_SEARCH", False):
-                    available_tools.append(
-                        "- web_search：查询B站以外、必须依赖近期联网信息才能准确回答的事实"
-                    )
+                    tool_descriptions = {
+                        "bili_up_info": "- bili_up_info：按UP主昵称/UID查询资料、最近投稿和动态",
+                        "get_up_info": "- get_up_info：按UP主昵称/UID查询资料、最近投稿和动态",
+                        "bili_video_search": "- bili_video_search：按关键词搜索或推荐B站视频，只列候选",
+                        "search_bilibili": "- search_bilibili：按关键词搜索或推荐B站视频，只列候选",
+                        "bili_search_and_watch": "- bili_search_and_watch：搜索一个相关视频并实际观看/分析",
+                        "watch_video": "- watch_video：按 BV 号实际观看/分析指定视频",
+                        "bili_parse_video": "- bili_parse_video：解析 BV 号或公开视频链接并观看/分析",
+                        "check_following_updates": "- check_following_updates：查看今天关注 UP 主的新动态与投稿，无需 query",
+                        "check_following_live": "- check_following_live：查看关注列表中当前正在直播的人，无需 query",
+                        "get_bangumi_info": "- get_bangumi_info：按 season_id 查看番剧详情，query 只写数字 season_id",
+                        "get_bangumi_trending": "- get_bangumi_trending：查看番剧或国创热度排行，query 可写‘番剧’或‘国创’",
+                        "get_bangumi_timeline": "- get_bangumi_timeline：查看近期新番时间表，无需 query",
+                        "get_bangumi_updates": "- get_bangumi_updates：查看账号当前在追番剧的更新概况，无需 query",
+                    }
+                    available_tools.extend(tool_descriptions[name] for name in tool_descriptions if name in allowed_tool_names)
+                if self.config.get("ENABLE_WEB_SEARCH", False) and "web_search" in allowed_tool_names:
+                    available_tools.append("- web_search：查询B站以外、必须依赖近期联网信息才能准确回答的事实")
                 if available_tools:
                     tool_request_prompt = (
                         "\n【可选后台能力】\n"
                         + "\n".join(available_tools)
                         + "\n- none：不需要后台查询，直接正常回复\n"
                         "只有确实需要外部数据时才选一个能力；B站UP主、视频和投稿必须优先用B站能力，不能改用web_search。\n"
-                        "若选择能力，tool_request.query只写干净的查询对象，例如“泛式”，不要带称呼、寒暄、‘看看’或‘帮我查’；"
-                        "此时reply只写一句自然的短回应，表示你正在看或查，不能提前编造结果。\n"
+                        "若选择需要参数的能力，tool_request.query只写干净的查询对象，例如‘泛式’或数字 season_id；明确标注无需 query 的能力可留空，"
+                        "不要带称呼、寒暄、‘看看’或‘帮我查’；此时reply只写一句自然的短回应，表示你正在看或查，不能提前编造结果。\n"
                     )
             owner_mark = f" ← 这是{on}" if is_owner else ""
             if is_private:
@@ -174,7 +275,7 @@ class ReplyMixin:
                     '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容或查询前的短回应", '
                     '"impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"], '
                     '"permanent_memory": "值得永久记住的事(没有则留空)", '
-                    '"tool_request": {"name": "none|bili_up_info|bili_video_search|bili_search_and_watch|web_search", "query": ""}}\n\n'
+                    '"tool_request": {"name": "none|bili_up_info|get_up_info|bili_video_search|search_bilibili|bili_search_and_watch|watch_video|bili_parse_video|check_following_updates|check_following_live|get_bangumi_info|get_bangumi_trending|get_bangumi_timeline|get_bangumi_updates|web_search", "query": ""}}\n\n'
                     if is_private and allow_tool_request and tool_request_prompt
                     else '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容", "impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"], "permanent_memory": "值得永久记住的事(没有则留空)"}\n\n'
                 )
@@ -224,8 +325,11 @@ class ReplyMixin:
             tool_request = r.get("tool_request") if isinstance(r.get("tool_request"), dict) else {}
             tool_name = str(tool_request.get("name") or "none").strip().lower()
             allowed_tool_names = {
-                "none", "bili_up_info", "bili_video_search",
-                "bili_search_and_watch", "web_search",
+                "none", "bili_up_info", "get_up_info", "bili_video_search",
+                "search_bilibili", "bili_search_and_watch", "watch_video",
+                "bili_parse_video", "check_following_updates", "check_following_live",
+                "get_bangumi_info", "get_bangumi_trending", "get_bangumi_timeline",
+                "get_bangumi_updates", "web_search",
             }
             if (
                 not allow_tool_request
@@ -520,33 +624,43 @@ class ReplyMixin:
             logger.info(f"[BiliBot] 🔍 DEBUG comment_type={comment_type} oid={oid}")
             logger.info(f"[BiliBot] 📩 {username}（{LEVEL_NAMES[lv]}|{cs}分）：{content[:50]}")
 
-            # ── 是否回复：主人 / @ / 高好感(熟人以上) / 必回白名单 一律绕过，其余走概率 + 语义去重 ──
+            # ── 管理员硬上限始终生效；兴趣/低价值筛选只对非必回对象生效 ──
             high_aff = lv in ("friend", "close", "special")
             content_emb = None
             force_reply = (
                 self._is_owner(mid) or item.get("source") == "at"
                 or high_aff or self._is_reply_whitelisted(mid)
             )
+            if self._daily_reply_limit_reached("comment"):
+                self._log_security_event("daily_reply_limit", mid, username, content, "评论回复达到管理员硬上限")
+                await self.event_runtime.transition(claim.event_key, EventState.IGNORED, "daily_reply_limit")
+                return
             if force_reply:
                 logger.info(f"[BiliBot] ✅ 必回（主人/@/高好感/白名单）：{username}")
             else:
+                filter_reason = self._interaction_filter_reason(content, "comment")
+                if filter_reason:
+                    self._log_security_event("interaction_filtered", mid, username, content, filter_reason)
+                    logger.info(f"[BiliBot] 🧹 评论过滤：{username} ({filter_reason})")
+                    await self.event_runtime.transition(claim.event_key, EventState.IGNORED, filter_reason)
+                    return
+                interested, interest_reason = await self._should_reply_by_interest(content, username, "comment")
+                if not interested:
+                    self._log_security_event("interest_skip", mid, username, content, interest_reason)
+                    logger.info(f"[BiliBot] 兴趣筛选跳过：{username} ({interest_reason})")
+                    await self.event_runtime.transition(claim.event_key, EventState.IGNORED, "interest_skip")
+                    return
                 prob = max(0, min(100, int(self.config.get("REPLY_PROBABILITY_PERCENT", 100))))
                 roll = random.randint(1, 100)
                 if roll > prob:
                     logger.info(f"[BiliBot] 🎲 概率跳过（掷{roll} > {prob}%）：{username}")
-                    await self.event_runtime.transition(
-                        claim.event_key, EventState.IGNORED, "probability_skip"
-                    )
+                    await self.event_runtime.transition(claim.event_key, EventState.IGNORED, "probability_skip")
                     return
-                logger.info(f"[BiliBot] 🎲 概率命中（掷{roll} ≤ {prob}%），继续：{username}")
                 if self.config.get("ENABLE_SIMILAR_SKIP", False):
                     repeated, content_emb = await self._is_semantically_repeated(content)
                     if repeated:
                         self._log_security_event("similar_skip", mid, username, content, "语义相似去重")
-                        logger.info(f"[BiliBot] ♻️ 相似评论跳过：{username}：{content[:30]}")
-                        await self.event_runtime.transition(
-                            claim.event_key, EventState.IGNORED, "semantic_duplicate"
-                        )
+                        await self.event_runtime.transition(claim.event_key, EventState.IGNORED, "semantic_duplicate")
                         return
 
             image_desc = ""

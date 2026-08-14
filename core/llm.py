@@ -9,7 +9,7 @@ class LLMMixin:
         try:
             pid = provider_id if provider_id is not None else self.config.get("LLM_PROVIDER_ID", "")
             # 人设走真正的 system role：① 增强人设遵循 ② 让人设成为稳定前缀，命中提示词缓存
-            kwargs = {"prompt": prompt}
+            kwargs = {"prompt": prompt, "max_tokens": max_tokens}
             if system_prompt:
                 kwargs["system_prompt"] = system_prompt
             if pid:
@@ -21,11 +21,15 @@ class LLMMixin:
             return None
 
     async def _get_system_prompt(self):
+        base_prompt = ""
         if self.config.get("USE_ASTRBOT_PERSONA", True):
             try:
                 persona = await self.context.persona_manager.get_default_persona_v3()
                 if persona and persona.get("prompt"):
-                    return persona["prompt"]
+                    base_prompt = str(persona["prompt"]).strip()
             except Exception as e:
-                logger.warning(f"[BiliBot] 读取AstrBot自带人设失败，将使用自定义提示词: {e}")
-        return self.config.get("CUSTOM_SYSTEM_PROMPT", "你是一个活跃在B站的角色，会回复评论、看视频、发动态。用自然的口语化风格交流。")
+                logger.warning(f"[BiliBot] 读取AstrBot自带人设失败，将使用B站附加提示词: {e}")
+        addon = str(self.config.get("CUSTOM_SYSTEM_PROMPT", "") or "").strip()
+        if base_prompt and addon:
+            return f"{base_prompt}\n\n【B站活动附加设定】\n{addon}"
+        return base_prompt or addon or "你是一个活跃在B站的角色，会回复评论、看视频、发动态。用自然的口语化风格交流。"

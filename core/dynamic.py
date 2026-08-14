@@ -21,7 +21,7 @@ class DynamicMixin:
 
     def _get_image_gen_config(self):
         api_key = self.config.get("IMAGE_GEN_API_KEY", "") or self.config.get("VIDEO_VISION_API_KEY", "")
-        base_url = self.config.get("IMAGE_GEN_API_BASE", "https://openrouter.ai/api/v1")
+        base_url = self._normalize_openai_base_url(self.config.get("IMAGE_GEN_API_BASE", "https://openrouter.ai/api/v1"))
         model = self.config.get("IMAGE_GEN_MODEL", "black-forest-labs/flux-schnell")
         return api_key, base_url, model
 
@@ -148,7 +148,13 @@ B站动态的感觉：
         log = self._load_json(DYNAMIC_LOG_FILE, [])
         today = datetime.now().strftime("%Y-%m-%d")
         today_posts = [l for l in log if l.get("time", "").startswith(today)]
-        max_daily = self.config.get("DYNAMIC_DAILY_COUNT", 1)
+        max_daily = max(0, int(self.config.get("DYNAMIC_DAILY_COUNT", 1)))
+        autonomous_limit = max(0, int(self.config.get("AUTONOMOUS_DYNAMIC_DAILY_LIMIT", max_daily) or 0))
+        if autonomous_limit:
+            max_daily = min(max_daily, autonomous_limit) if max_daily else autonomous_limit
+        plan = self._autonomous_plan_for_today() if hasattr(self, "_autonomous_plan_for_today") else {}
+        if plan:
+            max_daily = min(max_daily, len(plan.get("dynamic_times", [])))
         if len(today_posts) >= max_daily:
             logger.info(f"[BiliBot] 今天已发 {len(today_posts)} 条动态，跳过")
             return

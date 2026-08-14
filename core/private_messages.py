@@ -495,13 +495,128 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         query = str(request.get("query") or "").strip()[:100]
         if name == "none":
             return ""
-        if not query:
+        allowed = self._allowed_bili_tool_names()
+        if name not in allowed:
+            if self.config.get("BILI_TOOL_AUDIT_ENABLED", True):
+                self._log_security_event("bili_tool_denied", "", "", query, f"工具 {name} 不在B站只读白名单")
+            logger.warning(f"[BiliBot] B站工具请求被拒绝：{name}")
+            return "该后台能力没有对B站端开放，未执行。"
+        no_query_tools = {
+            "check_following_updates", "check_following_live", "get_bangumi_trending",
+            "get_bangumi_timeline", "get_bangumi_updates",
+        }
+        if not query and name not in no_query_tools:
             return "后台查询缺少关键词，未执行。"
+        if self.config.get("BILI_TOOL_AUDIT_ENABLED", True):
+            self._log_security_event("bili_tool_requested", "", "", query or name, f"只读工具 {name}")
+
+        def compact_result(lines, limit=4800):
+            return "\n".join(str(line) for line in lines if line is not None)[:limit]
+
+        if name == "check_following_updates":
+            results = await self.get_following_updates(limit=12)
+            if not results:
+                return "今天关注的 UP 主暂时没有读取到新动态。"
+            lines = [f"今天关注列表有 {len(results)} 条更新："]
+            for item in results[:12]:
+                up_name = str(item.get("up_name") or "未知 UP")[:40]
+                pub_time = str(item.get("pub_time") or "时间未知")[:30]
+                if item.get("video_title"):
+                    lines.append(f"- {up_name} 投稿《{str(item.get('video_title'))[:80]}》 {item.get('video_bvid', '')}（{pub_time}）")
+                elif item.get("live_title"):
+                    lines.append(f"- {up_name} 正在直播：{str(item.get('live_title'))[:80]}（{pub_time}）")
+                elif item.get("text"):
+                    lines.append(f"- {up_name} 发了动态：{str(item.get('text'))[:120]}（{pub_time}）")
+                else:
+                    lines.append(f"- {up_name} 有一条新动态（{pub_time}）")
+            return compact_result(lines)
+
+        if name == "check_following_live":
+            results = await self.get_following_live()
+            if not results:
+                return "关注的人现在没有读取到正在直播的账号。"
+            lines = [f"当前有 {len(results)} 个关注账号正在直播："]
+            for item in results[:12]:
+                lines.append(
+                    f"- {str(item.get('uname') or '未知 UP')[:40]}：《{str(item.get('title') or '未命名直播')[:80]}》"
+                    f"，分区 {str(item.get('area_name') or '未知')[:30]}，人气 {item.get('online', 0)}，{item.get('link', '')}"
+                )
+            return compact_result(lines)
+
+        if name == "get_bangumi_info":
+            match = re.search(r"\d+", query)
+            if not match:
+                return "番剧详情工具需要数字 season_id，未执行。"
+            season_id = int(match.group(0))
+            detail = await self.get_bangumi_detail(season_id=season_id)
+            if not detail:
+                return f"没有读取到 season_id={season_id} 的番剧详情。"
+            lines = [
+                f"《{detail.get('title') or '未命名番剧'}》",
+                f"评分 {detail.get('score', 0)}（{detail.get('count', 0)} 人评），地区 {detail.get('areas') or '未知'}，类型 {detail.get('styles') or '未知'}",
+                f"集数 {detail.get('total_ep', 0)}，{detail.get('new_ep_desc') or '暂无最新集说明'}",
+                f"播放 {detail.get('stat_views', 0)}，弹幕 {detail.get('stat_danmakus', 0)}，追番 {detail.get('stat_favorites', 0)}",
+            ]
+            if detail.get("evaluate"):
+                lines.append(f"简介：{str(detail.get('evaluate'))[:240]}")
+            episodes = detail.get("episodes") or []
+            if episodes:
+                lines.append("最近剧集：" + " / ".join(str(ep.get("title") or "")[:35] for ep in episodes[-5:]))
+            if detail.get("link"):
+                lines.append(str(detail.get("link")))
+            return compact_result(lines)
+
+        if name == "get_bangumi_trending":
+            season_type = 4 if "国创" in query else 1
+            type_name = "国创" if season_type == 4 else "番剧"
+            results = await self.get_bangumi_trending(season_type=season_type)
+            if not results:
+                return f"暂时没有读取到 B站{type_name}排行。"
+            lines = [f"B站{type_name}热度排行："]
+            for index, item in enumerate(results[:10], 1):
+                score = f"，评分 {item.get('score')}" if item.get("score") else ""
+                lines.append(f"{index}. 《{str(item.get('title') or '未命名')[:70]}》{score}，{str(item.get('new_ep_desc') or '暂无更新说明')[:60]}")
+            return compact_result(lines)
+
+        if name == "get_bangumi_timeline":
+            results = await self.get_bangumi_timeline(day_before=2, day_after=3)
+            if not results:
+                return "暂时没有读取到近期新番时间表。"
+            days = {}
+            weekday_names = {0: "周日", 1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五", 6: "周六", 7: "周日"}
+            for item in results:
+                key = f"{item.get('date', '')}（{weekday_names.get(item.get('day_of_week', 0), '')}）"
+                days.setdefault(key, []).append(item)
+            lines = ["近期新番时间表："]
+            for day, items in list(days.items())[:6]:
+                lines.append(day)
+                for item in items[:8]:
+                    status = "已更新" if item.get("published") else "待更新"
+                    episode = f"第{item.get('ep_index')}话" if item.get("ep_index") else ""
+                    lines.append(f"- [{status}]《{str(item.get('title') or '未命名')[:60]}》{episode}")
+            return compact_result(lines)
+
+        if name == "get_bangumi_updates":
+            followed = await self._get_followed_bangumi(follow_status=2)
+            if not followed:
+                return "当前没有读取到正在追的番剧，或账号追番列表暂时不可用。"
+            memory = self._load_bangumi_memory() if hasattr(self, "_load_bangumi_memory") else {}
+            lines = [f"当前在追番剧共 {len(followed)} 部："]
+            for item in followed[:20]:
+                record = memory.get(str(item.get("season_id")), {}) if isinstance(memory, dict) else {}
+                watched = len(record.get("episodes", [])) if isinstance(record, dict) else 0
+                progress = f"已看 {watched} 集" if watched else "插件暂无观看记录"
+                lines.append(f"- 《{str(item.get('title') or '未命名')[:70]}》{str(item.get('new_ep_index') or '')[:30]}，{progress}")
+            return compact_result(lines)
 
         action_map = {
             "bili_up_info": "up_info",
+            "get_up_info": "up_info",
             "bili_video_search": "video_search",
+            "search_bilibili": "video_search",
             "bili_search_and_watch": "search_and_watch",
+            "watch_video": "watch_direct",
+            "bili_parse_video": "watch_direct",
         }
         if name in action_map:
             if not self.config.get("PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", True):
@@ -520,6 +635,14 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 query,
             ).strip(" ，,。？?！!：:")
             logger.info(f"[BiliBot] 🧰 私信回复模型选择工具 {name}：{query}")
+            if action == "watch_direct":
+                match = re.search(r"(?i)(BV[0-9A-Za-z]{10})", query)
+                if not match:
+                    return "观看工具需要有效的 BV 号，未执行。"
+                result = await self._watch_video_and_save_memory(match.group(1), memory_source="private_tool")
+                if result.get("ok"):
+                    return str(result.get("summary") or result.get("content") or "已完成视频读取。")
+                return str(result.get("error") or "视频读取失败，未生成回复依据。")
             return await self._execute_private_bili_request(action, query)
 
         if name == "web_search":
@@ -1192,6 +1315,21 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         logger.info(
             f"[BiliBot] ✉️ 收到私信 {username}（{LEVEL_NAMES[self._get_level(score, mid)]}|{score}分）：{content[:100]}"
         )
+        if self._daily_reply_limit_reached("private"):
+            self._log_security_event("daily_private_limit", mid, username, content, "私信回复达到管理员硬上限")
+            await self.event_runtime.transition(claim.event_key, EventState.IGNORED, "daily_private_limit")
+            return True
+        if message.get("content_type") == "text" and not self._is_owner(mid):
+            filter_reason = self._interaction_filter_reason(content, "private")
+            if filter_reason:
+                self._log_security_event("private_interaction_filtered", mid, username, content, filter_reason)
+                await self.event_runtime.transition(claim.event_key, EventState.IGNORED, filter_reason)
+                return True
+            interested, interest_reason = await self._should_reply_by_interest(content, username, "private")
+            if not interested:
+                self._log_security_event("private_interest_skip", mid, username, content, interest_reason)
+                await self.event_runtime.transition(claim.event_key, EventState.IGNORED, "interest_skip")
+                return True
         reply_content = content
         reference_context = ""
         allow_tool_request = message.get("content_type") == "text"

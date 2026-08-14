@@ -1,0 +1,8 @@
+{
+  "pages": {
+    "bilibot": {
+      "title": "BiliBot 控制中心",
+      "description": "可视化管理回复、主动行为、作息、记忆和账号连接"
+    }
+  }
+}

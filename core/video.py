@@ -13,6 +13,16 @@ class VideoMixin:
     """视频分析、下载、截帧、上下文。"""
 
     @staticmethod
+    def _clip_media_text(value, limit):
+        """限制媒体派生文本长度；原始图片、帧和 base64 从不进入长期对话历史。"""
+        text = str(value or "").strip()
+        try:
+            max_chars = max(1, int(limit))
+        except (TypeError, ValueError):
+            max_chars = 1
+        return text if len(text) <= max_chars else text[:max_chars].rstrip() + "…"
+
+    @staticmethod
     def _analysis_has_subtitle_mismatch(analysis):
         """识别旧缓存中已经暴露字幕错配的分析，命中后应重新分析。"""
         text = str(analysis or "")[:240]
@@ -67,23 +77,23 @@ class VideoMixin:
                 )
                 cached_analysis = ""
             if cached_analysis:
-                video_description = cached_analysis
+                video_description = self._clip_media_text(cached_analysis, 1600)
                 score = cached.get("score", 5)
                 mood = cached.get("mood", "平静")
-                review = str(cached.get("review", "") or "以前已经看过并记住了")
+                review = self._clip_media_text(cached.get("review", "") or "以前已经看过并记住了", 320)
                 from_cache = True
                 logger.info(f"[BiliBot] 📹 私信看片命中视频记忆：《{vi.get('title', '')}》")
             else:
                 logger.info(f"[BiliBot] 🎬 开始观看私信分享视频：《{vi.get('title', '')}》")
-                video_description = str(
-                    await self._analyze_video_with_vision(analysis_info) or ""
+                video_description = self._clip_media_text(
+                    await self._analyze_video_with_vision(analysis_info), 1600
                 )
                 evaluation = await self._evaluate_video(
                     analysis_info, video_description
                 )
                 score = (evaluation or {}).get("score", 5)
                 mood = (evaluation or {}).get("mood", "平静")
-                review = str((evaluation or {}).get("review", "") or "")
+                review = self._clip_media_text((evaluation or {}).get("review", ""), 320)
                 from_cache = False
 
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -243,18 +253,21 @@ class VideoMixin:
         """视觉分析结果与字幕/热评做最终联合整合。"""
         if not joint.get("has_signal"):
             return None
+        visual_summary = self._clip_media_text(visual_summary, 1200)
+        subtitle = self._clip_media_text(joint.get("subtitle", ""), 1800)
+        extra = self._clip_media_text(joint.get("extra", ""), 1200)
         prompt = f"""以下是关于B站视频《{video_info.get('title', '未知')}》（UP主：{video_info.get('owner_name', video_info.get('up_name', '未知'))}）的多维信息，请整合为一段完整的内容概括（500字以内）：
 
 【画面分析】（来自视觉模型，描述视频画面内容）
 {visual_summary}
-{joint.get('subtitle', '')}
-【补充信息】{joint.get('extra', '') or '无'}
+{subtitle}
+【补充信息】{extra or '无'}
 {joint.get('joint_hint', '')}
 整合要点：画面分析与可靠字幕互相印证；信息冲突时优先相信实际画面、标题、简介和标签，忽略明显错配的候选字幕。不要在结果中说明字幕抓取、数据冲突或内部判断过程。直接输出概括内容，不要加前缀。"""
         result = await self._llm_call(prompt, max_tokens=600)
         if result:
             logger.info("[BiliBot] 🔗 视觉+字幕+热评联合整合完成")
-        return result
+        return self._clip_media_text(result, 1600) if result else None
 
     # ── 视频分析 ──
     async def _analyze_video_with_vision(self, video_info):
@@ -262,7 +275,7 @@ class VideoMixin:
         media_result = await self._analyze_video_media(video_info)
         if media_result:
             merged = await self._merge_visual_and_joint(video_info, media_result, joint)
-            return merged or media_result
+            return self._clip_media_text(merged or media_result, 1600)
         client = self._get_video_vision_client()
         model = self.config.get("VIDEO_VISION_MODEL", "")
         dur_min = video_info.get("duration", 0) // 60
@@ -279,7 +292,7 @@ UP主：{video_info.get('owner_name', '未知')}
         provider_id = self.config.get("VIDEO_VISION_PROVIDER_ID", "")
         provider_result = await self._astrbot_multimodal_generate(provider_id, [{"type": "text", "text": text_prompt}], max_tokens=500)
         if provider_result:
-            return provider_result
+            return self._clip_media_text(provider_result, 1600)
         if client and model and video_info.get("pic"):
             try:
                 b64 = await self._fetch_image_base64(video_info["pic"])
@@ -287,11 +300,12 @@ UP主：{video_info.get('owner_name', '未知')}
                     content = [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}, {"type": "text", "text": text_prompt}]
                     result = await self._vision_call(client, model, content, max_tokens=500)
                     if result:
-                        return result
+                        return self._clip_media_text(result, 1600)
             except Exception as e:
                 logger.warning(f"[BiliBot] 视觉分析封面失败: {e}")
         result = await self._llm_call(text_prompt, max_tokens=500)
-        return result or f"视频《{video_info.get('title', '未知')}》，UP主：{video_info.get('owner_name', '未知')}，分区：{video_info.get('tname', '未知')}。简介：{video_info.get('desc', '无')[:100]}"
+        fallback = f"视频《{video_info.get('title', '未知')}》，UP主：{video_info.get('owner_name', '未知')}，分区：{video_info.get('tname', '未知')}。简介：{video_info.get('desc', '无')[:100]}"
+        return self._clip_media_text(result or fallback, 1600)
 
     async def _analyze_video_text(self, video_info):
         joint = await self._build_joint_context(video_info)
@@ -304,7 +318,8 @@ UP主：{video_info.get('up_name', '未知')}
 {joint['joint_hint']}
 直接输出概括内容，不要加前缀。"""
         result = await self._llm_call(prompt, max_tokens=500)
-        return result or f"视频《{video_info.get('title', '未知')}》，UP主：{video_info.get('up_name', '未知')}"
+        fallback = f"视频《{video_info.get('title', '未知')}》，UP主：{video_info.get('up_name', '未知')}"
+        return self._clip_media_text(result or fallback, 1600)
 
     async def _analyze_video_media(self, video_info):
         provider_id = self.config.get("VIDEO_VISION_PROVIDER_ID", "")
@@ -385,7 +400,7 @@ UP主：{video_info.get('up_name', '未知')}
                 if not result and client and model:
                     result = await self._vision_call(client, model, content, max_tokens=200)
                 if result:
-                    return result
+                    return self._clip_media_text(result, 600)
                 logger.warning(f"[BiliBot] 视频直读失败（{fmt}），回退截帧{label}")
             # 回退：截帧分析
             if not os.path.exists(seg_path):
@@ -403,7 +418,7 @@ UP主：{video_info.get('up_name', '未知')}
             result = await self._astrbot_multimodal_generate(provider_id, frame_content, max_tokens=200)
             if not result and client and model:
                 result = await self._vision_call(client, model, frame_content, max_tokens=200)
-            return result
+            return self._clip_media_text(result, 600) if result else None
         except Exception as e:
             logger.warning(f"[BiliBot] 片段分析失败{label}: {e}")
             return None
@@ -413,7 +428,8 @@ UP主：{video_info.get('up_name', '未知')}
     async def _consolidate_segment_analyses(self, video_info, segment_analyses):
         """多段分析结果整合为一段完整概括。"""
         parts = "\n".join(
-            f"【第{i+1}段】{text}" for i, text in enumerate(segment_analyses)
+            f"【第{i+1}段】{self._clip_media_text(text, 600)}"
+            for i, text in enumerate(segment_analyses)
         )
         prompt = f"""以下是B站视频《{video_info.get('title', '未知')}》（UP主：{video_info.get('owner_name', '未知')}）分段分析的结果，请整合为一段完整的内容概括（300字以内）。
 
@@ -429,9 +445,9 @@ UP主：{video_info.get('up_name', '未知')}
         result = await self._llm_call(prompt, max_tokens=400)
         if result:
             logger.info(f"[BiliBot] 📹 长视频{len(segment_analyses)}段整合完成")
-            return result
-        # 整合失败就拼接返回
-        return " | ".join(segment_analyses)
+            return self._clip_media_text(result, 1600)
+        # 整合失败就拼接返回，同时限制注入后续上下文的总体长度。
+        return self._clip_media_text(" | ".join(segment_analyses), 1600)
 
     def _detect_video_format(self, model: str) -> str:
         """读取用户配置的视频直读格式。"""
@@ -718,7 +734,7 @@ UP主：{video_info.get('up_name', '未知')}
                     memory_text = (
                         f"[{mem_time}] 视频分析记忆：标题《{c.get('title', '')}》 "
                         f"UP主:{c.get('owner_name', '')} 分区:{c.get('tname', '')} "
-                        f"简介:{c.get('desc', '')[:120]} 内容概括:{c.get('analysis', '')[:200]}"
+                        f"简介:{c.get('desc', '')[:120]} 内容概括:{self._clip_media_text(c.get('analysis', ''), 200)}"
                     )
                     await self._save_self_memory_record(
                         f"video:{bvid}", memory_text, memory_type="video",
@@ -737,7 +753,7 @@ UP主：{video_info.get('up_name', '未知')}
         if not vi:
             return "", None
         logger.info(f"[BiliBot] 📹 新视频，分析中：《{vi['title']}》by {vi['owner_name']}")
-        analysis = await self._analyze_video_with_vision(vi)
+        analysis = self._clip_media_text(await self._analyze_video_with_vision(vi), 1600)
         logger.info(f"[BiliBot] 📹 分析结果：{analysis[:60]}...")
         analyzed_at = datetime.now().strftime("%Y-%m-%d %H:%M")
         cache_entry = {"bvid": bvid, "title": vi["title"], "desc": vi.get("desc", "")[:200], "owner_name": vi["owner_name"], "owner_mid": str(vi["owner_mid"]), "tname": vi["tname"], "analysis": analysis, "time": analyzed_at}
@@ -812,7 +828,7 @@ UP主：{video_info.get('up_name', '未知')}
                         pass
                     else:
                         label = "Bot自己发的" if is_self else f"{author_name}发的"
-                        ctx = f"【当前动态（{label}）】\n内容：{text or '（无文字）'}"
+                        ctx = f"【当前动态（{label}）】\n内容：{self._clip_media_text(text, 1200) or '（无文字）'}"
                         if pub_time:
                             ctx += f"\n发布时间：{pub_time}"
 
@@ -820,7 +836,7 @@ UP主：{video_info.get('up_name', '未知')}
                             logger.info(f"[BiliBot] 🖼️ 动态含 {len(image_urls)} 张图片，识别中...")
                             image_desc = await self._recognize_images(image_urls[:4])
                             if image_desc:
-                                ctx += f"\n图片内容：{image_desc}"
+                                ctx += f"\n图片内容：{self._clip_media_text(image_desc, 500)}"
                             else:
                                 ctx += f"\n（动态含{len(image_urls)}张图片，识别失败）"
 
@@ -832,7 +848,7 @@ UP主：{video_info.get('up_name', '未知')}
         dynamic_mems = [m for m in self._memory if m.get("memory_type") == "dynamic"]
         if dynamic_mems:
             latest = dynamic_mems[-1]
-            return f"【最近发布的动态】\n{latest.get('text', '')}"
+            return f"【最近发布的动态】\n{self._clip_media_text(latest.get('text', ''), 1200)}"
         return ""
 
     async def _get_draw_context(self, doc_id):
@@ -857,13 +873,13 @@ UP主：{video_info.get('up_name', '未知')}
                     is_self = author_mid == bot_mid
 
                     label = "Bot自己发的" if is_self else f"{author_name}发的"
-                    ctx = f"【当前动态（{label}）】\n内容：{description or '（无文字）'}"
+                    ctx = f"【当前动态（{label}）】\n内容：{self._clip_media_text(description, 1200) or '（无文字）'}"
 
                     if image_urls:
                         logger.info(f"[BiliBot] 🖼️ 图文动态含 {len(image_urls)} 张图片，识别中...")
                         image_desc = await self._recognize_images(image_urls[:4])
                         if image_desc:
-                            ctx += f"\n图片内容：{image_desc}"
+                            ctx += f"\n图片内容：{self._clip_media_text(image_desc, 500)}"
                             mem_key = f"dynamic_img:{doc_id}"
                             has_mem = any(m.get("thread_id") == mem_key for m in self._memory)
                             if not has_mem:
@@ -957,7 +973,7 @@ UP主：{video_info.get('up_name', '未知')}
                         logger.debug(f"[BiliBot] 未知major类型 (id={dynamic_id}): type={major_type} keys={list(major.keys())}")
 
                 label = "Bot自己发的" if is_self else f"{author_name}发的"
-                ctx = f"【当前动态（{label}）】\n内容：{text or '（无文字）'}"
+                ctx = f"【当前动态（{label}）】\n内容：{self._clip_media_text(text, 1200) or '（无文字）'}"
                 if pub_time:
                     ctx += f"\n发布时间：{pub_time}"
 
@@ -965,7 +981,7 @@ UP主：{video_info.get('up_name', '未知')}
                     logger.info(f"[BiliBot] 🖼️ 动态含 {len(image_urls)} 张图片，识别中...")
                     image_desc = await self._recognize_images(image_urls[:4])
                     if image_desc:
-                        ctx += f"\n图片内容：{image_desc}"
+                        ctx += f"\n图片内容：{self._clip_media_text(image_desc, 500)}"
                     else:
                         ctx += f"\n（动态含{len(image_urls)}张图片，识别失败）"
 

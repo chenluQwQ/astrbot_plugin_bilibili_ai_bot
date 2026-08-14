@@ -66,6 +66,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._bangumi_times, self._bangumi_triggered, self._bangumi_update_checked = [], set(), False
         self._special_follow_task = None
+        self._dynamic_watch_task = None
+        self._dynamic_watch_times, self._dynamic_watch_triggered = [], set()
         self._bili_share_recent = {}
         self._pending_bili_shares = {}
         self._private_message_next_poll_at = 0.0
@@ -90,6 +92,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self.context.add_llm_tools(*llm_tools)
         tool_names = ", ".join(tool.name for tool in llm_tools)
         logger.info(f"[BiliBot] LLM工具已精简注册: {len(llm_tools)} 个 ({tool_names})")
+
+        # 注册 WebUI 控制面板
+        from .core.webui_bridge import register_webui
+        register_webui(self, self.context)
 
     async def initialize(self):
         """Start background work only after AstrBot has formally activated the plugin."""
@@ -192,6 +198,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         if self._special_follow_task and not self._special_follow_task.done():
             self._special_follow_task.cancel()
             self._special_follow_task = None
+        if self._dynamic_watch_task and not self._dynamic_watch_task.done():
+            self._dynamic_watch_task.cancel()
+        self._dynamic_watch_task = None
+        self._dynamic_watch_times, self._dynamic_watch_triggered = [], set()
         self._bili_share_recent = {}
         self._pending_bili_shares = {}
         self._private_message_next_poll_at = 0.0
@@ -218,6 +228,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         while self._running:
             try:
                 await self._maybe_evolve_personality()
+                await self._ensure_autonomous_daily_plan()
                 h = datetime.now().hour
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
@@ -230,6 +241,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                             self._consolidation_task = asyncio.create_task(self._run_consolidation_safe())
                     # ── 周总结：日终清算已完成且不在运行时触发 ──
                     elif self._consolidation_task is None or self._consolidation_task.done():
+                        try:
+                            await self._maybe_daily_summary()
+                        except Exception as e:
+                            logger.error(f"[BiliBot] 日总结调度异常: {e}")
                         try:
                             await self._maybe_weekly_summary()
                         except Exception as e:
@@ -320,6 +335,22 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                                     self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
                                     logger.info(f"[BiliBot] 🎬 触发主动看番（{key}）")
                                     break
+                # 关注者动态图文巡视（每次任务媒体上下文独立，仅留文字摘要）
+                if self.config.get("ENABLE_DYNAMIC_WATCH", False):
+                    now_dt = datetime.now()
+                    for dh, dm in getattr(self, "_dynamic_watch_times", []):
+                        key = f"{dh}:{dm:02d}"
+                        if key not in getattr(self, "_dynamic_watch_triggered", set()) and (now_dt.hour > dh or (now_dt.hour == dh and now_dt.minute >= dm)):
+                            if self._dynamic_watch_task is None or self._dynamic_watch_task.done():
+                                self._dynamic_watch_task = asyncio.create_task(self._run_dynamic_watch())
+                                self._dynamic_watch_triggered.add(key)
+                                self._save_dynamic_watch_schedule_state(self._dynamic_watch_times, self._dynamic_watch_triggered)
+                                trigger_log = self._load_json(PROACTIVE_TRIGGER_LOG_FILE, [])
+                                trigger_log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "type": "dynamic_watch", "scheduled": key, "status": "triggered"})
+                                self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
+                                logger.info(f"[BiliBot] 📰 触发关注动态巡视（{key}）")
+                                break
+
                 # 特别关注定时巡视
                 if self.config.get("SPECIAL_FOLLOW_ENABLED", False):
                     now_dt = datetime.now()
@@ -1384,11 +1415,50 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             bindings = self._load_json(BINDING_FILE, {})
             if qq_id not in bindings:
                 return
-            bili_uid = bindings[qq_id]
+            bili_uid = str(bindings[qq_id])
+            # Cross-platform memory is isolated by default and can only be shared
+            # to the QQ identity bound to the configured owner B站 UID.
+            if self.config.get("MEMORY_ISOLATION_MODE", "isolated") != "safe_share":
+                return
+            if not self.config.get("ENABLE_SAFE_CROSS_PLATFORM_MEMORY", False):
+                return
+            owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
+            if not owner_mid or bili_uid != owner_mid:
+                return
 
-            bind_ctx = f"\u3010\u4e0a\u4e00\u6761\u7528\u6237\u80cc\u666f\uff1aB\u7ad9\u7ed1\u5b9a\u3011\n\u8be5\u7528\u6237\u5df2\u7ed1\u5b9aB\u7ad9UID:{bili_uid}\u3002\u5982\u9700\u56de\u5fc6\u76f8\u5173\u5185\u5bb9\uff0c\u53ef\u4f7f\u7528recall\u7cfb\u5217\u5de5\u5177\u67e5\u8be2\u3002"
+            from .core.security.redact import contains_credentials, redact_outbound
+            blocked_prefixes = [str(value).strip().lower() for value in self.config.get("MEMORY_BLOCKED_PREFIXES", []) if str(value).strip()]
+            blocked_keywords = [str(value).strip().lower() for value in self.config.get("MEMORY_BLOCKED_KEYWORDS", []) if str(value).strip()]
+            safe_memories = []
+            recent = self.memory_api.get_recent_memories(user_id=bili_uid, hours=24 * 7, limit=12)
+            for item in recent:
+                if str(item.get("memory_type", "chat")) not in {"chat", "video", "dynamic", "user_summary"}:
+                    continue
+                text = str(item.get("text", "") or "").strip()
+                lowered = text.lower()
+                if not text or any(lowered.startswith(prefix) for prefix in blocked_prefixes):
+                    continue
+                if any(keyword in lowered for keyword in blocked_keywords):
+                    continue
+                if contains_credentials(text):
+                    continue
+                redacted, _ = redact_outbound(text, internal=True)
+                redacted = redacted.replace(str(bili_uid), "[UID已隐藏]")
+                if redacted and len(redacted) >= 6:
+                    safe_memories.append(redacted[:260])
+                if len(safe_memories) >= 3:
+                    break
+            if not safe_memories:
+                return
+            policy = str(self.config.get("CROSS_PLATFORM_MEMORY_PROMPT", "") or "")[:600]
+            bind_ctx = (
+                "【B站侧安全共享摘要】\n"
+                f"共享规则：{policy}\n"
+                + "\n".join(f"- {text}" for text in safe_memories)
+                + "\n这些内容已做硬脱敏，只能作为轻量生活背景；不得反推出UID、第三方身份、私信原文、账号凭据或系统信息。"
+            )
             self._inject_context_block_before_user(req, bind_ctx)
-            logger.debug(f"[BiliBot] QQ->Bili binding context injected before user message: uid={bili_uid}")
+            logger.debug("[BiliBot] 已向主人侧注入脱敏后的B站趣事摘要")
         except Exception as e:
             logger.error(f"[BiliBot] 记忆注入失败: {e}")
 

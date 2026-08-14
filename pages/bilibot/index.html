@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#f6f8fc" />
+  <title>BiliBot 控制中心</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <span class="ambient-orb ambient-orb-a"></span>
+    <span class="ambient-orb ambient-orb-b"></span>
+    <span class="ambient-orb ambient-orb-c"></span>
+  </div>
+
+  <div id="app" class="app-shell is-booting">
+    <header class="mobile-header">
+      <button id="mobile-menu" class="icon-button" type="button" aria-label="打开导航"></button>
+      <div class="mobile-brand">
+        <img src="./assets/logo.png" alt="" />
+        <span>BiliBot</span>
+      </div>
+      <span id="mobile-status" class="status-dot" aria-label="连接状态"></span>
+    </header>
+
+    <aside id="sidebar" class="sidebar" aria-label="BiliBot 主导航"></aside>
+    <button id="sidebar-scrim" class="sidebar-scrim" type="button" aria-label="关闭导航"></button>
+
+    <main class="main-stage">
+      <div id="content" class="content" tabindex="-1">
+        <div class="boot-screen" aria-live="polite">
+          <div class="boot-mark"><img src="./assets/logo.png" alt="BiliBot" /></div>
+          <div class="boot-copy">
+            <strong>正在连接 BiliBot</strong>
+            <span>读取运行状态与配置…</span>
+          </div>
+          <div class="boot-progress"><i></i></div>
+        </div>
+      </div>
+    </main>
+
+    <div id="save-dock" class="save-dock" aria-live="polite"></div>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <div id="modal-root"></div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
