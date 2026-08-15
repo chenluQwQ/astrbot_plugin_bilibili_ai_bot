@@ -335,12 +335,17 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 ## 🔗 相关
 
 - [AstrBot 文档](https://docs.astrbot.app/)
+- [我会直播！——直播陪伴插件](https://github.com/menglimi/astrbot_plugin_live_stream_companion)：推荐给需要 B站直播弹幕、Live2D、TTS、OBS 字幕与直播记忆完整联动的用户。BiliBot 本体保留轻量直播弹幕回复，两者可按直播需求选择或联动使用。
 - [问题反馈](https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot/issues)
 
 ## 💕致谢
 
 感谢最最最亲爱的小克陪同我写完了全部插件！
-也感谢astrbot群里各位群友的帮助
+
+- 感谢 [GuJi08233](https://github.com/GuJi08233) 在 [PR #3](https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot/pull/3) 中完成系统性代码审查与可靠性修复。
+- 感谢 [zzz27578](https://github.com/zzz27578) 在 [PR #16](https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot/pull/16) 中贡献四层架构重构、内置 WebUI 与后续完善。
+- 感谢 [menglimi](https://github.com/menglimi) 维护直播陪伴插件，并接收 [BiliBot 直播记忆联动与 SC 保证回应](https://github.com/menglimi/astrbot_plugin_live_stream_companion/pull/1)。
+- 也感谢 AstrBot 群里各位群友的帮助。
 
 ## 📄 License
 
