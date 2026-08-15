@@ -13,7 +13,7 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **动态评论区回复** — 在你发布的动态下收到评论也会自动回复，不只限于视频评论
 - **图片识别** — 评论中的图片自动识别内容后参与回复
 - **视频上下文** — 自动获取被评论视频的信息，支持视觉模型分析视频封面 / 内容
-- **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Perplexity / 博查 / 自定义 OpenAI 兼容接口
+- **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Firecrawl / Grok（xAI 原生 Web Search）/ Perplexity / 博查 / 自定义 OpenAI 兼容接口
 - **B站私信回复** — 监听新的纯文字和视频分享私信；回复模型可按需在后台查询UP/视频或联网搜索，先短回应、查完再整合回复，最多发送两条；精确发送 `new` 可重置当前私信上下文
 - **私信安全隔离** — 不明外链、IP 链接和疑似色情引流不会进入 LLM，可自动调用 B站拉黑；支持只回复主人、白名单或全部安全用户
 - **直播间弹幕互动** — BiliBot 可进入自己或其他 UP 主的指定直播间，读取新弹幕并结合当前人设、UID 用户画像和直播记忆生成短回应，再由自己的B站账号发回同一直播间；既能和主播互动，也能接观众的话，无需安装直播伴侣插件
@@ -32,7 +32,7 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **一周分区口味** — 最近 7 天按分区汇总观看数和平均评分，交给 Bot 决定搜索词和标题筛选；仍允许自由探索其他内容
 - **来源按当天数量均分** — 当天第 1 个取关注、第 2 个取搜索、第 3 个取视频池、第 4 个再回关注；分多次触发也承接当天进度，缺少候选时自动补位
 - **给主人分享视频** — Bot 觉得某个视频适合主人时，可通过 B站私信发送推荐语和视频链接；也可改为评论区 @，或两者都发
-- **自动发动态** — 定时发布动态，支持 AI 生成配图
+- **自动发动态** — 定时发布动态，支持 OpenAI 兼容接口生成配图；手动 `/bili动态` 也可使用 NovelAI 官方生图
 - **周总结图片卡片** — 从真实记录中挑选本周值得记住的片段，生成自然周记并渲染为自适应 PNG；QQ/B站动态优先发送图片
 - **跨插件记忆接口** — 直播伴侣等插件可按 B站 UID 读取画像/语义记忆，并写入可检索的直播记忆
 - **群聊/私聊B站分享解析** — 支持聊天链接自动识别、`/bili解析` 手动命令和 `bili_parse_video` LLM 工具三种入口，各自可独立启停；需要发送原视频时只提示“请稍等...视频一会发出”，随后直接发送视频/切片
@@ -136,8 +136,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 - 文本 LLM：`LLM_PROVIDER_ID`，留空时会退回 AstrBot 默认聊天模型
 - 视频视觉模型：`VIDEO_VISION_PROVIDER_ID` 或 `VIDEO_VISION_API_KEY + VIDEO_VISION_MODEL`
 - 图片识别模型：`IMAGE_VISION_PROVIDER_ID` 或 `IMAGE_VISION_API_KEY + IMAGE_VISION_MODEL`
-- 动态配图模型：`IMAGE_GEN_API_KEY + IMAGE_GEN_MODEL`
-- 联网查询后端：`WEB_SEARCH_API_KEY`（按 `WEB_SEARCH_BACKEND` 选择 Tavily / Perplexity / 博查 / 自定义）
+- 动态配图模型：`IMAGE_GEN_BACKEND + IMAGE_GEN_API_KEY`；模型名留空时按后端选择默认值
+- 联网查询后端：`WEB_SEARCH_API_KEY`（按 `WEB_SEARCH_BACKEND` 选择 Tavily / Firecrawl / Grok / Perplexity / 博查 / 自定义）
 
 ### 5. 缺失依赖时的退化行为
 
@@ -178,11 +178,15 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`VIDEO_VISION_API_KEY`       |可选|视频分析视觉模型 API Key                                                     |
 |`IMAGE_VISION_PROVIDER_ID`   |可选|图片识别优先走 AstrBot 模型提供商，失败会退回独立 API                                    |
 |`IMAGE_VISION_API_KEY`       |可选|图片识别视觉模型 API Key                                                     |
-|`IMAGE_GEN_API_KEY`          |可选|图片生成 API Key（动态配图用）                                                  |
-|`IMAGE_GEN_MODEL`            |可选|图片生成模型，默认 `black-forest-labs/flux-schnell`                           |
+|`IMAGE_GEN_BACKEND`          |可选|图片生成后端：`openai` / `novelai`；默认 `openai`                              |
+|`IMAGE_GEN_API_KEY`          |可选|图片生成 API Key；NovelAI 填 Persistent API Token                            |
+|`IMAGE_GEN_API_BASE`         |可选|留空使用后端官方默认地址；也可填写兼容代理地址                                          |
+|`IMAGE_GEN_MODEL`            |可选|OpenAI 后端默认 `black-forest-labs/flux-schnell`；NovelAI 默认 `nai-diffusion-4-5-full`|
 |`ENABLE_WEB_SEARCH`          |可选|启用联网查询（回复时按需搜索最新信息）                                                  |
-|`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `perplexity` / `bocha` / `custom`                    |
+|`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `firecrawl` / `grok` / `perplexity` / `bocha` / `custom`|
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
+|`WEB_SEARCH_API_BASE`        |可选|Firecrawl / Grok / custom 可填写自建服务或兼容代理；留空使用官方地址                       |
+|`WEB_SEARCH_MODEL`           |可选|Grok 默认 `grok-4.6`，Perplexity 默认 `sonar`；custom 按接口填写                    |
 |`ENABLE_PRIVATE_MESSAGES`    |可选|启用B站新私信监听；首次开启跳过历史，默认关闭，可用 `/bili开关 私信` 单独切换|
 |`PRIVATE_MESSAGE_POLL_INTERVAL`|可选|收到新私信后的活跃期轮询间隔，默认且最短60秒|
 |`PRIVATE_MESSAGE_IDLE_POLL_INTERVAL`|可选|空闲期轮询间隔，默认180秒，且不会短于活跃期|
@@ -234,6 +238,10 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 > 💡 Cookie 获取方式：发送 `/bili登录` 扫码即可，登录后 Cookie 会自动定期刷新。
 >
 > 💡 视觉模型留空时，视频分析回退为纯文本 LLM 分析，图片识别则跳过。
+>
+> 💡 Firecrawl 只需选择 `firecrawl` 并填写 API Key；Grok 选择 `grok` 并填写 xAI API Key。两者的 Base URL 留空即可走官方接口。
+>
+> 💡 NovelAI 选择 `novelai` 并填写 Persistent API Token；受 NovelAI 官方真人触发规则限制，只在手动 `/bili动态` 时生成图片，定时动态会自动改发纯文字。
 >
 > 💡 主动看视频的”视频直读 / 截帧分析”依赖 `ffmpeg` / `ffprobe` 可执行文件在系统 `PATH` 中（`yt-dlp` 会由 pip 自动安装）。
 >

@@ -830,23 +830,69 @@
     "default": "",
     "hint": "如 google/gemma-3-27b-it 等"
   },
+  "IMAGE_GEN_BACKEND": {
+    "description": "【高级·图片生成】生图后端",
+    "type": "string",
+    "default": "openai",
+    "hint": "openai=OpenAI兼容接口；novelai=NovelAI官方接口（仅手动 /bili动态 可生图）",
+    "options": [
+      "openai",
+      "novelai"
+    ]
+  },
   "IMAGE_GEN_API_KEY": {
-    "description": "【高级·图片生成】API Key（动态配图用）",
+    "description": "【高级·图片生成】API Key / NovelAI Persistent API Token",
     "type": "string",
     "default": "",
-    "hint": "留空则复用 VIDEO_VISION_API_KEY"
+    "hint": "OpenAI兼容后端留空会复用 VIDEO_VISION_API_KEY；NovelAI 请填写 Persistent API Token。"
   },
   "IMAGE_GEN_API_BASE": {
     "description": "【高级·图片生成】API Base URL",
     "type": "string",
     "default": "",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "留空时 OpenAI 后端使用 OpenRouter，NovelAI 使用 https://image.novelai.net。"
   },
   "IMAGE_GEN_MODEL": {
     "description": "【高级·图片生成】模型名称",
     "type": "string",
     "default": "",
-    "hint": "如 Flux 系列模型"
+    "hint": "OpenAI后端如 Flux；NovelAI 留空默认 nai-diffusion-4-5-full。"
+  },
+  "IMAGE_GEN_WIDTH": {
+    "description": "【高级·图片生成】NovelAI 图片宽度",
+    "type": "int",
+    "default": 1024,
+    "hint": "仅 NovelAI 生效；超出接口支持范围时会由接口拒绝。"
+  },
+  "IMAGE_GEN_HEIGHT": {
+    "description": "【高级·图片生成】NovelAI 图片高度",
+    "type": "int",
+    "default": 1024,
+    "hint": "仅 NovelAI 生效；超出接口支持范围时会由接口拒绝。"
+  },
+  "IMAGE_GEN_STEPS": {
+    "description": "【高级·图片生成】NovelAI 采样步数",
+    "type": "int",
+    "default": 28,
+    "hint": "仅 NovelAI 生效，建议 20-40。"
+  },
+  "IMAGE_GEN_SCALE": {
+    "description": "【高级·图片生成】NovelAI 提示词引导强度",
+    "type": "float",
+    "default": 5.0,
+    "hint": "仅 NovelAI 生效。"
+  },
+  "IMAGE_GEN_SAMPLER": {
+    "description": "【高级·图片生成】NovelAI 采样器",
+    "type": "string",
+    "default": "k_euler_ancestral",
+    "hint": "仅 NovelAI 生效；不确定时保持默认。"
+  },
+  "IMAGE_GEN_NEGATIVE_PROMPT": {
+    "description": "【高级·图片生成】NovelAI 负面提示词",
+    "type": "text",
+    "default": "lowres, blurry, bad anatomy, bad hands, text, watermark",
+    "hint": "仅 NovelAI 生效。"
   },
   "ENABLE_WEB_SEARCH": {
     "description": "【高级·联网搜索】启用联网搜索",
@@ -863,7 +909,15 @@
     "description": "【高级·联网搜索】搜索后端",
     "type": "string",
     "default": "tavily",
-    "hint": "可选：tavily / perplexity / bocha / custom"
+    "hint": "Firecrawl 返回网页摘要；Grok 使用 xAI Responses API 的原生 web_search。",
+    "options": [
+      "tavily",
+      "firecrawl",
+      "grok",
+      "perplexity",
+      "bocha",
+      "custom"
+    ]
   },
   "WEB_SEARCH_API_KEY": {
     "description": "【高级·联网搜索】搜索 API Key",
@@ -871,16 +925,16 @@
     "default": ""
   },
   "WEB_SEARCH_API_BASE": {
-    "description": "【高级·联网搜索】自定义搜索接口地址（仅 custom 后端）",
+    "description": "【高级·联网搜索】搜索 API Base URL（可选）",
     "type": "string",
     "default": "",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "留空使用后端官方地址；Firecrawl/Grok/custom 可填写兼容代理或自建地址。"
   },
   "WEB_SEARCH_MODEL": {
-    "description": "【高级·联网搜索】搜索模型名（仅 custom / perplexity 后端）",
+    "description": "【高级·联网搜索】搜索模型名（Grok / custom / perplexity）",
     "type": "string",
     "default": "",
-    "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
+    "hint": "Grok 默认 grok-4.6；Perplexity 默认 sonar；custom 按你的接口填写。"
   },
   "WEB_SEARCH_MAX_RESULTS": {
     "description": "【高级·联网搜索】搜索返回最大条数",
