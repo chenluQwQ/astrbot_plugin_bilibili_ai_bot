@@ -335,7 +335,7 @@ async def handle_memory_stats(plugin: Any):
 
 async def handle_memory_purge(plugin: Any):
     try:
-        removed = int(plugin._consolidation.cleanup_aged()) if getattr(plugin, "_consolidation", None) else 0
+        removed = int(await plugin._consolidation.cleanup_aged()) if getattr(plugin, "_consolidation", None) else 0
         layered = getattr(plugin, "layered_runtime", None)
         layered_removed = await layered.purge_expired() if layered and layered.is_open else {}
         total = removed + sum(int(value or 0) for value in layered_removed.values())
@@ -396,26 +396,6 @@ async def handle_get_profiles(plugin: Any):
         for uid, score in affection.items() if isinstance(affection, dict) else []:
             if str(uid) not in known:
                 data.append({"user_id": str(uid), "name": f"UID {uid}", "affection": int(score or 0), "relationship": plugin._get_level(score, uid) if hasattr(plugin, "_get_level") else "unknown", "impression": "", "tags": [], "facts_count": 0, "video_refs_count": 0, "last_interaction": ""})
-        layered = getattr(plugin, "layered_runtime", None)
-        if layered and layered.is_open:
-            for profile in await layered.recent_profiles(limit=50):
-                actor_id = str(profile.get("actor_id", ""))
-                platform, _, raw_id = actor_id.partition(":")
-                if platform != "bili" or not raw_id or raw_id in known:
-                    continue
-                data.append({
-                    "user_id": raw_id,
-                    "name": profile.get("display_name") or f"UID {raw_id}",
-                    "affection": int(affection.get(raw_id, 0) or 0),
-                    "relationship": profile.get("stage", "stranger"),
-                    "impression": profile.get("impression", ""),
-                    "tags": json.loads(profile.get("topics") or "[]")[-6:],
-                    "facts_count": 0,
-                    "video_refs_count": 0,
-                    "last_interaction": datetime.fromtimestamp(
-                        float(profile.get("last_seen", 0) or 0)
-                    ).strftime("%Y-%m-%d %H:%M") if profile.get("last_seen") else "",
-                })
         data.sort(key=lambda item: (item["affection"], item["last_interaction"]), reverse=True)
         return _response(data[:50])
     except Exception as exc:

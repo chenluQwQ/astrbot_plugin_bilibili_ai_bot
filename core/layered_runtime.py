@@ -212,8 +212,9 @@ class LayeredRuntime:
             stored, caller, allow_retry_failed=allow_retry_failed
         )
         self._event_ids[event.key] = event_id
-        if accepted:
-            await self._touch_profile(caller.actor_id, caller.display_name)
+        # 领取事件只证明“看见了”，不代表已经与用户形成互动。用户画像由平台
+        # 确认回复成功后的业务提交更新，避免 SQLite 影子画像与实际 JSON 画像
+        # 分叉，也避免未回复/被过滤的陌生人出现在 WebUI 画像列表。
         return accepted, reason
 
     async def _touch_profile(self, actor_id: str, display_name: str) -> None:

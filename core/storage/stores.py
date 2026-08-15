@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from array import array
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -79,6 +80,204 @@ class MemoryStore:
 
     def __init__(self, db: Database) -> None:
         self._db = db
+
+    @staticmethod
+    def _vector_blob(embedding: Any) -> tuple[int, bytes] | None:
+        if not isinstance(embedding, (list, tuple)) or not embedding:
+            return None
+        try:
+            values = array("f", (float(value) for value in embedding))
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return len(values), values.tobytes()
+
+    @staticmethod
+    def _vector_list(blob: Any, dim: int) -> list[float]:
+        if not blob or int(dim or 0) <= 0:
+            return []
+        values = array("f")
+        try:
+            values.frombytes(bytes(blob))
+        except (TypeError, ValueError):
+            return []
+        return list(values[: int(dim)])
+
+    @staticmethod
+    def _legacy_payload(record: dict[str, Any]) -> dict[str, Any]:
+        # 正文和向量已有专用列，避免在 meta 中再复制一份大对象。
+        return {
+            str(key): value
+            for key, value in dict(record or {}).items()
+            if key not in {"text", "embedding", "_sqlite_id"}
+        }
+
+    @staticmethod
+    def _number(value: Any, default: float, cast=float):
+        try:
+            return cast(value)
+        except (TypeError, ValueError, OverflowError):
+            return cast(default)
+
+    @staticmethod
+    def _legacy_row(record: dict[str, Any]) -> dict[str, Any]:
+        content = str(record.get("text") or "").strip()
+        key = str(record.get("rpid") or "").strip()
+        if not key or not content:
+            raise ValueError("legacy memory requires rpid and text")
+        return {
+            "legacy_key": key,
+            "scope": str(record.get("scope") or "bili_comment"),
+            "memory_type": str(record.get("memory_type") or "chat"),
+            "level": str(record.get("level") or "recent"),
+            "actor_id": str(record.get("actor_id") or ""),
+            "thread_id": str(record.get("thread_id") or ""),
+            "target_id": str(record.get("target_id") or record.get("bvid") or record.get("oid") or ""),
+            "text": content,
+            "importance": max(
+                1, min(10, MemoryStore._number(record.get("importance"), 5, int))
+            ),
+            "value_score": MemoryStore._number(record.get("value_score"), 0.5),
+            "privacy": MemoryStore._number(record.get("privacy"), 0, int),
+            "confidence": MemoryStore._number(record.get("confidence"), 0.5),
+            # 旧 JSON 没有可靠的 events 外键，强行沿用数字会让迁移因悬空
+            # 引用整体失败；原始值仍保留在 legacy meta 中供审计。
+            "source_event": None,
+            "meta": json.dumps(
+                {"legacy": MemoryStore._legacy_payload(record)},
+                ensure_ascii=False,
+                default=str,
+            ),
+            "created_at": MemoryStore._number(record.get("created_at"), now()),
+            "expires_at": record.get("expires_at"),
+            "promoted_at": record.get("promoted_at_ts"),
+            "bytes": len(content.encode("utf-8")),
+            "vector": MemoryStore._vector_blob(record.get("embedding")),
+            "vector_model": str(record.get("embedding_model") or "legacy"),
+        }
+
+    @staticmethod
+    def _upsert_legacy_sync(conn, row: dict[str, Any]) -> int:
+        mapped = conn.execute(
+            "SELECT memory_id FROM legacy_memory_map WHERE legacy_key=?",
+            (row["legacy_key"],),
+        ).fetchone()
+        params = (
+            row["scope"], row["memory_type"], row["level"], row["actor_id"],
+            row["thread_id"], row["target_id"], row["text"], row["importance"],
+            row["value_score"], row["privacy"], row["confidence"],
+            row["source_event"], row["meta"], row["created_at"],
+            row["expires_at"], row["promoted_at"], row["bytes"],
+        )
+        if mapped is None:
+            cursor = conn.execute(
+                "INSERT INTO memories(scope,memory_type,level,actor_id,thread_id,"
+                "target_id,text,importance,value_score,privacy,confidence,source_event,"
+                "meta,created_at,expires_at,promoted_at,bytes) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                params,
+            )
+            memory_id = int(cursor.lastrowid)
+            conn.execute(
+                "INSERT INTO legacy_memory_map(memory_id,legacy_key) VALUES(?,?)",
+                (memory_id, row["legacy_key"]),
+            )
+        else:
+            memory_id = int(mapped["memory_id"])
+            conn.execute(
+                "UPDATE memories SET scope=?,memory_type=?,level=?,actor_id=?,"
+                "thread_id=?,target_id=?,text=?,importance=?,value_score=?,privacy=?,"
+                "confidence=?,source_event=?,meta=?,created_at=?,expires_at=?,"
+                "promoted_at=?,bytes=? WHERE id=?",
+                (*params, memory_id),
+            )
+        vector = row.get("vector")
+        if vector:
+            dim, blob = vector
+            conn.execute(
+                "INSERT INTO memory_vectors(memory_id,model,dim,vec) VALUES(?,?,?,?) "
+                "ON CONFLICT(memory_id) DO UPDATE SET model=excluded.model,"
+                "dim=excluded.dim,vec=excluded.vec",
+                (memory_id, row["vector_model"], dim, blob),
+            )
+        else:
+            conn.execute("DELETE FROM memory_vectors WHERE memory_id=?", (memory_id,))
+        return memory_id
+
+    async def upsert_legacy(self, record: dict[str, Any]) -> int:
+        """将一条兼容记录幂等写入 SQLite，向量单独保存。"""
+        row = self._legacy_row(record)
+        return int(await self._db.run(self._upsert_legacy_sync, row))
+
+    async def replace_legacy(self, records: list[dict[str, Any]]) -> int:
+        """以 records 原子替换旧版兼容记忆，不影响原生 SQLite 记录。"""
+        rows = [self._legacy_row(record) for record in records]
+
+        def _replace(conn):
+            keep = {row["legacy_key"] for row in rows}
+            for row in rows:
+                self._upsert_legacy_sync(conn, row)
+            existing = conn.execute(
+                "SELECT memory_id,legacy_key FROM legacy_memory_map"
+            ).fetchall()
+            stale_ids = [
+                int(item["memory_id"])
+                for item in existing
+                if str(item["legacy_key"]) not in keep
+            ]
+            if stale_ids:
+                conn.executemany(
+                    "DELETE FROM memories WHERE id=?",
+                    ((memory_id,) for memory_id in stale_ids),
+                )
+            return len(rows)
+
+        return int(await self._db.run(_replace))
+
+    async def load_legacy(self) -> list[dict[str, Any]]:
+        """按时间顺序加载兼容记录，重建旧业务仍使用的内存视图。"""
+        rows = await self._db.fetch_all(
+            "SELECT m.*,lm.legacy_key,mv.model AS vector_model,mv.dim AS vector_dim,"
+            "mv.vec AS vector_blob FROM memories m "
+            "JOIN legacy_memory_map lm ON lm.memory_id=m.id "
+            "LEFT JOIN memory_vectors mv ON mv.memory_id=m.id "
+            "ORDER BY m.created_at,m.id"
+        )
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                meta = json.loads(row["meta"] or "{}")
+            except (TypeError, ValueError):
+                meta = {}
+            record = dict(meta.get("legacy") or {})
+            record.update(
+                {
+                    "rpid": str(row["legacy_key"]),
+                    "text": str(row["text"]),
+                    "scope": str(row["scope"]),
+                    "memory_type": str(row["memory_type"]),
+                    "level": str(row["level"]),
+                    "importance": int(row["importance"]),
+                    "value_score": float(row["value_score"]),
+                    "privacy": int(row["privacy"]),
+                    "confidence": float(row["confidence"]),
+                    "created_at": float(row["created_at"]),
+                    "_sqlite_id": int(row["id"]),
+                }
+            )
+            vector = self._vector_list(row["vector_blob"], row["vector_dim"] or 0)
+            if vector:
+                record["embedding"] = vector
+                record["embedding_model"] = str(row["vector_model"] or "legacy")
+            result.append(record)
+        return result
+
+    async def legacy_count(self) -> int:
+        return int(
+            await self._db.fetch_value(
+                "SELECT COUNT(*) FROM legacy_memory_map", default=0
+            )
+            or 0
+        )
 
     async def add(
         self,

@@ -24,7 +24,6 @@ from .config import (
     BILI_PRIVATE_SESSIONS_URL,
     DATA_DIR,
     LEVEL_NAMES,
-    PERMANENT_MEMORY_FILE,
     PRIVATE_MESSAGE_STATE_FILE,
     REPLY_LOG_FILE,
 )
@@ -1036,17 +1035,8 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 username=username,
                 impression=impression or None,
                 new_facts=user_facts or None,
+                source_scope="bili_dm",
             )
-
-        permanent = result.get("permanent_memory", "")
-        if permanent:
-            memories = self._load_json(PERMANENT_MEMORY_FILE, [])
-            if len(memories) < 20:
-                memories.append({
-                    "text": permanent,
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                })
-                self._save_json(PERMANENT_MEMORY_FILE, memories)
 
         reply_log = self._load_json(REPLY_LOG_FILE, [])
         reply_log.append({
@@ -1069,7 +1059,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             source="bilibili_private",
         )
         await self._compress_thread_memory(thread_id)
-        await self._compress_user_memory(mid, username)
+        await self._compress_user_memory(mid, username, "bili_dm")
         logger.info(
             f"[BiliBot] ✉️ 私信回复 {username}（{LEVEL_NAMES[self._get_level(new_score, mid)]}|{new_score}分）：{ai_reply[:80]}"
         )

@@ -73,11 +73,11 @@ Bot 可在聊天中通过自然语言触发以下能力，工具结果回到 LLM
 
 ## 🔗 QQ ↔ B站 记忆互通
 
-绑定后，两个平台的记忆会自动共享：
+跨平台共享默认关闭，只允许绑定到 `OWNER_MID` 的主人身份在显式开启安全共享后使用：
 
 1. 在 QQ 发送 `/bili绑定 <B站UID>` 完成绑定
-1. QQ 聊天中提到 B站 相关话题时，B站侧的永久记忆会自动注入
-1. QQ 的对话记录会存入记忆池（带 embedding），B站回复时通过语义检索按需调取相关的 QQ 记忆
+1. 将 `MEMORY_ISOLATION_MODE` 设为 `safe_share` 并开启 `ENABLE_SAFE_CROSS_PLATFORM_MEMORY`
+1. QQ 对话只会收到经过脱敏、限长和类型过滤的B站侧近期摘要；插件不会反向保存 QQ 聊天记录
 
 ## 📦 安装
 
@@ -318,6 +318,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 ## 📁 数据存储
 
 插件数据存储在 `data/plugin_data/astrbot_plugin_bilibili_ai_bot/` 目录下，更新插件不会丢失数据。
+
+从 v1.4.3 起，`bilibot.sqlite3` 是语义记忆主库，Embedding 单独保存在向量表；已有 `memory.json` 会在首次启动时自动导入，此后继续保留为兼容与故障恢复备份。请不要在插件运行时手工删除或替换这两个文件。
 
 ## ⚠️ 风险提示
 

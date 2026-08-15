@@ -60,6 +60,53 @@ def load_private_message_module(data_dir):
     return private_module, constants
 
 
+def load_reply_module(data_dir):
+    package_name = "bilibot_comment_runtime_test"
+    package = types.ModuleType(package_name)
+    package.__path__ = []
+    sys.modules[package_name] = package
+    sys.modules[f"{package_name}.runtime"] = runtime
+
+    config = types.ModuleType(f"{package_name}.config")
+    constants = {
+        "AFFECTION_FILE": str(Path(data_dir) / "affection.json"),
+        "DATA_DIR": str(data_dir),
+        "LEVEL_NAMES": {"friend": "好友"},
+        "REPLIED_AT_FILE": str(Path(data_dir) / "replied_at.json"),
+        "REPLIED_FILE": str(Path(data_dir) / "replied.json"),
+        "REPLIED_CONTENT_KEYS_FILE": str(Path(data_dir) / "content_keys.json"),
+        "REPLY_LOG_FILE": str(Path(data_dir) / "reply_log.json"),
+        "BILI_AT_NOTIFY_URL": "at",
+        "BILI_NOTIFY_URL": "notify",
+        "VIDEO_MEMORY_FILE": str(Path(data_dir) / "video_memory.json"),
+    }
+    for key, value in constants.items():
+        setattr(config, key, value)
+    sys.modules[config.__name__] = config
+
+    if "astrbot" not in sys.modules:
+        astrbot = types.ModuleType("astrbot")
+        astrbot_api = types.ModuleType("astrbot.api")
+        astrbot_api.logger = types.SimpleNamespace(
+            debug=lambda *args, **kwargs: None,
+            info=lambda *args, **kwargs: None,
+            warning=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+        )
+        astrbot.api = astrbot_api
+        sys.modules["astrbot"] = astrbot
+        sys.modules["astrbot.api"] = astrbot_api
+
+    reply_path = MODULE_PATH.with_name("reply.py")
+    reply_spec = importlib.util.spec_from_file_location(
+        f"{package_name}.reply", reply_path
+    )
+    reply_module = importlib.util.module_from_spec(reply_spec)
+    sys.modules[reply_spec.name] = reply_module
+    reply_spec.loader.exec_module(reply_module)
+    return reply_module, constants
+
+
 class EventRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def make_event(self, event_id="1"):
         return runtime.InboundEvent(
@@ -315,7 +362,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 async def _compress_thread_memory(self, _thread_id):
                     pass
 
-                async def _compress_user_memory(self, _mid, _username):
+                async def _compress_user_memory(self, _mid, _username, _scope="bili_comment"):
                     pass
 
                 def _get_level(self, _score, _mid):
@@ -384,7 +431,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 async def _compress_thread_memory(self, _thread_id):
                     pass
 
-                async def _compress_user_memory(self, _mid, _username):
+                async def _compress_user_memory(self, _mid, _username, _scope="bili_comment"):
                     pass
 
                 def _get_level(self, _score, _mid):
@@ -407,6 +454,124 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
+            self.assertTrue(sent)
+            self.assertEqual(bot._affection["42"], 12)
+            self.assertEqual(bot.profile_updates, 1)
+            self.assertEqual(bot.memory_writes, 1)
+            self.assertIn(constants["AFFECTION_FILE"], bot.saved_paths)
+            self.assertIn(constants["REPLY_LOG_FILE"], bot.saved_paths)
+
+
+class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
+    def make_bot(self, reply_module, send_ok):
+        class Bot(reply_module.ReplyMixin):
+            def __init__(self):
+                self.config = {
+                    "ENABLE_AFFECTION": True,
+                    "ENABLE_AUTO_BLOCK": False,
+                }
+                self.event_runtime = runtime.EventRuntime()
+                self._affection = {"42": 10}
+                self.profile_updates = 0
+                self.memory_writes = 0
+                self.saved_paths = []
+
+            async def _oid_to_bvid(self, _oid):
+                return ""
+
+            def _is_owner(self, _mid):
+                return False
+
+            def _is_block_whitelisted(self, _mid):
+                return False
+
+            def _peek_milestone(self, *_args):
+                return None
+
+            def _commit_milestone(self, *_args):
+                pass
+
+            async def _send_reply(self, *_args):
+                return send_ok
+
+            async def _block_user(self, _mid):
+                return True
+
+            def _save_json(self, path, _value):
+                self.saved_paths.append(path)
+
+            def _load_json(self, _path, default=None):
+                return {} if default is None else default
+
+            def _update_user_profile(self, *_args, **_kwargs):
+                self.profile_updates += 1
+
+            async def _save_memory_record(self, *_args, **_kwargs):
+                self.memory_writes += 1
+
+            async def _compress_thread_memory(self, _thread_id):
+                pass
+
+            async def _compress_oid_memory(self, _oid):
+                pass
+
+            async def _compress_user_memory(self, _mid, _username, _scope):
+                pass
+
+            def _log_security_event(self, *_args):
+                pass
+
+            def _get_level(self, _score, _mid):
+                return "friend"
+
+        return Bot()
+
+    async def test_failed_comment_send_does_not_commit_side_effects(self):
+        with tempfile.TemporaryDirectory() as data_dir:
+            reply_module, _ = load_reply_module(data_dir)
+            bot = self.make_bot(reply_module, False)
+            sent = await bot._apply_reply_result(
+                mid="42",
+                username="tester",
+                content="hello",
+                oid=1,
+                rpid="comment-failed",
+                comment_type=1,
+                thread_id="thread-1",
+                result={
+                    "reply": "hi",
+                    "score_delta": 2,
+                    "impression": "friendly",
+                    "user_facts": ["likes tests"],
+                    "permanent_memory": "must not become self memory",
+                },
+            )
+            self.assertFalse(sent)
+            self.assertEqual(bot._affection["42"], 10)
+            self.assertEqual(bot.profile_updates, 0)
+            self.assertEqual(bot.memory_writes, 0)
+            self.assertEqual(bot.saved_paths, [])
+
+    async def test_successful_comment_send_commits_scoped_side_effects(self):
+        with tempfile.TemporaryDirectory() as data_dir:
+            reply_module, constants = load_reply_module(data_dir)
+            bot = self.make_bot(reply_module, True)
+            sent = await bot._apply_reply_result(
+                mid="42",
+                username="tester",
+                content="hello",
+                oid=1,
+                rpid="comment-success",
+                comment_type=1,
+                thread_id="thread-1",
+                result={
+                    "reply": "hi",
+                    "score_delta": 2,
+                    "impression": "friendly",
+                    "user_facts": ["likes tests"],
+                    "permanent_memory": "must not become self memory",
+                },
+            )
             self.assertTrue(sent)
             self.assertEqual(bot._affection["42"], 12)
             self.assertEqual(bot.profile_updates, 1)

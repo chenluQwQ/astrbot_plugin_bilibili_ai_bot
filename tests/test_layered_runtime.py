@@ -97,6 +97,9 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_profile_persona_and_memory_store_are_live(self):
         await self.runtime.claim(self.event("evt-profile"))
+        # 仅领取事件不应创建“已互动”画像；显式画像更新仍由存储层支持。
+        self.assertIsNone(await self.layers.profiles.get("bili:42"))
+        await self.layers._touch_profile("bili:42", "tester")
         profile = await self.layers.profiles.get("bili:42")
         self.assertIsNotNone(profile)
         self.assertEqual(profile.display_name, "tester")
@@ -116,6 +119,66 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot["open"])
         self.assertGreaterEqual(snapshot["tables"]["events"], 1)
         self.assertIn("energy", snapshot["persona"])
+
+    async def test_legacy_memory_roundtrip_separates_vector_and_metadata(self):
+        record = {
+            "rpid": "reply-100",
+            "text": "用户说喜欢音游，Bot记住了。",
+            "time": "2026-08-16 12:30",
+            "created_at": 1786854600.0,
+            "source": "bilibili_private",
+            "scope": "bili_dm",
+            "memory_type": "chat",
+            "level": "today",
+            "user_id": "42",
+            "username": "tester",
+            "actor_id": "bili:42",
+            "thread_id": "private:42:1",
+            "importance": 7,
+            "embedding": [0.25, -0.5, 1.0],
+            "custom": {"safe": True},
+        }
+        await self.layers.memories.upsert_legacy(record)
+        loaded = await self.layers.memories.load_legacy()
+
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0]["rpid"], "reply-100")
+        self.assertEqual(loaded[0]["scope"], "bili_dm")
+        self.assertEqual(loaded[0]["custom"], {"safe": True})
+        self.assertEqual(len(loaded[0]["embedding"]), 3)
+        self.assertAlmostEqual(loaded[0]["embedding"][1], -0.5)
+        row = await self.layers.db.fetch_one(
+            "SELECT meta FROM memories WHERE id=?", (loaded[0]["_sqlite_id"],)
+        )
+        self.assertNotIn("embedding", row["meta"])
+
+    async def test_legacy_snapshot_replace_removes_only_legacy_rows(self):
+        native_id = await self.layers.memories.add(
+            "bili_comment", "native row", actor_id="bili:7"
+        )
+        first = {
+            "rpid": "old",
+            "text": "old row",
+            "scope": "bili_comment",
+            "created_at": 1.0,
+        }
+        second = {
+            "rpid": "keep",
+            "text": "keep row",
+            "scope": "bili_comment",
+            "created_at": 2.0,
+        }
+        await self.layers.memories.replace_legacy([first, second])
+        second["text"] = "updated row"
+        await self.layers.memories.replace_legacy([second])
+
+        loaded = await self.layers.memories.load_legacy()
+        self.assertEqual([item["rpid"] for item in loaded], ["keep"])
+        self.assertEqual(loaded[0]["text"], "updated row")
+        native = await self.layers.db.fetch_one(
+            "SELECT text FROM memories WHERE id=?", (native_id,)
+        )
+        self.assertEqual(native["text"], "native row")
 
     async def test_persona_rest_gate_keeps_urgent_priority_direction(self):
         self.layers.persona.current_segment = AsyncMock(

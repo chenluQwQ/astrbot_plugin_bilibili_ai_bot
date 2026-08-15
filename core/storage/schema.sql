@@ -101,6 +101,15 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
     vec       BLOB NOT NULL           -- float32 紧凑存储，不进 JSON
 );
 
+-- 旧版 memory.json 与统一记忆表之间的稳定映射。旧字段保存在 memories.meta
+-- 的 legacy 对象中；映射表只负责幂等迁移、兼容导出和按 rpid 精确删除。
+-- 单独建表而不是给 memories 直接加列，可让已有 v1 数据库无损升级。
+CREATE TABLE IF NOT EXISTS legacy_memory_map (
+    memory_id  INTEGER PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    legacy_key TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_legacy_memory_key ON legacy_memory_map (legacy_key);
+
 -- 用户群像：小体积结构化，增量更新（只改动变化字段，不重写全量摘要）。
 CREATE TABLE IF NOT EXISTS profiles (
     actor_id     TEXT PRIMARY KEY,

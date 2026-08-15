@@ -3,6 +3,7 @@ import re
 import random
 from datetime import datetime
 from astrbot.api import logger
+from .security import readable_scopes
 from .config import (
     AFFECTION_FILE, BLOCK_KEYWORDS, INJECTION_PATTERNS,
     LEVEL_NAMES, MILESTONE_FILE, MOOD_FILE, SECURITY_LOG_FILE,
@@ -143,23 +144,56 @@ class AffectionMixin:
         p.setdefault("impression", "")
         p.setdefault("facts", [])
         p.setdefault("tags", [])
+        impressions = p.setdefault("impressions", {})
+        if not isinstance(impressions, dict):
+            impressions = {}
+            p["impressions"] = impressions
+        # 老版本只有一个全局字段；插件历史上以公开评论为主，迁移时保守归入
+        # 公开评论域。此后所有新画像信息都记录精确来源域。
+        if p.get("impression") and not impressions:
+            impressions["bili_comment"] = str(p["impression"])
+        fact_scopes = p.setdefault("fact_scopes", {})
+        if not isinstance(fact_scopes, dict):
+            fact_scopes = {}
+            p["fact_scopes"] = fact_scopes
+        for fact in p.get("facts", []):
+            if isinstance(fact, str) and fact:
+                fact_scopes.setdefault(fact, "bili_comment")
+        tag_scopes = p.setdefault("tag_scopes", {})
+        if not isinstance(tag_scopes, dict):
+            tag_scopes = {}
+            p["tag_scopes"] = tag_scopes
+        for tag in p.get("tags", []):
+            if isinstance(tag, str) and tag:
+                tag_scopes.setdefault(tag, "bili_comment")
         legacy_encounters = p.get("video_encounters", [])
         refs = p.setdefault("video_refs", [])
         if not isinstance(refs, list):
             refs = []
             p["video_refs"] = refs
+        for item in refs:
+            if isinstance(item, dict):
+                item.setdefault("scope", "bili_comment")
         # 旧数据兼容：video_encounters 表示曾在该视频评论区交流。
-        known = {(str(item.get("bvid", "")), item.get("relation", "")) for item in refs if isinstance(item, dict)}
+        known = {
+            (
+                str(item.get("bvid", "")),
+                item.get("relation", ""),
+                item.get("scope", "bili_comment"),
+            )
+            for item in refs if isinstance(item, dict)
+        }
         for item in legacy_encounters:
             if not isinstance(item, dict) or not item.get("bvid"):
                 continue
-            key = (str(item["bvid"]), "commented_under")
+            key = (str(item["bvid"]), "commented_under", "bili_comment")
             if key not in known:
                 refs.append({
                     "bvid": str(item["bvid"]),
                     "title": str(item.get("title", "")),
                     "relation": "commented_under",
                     "time": str(item.get("time", "")),
+                    "scope": "bili_comment",
                 })
                 known.add(key)
         p["video_refs"] = refs[-50:]
@@ -172,11 +206,12 @@ class AffectionMixin:
         live.setdefault("memory_refs", [])
         return p
 
-    def _get_user_profile_context(self, mid):
+    def _get_user_profile_context(self, mid, reader_scope="bili_comment"):
         profiles = self._load_json(USER_PROFILE_FILE, {})
         p = self._normalize_user_profile(profiles.get(str(mid))) if profiles.get(str(mid)) else None
         if not p:
             return ""
+        allowed_scopes = {scope.value for scope in readable_scopes(reader_scope)}
         entries = []
         if p.get("username"):
             entries.append(f"昵称：{p['username']}")
@@ -187,7 +222,12 @@ class AffectionMixin:
             "about_user": "内容与该用户有关的视频",
         }
         for relation, label in relation_labels.items():
-            recent = [item for item in refs if isinstance(item, dict) and item.get("relation") == relation][-5:]
+            recent = [
+                item for item in refs
+                if isinstance(item, dict)
+                and item.get("relation") == relation
+                and str(item.get("scope", "bili_comment")) in allowed_scopes
+            ][-5:]
             ref_texts = [
                 f"《{item.get('title') or item.get('bvid')}》({item.get('bvid')}, {item.get('time', '?')})"
                 for item in recent if item.get("bvid")
@@ -196,20 +236,35 @@ class AffectionMixin:
                 entries.append(f"{label}：{'；'.join(ref_texts)}")
         live = p.get("live") if isinstance(p.get("live"), dict) else {}
         counts = live.get("event_counts") if isinstance(live.get("event_counts"), dict) else {}
-        if counts:
+        if counts and "bili_live" in allowed_scopes:
             count_text = "、".join(f"{key}:{value}" for key, value in counts.items() if value)
             if count_text:
                 entries.append(f"直播互动：{count_text}；最近出现：{live.get('last_seen', '未知')}")
-        if p.get("facts"):
-            for f in p["facts"][-10:]:
+        fact_scopes = p.get("fact_scopes", {})
+        visible_facts = [
+            fact for fact in p.get("facts", [])
+            if str(fact_scopes.get(str(fact), "bili_comment")) in allowed_scopes
+        ]
+        if visible_facts:
+            for f in visible_facts[-10:]:
                 entries.append(f)
-        if p.get("tags"):
-            entries.append("标签：" + "、".join(p["tags"]))
-        if p.get("impression"):
-            entries.append(f"印象：{p['impression']}")
+        tag_scopes = p.get("tag_scopes", {})
+        visible_tags = [
+            tag for tag in p.get("tags", [])
+            if str(tag_scopes.get(str(tag), "bili_comment")) in allowed_scopes
+        ]
+        if visible_tags:
+            entries.append("标签：" + "、".join(visible_tags[-10:]))
+        impressions = p.get("impressions", {})
+        visible_impressions = [
+            str(text) for scope, text in impressions.items()
+            if scope in allowed_scopes and str(text).strip()
+        ]
+        if visible_impressions:
+            entries.append(f"印象：{visible_impressions[-1]}")
         return "【对该用户的了解】\n" + "\n".join(entries) if entries else ""
 
-    def _update_user_profile(self, mid, username=None, impression=None, new_facts=None, new_tags=None, video_encounter=None, video_ref=None, live_event=None):
+    def _update_user_profile(self, mid, username=None, impression=None, new_facts=None, new_tags=None, video_encounter=None, video_ref=None, live_event=None, source_scope="bili_comment"):
         """更新用户画像；视频与直播只保存轻量引用，不复制正文记忆。"""
         profiles = self._load_json(USER_PROFILE_FILE, {})
         uid = str(mid)
@@ -218,20 +273,35 @@ class AffectionMixin:
             profiles[uid]["username"] = username
         if impression:
             profiles[uid]["impression"] = impression
+            profiles[uid].setdefault("impressions", {})[str(source_scope)] = impression
         if new_facts:
             ex = profiles[uid].get("facts", [])
+            fact_scopes = profiles[uid].setdefault("fact_scopes", {})
             for f in new_facts:
                 f = f.strip()
                 if f and f not in ex:
                     ex.append(f)
+                if f:
+                    fact_scopes[f] = str(source_scope)
             profiles[uid]["facts"] = ex[-20:]
+            profiles[uid]["fact_scopes"] = {
+                fact: fact_scopes.get(fact, "bili_comment")
+                for fact in profiles[uid]["facts"]
+            }
         if new_tags:
             et = profiles[uid].get("tags", [])
+            tag_scopes = profiles[uid].setdefault("tag_scopes", {})
             for t in new_tags:
                 t = t.strip()
                 if t and t not in et:
                     et.append(t)
+                if t:
+                    tag_scopes[t] = str(source_scope)
             profiles[uid]["tags"] = et[-10:]
+            profiles[uid]["tag_scopes"] = {
+                tag: tag_scopes.get(tag, "bili_comment")
+                for tag in profiles[uid]["tags"]
+            }
         if video_encounter and video_encounter.get("bvid"):
             video_ref = {
                 "bvid": video_encounter["bvid"],
@@ -246,9 +316,20 @@ class AffectionMixin:
                 "title": str(video_ref.get("title", "")),
                 "relation": str(video_ref.get("relation") or "related"),
                 "time": str(video_ref.get("time") or datetime.now().strftime("%Y-%m-%d")),
+                "scope": str(video_ref.get("scope") or source_scope),
             }
-            key = (ref["bvid"], ref["relation"])
-            refs = [item for item in refs if not (isinstance(item, dict) and (str(item.get("bvid", "")), item.get("relation", "")) == key)]
+            key = (ref["bvid"], ref["relation"], ref["scope"])
+            refs = [
+                item for item in refs
+                if not (
+                    isinstance(item, dict)
+                    and (
+                        str(item.get("bvid", "")),
+                        item.get("relation", ""),
+                        item.get("scope", "bili_comment"),
+                    ) == key
+                )
+            ]
             refs.append(ref)
             profiles[uid]["video_refs"] = refs[-50:]
         if live_event:
@@ -280,6 +361,7 @@ class AffectionMixin:
                 "relation": relation,
                 "time": datetime.now().strftime("%Y-%m-%d"),
             },
+            source_scope="proactive",
         )
 
     # ── 心情 ──

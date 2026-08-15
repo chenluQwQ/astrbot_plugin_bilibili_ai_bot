@@ -18,6 +18,7 @@ from copy import deepcopy
 from datetime import datetime
 import uuid
 from astrbot.api import logger
+from .security import readable_scopes
 from .config import (
     USER_PROFILE_FILE, WATCH_LOG_FILE, BANGUMI_WATCH_LOG_FILE,
     REPLY_LOG_FILE, PROACTIVE_LOG_FILE, DYNAMIC_LOG_FILE,
@@ -34,7 +35,7 @@ class BiliBotMemoryAPI:
     def __init__(self, bot):
         self.bot = bot
 
-    api_version = 2
+    api_version = 3
 
     # ══════════════════════════════════════
     #  查询
@@ -48,6 +49,7 @@ class BiliBotMemoryAPI:
         source: str | None = None,
         memory_types: set[str] | None = None,
         level: str | None = None,
+        reader_scope: str = "bili_comment",
         limit: int = 5,
         score_threshold: float = 0.5,
     ) -> list[dict]:
@@ -59,6 +61,7 @@ class BiliBotMemoryAPI:
             source: 限定来源 ("bilibili" / "qq")
             memory_types: 限定类型 ("chat" / "video" / "dynamic" / "user_summary")
             level: 限定级别 ("today" / "recent" / "long_term")
+            reader_scope: 调用方可见域；默认只读公开评论及公开视频记忆
             limit: 最大返回条数
             score_threshold: 最低相似度
 
@@ -73,6 +76,7 @@ class BiliBotMemoryAPI:
             memory_types=memory_types,
             user_id=user_id,
             score_threshold=score_threshold,
+            reader_scope=reader_scope,
         )
         results = []
         for score, m in raw:
@@ -102,9 +106,12 @@ class BiliBotMemoryAPI:
         *,
         user_id: str | None = None,
         limit: int = 5,
+        reader_scope: str = "bili_comment",
     ) -> list[str]:
         """简易接口：返回文本列表。"""
-        results = await self.search(query, user_id=user_id, limit=limit)
+        results = await self.search(
+            query, user_id=user_id, limit=limit, reader_scope=reader_scope
+        )
         return [r["text"] for r in results]
 
     def get_recent_memories(
@@ -115,12 +122,15 @@ class BiliBotMemoryAPI:
         memory_types: set[str] | None = None,
         hours: int = 24,
         limit: int = 20,
+        reader_scope: str = "bili_comment",
     ) -> list[dict]:
         """获取最近 N 小时的记忆（无需语义，按时间倒序）。"""
         from datetime import timedelta
         cutoff = datetime.now() - timedelta(hours=hours)
         results = []
         for m in reversed(self.bot._memory):
+            if not self.bot._memory_visible_to(m, reader_scope, str(user_id or "")):
+                continue
             if user_id and m.get("user_id") != str(user_id):
                 continue
             if source and m.get("source") != source:
@@ -217,6 +227,7 @@ class BiliBotMemoryAPI:
         memory_limit: int = 4,
         video_limit: int = 2,
         exclude_event_ids: set[str] | None = None,
+        reader_scope: str = "bili_live",
     ) -> dict:
         """按 UID 召回画像、本人记忆，以及仅限其视频引用的相关视频记忆。"""
         uid = str(user_id)
@@ -227,6 +238,7 @@ class BiliBotMemoryAPI:
             memory_types={"chat", "live", "user_summary"},
             limit=max(1, memory_limit) + len(exclude_event_ids or set()),
             score_threshold=0.45,
+            reader_scope=reader_scope,
         )
         if exclude_event_ids:
             memories = [
@@ -234,10 +246,13 @@ class BiliBotMemoryAPI:
                 if item.get("external_event_id") not in exclude_event_ids
             ]
         memories = memories[:max(1, memory_limit)]
+        allowed_scopes = {scope.value for scope in readable_scopes(reader_scope)}
         linked_bvids = {
             str(item.get("bvid"))
             for item in profile.get("video_refs", [])
-            if isinstance(item, dict) and item.get("bvid")
+            if isinstance(item, dict)
+            and item.get("bvid")
+            and str(item.get("scope", "bili_comment")) in allowed_scopes
         }
         video_memories = []
         if linked_bvids and video_limit > 0:
@@ -247,6 +262,7 @@ class BiliBotMemoryAPI:
                     item for item in self.bot._memory
                     if str(item.get("bvid", "")) in linked_bvids
                     and self.bot._match_memory_type(item, {"video"})
+                    and self.bot._memory_visible_to(item, reader_scope, uid)
                     and item.get("embedding")
                 ]
                 scored = sorted(
@@ -277,12 +293,20 @@ class BiliBotMemoryAPI:
         username: str = "",
         title: str = "",
         relation: str = "related",
+        source_scope: str = "proactive",
     ) -> None:
         """在用户画像中记录轻量视频关系，不复制视频总结正文。"""
         allowed_relations = {"commented_under", "uploaded_by", "about_user", "related"}
         normalized_relation = relation if relation in allowed_relations else "related"
-        self.bot._link_video_to_user_profile(
-            str(user_id), username, str(bvid), title, normalized_relation,
+        self.bot._update_user_profile(
+            str(user_id),
+            username=username or None,
+            video_ref={
+                "bvid": str(bvid),
+                "title": str(title or ""),
+                "relation": normalized_relation,
+            },
+            source_scope=source_scope,
         )
 
     # ══════════════════════════════════════
@@ -322,7 +346,7 @@ class BiliBotMemoryAPI:
         emb = await self.bot._get_embedding(text)
         if emb:
             rec["embedding"] = emb
-        self.bot._save_memory_entry(rec)
+        await self.bot._save_memory_entry(rec)
         logger.debug(f"[MemoryAPI] 记录: [{level}] {text[:60]}...")
         return rpid
 
@@ -393,6 +417,7 @@ class BiliBotMemoryAPI:
                 "session_id": session_id,
                 "memory_ref": rpid,
             },
+            source_scope="bili_live",
         )
         return rpid
 
