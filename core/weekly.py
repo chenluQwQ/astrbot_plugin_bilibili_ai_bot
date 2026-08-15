@@ -21,7 +21,7 @@ from collections import Counter
 from astrbot.api import logger
 from .config import (
     WATCH_LOG_FILE, BANGUMI_WATCH_LOG_FILE, DYNAMIC_LOG_FILE,
-    PROACTIVE_LOG_FILE, WEEKLY_SUMMARY_FILE, TEMP_IMAGE_DIR,
+    PROACTIVE_LOG_FILE, WEEKLY_SUMMARY_FILE, DAILY_SUMMARY_FILE, TEMP_IMAGE_DIR,
 )
 
 
@@ -501,6 +501,120 @@ class WeeklySummaryMixin:
                 logger.warning(f"[BiliBot] 周总结动态发布失败: {e}")
 
         return results
+
+    async def _generate_daily_summary(self):
+        """Generate a compact daily Bilibili-life recap from today's real records."""
+        data = self._collect_weekly_data(days=1)
+        live_events = data.get("live_events") if isinstance(data.get("live_events"), list) else []
+        if not (data["videos"] or data["bangumi"] or data["dynamics"] or data["proactive_comments"] or data["chat_count"] or live_events):
+            logger.info("[BiliBot] 今日没有活动记录，跳过日总结正文生成")
+            return None
+        data_text = self._format_weekly_data(data)
+        prompt = f"""请依据下面的真实记录，写一段自然、克制的今日B站生活小结。
+日期：{datetime.now().strftime('%Y-%m-%d')}
+真实记录：
+{data_text}
+
+要求：
+- 只写真实发生的事情，资料不足就少写，禁止编造。
+- 可以提到看过的视频、动态、评论区或直播里的有趣片段，但不要泄露UID、私信原文、账号凭据或其他隐私。
+- 像角色睡前随手记，80-180字，不要写成运营报表。
+- 直接输出正文。"""
+        custom = str(self.config.get("CUSTOM_DAILY_INSTRUCTION", "") or "").strip()
+        if custom:
+            prompt += f"\n【管理员补充提示词】{custom[:1000]}"
+        summary = await self._llm_call(prompt, system_prompt=await self._get_system_prompt(), max_tokens=500)
+        return (summary or "").strip() or None
+
+    async def _deliver_daily_summary(self, summary, image_path=None):
+        mode = str(self.config.get("DAILY_SUMMARY_MODE", "archive") or "archive").lower().strip()
+        results = []
+        if mode in ("qq", "both"):
+            umo = str(self.config.get("DAILY_SUMMARY_QQ_UMO", "") or self.config.get("WEEKLY_SUMMARY_QQ_UMO", "") or self.config.get("ABUSE_ALERT_QQ_UMO", "")).strip()
+            if umo:
+                try:
+                    from astrbot.api.event import MessageChain
+                    chain = MessageChain().message("今日B站生活小结")
+                    if image_path:
+                        chain = self._append_image_to_chain(chain, image_path) or MessageChain().message(summary)
+                    else:
+                        chain = MessageChain().message(summary)
+                    await self.context.send_message(umo, chain)
+                    results.append("QQ私信图片" if image_path else "QQ私信")
+                except Exception as exc:
+                    logger.warning(f"[BiliBot] 日总结QQ投递失败: {exc}")
+        if mode in ("dynamic", "both"):
+            try:
+                success = False
+                has_image = False
+                dynamic_text = summary
+                if image_path:
+                    image_info = await self._upload_image_to_bilibili(image_path)
+                    if image_info:
+                        dynamic_text = "今天的B站生活小结，留个轻量存档。"
+                        success = await self._post_dynamic_with_image(dynamic_text, image_info)
+                        has_image = success
+                if not success:
+                    success = await self._post_dynamic_text(summary)
+                if success:
+                    results.append("B站动态图片" if has_image else "B站动态")
+                    log = self._load_json(DYNAMIC_LOG_FILE, [])
+                    log.append({
+                        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "text": dynamic_text,
+                        "has_image": has_image,
+                        "daily_summary": True,
+                        "image_path": image_path if has_image else "",
+                    })
+                    self._save_json(DYNAMIC_LOG_FILE, log[-100:])
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 日总结动态投递失败: {exc}")
+        return results
+
+    def _daily_summary_done_today(self):
+        records = self._load_json(DAILY_SUMMARY_FILE, [])
+        today = datetime.now().strftime("%Y-%m-%d")
+        return any(isinstance(item, dict) and item.get("date") == today for item in (records if isinstance(records, list) else []))
+
+    def _save_daily_summary_record(self, summary, delivered, image_path=""):
+        records = self._load_json(DAILY_SUMMARY_FILE, [])
+        if not isinstance(records, list):
+            records = []
+        records.append({
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "summary": summary,
+            "delivered": delivered,
+            "image_path": image_path or "",
+        })
+        self._save_json(DAILY_SUMMARY_FILE, records[-45:])
+
+    async def _maybe_daily_summary(self):
+        if not self.config.get("ENABLE_DAILY_SUMMARY", False) or self._daily_summary_done_today():
+            return
+        try:
+            target_hour = int(self.config.get("DAILY_SUMMARY_HOUR", 3)) % 24
+        except (ValueError, TypeError):
+            target_hour = 3
+        if datetime.now().hour != target_hour:
+            return
+        await self.run_daily_summary()
+
+    async def run_daily_summary(self):
+        logger.info("[BiliBot] 开始生成日总结...")
+        try:
+            summary = await self._generate_daily_summary()
+        except Exception as exc:
+            logger.error(f"[BiliBot] 日总结生成异常: {exc}")
+            return None, [], None
+        if not summary:
+            self._save_daily_summary_record("（今日无可总结活动）", [], "")
+            return None, [], None
+        image_path = self._render_weekly_summary_image(summary) if self.config.get("DAILY_SUMMARY_RENDER_IMAGE", True) else None
+        delivered = await self._deliver_daily_summary(summary, image_path=image_path)
+        self._save_daily_summary_record(summary, delivered, image_path or "")
+        logger.info(f"[BiliBot] 日总结完成，投递：{delivered or ['仅存档']}")
+        return summary, delivered, image_path
 
     # ── 调度 ──
 

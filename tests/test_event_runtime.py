@@ -188,6 +188,91 @@ class EventRuntimeTests(unittest.IsolatedAsyncioTestCase):
         snapshot = await manager.snapshot()
         self.assertEqual(snapshot["event_states"]["ignored"], 1)
 
+    def test_priority_is_derived_from_shared_event_flags(self):
+        admin = self.make_event("admin")
+        admin = runtime.InboundEvent(
+            source=admin.source,
+            event_id=admin.event_id,
+            actor_id=admin.actor_id,
+            metadata={"is_admin": True, "direct_mention": True},
+        )
+        direct = runtime.InboundEvent(
+            source="comment",
+            event_id="direct",
+            actor_id="43",
+            metadata={"direct_mention": True},
+        )
+        active = runtime.InboundEvent(
+            source="private",
+            event_id="active",
+            actor_id="44",
+            metadata={"conversation_active": True},
+        )
+        normal = runtime.InboundEvent(
+            source="comment",
+            event_id="normal",
+            actor_id="45",
+        )
+
+        self.assertEqual(admin.priority, runtime.EventPriority.ADMIN)
+        self.assertEqual(direct.priority, runtime.EventPriority.DIRECT_MENTION)
+        self.assertEqual(active.priority, runtime.EventPriority.ACTIVE_CONVERSATION)
+        self.assertEqual(normal.priority, runtime.EventPriority.NORMAL)
+
+    def test_rank_events_prefers_priority_then_requested_time_order(self):
+        manager = runtime.EventRuntime()
+        events = [
+            runtime.InboundEvent(
+                source="comment",
+                event_id="normal-new",
+                actor_id="1",
+                occurred_at=30,
+            ),
+            runtime.InboundEvent(
+                source="comment",
+                event_id="direct-old",
+                actor_id="2",
+                occurred_at=10,
+                metadata={"direct_mention": True},
+            ),
+            runtime.InboundEvent(
+                source="comment",
+                event_id="direct-new",
+                actor_id="3",
+                occurred_at=20,
+                metadata={"direct_mention": True},
+            ),
+        ]
+
+        oldest_first = manager.rank_events(events)
+        newest_first = manager.rank_events(events, newest_first=True)
+
+        self.assertEqual(
+            [event.event_id for event in oldest_first],
+            ["direct-old", "direct-new", "normal-new"],
+        )
+        self.assertEqual(
+            [event.event_id for event in newest_first],
+            ["direct-new", "direct-old", "normal-new"],
+        )
+
+    async def test_snapshot_exposes_priority_without_message_content(self):
+        manager = runtime.EventRuntime()
+        secret = "private message body must not be exposed"
+        event = runtime.InboundEvent(
+            source="private",
+            event_id="safe-snapshot",
+            actor_id="42",
+            content=secret,
+            metadata={"conversation_active": True},
+        )
+        await manager.claim(event)
+
+        snapshot = await manager.snapshot()
+        self.assertEqual(snapshot["event_priorities"]["active_conversation"], 1)
+        self.assertEqual(snapshot["recent_events"][0]["source"], "private")
+        self.assertNotIn(secret, str(snapshot["recent_events"]))
+
 
 class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_send_does_not_commit_relationship_or_memory(self):

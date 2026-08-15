@@ -72,6 +72,50 @@ class BilibiliAPIMixin:
             padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None),
         ).hex()
 
+    async def generate_qr(self):
+        """生成扫码登录二维码"""
+        try:
+            d, _ = await self._http_get("https://passport.bilibili.com/x/passport-login/web/qrcode/generate")
+            if d["code"] == 0:
+                return {
+                    "url": d["data"]["url"],
+                    "key": d["data"]["qrcode_key"],
+                }
+            else:
+                raise Exception(f"生成二维码失败: {d.get('message', d['code'])}")
+        except Exception as e:
+            logger.error(f"[BiliBot] generate_qr 失败: {e}")
+            raise
+
+    async def poll_qr_status(self, key):
+        """轮询扫码状态"""
+        try:
+            d, resp = await self._http_get(
+                "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+                params={"qrcode_key": key}
+            )
+            code = d.get("data", {}).get("code", -1)
+
+            if code == 0:  # 扫码成功
+                # 从 Set-Cookie 中提取 Cookie
+                cookies = {}
+                if resp and hasattr(resp, 'cookies'):
+                    for cookie in resp.cookies.jar:
+                        cookies[cookie.name] = cookie.value
+
+                return {"status": "success", "data": cookies}
+            elif code == 86038:  # 二维码已失效
+                return {"status": "expired"}
+            elif code == 86090:  # 已扫码但未确认
+                return {"status": "scanned"}
+            elif code == 86101:  # 未扫码
+                return {"status": "waiting"}
+            else:
+                return {"status": "error", "message": d.get("message", "未知错误")}
+        except Exception as e:
+            logger.error(f"[BiliBot] poll_qr_status 失败: {e}")
+            return {"status": "error", "message": str(e)}
+
     async def refresh_cookie(self):
         rt = self.config.get("REFRESH_TOKEN", "")
         if not rt:
@@ -819,11 +863,19 @@ class BilibiliAPIMixin:
                 # 未识别的类型打日志
                 if not desc and not video_title and not live_title:
                     logger.debug(f"[BiliBot] 关注动态无内容: up={up_name} type={dyn_type} major_type={major_type} keys={list(major.keys())}")
+                image_urls = []
+                opus = major.get("opus") or {}
+                image_urls.extend(pic.get("url", "") for pic in (opus.get("pics") or []) if pic.get("url"))
+                draw = major.get("draw") or {}
+                image_urls.extend(pic.get("src", "") for pic in (draw.get("items") or []) if pic.get("src"))
                 results.append({
+                    "dynamic_id": str(item.get("id_str") or item.get("id") or ""),
                     "up_name": up_name,
                     "up_mid": up_mid,
                     "type": dyn_type,
-                    "text": desc[:120] if desc else "",
+                    "major_type": major_type,
+                    "text": desc[:500] if desc else "",
+                    "image_urls": image_urls[:9],
                     "video_title": video_title,
                     "video_bvid": video_bvid,
                     "live_title": live_title,

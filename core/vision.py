@@ -15,7 +15,7 @@ class VisionMixin:
             if not api_key:
                 return None
             from openai import AsyncOpenAI
-            base_url = self.config.get("EMBED_API_BASE", "https://api.siliconflow.cn/v1")
+            base_url = self._normalize_openai_base_url(self.config.get("EMBED_API_BASE", "https://api.siliconflow.cn/v1"))
             try:
                 timeout = max(
                     3,
@@ -60,7 +60,7 @@ class VisionMixin:
             if not api_key:
                 return None
             from openai import AsyncOpenAI
-            base_url = self.config.get("VIDEO_VISION_API_BASE", "https://api.siliconflow.cn/v1")
+            base_url = self._normalize_openai_base_url(self.config.get("VIDEO_VISION_API_BASE", "https://api.siliconflow.cn/v1"))
             self._video_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         return self._video_vision_client
 
@@ -70,7 +70,7 @@ class VisionMixin:
             if not api_key:
                 return None
             from openai import AsyncOpenAI
-            base_url = self.config.get("IMAGE_VISION_API_BASE", "https://api.siliconflow.cn/v1")
+            base_url = self._normalize_openai_base_url(self.config.get("IMAGE_VISION_API_BASE", "https://api.siliconflow.cn/v1"))
             self._image_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         return self._image_vision_client
 
@@ -141,7 +141,10 @@ class VisionMixin:
             result = await self._astrbot_multimodal_generate(provider_id, content, max_tokens=100)
             if not result and client and model:
                 result = await self._vision_call(client, model, content, max_tokens=100)
-            return result or ""
+            # 视觉模型偶尔会忽略“50字以内”的提示；只保留当前图片的短摘要，
+            # 避免图像描述在后续回复上下文中无限放大 token 占用。
+            result = str(result or "").strip()
+            return result if len(result) <= 500 else result[:500].rstrip() + "…"
         except Exception as e:
             logger.error(f"[BiliBot] 图片识别失败: {e}")
             return ""

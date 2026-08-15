@@ -234,6 +234,24 @@ class LiveDanmakuMixin:
             and any(normalized == sent for _, sent in self._live_sent_echoes)
         )
 
+    def _live_runtime_event(self, event):
+        uid = str(event.get("uid") or "")
+        return InboundEvent(
+            source="live",
+            event_id=str(event.get("event_id") or ""),
+            actor_id=uid,
+            actor_name=event.get("username", ""),
+            content=event.get("content", ""),
+            conversation_id=self._live_session_id,
+            target_id=str(self._live_room_id()),
+            account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
+            occurred_at=float(event.get("occurred_at") or 0),
+            metadata={
+                "listener": "history",
+                "is_admin": self._is_owner(uid),
+            },
+        )
+
     async def _handle_live_danmaku_row(self, key, row):
         uid = str(row.get("uid") or "").strip()
         username = str(row.get("nickname") or row.get("uname") or "观众").strip()
@@ -250,18 +268,9 @@ class LiveDanmakuMixin:
             "username": username or "观众",
             "content": content,
             "timeline": str(row.get("timeline") or ""),
+            "occurred_at": time.time(),
         }
-        runtime_event = InboundEvent(
-            source="live",
-            event_id=event["event_id"],
-            actor_id=uid,
-            actor_name=event["username"],
-            content=content,
-            conversation_id=self._live_session_id,
-            target_id=str(self._live_room_id()),
-            account_id=str(self.config.get("DEDE_USER_ID", "") or ""),
-            metadata={"listener": "history"},
-        )
+        runtime_event = self._live_runtime_event(event)
         claim = await self.event_runtime.claim(runtime_event)
         if not claim.accepted:
             return
@@ -345,8 +354,14 @@ class LiveDanmakuMixin:
                 )
                 return
 
-            event = self._live_pending_events.pop()
-            coalesced = list(self._live_pending_events)
+            ranked = sorted(
+                list(self._live_pending_events),
+                key=lambda item: self.event_runtime.event_sort_key(
+                    self._live_runtime_event(item), newest_first=True
+                ),
+            )
+            event = ranked[0]
+            coalesced = ranked[1:]
             self._live_pending_events.clear()
             if coalesced:
                 await asyncio.gather(

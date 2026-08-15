@@ -21,7 +21,7 @@ class WebSearchMixin:
                 from openai import AsyncOpenAI
                 self._web_search_client = AsyncOpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
             elif backend == "custom":
-                base_url = self.config.get("WEB_SEARCH_API_BASE", "")
+                base_url = self._normalize_openai_base_url(self.config.get("WEB_SEARCH_API_BASE", ""))
                 if not base_url:
                     return None
                 from openai import AsyncOpenAI

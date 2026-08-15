@@ -4,6 +4,7 @@ from astrbot.api.star import StarTools
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 DATA_DIR = str(StarTools.get_data_dir(PLUGIN_NAME))
+LAYERED_DB_FILE = os.path.join(DATA_DIR, "bilibot.sqlite3")
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
 AFFECTION_FILE = os.path.join(DATA_DIR, "affection.json")
 SCHEDULE_FILE = os.path.join(DATA_DIR, "schedule_today.json")
@@ -31,11 +32,15 @@ REPLY_LOG_FILE = os.path.join(DATA_DIR, "reply_log.json")
 PRIVATE_MESSAGE_STATE_FILE = os.path.join(DATA_DIR, "private_message_state.json")
 BANGUMI_MEMORY_FILE = os.path.join(DATA_DIR, "bangumi_memory.json")
 WEEKLY_SUMMARY_FILE = os.path.join(DATA_DIR, "weekly_summary.json")
+DAILY_SUMMARY_FILE = os.path.join(DATA_DIR, "daily_summary.json")
 BANGUMI_WATCH_LOG_FILE = os.path.join(DATA_DIR, "bangumi_watch_log.json")
 BANGUMI_SCHEDULE_FILE = os.path.join(DATA_DIR, "bangumi_schedule.json")
 PROACTIVE_TRIGGER_LOG_FILE = os.path.join(DATA_DIR, "proactive_trigger_log.json")
 SPECIAL_FOLLOW_SCHEDULE_FILE = os.path.join(DATA_DIR, "special_follow_schedule.json")
 WEB_SEARCH_CACHE_FILE = os.path.join(DATA_DIR, "web_search_cache.json")
+AUTONOMOUS_PLAN_FILE = os.path.join(DATA_DIR, "autonomous_plan_today.json")
+DYNAMIC_WATCH_LOG_FILE = os.path.join(DATA_DIR, "dynamic_watch_log.json")
+DYNAMIC_WATCH_SCHEDULE_FILE = os.path.join(DATA_DIR, "dynamic_watch_schedule.json")
 
 # B站分区表（数据来源：bilibili-API-collect，极少变动）
 # 格式：{主分区rid: {"name": "名称", "children": {子分区tid: "名称", ...}}}
