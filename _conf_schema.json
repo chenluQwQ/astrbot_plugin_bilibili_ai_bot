@@ -830,23 +830,69 @@
     "default": "",
     "hint": "如 google/gemma-3-27b-it 等"
   },
+  "IMAGE_GEN_BACKEND": {
+    "description": "【高级·图片生成】生图后端",
+    "type": "string",
+    "default": "openai",
+    "hint": "openai=OpenAI兼容接口；novelai=NovelAI官方接口（仅手动 /bili动态 可生图）",
+    "options": [
+      "openai",
+      "novelai"
+    ]
+  },
   "IMAGE_GEN_API_KEY": {
-    "description": "【高级·图片生成】API Key（动态配图用）",
+    "description": "【高级·图片生成】API Key / NovelAI Persistent API Token",
     "type": "string",
     "default": "",
-    "hint": "留空则复用 VIDEO_VISION_API_KEY"
+    "hint": "OpenAI兼容后端留空会复用 VIDEO_VISION_API_KEY；NovelAI 请填写 Persistent API Token。"
   },
   "IMAGE_GEN_API_BASE": {
     "description": "【高级·图片生成】API Base URL",
     "type": "string",
     "default": "",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "留空时 OpenAI 后端使用 OpenRouter，NovelAI 使用 https://image.novelai.net。"
   },
   "IMAGE_GEN_MODEL": {
     "description": "【高级·图片生成】模型名称",
     "type": "string",
     "default": "",
-    "hint": "如 Flux 系列模型"
+    "hint": "OpenAI后端如 Flux；NovelAI 留空默认 nai-diffusion-4-5-full。"
+  },
+  "IMAGE_GEN_WIDTH": {
+    "description": "【高级·图片生成】NovelAI 图片宽度",
+    "type": "int",
+    "default": 1024,
+    "hint": "仅 NovelAI 生效；超出接口支持范围时会由接口拒绝。"
+  },
+  "IMAGE_GEN_HEIGHT": {
+    "description": "【高级·图片生成】NovelAI 图片高度",
+    "type": "int",
+    "default": 1024,
+    "hint": "仅 NovelAI 生效；超出接口支持范围时会由接口拒绝。"
+  },
+  "IMAGE_GEN_STEPS": {
+    "description": "【高级·图片生成】NovelAI 采样步数",
+    "type": "int",
+    "default": 28,
+    "hint": "仅 NovelAI 生效，建议 20-40。"
+  },
+  "IMAGE_GEN_SCALE": {
+    "description": "【高级·图片生成】NovelAI 提示词引导强度",
+    "type": "float",
+    "default": 5.0,
+    "hint": "仅 NovelAI 生效。"
+  },
+  "IMAGE_GEN_SAMPLER": {
+    "description": "【高级·图片生成】NovelAI 采样器",
+    "type": "string",
+    "default": "k_euler_ancestral",
+    "hint": "仅 NovelAI 生效；不确定时保持默认。"
+  },
+  "IMAGE_GEN_NEGATIVE_PROMPT": {
+    "description": "【高级·图片生成】NovelAI 负面提示词",
+    "type": "text",
+    "default": "lowres, blurry, bad anatomy, bad hands, text, watermark",
+    "hint": "仅 NovelAI 生效。"
   },
   "ENABLE_WEB_SEARCH": {
     "description": "【高级·联网搜索】启用联网搜索",
@@ -863,7 +909,15 @@
     "description": "【高级·联网搜索】搜索后端",
     "type": "string",
     "default": "tavily",
-    "hint": "可选：tavily / perplexity / bocha / custom"
+    "hint": "Firecrawl 返回网页摘要；Grok 使用 xAI Responses API 的原生 web_search。",
+    "options": [
+      "tavily",
+      "firecrawl",
+      "grok",
+      "perplexity",
+      "bocha",
+      "custom"
+    ]
   },
   "WEB_SEARCH_API_KEY": {
     "description": "【高级·联网搜索】搜索 API Key",
@@ -871,16 +925,16 @@
     "default": ""
   },
   "WEB_SEARCH_API_BASE": {
-    "description": "【高级·联网搜索】自定义搜索接口地址（仅 custom 后端）",
+    "description": "【高级·联网搜索】搜索 API Base URL（可选）",
     "type": "string",
     "default": "",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "留空使用后端官方地址；Firecrawl/Grok/custom 可填写兼容代理或自建地址。"
   },
   "WEB_SEARCH_MODEL": {
-    "description": "【高级·联网搜索】搜索模型名（仅 custom / perplexity 后端）",
+    "description": "【高级·联网搜索】搜索模型名（Grok / custom / perplexity）",
     "type": "string",
     "default": "",
-    "hint": "Perplexity 默认 sonar；custom 按你的接口填写"
+    "hint": "Grok 默认 grok-4.6；Perplexity 默认 sonar；custom 按你的接口填写。"
   },
   "WEB_SEARCH_MAX_RESULTS": {
     "description": "【高级·联网搜索】搜索返回最大条数",
@@ -992,6 +1046,36 @@
     "default": true,
     "hint": "主人私信和上下文重置指令不受兴趣选择影响，但仍受安全规则和每日硬上限保护。"
   },
+  "BEHAVIOR_BUDGET_ENABLED": {
+    "description": "【行为调度·总开关】统一限制主动看片、评论、私信、直播和动态动作",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后所有对外动作先进入同一队列，并在 SQLite 中原子预留额度；明确失败会退还，发送结果未知时不会盲目重试。"
+  },
+  "BEHAVIOR_GLOBAL_MAX_PER_MINUTE": {
+    "description": "【行为调度·全局】每分钟最多执行多少个对外动作",
+    "type": "int",
+    "default": 12,
+    "min": 0,
+    "max": 120,
+    "hint": "评论、私信、直播弹幕、动态及主动互动共用。0表示不限制；各功能自己的更小上限仍会生效。"
+  },
+  "BEHAVIOR_GLOBAL_DAILY_LIMIT": {
+    "description": "【行为调度·全局】每日最多执行多少个对外动作",
+    "type": "int",
+    "default": 200,
+    "min": 0,
+    "max": 5000,
+    "hint": "防止多个功能分别未超限、合计却刷屏。0表示不限制。"
+  },
+  "BEHAVIOR_ACTION_TIMEOUT_SECONDS": {
+    "description": "【行为调度·队列】单个发送动作超时秒数",
+    "type": "int",
+    "default": 45,
+    "min": 5,
+    "max": 180,
+    "hint": "超时会标为“发送结果未知”并停止自动重试，避免平台已收到但 Bot 再发一次。"
+  },
   "ENABLE_AUTONOMOUS_DAILY_PLAN": {
     "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",
     "type": "bool",
@@ -1055,13 +1139,13 @@
     "hint": "强烈建议保持开启。B站外部内容不会获得 AstrBot 命令、文件、执行或跨平台管理权限。"
   },
   "BILI_ALLOW_SEARCH_TOOLS": {
-    "description": "【安全与工具】允许 B站私信使用只读搜索类工具",
+    "description": "【安全与工具】允许 B站端私信回复使用只读查询工具",
     "type": "bool",
     "default": true,
     "hint": "仅允许下方白名单中的只读查询；写操作、命令和系统工具始终默认拒绝。"
   },
   "BILI_TOOL_ALLOWLIST": {
-    "description": "【安全与工具】B站私信回复可用的只读查询白名单",
+    "description": "【安全与工具】B站端私信回复工具白名单",
     "type": "list",
     "default": [
       "bili_up_info",
@@ -1073,7 +1157,7 @@
       "watch_video",
       "bili_parse_video"
     ],
-    "hint": "仅当私信用户确实提出查询请求时，回复模型才可按需调用所选能力；勾选不会创建自动任务。只有已提供 B站只读适配器的能力可启用，未知或不兼容名称会被忽略。"
+    "hint": "只控制B站私信收到消息后，私信回复模型可以按需调用哪些只读查询工具；不控制 QQ/AstrBot 聊天会话中的插件工具。勾选不会创建自动任务，未知或不兼容名称会被忽略。"
   },
   "BILI_PROMPT_INJECTION_DEFENSE": {
     "description": "【安全与工具】启用外部内容提示注入防护",

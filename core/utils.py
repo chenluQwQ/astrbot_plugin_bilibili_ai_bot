@@ -230,7 +230,11 @@ class UtilsMixin:
         image_provider_id = self.config.get("IMAGE_VISION_PROVIDER_ID", "")
         video_api_ready = bool(self.config.get("VIDEO_VISION_API_KEY", "") and self.config.get("VIDEO_VISION_MODEL", ""))
         image_api_ready = bool(self.config.get("IMAGE_VISION_API_KEY", "") and self.config.get("IMAGE_VISION_MODEL", ""))
-        image_gen_ready = bool(self.config.get("IMAGE_GEN_API_KEY", "") and self.config.get("IMAGE_GEN_MODEL", ""))
+        image_gen_backend = str(self.config.get("IMAGE_GEN_BACKEND", "") or "openai").lower().strip()
+        if image_gen_backend in ("novelai", "nai"):
+            image_gen_ready = bool(self.config.get("IMAGE_GEN_API_KEY", ""))
+        else:
+            image_gen_ready = bool(self.config.get("IMAGE_GEN_API_KEY", "") or self.config.get("VIDEO_VISION_API_KEY", ""))
         deps = {
             "yt-dlp": bool(self._find_command("yt-dlp")),
             "ffmpeg": bool(self._find_command("ffmpeg")),
@@ -253,7 +257,8 @@ class UtilsMixin:
                 "image_recognition": bool(image_provider_id or image_api_ready),
                 "proactive_video_media": proactive_media_ready and bool(video_provider_id or video_api_ready),
                 "proactive_video_fallback_text": bool(self.config.get("LLM_PROVIDER_ID", "")),
-                "dynamic_image_generation": image_gen_ready or bool(self.config.get("VIDEO_VISION_API_KEY", "")),
+                "dynamic_image_generation": image_gen_ready,
+                "image_gen_backend": "novelai" if image_gen_backend in ("novelai", "nai") else "openai",
                 "web_search": bool(self.config.get("ENABLE_WEB_SEARCH", False) and self.config.get("WEB_SEARCH_API_KEY", "")),
                 "web_search_backend": (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower().strip() if self.config.get("ENABLE_WEB_SEARCH", False) else "",
                 "web_search_judge": bool(self.config.get("WEB_SEARCH_JUDGE_PROVIDER_ID", "")),

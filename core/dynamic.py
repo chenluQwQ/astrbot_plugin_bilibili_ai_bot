@@ -5,8 +5,11 @@ import json
 import time
 import random
 import base64
+import io
+import zipfile
 import asyncio
 import traceback
+import hashlib
 import aiohttp
 from datetime import datetime
 from astrbot.api import logger
@@ -14,23 +17,157 @@ from .config import (
     DEFAULT_DYNAMIC_TOPICS, DYNAMIC_LOG_FILE,
     PERMANENT_MEMORY_FILE, TEMP_IMAGE_DIR,
 )
+from .runtime import ActionRequest, EventPriority
 
 
 class DynamicMixin:
     """B站动态发布。"""
 
-    def _get_image_gen_config(self):
-        api_key = self.config.get("IMAGE_GEN_API_KEY", "") or self.config.get("VIDEO_VISION_API_KEY", "")
-        base_url = self._normalize_openai_base_url(self.config.get("IMAGE_GEN_API_BASE", "https://openrouter.ai/api/v1"))
-        model = self.config.get("IMAGE_GEN_MODEL", "black-forest-labs/flux-schnell")
-        return api_key, base_url, model
+    async def _queue_dynamic_post(self, text, handler):
+        digest = hashlib.sha256(str(text).encode("utf-8")).hexdigest()[:20]
+        date_key = datetime.now().strftime("%Y-%m-%d")
+        outcome = await self.event_runtime.execute(
+            ActionRequest(
+                key=f"post_dynamic:{date_key}:{digest}",
+                kind="post_dynamic",
+                event_key=f"bilibili:proactive:dynamic:{date_key}",
+                target_id=str(self.config.get("DEDE_USER_ID", "") or "self"),
+                priority=EventPriority.BACKGROUND,
+                metadata={"proactive": True},
+            ),
+            handler,
+        )
+        if not outcome.success and str(outcome.reason).startswith("budget_exhausted:"):
+            logger.info(f"[BiliBot] 📢 统一行为预算已满，跳过动态：{outcome.reason}")
+        elif not outcome.success and outcome.state == "unknown":
+            logger.warning("[BiliBot] 动态发布结果未知，不会自动重发")
+        return outcome.success
 
-    async def _generate_image(self, prompt):
-        api_key, base_url, model = self._get_image_gen_config()
+    def _get_image_gen_config(self):
+        backend = str(self.config.get("IMAGE_GEN_BACKEND", "") or "openai").lower().strip()
+        if backend in ("novelai", "nai"):
+            api_key = self.config.get("IMAGE_GEN_API_KEY", "")
+            base_url = str(self.config.get("IMAGE_GEN_API_BASE", "") or "https://image.novelai.net").strip().rstrip("/")
+            model = str(self.config.get("IMAGE_GEN_MODEL", "") or "nai-diffusion-4-5-full").strip()
+            return "novelai", api_key, base_url, model
+        api_key = self.config.get("IMAGE_GEN_API_KEY", "") or self.config.get("VIDEO_VISION_API_KEY", "")
+        base_url = self._normalize_openai_base_url(
+            self.config.get("IMAGE_GEN_API_BASE", "") or "https://openrouter.ai/api/v1"
+        )
+        model = str(self.config.get("IMAGE_GEN_MODEL", "") or "black-forest-labs/flux-schnell").strip()
+        return "openai", api_key, base_url, model
+
+    @staticmethod
+    def _decode_novelai_image(body: bytes, content_type: str) -> bytes:
+        """Decode NovelAI's JSON/base64 or ZIP image response."""
+        content_type = str(content_type or "").lower()
+        if "json" in content_type:
+            data = json.loads(body.decode("utf-8"))
+            images = data.get("images", []) if isinstance(data, dict) else []
+            if not images:
+                return b""
+            encoded = images[0].get("image", "") if isinstance(images[0], dict) else images[0]
+            return base64.b64decode(encoded) if encoded else b""
+        if body.startswith(b"PK") or "zip" in content_type:
+            with zipfile.ZipFile(io.BytesIO(body)) as archive:
+                names = [
+                    name for name in archive.namelist()
+                    if not name.endswith("/") and name.lower().endswith((".png", ".webp", ".jpg", ".jpeg"))
+                ]
+                return archive.read(names[0]) if names else b""
+        if content_type.startswith("image/"):
+            return body
+        return b""
+
+    async def _generate_novelai_image(self, prompt, api_key, base_url, model):
+        if base_url.lower().endswith("/ai/generate-image"):
+            url = base_url
+        else:
+            url = f"{base_url}/ai/generate-image"
+        try:
+            width = max(64, min(2048, int(self.config.get("IMAGE_GEN_WIDTH", 1024) or 1024)))
+            height = max(64, min(2048, int(self.config.get("IMAGE_GEN_HEIGHT", 1024) or 1024)))
+            steps = max(1, min(50, int(self.config.get("IMAGE_GEN_STEPS", 28) or 28)))
+            scale = max(0.0, min(10.0, float(self.config.get("IMAGE_GEN_SCALE", 5.0) or 5.0)))
+        except (TypeError, ValueError):
+            width, height, steps, scale = 1024, 1024, 28, 5.0
+        negative_prompt = str(
+            self.config.get("IMAGE_GEN_NEGATIVE_PROMPT", "")
+            or "lowres, blurry, bad anatomy, bad hands, text, watermark"
+        ).strip()
+        parameters = {
+            "params_version": 3,
+            "width": width,
+            "height": height,
+            "scale": scale,
+            "sampler": str(self.config.get("IMAGE_GEN_SAMPLER", "") or "k_euler_ancestral"),
+            "steps": steps,
+            "n_samples": 1,
+            "ucPreset": 0,
+            "qualityToggle": True,
+            "dynamic_thresholding": False,
+            "cfg_rescale": 0,
+            "noise_schedule": "karras",
+            "negative_prompt": negative_prompt,
+            "image_format": "png",
+        }
+        if "diffusion-4" in model:
+            parameters.update({
+                "v4_prompt": {
+                    "caption": {"base_caption": prompt, "char_captions": []},
+                    "use_coords": False,
+                    "use_order": True,
+                },
+                "v4_negative_prompt": {
+                    "caption": {"base_caption": negative_prompt, "char_captions": []},
+                    "legacy_uc": False,
+                },
+            })
+        token = str(api_key).strip()
+        auth_value = token if token.lower().startswith("bearer ") else f"Bearer {token}"
+        payload = {"input": prompt, "model": model, "action": "generate", "parameters": parameters}
+        headers = {
+            "Authorization": auth_value,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=180),
+            ) as r:
+                body = await r.read()
+                if r.status not in (200, 201):
+                    message = body.decode("utf-8", errors="ignore")
+                    logger.error(f"[BiliBot] NovelAI 生图 HTTP {r.status}: {message[:300]}")
+                    return None
+                img_data = self._decode_novelai_image(body, r.headers.get("Content-Type", ""))
+        if not img_data:
+            logger.warning("[BiliBot] NovelAI 生图返回中没有可用图片")
+            return None
+        save_path = os.path.join(TEMP_IMAGE_DIR, f"dynamic_{int(time.time())}.png")
+        with open(save_path, "wb") as f:
+            f.write(img_data)
+        logger.info(f"[BiliBot] 🖼️ NovelAI 图片生成成功（{len(img_data) // 1024}KB）")
+        return save_path
+
+    async def _generate_image(self, prompt, human_initiated=False):
+        backend, api_key, base_url, model = self._get_image_gen_config()
         if not api_key:
             logger.warning("[BiliBot] 图片生成模型未配置")
             return None
         styled_prompt = f"anime style illustration, not photorealistic, soft lighting, beautiful colors: {prompt}"
+        if backend == "novelai":
+            if not human_initiated:
+                logger.warning("[BiliBot] NovelAI 官方要求生图由真人操作触发；本次定时动态跳过配图并降级为纯文字")
+                return None
+            try:
+                return await self._generate_novelai_image(styled_prompt, api_key, base_url, model)
+            except Exception as e:
+                logger.error(f"[BiliBot] NovelAI 图片生成异常: {e}")
+                return None
         url = f"{base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"model": model, "messages": [{"role": "user", "content": styled_prompt}], "modalities": ["image"]}
@@ -135,15 +272,15 @@ B站动态的感觉：
             logger.error(f"[BiliBot] 生成动态内容失败: {e}")
             return None
 
-    async def _run_dynamic(self):
+    async def _run_dynamic(self, human_initiated=False):
         try:
-            await self._run_dynamic_inner()
+            await self._run_dynamic_inner(human_initiated=human_initiated)
         except asyncio.CancelledError:
             logger.info("[BiliBot] 动态发布任务被取消")
         except Exception as e:
             logger.error(f"[BiliBot] 动态发布任务异常退出: {e}\n{traceback.format_exc()}")
 
-    async def _run_dynamic_inner(self):
+    async def _run_dynamic_inner(self, human_initiated=False):
         logger.info("[BiliBot] 📢 开始发布动态...")
         log = self._load_json(DYNAMIC_LOG_FILE, [])
         today = datetime.now().strftime("%Y-%m-%d")
@@ -174,21 +311,29 @@ B站动态的感觉：
         success = False
         if need_image and image_prompt:
             logger.info(f"[BiliBot] 🎨 生图提示：{image_prompt[:50]}...")
-            local_path = await self._generate_image(image_prompt)
+            local_path = await self._generate_image(image_prompt, human_initiated=human_initiated)
             if local_path:
                 img_info = await self._upload_image_to_bilibili(local_path)
                 if img_info:
-                    success = await self._post_dynamic_with_image(text, img_info)
+                    success = await self._queue_dynamic_post(
+                        text, lambda: self._post_dynamic_with_image(text, img_info)
+                    )
                 else:
-                    success = await self._post_dynamic_text(text)
+                    success = await self._queue_dynamic_post(
+                        text, lambda: self._post_dynamic_text(text)
+                    )
                 try:
                     os.remove(local_path)
                 except Exception:
                     pass
             else:
-                success = await self._post_dynamic_text(text)
+                success = await self._queue_dynamic_post(
+                    text, lambda: self._post_dynamic_text(text)
+                )
         else:
-            success = await self._post_dynamic_text(text)
+            success = await self._queue_dynamic_post(
+                text, lambda: self._post_dynamic_text(text)
+            )
         if success:
             log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "text": text, "has_image": need_image and bool(image_prompt), "image_prompt": image_prompt if need_image else ""})
             self._save_json(DYNAMIC_LOG_FILE, log[-100:])

@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.4.1
+AstrBot Plugin - Bilibili Bot 1.4.5
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
@@ -34,7 +34,7 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.4.1","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.4.5","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
 class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin, LiveDanmakuMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -43,6 +43,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._running = False
         self._task = None
         self._start_lock = asyncio.Lock()
+        self._memory_write_lock = asyncio.Lock()
         self._proactive_task = None
         self._bangumi_task = None
         self._last_cookie_check = 0
@@ -76,7 +77,16 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._private_message_last_activity_at = 0.0
         self._private_message_last_warned_backoff = 0
         self.layered_runtime = LayeredRuntime(self.config, LAYERED_DB_FILE)
-        self.event_runtime = EventRuntime(observer=self.layered_runtime)
+        try:
+            action_timeout = float(
+                self.config.get("BEHAVIOR_ACTION_TIMEOUT_SECONDS", 45) or 45
+            )
+        except (TypeError, ValueError):
+            action_timeout = 45
+        self.event_runtime = EventRuntime(
+            observer=self.layered_runtime,
+            action_timeout=action_timeout,
+        )
         self._init_live_danmaku_state()
         self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
@@ -108,6 +118,15 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             # The established JSON/in-memory path remains usable when SQLite cannot
             # be opened; the runtime observer records no data until the next reload.
             logger.error(f"[BiliBot] 四层运行服务启动失败，已回退兼容主链: {exc}")
+        else:
+            try:
+                await self._initialize_unified_memory()
+            except Exception as exc:
+                # 不拿用户已有的 JSON 记忆冒险；迁移失败只降级记忆存储，事件层照常运行。
+                self._mark_memory_sync_pending(exc)
+                logger.error(
+                    f"[BiliBot] 统一记忆迁移失败，暂时继续使用 memory.json: {exc}"
+                )
         if not self._has_cookie():
             logger.warning("[BiliBot] Cookie未配置，后台任务未启动")
             return
@@ -403,6 +422,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     async def terminate(self):
         await self._stop_bot()
         try:
+            await self.event_runtime.close()
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 动作队列关闭异常: {exc}")
+        try:
             await self.layered_runtime.close()
         except Exception as exc:
             logger.warning(f"[BiliBot] 四层运行服务关闭异常: {exc}")
@@ -545,8 +568,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         live_status = self._live_danmaku_status()
         runtime_status = await self.event_runtime.snapshot()
         runtime_priorities = runtime_status.get("event_priorities", {})
+        runtime_actions = runtime_status.get("action_states", {})
         lines = [
-            f"📺 BiliBot 1.4.1 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.4.5 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
@@ -563,11 +587,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"主动:{'✅' if self.config.get('ENABLE_PROACTIVE',False) else '❌'} 动态:{'✅' if self.config.get('ENABLE_DYNAMIC',False) else '❌'} 特关:{'✅' if self.config.get('SPECIAL_FOLLOW_ENABLED',False) else '❌'} 演化:{'✅' if self.config.get('ENABLE_PERSONALITY_EVOLUTION',True) else '❌'} 工具:{'✅' if self.config.get('ENABLE_LLM_TOOLS',True) else '❌'}",
             f"✉️ 主人推荐:{owner_recommend_delivery} | 最低{self.config.get('RECOMMEND_OWNER_MIN_SCORE', 8)}分 | 每日上限:{self.config.get('RECOMMEND_OWNER_DAILY_LIMIT', 1)}",
             f"🔍 联网搜索:{'✅ '+feature_status['web_search_backend'] if feature_status['web_search'] else '❌'} 判断模型:{'✅' if feature_status['web_search_judge'] else '❌(用主模型)'}",
+            f"🎨 动态配图:{'✅ '+feature_status['image_gen_backend'] if feature_status['dynamic_image_generation'] else '❌'}{'（仅手动命令）' if feature_status.get('image_gen_backend') == 'novelai' else ''}",
             f"🧭 看片来源:关注 → 搜索(Bot自主决定) → 视频池({self._format_video_pool_config()})",
             f"🔗 群/私聊解析:{'✅' if self.config.get('ENABLE_BILI_SHARE_PARSE', False) else '❌'} 发原视频:{'✅' if self.config.get('BILI_SHARE_PARSE_SEND_VIDEO', True) else '❌'}",
             f"   解析触发 自动:{'✅' if self.config.get('BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED',True) else '❌'} 手动:{'✅' if self.config.get('BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED',True) else '❌'} LLM:{'✅' if self.config.get('BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED',True) else '❌'}",
             f"🎙️ 直播记忆:{live_memory_count}条 | 外部接口:v{self.memory_api.api_version}",
-            f"🧱 统一事件:处理中{runtime_status['event_states']['processing']} | 已发送{runtime_status['event_states']['sent']} | 失败{runtime_status['event_states']['failed']} | 动作{runtime_status['actions']}",
+            f"🧱 统一调度:事件处理中{runtime_status['event_states']['processing']} | 队列{runtime_status.get('queue_depth', 0)} | 动作成功{runtime_actions.get('succeeded', 0)} | 失败{runtime_actions.get('failed', 0)} | 结果未知{runtime_actions.get('unknown', 0)}",
             f"🧭 近期优先级:管理员{runtime_priorities.get('admin', 0)} | @提及{runtime_priorities.get('direct_mention', 0)} | 对话{runtime_priorities.get('active_conversation', 0)} | 兴趣{runtime_priorities.get('interesting', 0)} | 普通{runtime_priorities.get('normal', 0)} | 后台{runtime_priorities.get('background', 0)}",
             f"🧭 看片筛选:{'✅' if self.config.get('ENABLE_PROACTIVE_LLM_PREFILTER', False) else '❌'} 最多拒绝:{self.config.get('PROACTIVE_LLM_PREFILTER_MAX_REJECTS', 3)}次 | 分区口味:{self._taste_window_days()}天",
             f"🎞️ 视频分段:{self.config.get('VIDEO_SEGMENT_MINUTES', 5)}分钟/段，最多{self.config.get('VIDEO_SEGMENT_MAX_COUNT', 10)}段",
@@ -910,7 +935,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     @filter.command("bili清理老化")
     async def cmd_cleanup_aged(self, event: AstrMessageEvent):
         """清理所有 aged=true 的长期记忆。"""
-        removed = self._consolidation.cleanup_aged()
+        removed = await self._consolidation.cleanup_aged()
         if removed:
             yield event.plain_result(f"🗑️ 已清理 {removed} 条老化记忆")
         else:
@@ -933,7 +958,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     @filter.command("bili迁移记忆")
     async def cmd_migrate_memory(self, event: AstrMessageEvent):
         """手动将无有效 level 的旧记忆迁移（chat→recent/7分，其他→long_term/8分）。"""
-        migrated = self._consolidation._migrate_legacy_entries()
+        async with self._memory_write_lock:
+            migrated = self._consolidation._migrate_legacy_entries()
+            if migrated:
+                await self._replace_memory_snapshot(assume_locked=True)
         if migrated:
             yield event.plain_result(f"📦 已迁移 {migrated} 条旧记忆（chat→recent/其他→long_term）")
         else:
@@ -1327,7 +1355,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             yield event.plain_result("❌ 请先 /bili登录")
             return
         yield event.plain_result("📢 正在发布动态...")
-        await self._run_dynamic()
+        await self._run_dynamic(human_initiated=True)
         yield event.plain_result("📢 动态发布流程已完成，请查看日志")
 
     @filter.command("bili看番")
@@ -1445,7 +1473,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             blocked_prefixes = [str(value).strip().lower() for value in self.config.get("MEMORY_BLOCKED_PREFIXES", []) if str(value).strip()]
             blocked_keywords = [str(value).strip().lower() for value in self.config.get("MEMORY_BLOCKED_KEYWORDS", []) if str(value).strip()]
             safe_memories = []
-            recent = self.memory_api.get_recent_memories(user_id=bili_uid, hours=24 * 7, limit=12)
+            recent = self.memory_api.get_recent_memories(
+                user_id=bili_uid,
+                hours=24 * 7,
+                limit=12,
+                reader_scope="admin",
+            )
             for item in recent:
                 if str(item.get("memory_type", "chat")) not in {"chat", "video", "dynamic", "user_summary"}:
                     continue

@@ -5,12 +5,14 @@
   第二层（认识这人）：用户画像/印象（不拉聊天记录）
   第三层（相关调取）：全局语义搜索（高阈值，不相关不注入）
 """
+import hashlib
 import re
 import json
 from datetime import datetime
 from astrbot.api import logger
+from .security import readable_scopes
 from .config import (
-    MAX_SEMANTIC_RESULTS, MEMORY_FILE, PERMANENT_MEMORY_FILE,
+    MAX_SEMANTIC_RESULTS, MEMORY_FILE, MEMORY_SYNC_STATE_FILE, PERMANENT_MEMORY_FILE,
     THREAD_COMPRESS_THRESHOLD,
     OID_COMPRESS_THRESHOLD, OID_KEEP_RECENT,
     USER_MEMORY_COMPRESS_THRESHOLD, USER_MEMORY_KEEP_RECENT,
@@ -40,9 +42,188 @@ class MemoryMixin:
         # 注意：不要 setdefault("level", None)，那会导致迁移检测 key 存在而跳过
         return rec
 
-    def _save_memory_entry(self, record):
-        self._memory.append(self._normalize_memory_entry(record))
-        self._save_json(MEMORY_FILE, self._memory)
+    @staticmethod
+    def _memory_timestamp(value):
+        if isinstance(value, (int, float)):
+            return float(value)
+        raw = str(value or "").strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(raw[:19], fmt).timestamp()
+            except ValueError:
+                continue
+        return datetime.now().timestamp()
+
+    def _prepare_memory_entry(self, record):
+        rec = self._normalize_memory_entry(record)
+        if not rec.get("rpid"):
+            stable = {
+                key: value
+                for key, value in rec.items()
+                if key not in {"embedding", "_sqlite_id", "created_at"}
+            }
+            digest = hashlib.sha256(
+                json.dumps(stable, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()[:24]
+            rec["rpid"] = f"legacy_{digest}"
+        source = str(rec.get("source") or "").strip().lower()
+        thread_id = str(rec.get("thread_id") or "").strip().lower()
+        memory_type = str(rec.get("memory_type") or "chat").strip().lower()
+        known_scopes = {
+            "bili_comment", "bili_dm", "bili_live", "qq_group", "qq_private",
+            "admin", "background", "proactive", "self", "analytics",
+        }
+        requested_scope = str(rec.get("scope") or "").strip()
+        if requested_scope in known_scopes:
+            scope = requested_scope
+        elif "private" in source or thread_id.startswith("private:"):
+            scope = "bili_dm"
+        elif "live" in source or thread_id.startswith("live:"):
+            scope = "bili_live"
+        elif source.startswith("qq_private"):
+            scope = "qq_private"
+        elif source.startswith("qq"):
+            scope = "qq_group"
+        elif memory_type in {"video", "dynamic", "bangumi"} or source in {
+            "proactive", "tool_watch", "private_share", "private_tool"
+        }:
+            scope = "proactive"
+        elif str(rec.get("user_id") or "") == "self":
+            scope = "self"
+        else:
+            scope = "bili_comment"
+        rec["scope"] = scope
+        uid = str(rec.get("user_id") or "").strip()
+        if not rec.get("actor_id"):
+            if uid == "self":
+                rec["actor_id"] = "sys:self"
+            elif uid:
+                platform = "qq" if scope.startswith("qq_") else "bili"
+                rec["actor_id"] = f"{platform}:{uid}"
+        rec["created_at"] = self._memory_timestamp(rec.get("created_at") or rec.get("time"))
+        promoted_at = rec.get("promoted_at")
+        if promoted_at and not rec.get("promoted_at_ts"):
+            rec["promoted_at_ts"] = self._memory_timestamp(promoted_at)
+        return rec
+
+    @staticmethod
+    def _memory_backup_records(records):
+        result = []
+        for item in records:
+            clean = dict(item)
+            clean.pop("_sqlite_id", None)
+            result.append(clean)
+        return result
+
+    def _mark_memory_sync_pending(self, reason=""):
+        self._save_json(
+            MEMORY_SYNC_STATE_FILE,
+            {
+                "pending": True,
+                "reason": str(reason or "")[:300],
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            },
+        )
+
+    def _clear_memory_sync_pending(self):
+        self._save_json(
+            MEMORY_SYNC_STATE_FILE,
+            {
+                "pending": False,
+                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            },
+        )
+
+    async def _initialize_unified_memory(self):
+        """首次导入旧 JSON；此后 SQLite 为主库，JSON 只保留兼容备份。"""
+        layered = getattr(self, "layered_runtime", None)
+        if layered is None or not layered.is_open:
+            return False
+        legacy = [
+            self._prepare_memory_entry(item)
+            for item in list(self._memory)
+            if isinstance(item, dict) and str(item.get("text") or "").strip()
+        ]
+        sync_state = self._load_json(MEMORY_SYNC_STATE_FILE, {})
+        migrated = bool(await layered.db.kv_get("unified_memory_v2_ready", False))
+        mapped_count = await layered.memories.legacy_count()
+        if (
+            not migrated
+            or bool(sync_state.get("pending"))
+            or (bool(legacy) and mapped_count == 0)
+        ):
+            await layered.memories.replace_legacy(legacy)
+            await layered.db.kv_set("unified_memory_v2_ready", True)
+        self._memory = [
+            self._normalize_memory_entry(item)
+            for item in await layered.memories.load_legacy()
+        ]
+        self._save_json(MEMORY_FILE, self._memory_backup_records(self._memory))
+        self._clear_memory_sync_pending()
+        logger.info(
+            f"[BiliBot] 统一记忆库已就绪: SQLite {len(self._memory)} 条；"
+            "memory.json 保留为兼容备份"
+        )
+        return True
+
+    async def _save_memory_entry(self, record):
+        lock = getattr(self, "_memory_write_lock", None)
+        if lock is None:
+            import asyncio
+            lock = self._memory_write_lock = asyncio.Lock()
+        async with lock:
+            await self._save_memory_entry_unlocked(record)
+
+    async def _save_memory_entry_unlocked(self, record):
+        rec = self._prepare_memory_entry(record)
+        key = str(rec["rpid"])
+        self._memory = [m for m in self._memory if str(m.get("rpid")) != key]
+        self._memory.append(rec)
+        layered = getattr(self, "layered_runtime", None)
+        try:
+            if layered is None or not layered.is_open:
+                raise RuntimeError("SQLite memory store is unavailable")
+            sync_state = self._load_json(MEMORY_SYNC_STATE_FILE, {})
+            if bool(sync_state.get("pending")):
+                await layered.memories.replace_legacy(self._memory)
+            else:
+                await layered.memories.upsert_legacy(rec)
+            self._clear_memory_sync_pending()
+        except Exception as exc:
+            # 保留旧文件兜底，并明确标记；下次 SQLite 成功启动会自动补同步。
+            self._mark_memory_sync_pending(exc)
+            logger.warning(f"[BiliBot] 统一记忆写入失败，已保留 JSON 待同步: {exc}")
+        self._save_json(MEMORY_FILE, self._memory_backup_records(self._memory))
+
+    async def _replace_memory_snapshot(self, assume_locked=False):
+        lock = getattr(self, "_memory_write_lock", None)
+        if not assume_locked:
+            if lock is None:
+                import asyncio
+                lock = self._memory_write_lock = asyncio.Lock()
+            async with lock:
+                return await self._replace_memory_snapshot_unlocked()
+        return await self._replace_memory_snapshot_unlocked()
+
+    async def _replace_memory_snapshot_unlocked(self):
+        prepared = [
+            self._prepare_memory_entry(item)
+            for item in self._memory
+            if isinstance(item, dict) and str(item.get("text") or "").strip()
+        ]
+        # rpid 是兼容主键；保留最后一次更新，避免旧文件中的重复项继续扩散。
+        unique = {str(item["rpid"]): item for item in prepared}
+        self._memory = list(unique.values())
+        layered = getattr(self, "layered_runtime", None)
+        try:
+            if layered is None or not layered.is_open:
+                raise RuntimeError("SQLite memory store is unavailable")
+            await layered.memories.replace_legacy(self._memory)
+            self._clear_memory_sync_pending()
+        except Exception as exc:
+            self._mark_memory_sync_pending(exc)
+            logger.warning(f"[BiliBot] 统一记忆快照同步失败，已保留 JSON 待同步: {exc}")
+        self._save_json(MEMORY_FILE, self._memory_backup_records(self._memory))
 
     @staticmethod
     def _memory_type_label(memory_type):
@@ -52,6 +233,27 @@ class MemoryMixin:
         if not memory_types:
             return True
         return self._normalize_memory_entry(memory).get("memory_type") in set(memory_types)
+
+    @staticmethod
+    def _reader_scope_for_channel(channel):
+        return {
+            "private": "bili_dm",
+            "live": "bili_live",
+            "qq_private": "qq_private",
+            "qq_group": "qq_group",
+        }.get(str(channel or "comment").strip().lower(), "bili_comment")
+
+    def _memory_visible_to(self, memory, reader_scope, user_id=""):
+        allowed = {scope.value for scope in readable_scopes(reader_scope)}
+        memory_scope = str(memory.get("scope") or self._prepare_memory_entry(memory).get("scope"))
+        if memory_scope not in allowed:
+            return False
+        # 全局联想不得把另一位用户的个人对话/总结套到当前用户身上。
+        if user_id and self._match_memory_type(memory, {"chat", "live", "user_summary"}):
+            remembered_uid = str(memory.get("user_id") or "")
+            if remembered_uid not in {"", "self", "summary", str(user_id)}:
+                return False
+        return True
 
     # ══════════════════════════════════════
     #  写入记忆
@@ -75,7 +277,7 @@ class MemoryMixin:
             rec["video_title"] = video_title
         if emb:
             rec["embedding"] = emb
-        self._save_memory_entry(rec)
+        await self._save_memory_entry(rec)
 
     async def _save_self_memory_record(self, thread_id, text, source="bilibili", memory_type="chat", user_id="self", extra=None):
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -94,7 +296,7 @@ class MemoryMixin:
         emb = await self._get_embedding(text)
         if emb:
             rec["embedding"] = emb
-        self._save_memory_entry(rec)
+        await self._save_memory_entry(rec)
         if memory_type == "video" and rec.get("owner_mid") and rec.get("bvid"):
             self._link_video_to_user_profile(
                 rec.get("owner_mid"),
@@ -187,7 +389,7 @@ class MemoryMixin:
             lines.extend(turns)
         return lines
 
-    def _get_bvid_memories(self, bvid, exclude_oid=None):
+    def _get_bvid_memories(self, bvid, exclude_oid=None, reader_scope="bili_comment", user_id=""):
         """按bvid调取所有与该视频相关的历史记忆（主动看视频、以前的评论区互动等）。
         排除当前oid避免和评论区记忆重复。"""
         exclude_oid_str = str(exclude_oid) if exclude_oid else ""
@@ -195,16 +397,18 @@ class MemoryMixin:
             m for m in self._memory
             if (m.get("bvid") == bvid or m.get("thread_id") == f"video:{bvid}")
             and (not exclude_oid_str or m.get("oid", "") != exclude_oid_str)
+            and self._memory_visible_to(m, reader_scope, user_id)
         ]
         docs.sort(key=lambda x: x.get("time", ""))
         return [self._format_memory_with_meta(m) for m in docs]
 
-    async def _get_user_semantic_memories(self, user_id, query_text, memory_types=None):
+    async def _get_user_semantic_memories(self, user_id, query_text, memory_types=None, reader_scope="bili_comment"):
         um = [
             m for m in self._memory
             if m.get("user_id") == str(user_id)
             and "embedding" in m
             and self._match_memory_type(m, memory_types or {"chat", "user_summary"})
+            and self._memory_visible_to(m, reader_scope, user_id)
         ]
         if not um:
             return []
@@ -215,13 +419,17 @@ class MemoryMixin:
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [t for s, t in scored[:MAX_SEMANTIC_RESULTS] if s > 0.6]
 
-    async def _search_memories_raw(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5):
+    async def _search_memories_raw(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5, reader_scope="admin"):
         """底层语义搜索：返回 [(score, record), ...]"""
         cands = list(self._memory)
         if source:
             cands = [m for m in cands if m.get("source") == source]
         if user_id is not None:
             cands = [m for m in cands if m.get("user_id") == str(user_id)]
+        cands = [
+            m for m in cands
+            if self._memory_visible_to(m, reader_scope, str(user_id or ""))
+        ]
         cands = [self._normalize_memory_entry(m) for m in cands if self._match_memory_type(m, memory_types)]
         cands = [m for m in cands if "embedding" in m]
         if not cands:
@@ -233,9 +441,9 @@ class MemoryMixin:
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [(s, m) for s, m in scored[:limit] if s > score_threshold]
 
-    async def _search_memories(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5):
+    async def _search_memories(self, query_text, limit=5, source=None, memory_types=None, user_id=None, score_threshold=0.5, reader_scope="admin"):
         """语义搜索，返回格式化的文本列表"""
-        raw = await self._search_memories_raw(query_text, limit=limit, source=source, memory_types=memory_types, user_id=user_id, score_threshold=score_threshold)
+        raw = await self._search_memories_raw(query_text, limit=limit, source=source, memory_types=memory_types, user_id=user_id, score_threshold=score_threshold, reader_scope=reader_scope)
         results = []
         for s, m in raw:
             tag = f"[{m.get('source', '?')}]" if not source else ""
@@ -299,7 +507,8 @@ class MemoryMixin:
                 comp["embedding"] = emb
             old_rpids = {m["rpid"] for m in old}
             self._memory = [m for m in self._memory if m.get("rpid") not in old_rpids]
-            self._save_memory_entry(comp)
+            self._memory.append(self._prepare_memory_entry(comp))
+            await self._replace_memory_snapshot()
             logger.info(f"[BiliBot] 🗜️ 评论区 {oid} 压缩：{len(old)} 条 → 1 条总结")
         except Exception as e:
             cooldowns[cooldown_key] = _time.time()
@@ -355,15 +564,23 @@ class MemoryMixin:
                 comp["embedding"] = emb
             old_rpids = {m["rpid"] for m in old}
             self._memory = [m for m in self._memory if m.get("rpid") not in old_rpids]
-            self._save_memory_entry(comp)
+            self._memory.append(self._prepare_memory_entry(comp))
+            await self._replace_memory_snapshot()
             logger.info(f"[BiliBot] 🗜️ 评论线 {thread_id} 压缩：{len(old)} 条 → 1 条总结")
         except Exception as e:
             cooldowns[cooldown_key] = _time.time()
             self._compress_cooldowns = cooldowns
             logger.error(f"[BiliBot] 评论线压缩失败（1小时后重试）：{e}")
 
-    async def _compress_user_memory(self, user_id, username):
-        um = [m for m in self._memory if m.get("user_id") == str(user_id) and self._match_memory_type(m, {"chat"})]
+    async def _compress_user_memory(self, user_id, username, memory_scope="bili_comment"):
+        """按用户且按记忆域压缩，禁止把评论、私信和直播揉进同一份总结。"""
+        um = [
+            m for m in self._memory
+            if m.get("user_id") == str(user_id)
+            and self._match_memory_type(m, {"chat"})
+            and str(m.get("scope") or self._prepare_memory_entry(m).get("scope"))
+            == str(memory_scope)
+        ]
         if len(um) <= USER_MEMORY_COMPRESS_THRESHOLD:
             return
         # 冷却机制：压缩失败后1小时内不重试，避免反复浪费 Token
@@ -392,14 +609,21 @@ class MemoryMixin:
                 result = json.loads(text)
             except Exception:
                 result = {"summary": text[:100], "tags": [], "user_facts": []}
-            self._update_user_profile(user_id, impression=result.get("summary") or None, new_facts=result.get("user_facts") or None, new_tags=result.get("tags") or None)
+            self._update_user_profile(
+                user_id,
+                impression=result.get("summary") or None,
+                new_facts=result.get("user_facts") or None,
+                new_tags=result.get("tags") or None,
+                source_scope=memory_scope,
+            )
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
             emb = await self._get_embedding(result.get("summary", ""))
             comp = {
                 "rpid": f"compressed_{int(datetime.now().timestamp())}",
-                "thread_id": "compressed", "user_id": str(user_id),
+                "thread_id": f"compressed:{memory_scope}", "user_id": str(user_id),
                 "time": now, "text": f"[记忆压缩] {result.get('summary', '')}",
                 "source": "bilibili", "memory_type": "user_summary",
+                "scope": str(memory_scope),
                 "level": "long_term", "importance": 7, "promoted_at": now,
             }
             # 保留元数据（用户可能在多个视频下互动，取最近的）
@@ -419,7 +643,8 @@ class MemoryMixin:
                 comp["embedding"] = emb
             old_rpids = {m["rpid"] for m in old}
             self._memory = [m for m in self._memory if m.get("rpid") not in old_rpids]
-            self._save_memory_entry(comp)
+            self._memory.append(self._prepare_memory_entry(comp))
+            await self._replace_memory_snapshot()
             logger.info(f"[BiliBot] 🗜️ 压缩完成：{len(old)} 条 → 1 条")
         except Exception as e:
             cooldowns[cooldown_key] = _time.time()
@@ -429,7 +654,7 @@ class MemoryMixin:
     # ══════════════════════════════════════
     #  上下文构建（分层优先级）
     # ══════════════════════════════════════
-    async def _build_memory_context(self, thread_id, user_id, query_text, oid=0, comment_type=1):
+    async def _build_memory_context(self, thread_id, user_id, query_text, oid=0, comment_type=1, channel="comment"):
         """
         三层优先级：
         第一层（主上下文）：永久记忆 + 视频/动态内容 + 评论区对话(oid) + 当前评论线
@@ -438,6 +663,7 @@ class MemoryMixin:
         """
         parts = []
         bot_mid = self.config.get("DEDE_USER_ID", "")
+        reader_scope = self._reader_scope_for_channel(channel)
 
         # ── 第一层：主上下文 ──
 
@@ -457,12 +683,17 @@ class MemoryMixin:
                 # UP主画像（知道这个UP主是谁）
                 up_mid = str(cache_entry.get("owner_mid", ""))
                 if up_mid and up_mid != bot_mid:
-                    up_profile = self._get_user_profile_context(up_mid)
+                    up_profile = self._get_user_profile_context(up_mid, reader_scope)
                     if up_profile:
                         parts.append(up_profile.replace("【对该用户的了解】", "【该视频UP主的了解】"))
             # 1.2.1 调取与该视频相关的历史记忆（按bvid匹配，排除当前oid避免重复）
             if bvid:
-                bvid_mems = self._get_bvid_memories(bvid, exclude_oid=oid)
+                bvid_mems = self._get_bvid_memories(
+                    bvid,
+                    exclude_oid=oid,
+                    reader_scope=reader_scope,
+                    user_id=user_id,
+                )
                 if bvid_mems:
                     parts.append("【以前关于这个视频的记忆】\n" + "\n".join(bvid_mems[-10:]))
         elif comment_type in (11, 17) and oid:
@@ -501,14 +732,20 @@ class MemoryMixin:
         # ── 第二层：认人 ──
 
         # 2.1 当前用户画像（印象+标签+事实，不拉聊天记录）
-        upc = self._get_user_profile_context(user_id)
+        upc = self._get_user_profile_context(user_id, reader_scope)
         if upc:
             parts.append(upc)
 
         # ── 第三层：联想（让模型自行判断相关性） ──
 
         # 3.1 全局语义搜索（排除本oid的记忆，避免重复；带元数据让模型判断）
-        global_mems = await self._search_global_relevant(query_text, current_oid=oid, limit=5)
+        global_mems = await self._search_global_relevant(
+            query_text,
+            current_oid=oid,
+            limit=5,
+            reader_scope=reader_scope,
+            user_id=user_id,
+        )
         if global_mems:
             parts.append(
                 "【以下是从记忆中调取的可能相关内容，每条标注了时间和来源。\n"
@@ -519,7 +756,7 @@ class MemoryMixin:
 
         return "\n\n".join(parts) if parts else ""
 
-    async def _search_global_relevant(self, query_text, current_oid=0, limit=5):
+    async def _search_global_relevant(self, query_text, current_oid=0, limit=5, reader_scope="bili_comment", user_id=""):
         """全局语义搜索，排除当前 oid，返回带元数据的格式化结果。
         不做硬阈值截断，让模型根据上下文自行判断相关性。"""
         current_oid_str = str(current_oid) if current_oid else ""
@@ -527,6 +764,7 @@ class MemoryMixin:
             m for m in self._memory
             if "embedding" in m
             and (not current_oid_str or m.get("oid", "") != current_oid_str)
+            and self._memory_visible_to(m, reader_scope, user_id)
         ]
         if not cands:
             return []

@@ -9,7 +9,7 @@ from datetime import datetime
 from astrbot.api import logger
 from .config import (
     AFFECTION_FILE, DATA_DIR, LEVEL_NAMES,
-    PERMANENT_MEMORY_FILE, REPLIED_AT_FILE, REPLIED_FILE,
+    REPLIED_AT_FILE, REPLIED_FILE,
     REPLIED_CONTENT_KEYS_FILE, REPLY_LOG_FILE,
     BILI_AT_NOTIFY_URL, BILI_NOTIFY_URL,
     VIDEO_MEMORY_FILE,
@@ -30,7 +30,11 @@ class ReplyMixin:
         return sum(
             1 for item in logs if isinstance(item, dict)
             and str(item.get("time", "")).startswith(today)
-            and ((item.get("channel") == "private") if channel == "private" else (item.get("channel") != "private"))
+            and (
+                (item.get("channel") == "private")
+                if channel == "private"
+                else item.get("channel") not in {"private", "live"}
+            )
         )
 
     def _daily_reply_limit_reached(self, channel="comment"):
@@ -167,7 +171,14 @@ class ReplyMixin:
                 clean_content += f"\n[用户发送了图片，内容是：{img_clean}]"
                 if img_susp and not is_suspicious:
                     is_suspicious, reason = True, f"图片内容:{img_reason}"
-            mc = await self._build_memory_context(thread_id, mid, clean_content, oid=oid, comment_type=comment_type)
+            mc = await self._build_memory_context(
+                thread_id,
+                mid,
+                clean_content,
+                oid=oid,
+                comment_type=comment_type,
+                channel=channel,
+            )
             ms = f"\n\n{mc}" if mc else ""
             mood, mp = self._get_today_mood()
             fest = self._get_festival_prompt()
@@ -301,10 +312,9 @@ class ReplyMixin:
                 + (
                     '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容或查询前的短回应", '
                     '"impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"], '
-                    '"permanent_memory": "值得永久记住的事(没有则留空)", '
                     '"tool_request": {"name": "none|bili_up_info|get_up_info|bili_video_search|search_bilibili|bili_search_and_watch|watch_video|bili_parse_video|check_following_updates|check_following_live|get_bangumi_info|get_bangumi_trending|get_bangumi_timeline|get_bangumi_updates|web_search", "query": ""}}\n\n'
                     if is_private and allow_tool_request and tool_request_prompt
-                    else '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容", "impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"], "permanent_memory": "值得永久记住的事(没有则留空)"}\n\n'
+                    else '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容", "impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"]}\n\n'
                 )
                 + "score_delta参考：真诚友善+2，正常交流+1，轻微冒犯-1，明确阴阳怪气-2，辱骂攻击-5。impression和user_facts只写这条消息能支持的内容，拿不准就留空。"
             )
@@ -369,7 +379,8 @@ class ReplyMixin:
                 "reply": r.get("reply", ""),
                 "impression": r.get("impression", ""),
                 "user_facts": r.get("user_facts", []),
-                "permanent_memory": r.get("permanent_memory", ""),
+                # 外部消息只能更新其来源域内的记忆与画像，不能请求写 SELF。
+                "permanent_memory": "",
                 "tool_request": {
                     "name": tool_name,
                     "query": str(tool_request.get("query") or "").strip()[:100],
@@ -385,7 +396,6 @@ class ReplyMixin:
         sd = result.get("score_delta", 1)
         imp = result.get("impression", "")
         uf = result.get("user_facts", [])
-        pm = result.get("permanent_memory", "")
 
         # ── 解析当前视频来源（comment_type=1 是视频评论区） ──
         bvid = ""
@@ -400,46 +410,81 @@ class ReplyMixin:
             except Exception:
                 pass
 
-        if self.config.get("ENABLE_AFFECTION", True):
+        ns = cs
+        milestone_hit = None
+        block_count = None
+        block_count_value = None
+        should_block = False
+        affection_enabled = self.config.get("ENABLE_AFFECTION", True)
+        if affection_enabled:
             if self._is_owner(mid):
                 ns = 100
-                self._affection[str(mid)] = ns
-                self._save_json(AFFECTION_FILE, self._affection)
-                logger.info("[BiliBot] 💛 主人💖 固定100分")
             else:
                 mx = 99
                 # cold 等级和自动拉黑阈值依赖负分，因此不能把下限截到 0。
                 ns = max(-99, min(mx, cs + sd))
-                self._affection[str(mid)] = ns
-                self._save_json(AFFECTION_FILE, self._affection)
-                ds = f"+{sd}" if sd >= 0 else str(sd)
-                logger.info(f"[BiliBot] 💛 {cs}→{ns}（{ds}）| {LEVEL_NAMES[self._get_level(ns, mid)]}")
-                mm = self._check_milestone(mid, cs, ns, username)
-                if mm:
-                    ai_reply = mm
-                should_block = False
+                milestone_hit = self._peek_milestone(mid, cs, ns, username)
+                if milestone_hit:
+                    ai_reply = milestone_hit[1]
                 # 自动拉黑：白名单/主人 永不拉黑，阈值与次数可配，开关可关
                 auto_block = self.config.get("ENABLE_AUTO_BLOCK", True) and not self._is_block_whitelisted(mid)
                 block_score = int(self.config.get("AUTO_BLOCK_SCORE", -30))
                 block_times = int(self.config.get("AUTO_BLOCK_NEGATIVE_TIMES", 5))
                 if auto_block and ns <= block_score:
                     should_block = True
+                block_count = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
                 if sd <= -3:
-                    bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
-                    bc[mid] = bc.get(mid, 0) + 1
-                    self._save_json(os.path.join(DATA_DIR, "block_count.json"), bc)
-                    if auto_block and block_times > 0 and bc[mid] >= block_times:
+                    block_count_value = int(block_count.get(mid, 0) or 0) + 1
+                    if auto_block and block_times > 0 and block_count_value >= block_times:
                         should_block = True
-                    self._log_security_event("negative", mid, username, content, f"{cs}→{ns}({ds})")
-                else:
-                    bc = self._load_json(os.path.join(DATA_DIR, "block_count.json"), {})
-                    if mid in bc:
-                        bc[mid] = 0
-                        self._save_json(os.path.join(DATA_DIR, "block_count.json"), bc)
+                elif mid in block_count:
+                    block_count_value = 0
                 if should_block:
-                    await self._send_reply(oid, rpid, comment_type, "我不想和你说话了。")
-                    await self._block_user(int(mid))
-                    logger.info(f"[BiliBot] 🚫 拉黑 {username}")
+                    block_notice = await self.event_runtime.execute(
+                        ActionRequest(
+                            key=f"comment_block_notice:{rpid}",
+                            kind="comment_reply",
+                            event_key=f"bilibili:comment:{rpid}",
+                            target_id=str(rpid),
+                            priority=0,
+                            metadata={"budget_exempt": True, "safety_action": True},
+                        ),
+                        lambda: self._send_reply(
+                            oid, rpid, comment_type, "我不想和你说话了。"
+                        ),
+                    )
+                    if block_notice.success:
+                        self._affection[str(mid)] = ns
+                        self._save_json(AFFECTION_FILE, self._affection)
+                        if block_count_value is not None:
+                            block_count[mid] = block_count_value
+                            self._save_json(
+                                os.path.join(DATA_DIR, "block_count.json"), block_count
+                            )
+                        ds = f"+{sd}" if sd >= 0 else str(sd)
+                        self._log_security_event(
+                            "negative", mid, username, content, f"{cs}→{ns}({ds})"
+                        )
+                        block_outcome = await self.event_runtime.execute(
+                            ActionRequest(
+                                key=f"comment_block:{mid}:{rpid}",
+                                kind="block_user",
+                                event_key=f"bilibili:comment:{rpid}",
+                                target_id=str(mid),
+                                priority=0,
+                                metadata={
+                                    "budget_exempt": True,
+                                    "safety_action": True,
+                                },
+                            ),
+                            lambda: self._block_user(int(mid)),
+                        )
+                        if block_outcome.success:
+                            logger.info(f"[BiliBot] 🚫 拉黑 {username}")
+                        else:
+                            logger.warning(
+                                f"[BiliBot] 拉黑动作未确认成功：{username}({mid})"
+                            )
                     return False
 
         # ── 更新用户画像（含视频遭遇记录） ──
@@ -450,21 +495,6 @@ class ReplyMixin:
                 "title": video_title,
                 "time": datetime.now().strftime("%Y-%m-%d"),
             }
-        if imp or uf or video_encounter:
-            self._update_user_profile(
-                mid, username=username,
-                impression=imp or None, new_facts=uf or None,
-                video_encounter=video_encounter,
-            )
-
-        if pm:
-            perm = self._load_json(PERMANENT_MEMORY_FILE, [])
-            if len(perm) < 20:
-                perm.append({"text": pm, "time": datetime.now().strftime("%Y-%m-%d %H:%M")})
-                self._save_json(PERMANENT_MEMORY_FILE, perm)
-                logger.info(f"[BiliBot] 💎 新增永久记忆：{pm[:50]}")
-            else:
-                logger.info(f"[BiliBot] 💎 永久记忆已满（20条），跳过：{pm[:30]}")
         logger.info(f"[BiliBot] 💬 {username}: {ai_reply[:50]}")
         outcome = await self.event_runtime.execute(
             ActionRequest(
@@ -472,12 +502,41 @@ class ReplyMixin:
                 kind="comment_reply",
                 event_key=f"bilibili:comment:{rpid}",
                 target_id=str(rpid),
+                priority=0 if self._is_owner(mid) else 20 if cs >= 40 else 40,
                 metadata={"oid": str(oid), "comment_type": comment_type},
             ),
             lambda: self._send_reply(oid, rpid, comment_type, ai_reply),
         )
         success = outcome.success
         if success:
+            if affection_enabled:
+                self._affection[str(mid)] = ns
+                self._save_json(AFFECTION_FILE, self._affection)
+                if milestone_hit:
+                    self._commit_milestone(mid, milestone_hit[0], username)
+                ds = f"+{sd}" if sd >= 0 else str(sd)
+                logger.info(
+                    f"[BiliBot] 💛 {cs}→{ns}（{ds}）| "
+                    f"{LEVEL_NAMES[self._get_level(ns, mid)]}"
+                )
+                if block_count_value is not None and block_count is not None:
+                    block_count[mid] = block_count_value
+                    self._save_json(
+                        os.path.join(DATA_DIR, "block_count.json"), block_count
+                    )
+                    if sd <= -3:
+                        self._log_security_event(
+                            "negative", mid, username, content, f"{cs}→{ns}({ds})"
+                        )
+            if imp or uf or video_encounter:
+                self._update_user_profile(
+                    mid,
+                    username=username,
+                    impression=imp or None,
+                    new_facts=uf or None,
+                    video_encounter=video_encounter,
+                    source_scope="bili_comment",
+                )
             # 写入独立的回复日志（不受记忆压缩影响）
             reply_log = self._load_json(REPLY_LOG_FILE, [])
             log_entry = {
@@ -500,7 +559,7 @@ class ReplyMixin:
             )
             await self._compress_thread_memory(thread_id)
             await self._compress_oid_memory(oid)
-            await self._compress_user_memory(mid, username)
+            await self._compress_user_memory(mid, username, "bili_comment")
         return success
 
     async def _poll_unified(self):

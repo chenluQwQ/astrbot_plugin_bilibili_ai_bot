@@ -1,3 +1,6 @@
+import asyncio
+import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -95,8 +98,102 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(row["state"], "succeeded")
 
+    async def test_behavior_budget_is_atomic_and_shared_by_actions(self):
+        await self.layers.close()
+        self.layers = LayeredRuntime(
+            {
+                "DEDE_USER_ID": "bot-1",
+                "OWNER_MID": "42",
+                "BEHAVIOR_GLOBAL_MAX_PER_MINUTE": 1,
+                "BEHAVIOR_GLOBAL_DAILY_LIMIT": 0,
+                "AUTONOMOUS_REPLY_DAILY_LIMIT": 0,
+            },
+            Path(self.temp_dir.name) / "bilibot.sqlite3",
+        )
+        await self.layers.open()
+        self.runtime = EventRuntime(observer=self.layers)
+        calls = 0
+
+        async def send():
+            nonlocal calls
+            calls += 1
+            return True
+
+        first, second = await asyncio.gather(
+            self.runtime.execute(
+                ActionRequest(key="budget:1", kind="comment_reply"), send
+            ),
+            self.runtime.execute(
+                ActionRequest(key="budget:2", kind="private_reply"), send
+            ),
+        )
+
+        self.assertEqual(sum(outcome.success for outcome in (first, second)), 1)
+        denied = second if first.success else first
+        self.assertTrue(denied.reason.startswith("budget_exhausted:"))
+        self.assertFalse(denied.duplicate)
+        self.assertEqual(calls, 1)
+
+    async def test_definite_failure_refunds_budget_but_unknown_does_not(self):
+        await self.layers.close()
+        self.layers = LayeredRuntime(
+            {
+                "BEHAVIOR_GLOBAL_MAX_PER_MINUTE": 0,
+                "BEHAVIOR_GLOBAL_DAILY_LIMIT": 1,
+                "AUTONOMOUS_REPLY_DAILY_LIMIT": 0,
+                "AUTONOMOUS_PRIVATE_DAILY_LIMIT": 0,
+            },
+            Path(self.temp_dir.name) / "bilibot.sqlite3",
+        )
+        await self.layers.open()
+        self.runtime = EventRuntime(observer=self.layers, action_timeout=0.01)
+
+        failed = await self.runtime.execute(
+            ActionRequest(key="refund:failed", kind="comment_reply"), lambda: False
+        )
+        after_refund = await self.runtime.execute(
+            ActionRequest(key="refund:success", kind="private_reply"), lambda: True
+        )
+
+        self.assertFalse(failed.success)
+        self.assertTrue(after_refund.success)
+
+        async def timeout_send():
+            await asyncio.sleep(0.1)
+            return True
+
+        # The successful action already consumes the only daily slot. Give the
+        # timeout its own exempted global setup, then verify its state directly.
+        unknown = await self.runtime.execute(
+            ActionRequest(
+                key="unknown:1",
+                kind="private_reply",
+                metadata={"budget_exempt": True},
+            ),
+            timeout_send,
+        )
+        self.assertEqual(unknown.state, "unknown")
+        row = await self.layers.db.fetch_one(
+            "SELECT state FROM actions WHERE key='unknown:1'"
+        )
+        self.assertEqual(row["state"], "unknown")
+        duplicate = await EventRuntime(observer=self.layers).execute(
+            ActionRequest(
+                key="unknown:1",
+                kind="private_reply",
+                metadata={"budget_exempt": True},
+            ),
+            lambda: True,
+        )
+        self.assertFalse(duplicate.success)
+        self.assertTrue(duplicate.duplicate)
+        self.assertEqual(duplicate.state, "unknown")
+
     async def test_profile_persona_and_memory_store_are_live(self):
         await self.runtime.claim(self.event("evt-profile"))
+        # 仅领取事件不应创建“已互动”画像；显式画像更新仍由存储层支持。
+        self.assertIsNone(await self.layers.profiles.get("bili:42"))
+        await self.layers._touch_profile("bili:42", "tester")
         profile = await self.layers.profiles.get("bili:42")
         self.assertIsNotNone(profile)
         self.assertEqual(profile.display_name, "tester")
@@ -117,6 +214,66 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(snapshot["tables"]["events"], 1)
         self.assertIn("energy", snapshot["persona"])
 
+    async def test_legacy_memory_roundtrip_separates_vector_and_metadata(self):
+        record = {
+            "rpid": "reply-100",
+            "text": "用户说喜欢音游，Bot记住了。",
+            "time": "2026-08-16 12:30",
+            "created_at": 1786854600.0,
+            "source": "bilibili_private",
+            "scope": "bili_dm",
+            "memory_type": "chat",
+            "level": "today",
+            "user_id": "42",
+            "username": "tester",
+            "actor_id": "bili:42",
+            "thread_id": "private:42:1",
+            "importance": 7,
+            "embedding": [0.25, -0.5, 1.0],
+            "custom": {"safe": True},
+        }
+        await self.layers.memories.upsert_legacy(record)
+        loaded = await self.layers.memories.load_legacy()
+
+        self.assertEqual(len(loaded), 1)
+        self.assertEqual(loaded[0]["rpid"], "reply-100")
+        self.assertEqual(loaded[0]["scope"], "bili_dm")
+        self.assertEqual(loaded[0]["custom"], {"safe": True})
+        self.assertEqual(len(loaded[0]["embedding"]), 3)
+        self.assertAlmostEqual(loaded[0]["embedding"][1], -0.5)
+        row = await self.layers.db.fetch_one(
+            "SELECT meta FROM memories WHERE id=?", (loaded[0]["_sqlite_id"],)
+        )
+        self.assertNotIn("embedding", row["meta"])
+
+    async def test_legacy_snapshot_replace_removes_only_legacy_rows(self):
+        native_id = await self.layers.memories.add(
+            "bili_comment", "native row", actor_id="bili:7"
+        )
+        first = {
+            "rpid": "old",
+            "text": "old row",
+            "scope": "bili_comment",
+            "created_at": 1.0,
+        }
+        second = {
+            "rpid": "keep",
+            "text": "keep row",
+            "scope": "bili_comment",
+            "created_at": 2.0,
+        }
+        await self.layers.memories.replace_legacy([first, second])
+        second["text"] = "updated row"
+        await self.layers.memories.replace_legacy([second])
+
+        loaded = await self.layers.memories.load_legacy()
+        self.assertEqual([item["rpid"] for item in loaded], ["keep"])
+        self.assertEqual(loaded[0]["text"], "updated row")
+        native = await self.layers.db.fetch_one(
+            "SELECT text FROM memories WHERE id=?", (native_id,)
+        )
+        self.assertEqual(native["text"], "native row")
+
     async def test_persona_rest_gate_keeps_urgent_priority_direction(self):
         self.layers.persona.current_segment = AsyncMock(
             return_value=SimpleNamespace(activity="rest")
@@ -126,6 +283,74 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(urgent)
         self.assertFalse(normal)
         self.assertIn("休息", reason)
+
+    async def test_schema_v2_database_adds_action_queue_columns(self):
+        legacy_path = Path(self.temp_dir.name) / "legacy-v2.sqlite3"
+        conn = sqlite3.connect(legacy_path)
+        conn.execute(
+            "CREATE TABLE actions (key TEXT PRIMARY KEY,kind TEXT NOT NULL,"
+            "event_key TEXT NOT NULL DEFAULT '',target_id TEXT NOT NULL DEFAULT '',"
+            "state TEXT NOT NULL DEFAULT 'running',digest TEXT NOT NULL DEFAULT '',"
+            "detail TEXT NOT NULL DEFAULT '',created_at REAL NOT NULL,finished_at REAL)"
+        )
+        conn.commit()
+        conn.close()
+
+        migrated = LayeredRuntime({}, legacy_path)
+        await migrated.open()
+        columns = await migrated.db.fetch_all("PRAGMA table_info(actions)")
+        await migrated.close()
+
+        names = {row["name"] for row in columns}
+        self.assertTrue({"priority", "attempts", "budget", "updated_at"} <= names)
+
+    async def test_restart_refunds_queued_and_quarantines_running_actions(self):
+        at = 1000.0
+        reservation = json.dumps(
+            [
+                {
+                    "bucket": "behavior:global:day",
+                    "window_key": "test-day",
+                    "amount": 1,
+                }
+            ]
+        )
+        await self.layers.db.execute(
+            "INSERT INTO counters(bucket,window_key,count,updated_at) VALUES(?,?,?,?)",
+            ("behavior:global:day", "test-day", 1, at),
+        )
+        await self.layers.db.execute(
+            "INSERT INTO actions(key,kind,state,budget,created_at,updated_at) "
+            "VALUES(?,?,?,?,?,?)",
+            ("restart:queued", "comment_reply", "queued", reservation, at, at),
+        )
+        await self.layers.db.execute(
+            "INSERT INTO actions(key,kind,state,budget,created_at,updated_at) "
+            "VALUES(?,?,?,?,?,?)",
+            ("restart:running", "private_reply", "running", reservation, at, at),
+        )
+        await self.layers.close()
+        self.layers = LayeredRuntime(
+            {"DEDE_USER_ID": "bot-1"},
+            Path(self.temp_dir.name) / "bilibot.sqlite3",
+        )
+        await self.layers.open()
+
+        queued = await self.layers.db.fetch_one(
+            "SELECT state,detail FROM actions WHERE key='restart:queued'"
+        )
+        running = await self.layers.db.fetch_one(
+            "SELECT state,detail FROM actions WHERE key='restart:running'"
+        )
+        counter = await self.layers.db.fetch_value(
+            "SELECT count FROM counters WHERE bucket=? AND window_key=?",
+            ("behavior:global:day", "test-day"),
+        )
+        self.assertEqual(queued["state"], "failed")
+        self.assertEqual(queued["detail"], "restart_before_send")
+        self.assertEqual(running["state"], "unknown")
+        self.assertEqual(running["detail"], "restart_during_send")
+        self.assertEqual(counter, 0)
 
     def test_stored_action_digest_uses_security_hash(self):
         key = StoredActionRequest(tool="post_dynamic", args={"text": "hi"}).digest_key()
