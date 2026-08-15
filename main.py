@@ -18,7 +18,7 @@ from .core import (
     BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin,
     ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin,
     PrivateMessageMixin, LiveDanmakuMixin, ConsolidationEngine, BiliBotMemoryAPI,
-    EventRuntime,
+    EventRuntime, LayeredRuntime,
 )
 
 _ACTIVE_BILIBOT = None
@@ -75,7 +75,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._private_message_success_streak = 0
         self._private_message_last_activity_at = 0.0
         self._private_message_last_warned_backoff = 0
-        self.event_runtime = EventRuntime()
+        self.layered_runtime = LayeredRuntime(self.config, LAYERED_DB_FILE)
+        self.event_runtime = EventRuntime(observer=self.layered_runtime)
         self._init_live_danmaku_state()
         self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
@@ -89,6 +90,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         # 注册 FunctionTool 工具（结果回到 LLM 重新生成）
         from .core.tools import create_tools
         llm_tools = create_tools(self)
+        self.layered_runtime.register_tools(llm_tools)
         self.context.add_llm_tools(*llm_tools)
         tool_names = ", ".join(tool.name for tool in llm_tools)
         logger.info(f"[BiliBot] LLM工具已精简注册: {len(llm_tools)} 个 ({tool_names})")
@@ -99,6 +101,13 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def initialize(self):
         """Start background work only after AstrBot has formally activated the plugin."""
+        try:
+            await self.layered_runtime.open()
+            logger.info("[BiliBot] 四层运行服务已连接")
+        except Exception as exc:
+            # The established JSON/in-memory path remains usable when SQLite cannot
+            # be opened; the runtime observer records no data until the next reload.
+            logger.error(f"[BiliBot] 四层运行服务启动失败，已回退兼容主链: {exc}")
         if not self._has_cookie():
             logger.warning("[BiliBot] Cookie未配置，后台任务未启动")
             return
@@ -393,6 +402,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
+        try:
+            await self.layered_runtime.close()
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 四层运行服务关闭异常: {exc}")
         # LLM 工具不在此手动注销：按名称删除可能误删其他插件覆盖注册的同名工具；
         # AstrBot 会按 handler_module_path 清理当前插件的工具。
         global _ACTIVE_BILIBOT

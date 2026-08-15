@@ -1,8 +1,8 @@
 """Authenticated Page bridge for the BiliBot management UI.
 
-The page is discovered from ``pages/bilibot/index.html``.  This module exposes
-only plugin-scoped APIs and intentionally reads the plugin's real JSON-backed
-runtime rather than the abandoned SQL prototype.
+The page is discovered from ``pages/bilibot/index.html``. The bridge combines
+the established JSON-backed feature state with the persistent layered runtime;
+account credentials remain available only through the dedicated login routes.
 """
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ from .config import (
     DYNAMIC_SCHEDULE_FILE,
     DYNAMIC_WATCH_SCHEDULE_FILE,
     PROACTIVE_LOG_FILE,
-    PROACTIVE_TRIGGER_LOG_FILE,
     REPLY_LOG_FILE,
     SCHEDULE_FILE,
     SECURITY_LOG_FILE,
@@ -202,7 +201,10 @@ async def handle_get_stats(plugin: Any):
     try:
         runtime = getattr(plugin, "event_runtime", None)
         runtime_stats = await runtime.snapshot() if runtime and hasattr(runtime, "snapshot") else {}
+        layered = getattr(plugin, "layered_runtime", None)
+        layered_stats = await layered.snapshot() if layered and layered.is_open else {"open": False}
         event_states = runtime_stats.get("event_states", {}) or {}
+        stored_events = layered_stats.get("events", {}) or {}
         failures = runtime_stats.get("recent_failures", []) or []
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
         failed_today = sum(1 for item in failures if float(item.get("at", 0) or 0) >= today_start)
@@ -243,7 +245,10 @@ async def handle_get_stats(plugin: Any):
             "running": running,
             "account_connected": configured,
             "scheduler_healthy": running and failed_today == 0,
-            "pending": int(event_states.get("pending", 0)) + int(event_states.get("processing", 0)),
+            "pending": max(
+                int(event_states.get("pending", 0)) + int(event_states.get("processing", 0)),
+                int(stored_events.get("pending", 0)) + int(stored_events.get("claimed", 0)),
+            ),
             "failed_today": failed_today,
             "ignored_today": int(event_states.get("ignored", 0)),
             "comment_replies_today": comment_replies,
@@ -259,6 +264,7 @@ async def handle_get_stats(plugin: Any):
             "activity_label": activity_label,
             "warnings": warnings,
             "runtime": runtime_stats,
+            "layers": layered_stats,
         }
         return _response(data)
     except Exception as exc:
@@ -268,6 +274,25 @@ async def handle_get_stats(plugin: Any):
 
 async def handle_get_persona_state(plugin: Any):
     try:
+        layered = getattr(plugin, "layered_runtime", None)
+        if layered and layered.is_open:
+            state = await layered.persona.snapshot()
+            segment = await layered.persona.current_segment()
+            return _response({
+                "energy": round(float(state.energy) * 100),
+                "mood": state.mood,
+                "current_mode": segment.activity if segment else state.phase,
+                "current_time_range": (
+                    f"{segment.start_min // 60:02d}:{segment.start_min % 60:02d}-"
+                    f"{segment.end_min // 60:02d}:{segment.end_min % 60:02d}"
+                    if segment else "当前未安排时段"
+                ),
+                "autonomous": bool(_config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False)),
+                "personality": {
+                    "social": round(float(state.social) * 100),
+                    "note": state.note,
+                },
+            })
         mood, _ = plugin._get_today_mood() if hasattr(plugin, "_get_today_mood") else ("平静", "")
         personality = {}
         activity = max(0, min(100, int(_config_value(plugin, "AUTONOMOUS_ACTIVITY_LEVEL", 55))))
@@ -291,6 +316,8 @@ async def handle_get_persona_state(plugin: Any):
 async def handle_memory_stats(plugin: Any):
     try:
         stats = plugin.memory_api.stats() if getattr(plugin, "memory_api", None) else {"total": len(getattr(plugin, "_memory", []))}
+        layered = getattr(plugin, "layered_runtime", None)
+        layered_count = await layered.memories.total_count() if layered and layered.is_open else 0
         data = {
             **stats,
             "comment": int(stats.get("type_chat", 0)),
@@ -298,6 +325,7 @@ async def handle_memory_stats(plugin: Any):
             "self": sum(1 for item in getattr(plugin, "_memory", []) if str(item.get("user_id", "")) == "self"),
             "isolation_mode": _config_value(plugin, "MEMORY_ISOLATION_MODE", "isolated"),
             "safe_share": bool(_config_value(plugin, "ENABLE_SAFE_CROSS_PLATFORM_MEMORY", False)),
+            "layered_total": layered_count,
         }
         return _response(data)
     except Exception as exc:
@@ -308,7 +336,13 @@ async def handle_memory_stats(plugin: Any):
 async def handle_memory_purge(plugin: Any):
     try:
         removed = int(plugin._consolidation.cleanup_aged()) if getattr(plugin, "_consolidation", None) else 0
-        return _response({"removed": removed}, f"已清理 {removed} 条过期记忆")
+        layered = getattr(plugin, "layered_runtime", None)
+        layered_removed = await layered.purge_expired() if layered and layered.is_open else {}
+        total = removed + sum(int(value or 0) for value in layered_removed.values())
+        return _response(
+            {"removed": total, "legacy_removed": removed, "layered": layered_removed},
+            f"已清理 {total} 条过期数据",
+        )
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] memory purge failed: {exc}")
         return _failure(str(exc), 500)
@@ -362,6 +396,26 @@ async def handle_get_profiles(plugin: Any):
         for uid, score in affection.items() if isinstance(affection, dict) else []:
             if str(uid) not in known:
                 data.append({"user_id": str(uid), "name": f"UID {uid}", "affection": int(score or 0), "relationship": plugin._get_level(score, uid) if hasattr(plugin, "_get_level") else "unknown", "impression": "", "tags": [], "facts_count": 0, "video_refs_count": 0, "last_interaction": ""})
+        layered = getattr(plugin, "layered_runtime", None)
+        if layered and layered.is_open:
+            for profile in await layered.recent_profiles(limit=50):
+                actor_id = str(profile.get("actor_id", ""))
+                platform, _, raw_id = actor_id.partition(":")
+                if platform != "bili" or not raw_id or raw_id in known:
+                    continue
+                data.append({
+                    "user_id": raw_id,
+                    "name": profile.get("display_name") or f"UID {raw_id}",
+                    "affection": int(affection.get(raw_id, 0) or 0),
+                    "relationship": profile.get("stage", "stranger"),
+                    "impression": profile.get("impression", ""),
+                    "tags": json.loads(profile.get("topics") or "[]")[-6:],
+                    "facts_count": 0,
+                    "video_refs_count": 0,
+                    "last_interaction": datetime.fromtimestamp(
+                        float(profile.get("last_seen", 0) or 0)
+                    ).strftime("%Y-%m-%d %H:%M") if profile.get("last_seen") else "",
+                })
         data.sort(key=lambda item: (item["affection"], item["last_interaction"]), reverse=True)
         return _response(data[:50])
     except Exception as exc:
@@ -437,13 +491,18 @@ async def handle_security_stats(plugin: Any):
         for item in today:
             key = str(item.get("event_type") or item.get("type") or "other")
             counts[key] = counts.get(key, 0) + 1
+        layered = getattr(plugin, "layered_runtime", None)
+        layered_security = await layered.security_stats() if layered and layered.is_open else {"today_total": 0, "by_type": {}}
+        for key, value in layered_security.get("by_type", {}).items():
+            counts[key] = counts.get(key, 0) + int(value or 0)
         return _response({
-            "today_total": len(today),
+            "today_total": len(today) + int(layered_security.get("today_total", 0)),
             "by_type": counts,
             "tool_isolation": bool(_config_value(plugin, "BILI_TOOL_ISOLATION_ENABLED", True)),
             "allowed_tools": _config_value(plugin, "BILI_TOOL_ALLOWLIST", []),
             "prompt_defense": bool(_config_value(plugin, "BILI_PROMPT_INJECTION_DEFENSE", True)),
             "memory_mode": _config_value(plugin, "MEMORY_ISOLATION_MODE", "isolated"),
+            "layered": layered_security,
         })
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] security stats failed: {exc}")
@@ -507,6 +566,8 @@ async def handle_available_tools(plugin: Any):
             seen.add(name)
             origin, origin_name = _tool_origin(plugin, tool)
             is_compatible = name in compatible
+            layered = getattr(plugin, "layered_runtime", None)
+            spec = layered.tool_gate.get(name) if layered else None
             result.append({
                 "name": name,
                 "label": compatible.get(name, (name, ""))[0],
@@ -516,6 +577,7 @@ async def handle_available_tools(plugin: Any):
                 "active": bool(getattr(tool, "active", True)),
                 "compatible": is_compatible,
                 "reason": "已提供 B站只读安全适配器" if is_compatible else "已注册，但尚未提供 B站只读适配器",
+                "security_tier": spec.tier.value if spec else "unclassified",
             })
         for name, (label, description) in compatible.items():
             if name not in seen:

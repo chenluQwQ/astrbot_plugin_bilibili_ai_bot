@@ -31,8 +31,16 @@ DEFAULT_TTL = 180.0
 #: 确认词。必须整条消息就是这些词之一（或以之开头），避免正文里
 #: 偶然出现"确认"两字就被当成授权。
 _CONFIRM_WORDS = (
-    "确认", "确认执行", "同意", "可以", "执行", "批准",
-    "confirm", "yes", "approve", "ok",
+    "确认",
+    "确认执行",
+    "同意",
+    "可以",
+    "执行",
+    "批准",
+    "confirm",
+    "yes",
+    "approve",
+    "ok",
 )
 _CANCEL_WORDS = ("取消", "算了", "不要", "拒绝", "no", "cancel", "deny")
 
@@ -208,8 +216,15 @@ class CapabilityStore:
             "session_id,args_hash,issued_at,expires_at,state) "
             "VALUES(?,?,?,?,?,?,?,?,?,'issued')",
             (
-                cap.token, cap.digest, cap.tool, cap.account_id, cap.caller_id,
-                cap.session_id, cap.args_hash, cap.issued_at, cap.expires_at,
+                cap.token,
+                cap.digest,
+                cap.tool,
+                cap.account_id,
+                cap.caller_id,
+                cap.session_id,
+                cap.args_hash,
+                cap.issued_at,
+                cap.expires_at,
             ),
         )
         return cap
@@ -226,7 +241,9 @@ class CapabilityStore:
             if row is None:
                 raise CapabilityError("授权票据不存在")
             if row["state"] != "issued":
-                raise CapabilityError(f"授权票据已{'使用' if row['state']=='consumed' else '失效'}")
+                raise CapabilityError(
+                    f"授权票据已{'使用' if row['state'] == 'consumed' else '失效'}"
+                )
             if row["expires_at"] <= now:
                 conn.execute(
                     "UPDATE capabilities SET state='expired' WHERE token=?",
@@ -243,10 +260,15 @@ class CapabilityStore:
 
         row = await self._db.run(_consume)
         return Capability(
-            token=row["token"], digest=row["digest"], tool=row["tool"],
-            account_id=row["account_id"], caller_id=row["caller_id"],
-            session_id=row["session_id"], args_hash=row["args_hash"],
-            issued_at=row["issued_at"], expires_at=row["expires_at"],
+            token=row["token"],
+            digest=row["digest"],
+            tool=row["tool"],
+            account_id=row["account_id"],
+            caller_id=row["caller_id"],
+            session_id=row["session_id"],
+            args_hash=row["args_hash"],
+            issued_at=row["issued_at"],
+            expires_at=row["expires_at"],
         )
 
     async def revoke_all(self, reason: str = "manual") -> int:

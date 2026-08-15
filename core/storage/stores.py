@@ -6,13 +6,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from ..security import Scope, can_read, readable_scopes
+from ..security import Scope, readable_scopes
 from .db import Database, now
 
 
@@ -111,17 +109,30 @@ class MemoryStore:
             "value_score,privacy,confidence,source_event,meta,created_at,expires_at,bytes"
             ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                str(scope), memory_type, level, actor_id, thread_id, target_id,
-                content, importance, value_score, privacy, confidence, source_event,
-                json.dumps(meta or {}, ensure_ascii=False), now(), expires_at, mem_bytes,
+                str(scope),
+                memory_type,
+                level,
+                actor_id,
+                thread_id,
+                target_id,
+                content,
+                importance,
+                value_score,
+                privacy,
+                confidence,
+                source_event,
+                json.dumps(meta or {}, ensure_ascii=False),
+                now(),
+                expires_at,
+                mem_bytes,
             ),
         )
 
     async def promote(self, memory_id: int, to_level: str = "long_term") -> None:
         """晋升记忆层级。recent → long_term → aged。"""
         await self._db.execute(
-            "UPDATE memories SET level=?, promoted_at=?, updated_at=? WHERE id=?",
-            (to_level, now(), now(), memory_id),
+            "UPDATE memories SET level=?, promoted_at=? WHERE id=?",
+            (to_level, now(), memory_id),
         )
 
     async def recall(
@@ -156,13 +167,23 @@ class MemoryStore:
         rows = await self._db.fetch_all(sql, params)
         return [
             Memory(
-                id=r["id"], scope=r["scope"], memory_type=r["memory_type"],
-                level=r["level"], actor_id=r["actor_id"], thread_id=r["thread_id"],
-                target_id=r["target_id"], text=r["text"], importance=r["importance"],
-                value_score=r["value_score"], privacy=r["privacy"],
-                confidence=r["confidence"], source_event=r["source_event"],
-                meta=json.loads(r["meta"] or "{}"), created_at=r["created_at"],
-                expires_at=r["expires_at"], promoted_at=r["promoted_at"],
+                id=r["id"],
+                scope=r["scope"],
+                memory_type=r["memory_type"],
+                level=r["level"],
+                actor_id=r["actor_id"],
+                thread_id=r["thread_id"],
+                target_id=r["target_id"],
+                text=r["text"],
+                importance=r["importance"],
+                value_score=r["value_score"],
+                privacy=r["privacy"],
+                confidence=r["confidence"],
+                source_event=r["source_event"],
+                meta=json.loads(r["meta"] or "{}"),
+                created_at=r["created_at"],
+                expires_at=r["expires_at"],
+                promoted_at=r["promoted_at"],
                 bytes=r["bytes"],
             )
             for r in rows
@@ -184,14 +205,13 @@ class MemoryStore:
                 "SELECT COALESCE(SUM(bytes), 0) FROM memories WHERE scope=?",
                 (str(scope),),
                 default=0,
-            ) or 0
+            )
+            or 0
         )
 
     async def total_count(self) -> int:
         return int(
-            await self._db.fetch_value(
-                "SELECT COUNT(*) FROM memories", default=0
-            ) or 0
+            await self._db.fetch_value("SELECT COUNT(*) FROM memories", default=0) or 0
         )
 
 
@@ -208,14 +228,20 @@ class ProfileStore:
         if row is None:
             return None
         return Profile(
-            actor_id=row["actor_id"], display_name=row["display_name"],
-            familiarity=row["familiarity"], trust=row["trust"],
-            warmth=row["warmth"], conflict=row["conflict"], stage=row["stage"],
+            actor_id=row["actor_id"],
+            display_name=row["display_name"],
+            familiarity=row["familiarity"],
+            trust=row["trust"],
+            warmth=row["warmth"],
+            conflict=row["conflict"],
+            stage=row["stage"],
             impression=row["impression"],
             topics=json.loads(row["topics"] or "[]"),
             avoid=json.loads(row["avoid"] or "[]"),
-            interact_count=row["interact_count"], first_seen=row["first_seen"],
-            last_seen=row["last_seen"], updated_at=row["updated_at"],
+            interact_count=row["interact_count"],
+            first_seen=row["first_seen"],
+            last_seen=row["last_seen"],
+            updated_at=row["updated_at"],
             revision=row["revision"],
         )
 
@@ -263,8 +289,14 @@ class ProfileStore:
                 "INSERT INTO profile_facts(actor_id,fact,scope,evidence,confidence,"
                 "approved,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)",
                 (
-                    actor_id, fact[:200], str(scope), evidence[:200],
-                    confidence, approved, now(), expires_at,
+                    actor_id,
+                    fact[:200],
+                    str(scope),
+                    evidence[:200],
+                    confidence,
+                    approved,
+                    now(),
+                    expires_at,
                 ),
             )
         except Exception as e:
@@ -272,7 +304,9 @@ class ProfileStore:
                 return 0
             raise
 
-    async def facts(self, actor_id: str, approved_only: bool = False) -> list[ProfileFact]:
+    async def facts(
+        self, actor_id: str, approved_only: bool = False
+    ) -> list[ProfileFact]:
         sql = "SELECT * FROM profile_facts WHERE actor_id=? AND (expires_at IS NULL OR expires_at > ?)"
         params: list[Any] = [actor_id, now()]
         if approved_only:
@@ -281,9 +315,14 @@ class ProfileStore:
         rows = await self._db.fetch_all(sql, params)
         return [
             ProfileFact(
-                id=r["id"], actor_id=r["actor_id"], fact=r["fact"], scope=r["scope"],
-                evidence=r["evidence"], confidence=r["confidence"],
-                approved=r["approved"], created_at=r["created_at"],
+                id=r["id"],
+                actor_id=r["actor_id"],
+                fact=r["fact"],
+                scope=r["scope"],
+                evidence=r["evidence"],
+                confidence=r["confidence"],
+                approved=r["approved"],
+                created_at=r["created_at"],
                 expires_at=r["expires_at"],
             )
             for r in rows
@@ -294,8 +333,7 @@ class ProfileStore:
 
     async def purge_expired_facts(self) -> int:
         return await self._db.execute(
-            "DELETE FROM profile_facts "
-            "WHERE expires_at IS NOT NULL AND expires_at < ?",
+            "DELETE FROM profile_facts WHERE expires_at IS NOT NULL AND expires_at < ?",
             (now(),),
         )
 
@@ -347,9 +385,17 @@ class MediaStore:
             "tokens_used=excluded.tokens_used,cost_cents=excluded.cost_cents,"
             "expires_at=excluded.expires_at",
             (
-                kind, ref, title, digest, json.dumps(facts or {}, ensure_ascii=False),
-                json.dumps(tags or [], ensure_ascii=False), tokens_used, cost_cents,
-                now(), expires_at, 0,
+                kind,
+                ref,
+                title,
+                digest,
+                json.dumps(facts or {}, ensure_ascii=False),
+                json.dumps(tags or [], ensure_ascii=False),
+                tokens_used,
+                cost_cents,
+                now(),
+                expires_at,
+                0,
             ),
         )
 
@@ -367,18 +413,24 @@ class MediaStore:
             (now(), row["id"]),
         )
         return MediaDigest(
-            id=row["id"], kind=row["kind"], ref=row["ref"], title=row["title"],
-            digest=row["digest"], facts=json.loads(row["facts"] or "{}"),
-            tags=json.loads(row["tags"] or "[]"), tokens_used=row["tokens_used"],
-            cost_cents=row["cost_cents"], created_at=row["created_at"],
-            expires_at=row["expires_at"], hits=row["hits"] + 1,
+            id=row["id"],
+            kind=row["kind"],
+            ref=row["ref"],
+            title=row["title"],
+            digest=row["digest"],
+            facts=json.loads(row["facts"] or "{}"),
+            tags=json.loads(row["tags"] or "[]"),
+            tokens_used=row["tokens_used"],
+            cost_cents=row["cost_cents"],
+            created_at=row["created_at"],
+            expires_at=row["expires_at"],
+            hits=row["hits"] + 1,
             last_hit_at=now(),
         )
 
     async def purge_expired(self) -> int:
         return await self._db.execute(
-            "DELETE FROM media_digests "
-            "WHERE expires_at IS NOT NULL AND expires_at < ?",
+            "DELETE FROM media_digests WHERE expires_at IS NOT NULL AND expires_at < ?",
             (now(),),
         )
 
@@ -399,5 +451,6 @@ class MediaStore:
         return float(
             await self._db.fetch_value(
                 "SELECT COALESCE(SUM(cost_cents), 0) FROM media_digests", default=0.0
-            ) or 0.0
+            )
+            or 0.0
         )

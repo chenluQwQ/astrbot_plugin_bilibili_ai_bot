@@ -32,6 +32,7 @@ _EXPORTS: dict[str, str] = {
     "LiveDanmakuMixin": "live_danmaku",
     "ConsolidationEngine": "consolidation",
     "BiliBotMemoryAPI": "memory_api",
+    "LayeredRuntime": "layered_runtime",
     "ActionRequest": "runtime",
     "EventPriority": "runtime",
     "EventRuntime": "runtime",
@@ -68,6 +69,7 @@ if TYPE_CHECKING:  # pragma: no cover - 仅供类型检查器看见真实符号
     from .llm import LLMMixin
     from .memory import MemoryMixin
     from .memory_api import BiliBotMemoryAPI
+    from .layered_runtime import LayeredRuntime
     from .personality import PersonalityMixin
     from .private_messages import PrivateMessageMixin
     from .proactive import ProactiveMixin

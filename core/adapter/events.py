@@ -40,16 +40,16 @@ class InboundEvent:
     """标准化入站事件。无论来源，都能映射成这些字段。"""
 
     account_id: str
-    source_type: str             # comment / at / dm / danmaku / qq_share / proactive ...
-    source_event_id: str         # rpid / at_id / message_id / danmaku_key
-    actor_id: str                # 强制 bili:xxx / qq:xxx，见 security.identity
+    source_type: str  # comment / at / dm / danmaku / qq_share / proactive ...
+    source_event_id: str  # rpid / at_id / message_id / danmaku_key
+    actor_id: str  # 强制 bili:xxx / qq:xxx，见 security.identity
     actor_name: str = ""
-    session_id: str = ""         # 会话域标识，见 security.scopes
-    target_id: str = ""          # bvid / oid / room_id / qq_group_id
-    thread_id: str = ""          # root_rpid / dm_session_id
+    session_id: str = ""  # 会话域标识，见 security.scopes
+    target_id: str = ""  # bvid / oid / room_id / qq_group_id
+    thread_id: str = ""  # root_rpid / dm_session_id
     scope: Scope = Scope.COMMENT
-    priority: int = 50           # 数值越小越优先
-    ignore_level: str = "normal" # normal / low_quality / spam / hostile
+    priority: int = 50  # 数值越小越优先
+    ignore_level: str = "normal"  # normal / low_quality / spam / hostile
     content: str = ""
     content_hash: str = ""
     payload: dict[str, Any] = field(default_factory=dict)
@@ -83,12 +83,22 @@ class EventAdapter:
                 "content_hash,payload,state,created_at,updated_at"
                 ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    event.account_id, event.source_type, event.source_event_id,
-                    caller.actor_id, caller.display_name, caller.session_id,
-                    event.target_id, event.thread_id, event.priority,
-                    event.ignore_level, event.content[:1200], event.content_hash,
+                    event.account_id,
+                    event.source_type,
+                    event.source_event_id,
+                    caller.actor_id,
+                    caller.display_name,
+                    caller.session_id,
+                    event.target_id,
+                    event.thread_id,
+                    event.priority,
+                    event.ignore_level,
+                    event.content[:1200],
+                    event.content_hash,
                     json.dumps(event.payload, ensure_ascii=False),
-                    EventState.RECEIVED.value, event.created_at, event.created_at,
+                    EventState.RECEIVED.value,
+                    event.created_at,
+                    event.created_at,
                 ),
             )
             return event_id
@@ -96,6 +106,94 @@ class EventAdapter:
             if "UNIQUE constraint failed" in str(e):
                 return 0
             raise
+
+    async def claim_event(
+        self,
+        event: InboundEvent,
+        caller: Caller,
+        *,
+        allow_retry_failed: bool = False,
+    ) -> tuple[int, bool, str]:
+        """Persist and atomically claim one specific event.
+
+        The live plugin handles an event immediately instead of running a separate
+        database worker. This method gives that path the same cross-restart
+        deduplication guarantees as :meth:`claim` without accidentally claiming a
+        different queued event.
+        """
+
+        def _claim_one(conn):
+            row = conn.execute(
+                "SELECT id,state,claimed_at FROM events WHERE account_id=? AND source_type=? "
+                "AND source_event_id=?",
+                (event.account_id, event.source_type, event.source_event_id),
+            ).fetchone()
+            at = now()
+            if row is not None:
+                state = str(row["state"])
+                stale_claim = (
+                    state == EventState.CLAIMED.value
+                    and float(row["claimed_at"] or 0) <= at - 1800
+                )
+                if stale_claim or (
+                    allow_retry_failed and state == EventState.FAILED.value
+                ):
+                    retry_reason = "stale_claim_retry" if stale_claim else "retry"
+                    conn.execute(
+                        "UPDATE events SET state=?,claimed_at=?,updated_at=?,"
+                        "attempts=attempts+1,error='' WHERE id=?",
+                        (EventState.CLAIMED.value, at, at, row["id"]),
+                    )
+                    conn.execute(
+                        "INSERT INTO event_transitions(event_id,from_state,to_state,reason,at) "
+                        "VALUES(?,?,?,?,?)",
+                        (row["id"], state, EventState.CLAIMED.value, retry_reason, at),
+                    )
+                    return int(row["id"]), True, retry_reason
+                return int(row["id"]), False, f"duplicate:{state}"
+
+            cursor = conn.execute(
+                "INSERT INTO events("
+                "account_id,source_type,source_event_id,actor_id,actor_name,"
+                "session_id,target_id,thread_id,priority,ignore_level,content,"
+                "content_hash,payload,state,attempts,created_at,updated_at,claimed_at"
+                ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    event.account_id,
+                    event.source_type,
+                    event.source_event_id,
+                    caller.actor_id,
+                    caller.display_name,
+                    caller.session_id,
+                    event.target_id,
+                    event.thread_id,
+                    event.priority,
+                    event.ignore_level,
+                    event.content[:1200],
+                    event.content_hash,
+                    json.dumps(event.payload, ensure_ascii=False, default=str),
+                    EventState.CLAIMED.value,
+                    1,
+                    event.created_at,
+                    at,
+                    at,
+                ),
+            )
+            event_id = int(cursor.lastrowid)
+            conn.execute(
+                "INSERT INTO event_transitions(event_id,from_state,to_state,reason,at) "
+                "VALUES(?,?,?,?,?)",
+                (
+                    event_id,
+                    EventState.RECEIVED.value,
+                    EventState.CLAIMED.value,
+                    "immediate",
+                    at,
+                ),
+            )
+            return event_id, True, ""
+
+        return await self._db.run(_claim_one)
 
     async def claim(self, batch_size: int = 1) -> list[dict[str, Any]]:
         """原子领取一批待处理事件。返回 claimed 后的完整行。"""
@@ -182,7 +280,8 @@ class EventAdapter:
                 "SELECT COUNT(*) FROM events WHERE content_hash=? AND created_at > ?",
                 (content_hash, cutoff),
                 default=0,
-            ) or 0
+            )
+            or 0
         )
 
     async def recent_by_actor(
@@ -190,8 +289,7 @@ class EventAdapter:
     ) -> list[dict[str, Any]]:
         """该用户最近的互动，用于生成回复时回顾对话历史。"""
         rows = await self._db.fetch_all(
-            "SELECT * FROM events WHERE actor_id=? "
-            "ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM events WHERE actor_id=? ORDER BY created_at DESC LIMIT ?",
             (actor_id, limit),
         )
         return [dict(r) for r in rows]
@@ -202,7 +300,8 @@ class EventAdapter:
                 "SELECT COUNT(*) FROM events WHERE state=?",
                 (EventState.RECEIVED.value,),
                 default=0,
-            ) or 0
+            )
+            or 0
         )
 
     async def stats(self) -> dict[str, Any]:
@@ -234,7 +333,7 @@ class ActionRequest:
 
     def digest_key(self) -> str:
         """幂等键。同工具+目标+参数只执行一次，避免双发。"""
-        from .security.capability import args_hash
+        from ..security.capability import args_hash
 
         return f"{self.tool}:{self.target_id or 'none'}:{args_hash(self.args)}"
 
@@ -262,9 +361,13 @@ class ActionRegistry:
             "INSERT INTO actions(key,kind,event_key,target_id,digest,state,created_at) "
             "VALUES(?,?,?,?,?,?,?)",
             (
-                key, request.tool, event_key, request.target_id,
+                key,
+                request.tool,
+                event_key,
+                request.target_id,
                 json.dumps(request.args, ensure_ascii=False)[:500],
-                "running", now(),
+                "running",
+                now(),
             ),
         )
 

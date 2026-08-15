@@ -25,12 +25,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timezone
 from typing import Any
 
 from ..governance import ProactiveDecider
 from ..persona import PersonaEngine
-from ..storage import Database, now
+from ..storage import Database
 
 
 class ScheduledTasks:
@@ -175,9 +175,6 @@ class ScheduledTasks:
 
     async def _trigger_revisit(self) -> None:
         """检查并触发关系维护。"""
-        from ..storage import ProfileStore
-
-        store = ProfileStore(self._db)
         # 简化示例：实际需查询 profiles 并过滤最近未互动 + warmth 高的
         # top = await store.top_by_warmth(limit=5)
         # for profile in top:

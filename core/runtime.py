@@ -193,6 +193,7 @@ class EventRuntime:
         action_ttl: float = 24 * 3600,
         max_events: int = 2000,
         max_actions: int = 2000,
+        observer: Any = None,
     ):
         self.event_ttl = max(60.0, float(event_ttl))
         self.action_ttl = max(60.0, float(action_ttl))
@@ -202,17 +203,52 @@ class EventRuntime:
         self._actions: OrderedDict[str, _ActionRecord] = OrderedDict()
         self._recent_failures = deque(maxlen=50)
         self._lock = asyncio.Lock()
+        self._observer = observer
+
+    def set_observer(self, observer: Any = None) -> None:
+        """Attach an optional persistent observer without coupling this module to it."""
+
+        self._observer = observer
+
+    async def _notify_observer(self, method: str, *args: Any) -> Any:
+        observer = self._observer
+        handler = getattr(observer, method, None) if observer is not None else None
+        if handler is None:
+            return None
+        try:
+            result = handler(*args)
+            return await result if inspect.isawaitable(result) else result
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Persistence/telemetry is fail-open: a damaged auxiliary database must
+            # never take the existing comment, DM or live reply chain down with it.
+            self._recent_failures.append(
+                {
+                    "kind": "runtime_observer",
+                    "key": method,
+                    "reason": str(exc)[:300],
+                    "at": time.time(),
+                }
+            )
+            return None
 
     def _prune_locked(self, now: Optional[float] = None):
         now = time.monotonic() if now is None else now
         while self._events:
             key, record = next(iter(self._events.items()))
-            if len(self._events) <= self.max_events and now - record.updated_at <= self.event_ttl:
+            if (
+                len(self._events) <= self.max_events
+                and now - record.updated_at <= self.event_ttl
+            ):
                 break
             self._events.pop(key, None)
         while self._actions:
             key, record = next(iter(self._actions.items()))
-            if len(self._actions) <= self.max_actions and now - record.updated_at <= self.action_ttl:
+            if (
+                len(self._actions) <= self.max_actions
+                and now - record.updated_at <= self.action_ttl
+            ):
                 break
             self._actions.pop(key, None)
 
@@ -241,9 +277,7 @@ class EventRuntime:
 
         return sorted(
             list(events),
-            key=lambda event: self.event_sort_key(
-                event, newest_first=newest_first
-            ),
+            key=lambda event: self.event_sort_key(event, newest_first=newest_first),
         )
 
     async def claim(
@@ -258,6 +292,23 @@ class EventRuntime:
         标记为失败的事件能重新进入处理中；已发送、已忽略或仍在处理的事件不会
         被重复领取。
         """
+
+        persistent = await self._notify_observer(
+            "before_claim", event, allow_retry_failed
+        )
+        if persistent is not None:
+            allowed = (
+                bool(persistent[0])
+                if isinstance(persistent, tuple)
+                else bool(persistent)
+            )
+            reason = (
+                str(persistent[1])
+                if isinstance(persistent, tuple) and len(persistent) > 1
+                else "persistent_duplicate"
+            )
+            if not allowed:
+                return EventClaim(False, event.key, reason)
 
         now = time.monotonic()
         async with self._lock:
@@ -287,10 +338,13 @@ class EventRuntime:
         reason: str = "",
     ) -> bool:
         try:
-            normalized_state = state if isinstance(state, EventState) else EventState(state)
+            normalized_state = (
+                state if isinstance(state, EventState) else EventState(state)
+            )
         except ValueError:
             raise ValueError(f"unknown event state: {state}") from None
         now = time.monotonic()
+        event = None
         async with self._lock:
             record = self._events.get(str(event_key or ""))
             if record is None:
@@ -308,7 +362,11 @@ class EventRuntime:
                         "at": time.time(),
                     }
                 )
-            return True
+            event = record.event
+        await self._notify_observer(
+            "on_event_transition", event, normalized_state, record.reason
+        )
+        return True
 
     async def execute(
         self,
@@ -323,7 +381,33 @@ class EventRuntime:
         重复发送。失败动作允许下一轮重新尝试。
         """
 
+        persistent = await self._notify_observer("before_action", request)
+        if persistent is not None:
+            allowed = (
+                bool(persistent[0])
+                if isinstance(persistent, tuple)
+                else bool(persistent)
+            )
+            reason = (
+                str(persistent[1])
+                if isinstance(persistent, tuple) and len(persistent) > 1
+                else "persistent_duplicate"
+            )
+            previous_success = bool(
+                persistent[2]
+                if isinstance(persistent, tuple) and len(persistent) > 2
+                else False
+            )
+            if not allowed:
+                return ActionOutcome(
+                    previous_success,
+                    request.key,
+                    reason=reason,
+                    duplicate=True,
+                )
+
         now = time.monotonic()
+        sending_event = None
         async with self._lock:
             self._prune_locked(now)
             previous = self._actions.get(request.key)
@@ -355,6 +439,12 @@ class EventRuntime:
             if event_record is not None:
                 event_record.state = EventState.SENDING
                 event_record.updated_at = now
+                sending_event = event_record.event
+
+        if sending_event is not None:
+            await self._notify_observer(
+                "on_event_transition", sending_event, EventState.SENDING, ""
+            )
 
         try:
             value = handler()
@@ -380,6 +470,8 @@ class EventRuntime:
         reason: str,
     ):
         now = time.monotonic()
+        finished_event = None
+        finished_state = EventState.SENT if succeeded else EventState.FAILED
         async with self._lock:
             record = self._actions.get(request.key)
             if record is None:
@@ -392,10 +484,11 @@ class EventRuntime:
             self._actions.move_to_end(request.key)
             event_record = self._events.get(request.event_key)
             if event_record is not None:
-                event_record.state = EventState.SENT if succeeded else EventState.FAILED
+                event_record.state = finished_state
                 event_record.reason = record.reason
                 event_record.updated_at = now
                 self._events.move_to_end(request.event_key)
+                finished_event = event_record.event
             if not succeeded:
                 self._recent_failures.append(
                     {
@@ -406,6 +499,13 @@ class EventRuntime:
                     }
                 )
             self._prune_locked(now)
+        await self._notify_observer(
+            "on_action_finished", request, succeeded, record.reason
+        )
+        if finished_event is not None:
+            await self._notify_observer(
+                "on_event_transition", finished_event, finished_state, record.reason
+            )
 
     async def snapshot(self) -> dict[str, Any]:
         """返回可供状态命令和未来 WebUI 使用的脱敏运行快照。"""

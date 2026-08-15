@@ -23,10 +23,10 @@ from .scopes import Scope, policy_for
 class Tier(str, Enum):
     """工具能力层级。"""
 
-    PUBLIC_READ = "public_read"        # 公开数据，无账号身份
-    PRIVATE_READ = "private_read"      # 需要账号凭据的读取
-    WRITE = "write"                    # 改变平台状态或发出内容
-    PERSONA_ADMIN = "persona_admin"    # 记忆/人格/画像管理，永不对外
+    PUBLIC_READ = "public_read"  # 公开数据，无账号身份
+    PRIVATE_READ = "private_read"  # 需要账号凭据的读取
+    WRITE = "write"  # 改变平台状态或发出内容
+    PERSONA_ADMIN = "persona_admin"  # 记忆/人格/画像管理，永不对外
 
 
 #: 各层级要求的最低角色。
@@ -144,7 +144,9 @@ class ToolGate:
             if not self._private_read_enabled():
                 return Decision(False, "账号私密读取工具未启用")
             if not policy.allow_private_read:
-                return Decision(False, f"通道 {caller.scope.value} 不允许读取账号私密数据")
+                return Decision(
+                    False, f"通道 {caller.scope.value} 不允许读取账号私密数据"
+                )
             if caller.role < _MIN_ROLE[Tier.PRIVATE_READ]:
                 return Decision(False, "权限不足")
             return Decision(True)

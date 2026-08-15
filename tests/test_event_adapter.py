@@ -1,19 +1,21 @@
 """
 测试事件适配层
 """
+
 import unittest
 import asyncio
 import os
 import sys
 import tempfile
-from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 # 创建 astrbot stub
 class MessageType:
     GROUP_MESSAGE = "group"
     FRIEND_MESSAGE = "friend"
+
 
 class AstrMessageEvent:
     def __init__(self):
@@ -24,13 +26,14 @@ class AstrMessageEvent:
         self.raw_message = ""
         self.unified_msg_origin = ""
 
+
 from core.storage import Database  # noqa: E402
 from core.event_adapter import EventAdapter  # noqa: E402
 
 
 class TestEventAdapter(unittest.TestCase):
     def setUp(self):
-        self.db_fd, self.db_path = tempfile.mkstemp(suffix='.db')
+        self.db_fd, self.db_path = tempfile.mkstemp(suffix=".db")
         self.db = Database(self.db_path)
         asyncio.run(self.db.open())
         self.adapter = EventAdapter(self.db)
@@ -42,6 +45,7 @@ class TestEventAdapter(unittest.TestCase):
 
     def test_ingest_and_claim(self):
         """测试事件入库和 claim 流程"""
+
         async def run():
             # 模拟一个评论事件
             event = AstrMessageEvent()
@@ -53,9 +57,7 @@ class TestEventAdapter(unittest.TestCase):
             event.unified_msg_origin = "bilibili"
 
             event_id = await self.adapter.ingest_message_event(
-                event,
-                platform_id="bili:comment:789",
-                source_type="comment"
+                event, platform_id="bili:comment:789", source_type="comment"
             )
             self.assertTrue(event_id.startswith("evt_"))
 
@@ -75,16 +77,16 @@ class TestEventAdapter(unittest.TestCase):
 
             # 验证状态
             result = await self.adapter.db.fetch_one(
-                "SELECT state, draft FROM events WHERE id = ?",
-                (int(event_id[4:]),)
+                "SELECT state, draft FROM events WHERE id = ?", (int(event_id[4:]),)
             )
-            self.assertEqual(result["state"], "replied")
+            self.assertEqual(result["state"], "sent")
             self.assertEqual(result["draft"], "处理成功")
 
         asyncio.run(run())
 
     def test_claim_timeout_recovery(self):
         """测试超时事件可被重新 claim"""
+
         async def run():
             event = AstrMessageEvent()
             event.message_str = "超时测试"
@@ -95,9 +97,7 @@ class TestEventAdapter(unittest.TestCase):
             event.unified_msg_origin = "bilibili"
 
             event_id = await self.adapter.ingest_message_event(
-                event,
-                platform_id="bili:comment:timeout",
-                source_type="comment"
+                event, platform_id="bili:comment:timeout", source_type="comment"
             )
 
             # 第一次 claim
@@ -106,11 +106,11 @@ class TestEventAdapter(unittest.TestCase):
 
             # 模拟超时：手动修改 claimed_at 为 1 小时前
             import time
+
             old_time = time.time() - 3600
             numeric_id = int(event_id[4:])
             await self.adapter.db.execute(
-                "UPDATE events SET claimed_at = ? WHERE id = ?",
-                (old_time, numeric_id)
+                "UPDATE events SET claimed_at = ? WHERE id = ?", (old_time, numeric_id)
             )
 
             # 第二次 claim 应该成功（超时回收）
@@ -122,6 +122,7 @@ class TestEventAdapter(unittest.TestCase):
 
     def test_fail_event(self):
         """测试事件失败标记"""
+
         async def run():
             event = AstrMessageEvent()
             event.message_str = "失败测试"
@@ -132,9 +133,7 @@ class TestEventAdapter(unittest.TestCase):
             event.unified_msg_origin = "bilibili"
 
             event_id = await self.adapter.ingest_message_event(
-                event,
-                platform_id="bili:comment:fail",
-                source_type="comment"
+                event, platform_id="bili:comment:fail", source_type="comment"
             )
 
             claimed = await self.adapter.claim_event()
@@ -146,8 +145,7 @@ class TestEventAdapter(unittest.TestCase):
             # 验证状态
             numeric_id = int(event_id[4:])
             result = await self.adapter.db.fetch_one(
-                "SELECT state, error FROM events WHERE id = ?",
-                (numeric_id,)
+                "SELECT state, error FROM events WHERE id = ?", (numeric_id,)
             )
             self.assertEqual(result["state"], "failed")
             self.assertIn("模拟处理错误", result["error"])

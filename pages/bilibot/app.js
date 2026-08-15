@@ -1614,5 +1614,3 @@ function init() {
 }
 
 init();
-
-

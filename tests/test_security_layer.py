@@ -12,7 +12,6 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.security import capability as cap_mod  # noqa: E402
 from core.security.capability import (  # noqa: E402
     CapabilityError,
     CapabilityStore,
@@ -227,7 +226,9 @@ class ToolGateTests(unittest.TestCase):
                 persona_admin("wipe_memory", "清记忆", noop),
             ]
         )
-        self.stranger = Caller(actor_id="bili:1", role=Role.STRANGER, scope=Scope.COMMENT)
+        self.stranger = Caller(
+            actor_id="bili:1", role=Role.STRANGER, scope=Scope.COMMENT
+        )
         self.admin = Caller(actor_id="qq:9", role=Role.ADMIN, scope=Scope.QQ_PRIVATE)
 
     def test_external_stranger_sees_nothing(self):
@@ -285,13 +286,21 @@ class ToolGateTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             ToolSpec(
-                name="bad", tier=Tier.WRITE, description="x",
-                handler=noop, read_only=False, needs_capability=False,
+                name="bad",
+                tier=Tier.WRITE,
+                description="x",
+                handler=noop,
+                read_only=False,
+                needs_capability=False,
             )
         with self.assertRaises(ValueError):
             ToolSpec(
-                name="bad2", tier=Tier.WRITE, description="x",
-                handler=noop, read_only=True, needs_capability=True,
+                name="bad2",
+                tier=Tier.WRITE,
+                description="x",
+                handler=noop,
+                read_only=True,
+                needs_capability=True,
             )
 
 
@@ -303,7 +312,9 @@ class CapabilityTests(unittest.TestCase):
         self.now = 1000.0
         self.store = CapabilityStore(self.db, clock=lambda: self.now)
         self.admin = Caller(
-            actor_id="qq:9", role=Role.ADMIN, scope=Scope.QQ_PRIVATE,
+            actor_id="qq:9",
+            role=Role.ADMIN,
+            scope=Scope.QQ_PRIVATE,
             session_id="default!qq_private!uid:9",
         )
         self.digest = build_digest(
@@ -343,7 +354,11 @@ class CapabilityTests(unittest.TestCase):
             actor_id="bili:42", role=Role.ADMIN, scope=Scope.COMMENT
         )
         with self.assertRaises(CapabilityError):
-            run(self.store.issue(self.digest, admin_in_comment, confirmed_message="确认"))
+            run(
+                self.store.issue(
+                    self.digest, admin_in_comment, confirmed_message="确认"
+                )
+            )
 
     def test_token_is_single_use(self):
         cap = run(self.store.issue(self.digest, self.admin, confirmed_message="确认"))

@@ -97,9 +97,7 @@ class Database:
         async with self._lock:
             return await asyncio.to_thread(self._fetch_all_sync, sql, params)
 
-    def _fetch_all_sync(
-        self, sql: str, params: Sequence[Any]
-    ) -> list[sqlite3.Row]:
+    def _fetch_all_sync(self, sql: str, params: Sequence[Any]) -> list[sqlite3.Row]:
         return list(self._require().execute(sql, params).fetchall())
 
     async def fetch_one(
@@ -108,9 +106,7 @@ class Database:
         async with self._lock:
             return await asyncio.to_thread(self._fetch_one_sync, sql, params)
 
-    def _fetch_one_sync(
-        self, sql: str, params: Sequence[Any]
-    ) -> sqlite3.Row | None:
+    def _fetch_one_sync(self, sql: str, params: Sequence[Any]) -> sqlite3.Row | None:
         return self._require().execute(sql, params).fetchone()
 
     async def fetch_value(

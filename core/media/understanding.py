@@ -27,7 +27,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any
 
-from ..security import Caller, Scope, media_session
+from ..security import Caller, media_session
 from ..storage import Database, MediaStore
 
 
@@ -36,7 +36,7 @@ class MediaDigestRequest:
     """媒体理解请求。"""
 
     kind: str  # video / image / dynamic
-    ref: str   # bvid / 图片 URL / dynamic_id
+    ref: str  # bvid / 图片 URL / dynamic_id
     title: str = ""
     url: str = ""
     context: str = ""  # 用户问了什么（如"这个视频讲的啥"）
@@ -99,9 +99,15 @@ class MediaUnderstanding:
             cached = await self._store.get(request.kind, request.ref)
             if cached:
                 return MediaDigestResult(
-                    kind=cached.kind, ref=cached.ref, title=cached.title,
-                    digest=cached.digest, facts=cached.facts, tags=cached.tags,
-                    tokens_used=0, cost_cents=0.0, from_cache=True,
+                    kind=cached.kind,
+                    ref=cached.ref,
+                    title=cached.title,
+                    digest=cached.digest,
+                    facts=cached.facts,
+                    tags=cached.tags,
+                    tokens_used=0,
+                    cost_cents=0.0,
+                    from_cache=True,
                 )
 
         # 预算闸门
@@ -110,10 +116,15 @@ class MediaUnderstanding:
         budget = self._token_budget_daily()
         if used >= budget:
             return MediaDigestResult(
-                kind=request.kind, ref=request.ref, title=request.title,
+                kind=request.kind,
+                ref=request.ref,
+                title=request.title,
                 digest="超出每日预算，已跳过理解",
-                facts={"error": "budget_exceeded"}, tags=[], tokens_used=0,
-                cost_cents=0.0, from_cache=False,
+                facts={"error": "budget_exceeded"},
+                tags=[],
+                tokens_used=0,
+                cost_cents=0.0,
+                from_cache=False,
             )
 
         # 调用视觉模型（具体实现由 vision_caller 提供）
@@ -136,16 +147,28 @@ class MediaUnderstanding:
 
         # 入库并更新预算
         await self._store.put(
-            kind=request.kind, ref=request.ref, title=request.title,
-            digest=digest_text[:500], facts=facts, tags=tags,
-            tokens_used=tokens, cost_cents=cost, ttl=self._digest_ttl(),
+            kind=request.kind,
+            ref=request.ref,
+            title=request.title,
+            digest=digest_text[:500],
+            facts=facts,
+            tags=tags,
+            tokens_used=tokens,
+            cost_cents=cost,
+            ttl=self._digest_ttl(),
         )
         await self._db.kv_set(today_key, used + tokens, ttl=86400)
 
         return MediaDigestResult(
-            kind=request.kind, ref=request.ref, title=request.title,
-            digest=digest_text, facts=facts, tags=tags, tokens_used=tokens,
-            cost_cents=cost, from_cache=False,
+            kind=request.kind,
+            ref=request.ref,
+            title=request.title,
+            digest=digest_text,
+            facts=facts,
+            tags=tags,
+            tokens_used=tokens,
+            cost_cents=cost,
+            from_cache=False,
         )
 
     # ------------------------------------------------------------ 阶段二

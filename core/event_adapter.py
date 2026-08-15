@@ -37,25 +37,29 @@ class EventAdapter:
         """标准化并入库一条旧 ``AstrMessageEvent`` 风格事件。"""
         created_at = now()
         content = (
-            getattr(event, "message_str", "")
-            or getattr(event, "raw_message", "")
-            or ""
+            getattr(event, "message_str", "") or getattr(event, "raw_message", "") or ""
         )
         source_event_id = (
             platform_id
             or getattr(event, "message_id", "")
             or f"legacy:{hashlib.sha256(repr(event).encode('utf-8')).hexdigest()[:16]}"
         )
-        session_id = getattr(event, "session_id", "") or getattr(
-            event, "unified_msg_origin", ""
-        ) or "legacy"
+        session_id = (
+            getattr(event, "session_id", "")
+            or getattr(event, "unified_msg_origin", "")
+            or "legacy"
+        )
         actor_id = (
             getattr(event, "user_id", "")
             or getattr(event, "sender_id", "")
             or session_id
         )
-        actor_name = getattr(event, "sender_name", "") or getattr(event, "nickname", "") or ""
-        target_id = getattr(event, "group_id", "") or getattr(event, "room_id", "") or ""
+        actor_name = (
+            getattr(event, "sender_name", "") or getattr(event, "nickname", "") or ""
+        )
+        target_id = (
+            getattr(event, "group_id", "") or getattr(event, "room_id", "") or ""
+        )
         payload = {
             "message_type": str(getattr(event, "message_type", "")),
             "message_id": str(getattr(event, "message_id", "")),
@@ -136,12 +140,12 @@ class EventAdapter:
                 (
                     "INSERT INTO event_transitions(event_id,from_state,to_state,reason,at) "
                     "VALUES(?,?,?,?,?)",
-                    (numeric_id, "claimed", "replied", "legacy complete", now()),
+                    (numeric_id, "claimed", "sent", "legacy complete", now()),
                 ),
                 (
                     "UPDATE events SET state=?, draft=?, error='', updated_at=?, sent_at=? "
                     "WHERE id=?",
-                    ("replied", draft[:1200], now(), now(), numeric_id),
+                    ("sent", draft[:1200], now(), now(), numeric_id),
                 ),
             ]
         )

@@ -27,14 +27,12 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
 from ..adapter import ActionRegistry, ActionRequest
 from ..persona import PersonaEngine
-from ..security import Capability
-from ..storage import Database, ProfileStore, now
+from ..storage import Database
 
 
 @dataclass
@@ -138,9 +136,7 @@ class ProactiveDecider:
     def _max_per_day(self) -> int:
         return int(self._get("PROACTIVE_MAX_PER_DAY", 5))
 
-    async def generate_candidates(
-        self
-    ) -> list[ProactiveCandidate]:
+    async def generate_candidates(self) -> list[ProactiveCandidate]:
         """生成今日候选主动行为。"""
         # 检查前置条件
         if not await self._persona.should_proactive():
@@ -190,7 +186,6 @@ class ProactiveDecider:
             )
 
         # 候选 3：回访熟人（warmth 高且最近未互动）
-        profiles = ProfileStore(self._db)
         # 简化示例：实际需查询 profiles 表并过滤
         # top_friends = await profiles.top_by_warmth(limit=5)
         # for friend in top_friends:

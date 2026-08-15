@@ -15,16 +15,16 @@ from enum import Enum
 class Scope(str, Enum):
     """会话/记忆域。值同时用作数据库字段，改名需要迁移。"""
 
-    COMMENT = "bili_comment"        # B 站公开评论区（不可信）
-    DM = "bili_dm"                  # B 站私信（半可信，仍是外部输入）
-    LIVE = "bili_live"              # 直播弹幕（不可信）
-    QQ_GROUP = "qq_group"           # QQ 群聊
-    QQ_PRIVATE = "qq_private"       # QQ 私聊
-    ADMIN = "admin"                 # 管理员控制通道
-    BACKGROUND = "background"       # 后台任务：日报、清算
-    PROACTIVE = "proactive"         # 主动行为：看片、动态
-    SELF = "self"                   # 角色自我认知（永久记忆）
-    ANALYTICS = "analytics"         # 评论洞察、趋势分析
+    COMMENT = "bili_comment"  # B 站公开评论区（不可信）
+    DM = "bili_dm"  # B 站私信（半可信，仍是外部输入）
+    LIVE = "bili_live"  # 直播弹幕（不可信）
+    QQ_GROUP = "qq_group"  # QQ 群聊
+    QQ_PRIVATE = "qq_private"  # QQ 私聊
+    ADMIN = "admin"  # 管理员控制通道
+    BACKGROUND = "background"  # 后台任务：日报、清算
+    PROACTIVE = "proactive"  # 主动行为：看片、动态
+    SELF = "self"  # 角色自我认知（永久记忆）
+    ANALYTICS = "analytics"  # 评论洞察、趋势分析
 
     def __str__(self) -> str:  # pragma: no cover - 便于日志
         return self.value

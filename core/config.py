@@ -4,6 +4,7 @@ from astrbot.api.star import StarTools
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 DATA_DIR = str(StarTools.get_data_dir(PLUGIN_NAME))
+LAYERED_DB_FILE = os.path.join(DATA_DIR, "bilibot.sqlite3")
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
 AFFECTION_FILE = os.path.join(DATA_DIR, "affection.json")
 SCHEDULE_FILE = os.path.join(DATA_DIR, "schedule_today.json")
@@ -131,5 +132,3 @@ DEFAULT_DYNAMIC_TOPICS = [
     "记录一个简短且能让人读懂的自我观察，不写鸡汤",
     "如果当前时段确实影响心情，就自然说一句；否则完全不必提时间",
 ]
-
-
