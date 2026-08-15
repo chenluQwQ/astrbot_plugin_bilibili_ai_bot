@@ -16,7 +16,7 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Perplexity / 博查 / 自定义 OpenAI 兼容接口
 - **B站私信回复** — 监听新的纯文字和视频分享私信；回复模型可按需在后台查询UP/视频或联网搜索，先短回应、查完再整合回复，最多发送两条；精确发送 `new` 可重置当前私信上下文
 - **私信安全隔离** — 不明外链、IP 链接和疑似色情引流不会进入 LLM，可自动调用 B站拉黑；支持只回复主人、白名单或全部安全用户
-- **直播弹幕回复** — BiliBot 本体可独立轮询指定直播间的新弹幕，读取当前人设、UID 用户画像和直播记忆生成短回复，再由自己的B站账号发回直播间；无需安装直播伴侣插件
+- **直播间弹幕互动** — BiliBot 可进入自己或其他 UP 主的指定直播间，读取新弹幕并结合当前人设、UID 用户画像和直播记忆生成短回应，再由自己的B站账号发回同一直播间；既能和主播互动，也能接观众的话，无需安装直播伴侣插件
 
 ### 🧠 记忆与人格
 
@@ -193,8 +193,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`PRIVATE_MESSAGE_BILI_SEARCH_LIMIT`|可选|私信站内查询最多返回几条结果，范围1-5，默认5|
 |`PRIVATE_MESSAGE_AUTO_BLOCK` |可选|危险私信自动调用B站拉黑；不明链接/色情内容始终先隔离且不进入LLM|
 |`PRIVATE_MESSAGE_TRUSTED_DOMAINS`|可选|私信允许出现的域名，默认 `bilibili.com`、`b23.tv`|
-|`ENABLE_LIVE_DANMAKU_REPLY`|可选|启用 BiliBot 本体直播弹幕监听与回复；默认关闭，可用 `/bili开关 直播回复` 或 `/bili直播 开始` 切换|
-|`LIVE_DANMAKU_ROOM_ID`|启用时|监听并回复的B站直播间号，也可用 `/bili直播 房间 <房间号>` 设置|
+|`ENABLE_LIVE_DANMAKU_REPLY`|可选|启用 BiliBot 本体直播间弹幕互动；默认关闭，可用 `/bili开关 直播回复` 或 `/bili直播 开始` 切换|
+|`LIVE_DANMAKU_ROOM_ID`|启用时|准备进入并参与互动的B站直播间号，可以是自己或其他 UP 主的房间；也可用 `/bili直播 房间 <房间号>` 设置|
 |`LIVE_DANMAKU_POLL_INTERVAL`|可选|历史弹幕检查间隔，默认5秒，最低2秒|
 |`LIVE_DANMAKU_REPLY_COOLDOWN`|可选|两次自动回复最短间隔，默认12秒；期间优先处理最新弹幕|
 |`LIVE_DANMAKU_MAX_PER_MINUTE`|可选|每分钟最多自动回复次数，默认4；`0`表示不限|
@@ -246,7 +246,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili登录`      |扫码登录 B站（扫码后发 `/bili确认`）|
 |`/bili确认`      |确认扫码结果                 |
 |`/bili状态`      |查看运行状态                 |
-|`/bili直播 [状态/房间/开始/停止/测试]`|管理 BiliBot 本体的直播弹幕监听与回复；测试会真实发送弹幕|
+|`/bili直播 [状态/房间/开始/停止/测试]`|管理 BiliBot 本体的直播间弹幕互动；测试会向目标直播间真实发送弹幕|
 |`/bili计划`      |查看今日主动 / 动态 / 看番时间      |
 |`/bili分区`      |查看视频池中文填法和分区名          |
 |`/bili启动`      |启动 Bot                 |
