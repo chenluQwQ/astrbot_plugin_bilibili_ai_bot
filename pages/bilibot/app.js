@@ -214,8 +214,8 @@ const MOCK_FIELDS = {
   ENABLE_AFFECTION: ["【功能开关】启用好感度系统", "bool", true],
   ENABLE_MOOD: ["【功能开关】启用心情系统", "bool", true],
   BILI_TOOL_ISOLATION_ENABLED: ["【安全与工具】保持 B站端与 AstrBot/QQ 工具权限隔离", "bool", true],
-  BILI_ALLOW_SEARCH_TOOLS: ["【安全与工具】允许 B站私信使用只读搜索类工具", "bool", true],
-  BILI_TOOL_ALLOWLIST: ["【安全与工具】B站端只读工具白名单", "list", ["bili_up_info", "bili_video_search", "web_search"]],
+  BILI_ALLOW_SEARCH_TOOLS: ["【安全与工具】允许 B站端私信回复使用只读查询工具", "bool", true],
+  BILI_TOOL_ALLOWLIST: ["【安全与工具】B站端私信回复工具白名单", "list", ["bili_up_info", "bili_video_search", "web_search"]],
   BILI_PROMPT_INJECTION_DEFENSE: ["【安全与工具】启用外部内容提示注入防护", "bool", true],
   BILI_TOOL_AUDIT_ENABLED: ["【安全与工具】记录工具请求与拒绝原因", "bool", true],
   MEMORY_ISOLATION_MODE: ["【记忆隔离】跨平台记忆策略", "string", "isolated", ["isolated", "safe_share"]],
@@ -295,8 +295,8 @@ function buildMock() {
       { name: "bili_up_info", label: "UP 主信息", description: "读取公开 UP 主资料", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
       { name: "bili_video_search", label: "视频搜索", description: "查询公开 B站视频", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
       { name: "bili_search_and_watch", label: "搜索并观看", description: "读取并分析公开视频", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
-      { name: "check_following_updates", label: "关注更新查询", description: "B站私信有人询问时，按需查看今天关注 UP 主的新动态与投稿", origin: "bilibot", origin_name: "BiliBot 私信只读能力", active: true, compatible: true, reason: "只在私信回复模型请求时查询，不会自动执行" },
-      { name: "check_following_live", label: "关注开播查询", description: "B站私信有人询问时，按需查看关注列表中当前正在直播的 UP 主", origin: "bilibot", origin_name: "BiliBot 私信只读能力", active: true, compatible: true, reason: "只在私信回复模型请求时查询，不会进入直播间或发送弹幕" },
+      { name: "check_following_updates", label: "关注更新查询", description: "B站私信有人询问时，按需查看今天关注 UP 主的新动态与投稿", origin: "bilibot", origin_name: "B站端私信回复工具", active: true, compatible: true, reason: "只在B站私信回复模型请求时查询，不会自动执行" },
+      { name: "check_following_live", label: "关注开播查询", description: "B站私信有人询问时，按需查看关注列表中当前正在直播的 UP 主", origin: "bilibot", origin_name: "B站端私信回复工具", active: true, compatible: true, reason: "只在B站私信回复模型请求时查询，不会进入直播间或发送弹幕" },
       { name: "get_bangumi_info", label: "番剧详情", description: "按 season_id 读取番剧公开资料与最近剧集", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
       { name: "get_bangumi_trending", label: "番剧排行", description: "只读查看 B站番剧或国创热度排行", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
       { name: "get_bangumi_timeline", label: "新番时间表", description: "只读查看近期番剧更新日程", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
@@ -1072,7 +1072,7 @@ function securityCount(keys) {
 function renderToolSummary() {
   const allowed = Array.isArray(currentValue("BILI_TOOL_ALLOWLIST")) ? currentValue("BILI_TOOL_ALLOWLIST") : [];
   const selected = state.availableTools.filter((tool) => allowed.includes(tool.name) && tool.compatible && tool.active !== false);
-  return `<div class="tool-picker-summary"><div class="tool-picker-copy"><span class="tool-picker-icon">${icon("controller")}</span><div><strong>${selected.length ? `已允许 ${selected.length} 个私信只读能力` : "B站私信不调用查询能力"}</strong><p>${selected.length ? selected.map((tool) => tool.label || tool.name).join("、") : "普通私信仍可回复，但不会在后台查询外部信息。"}</p></div></div><button class="button soft" data-action="open-tool-picker" type="button">${icon("settings")}选择能力</button></div>`;
+  return `<div class="tool-picker-summary"><div class="tool-picker-copy"><span class="tool-picker-icon">${icon("controller")}</span><div><strong>${selected.length ? `已允许 ${selected.length} 个B站私信回复工具` : "B站私信回复不调用查询工具"}</strong><p>${selected.length ? selected.map((tool) => tool.label || tool.name).join("、") : "仍可正常回复B站私信，但不会为回答额外查询公开信息。"}</p></div></div><button class="button soft" data-action="open-tool-picker" type="button">${icon("settings")}选择工具</button></div>`;
 }
 
 function refreshToolSummary() {
@@ -1094,7 +1094,7 @@ function renderSecurity() {
       ${metricCard("记忆策略", memoryMode === "safe_share" ? "安全共享" : "平台隔离", "仅向主人侧开放脱敏摘要", "memory-card", "orange")}
     </section>
     ${renderConfigSection("工具隔离总控", "高风险工具不会因为关闭前端开关而自动获得权限；后端仍执行硬白名单", ["BILI_TOOL_ISOLATION_ENABLED", "BILI_ALLOW_SEARCH_TOOLS", "BILI_PROMPT_INJECTION_DEFENSE", "BILI_TOOL_AUDIT_ENABLED"], "shield")}
-    <section class="card section-card tool-access-card">${sectionHead("B站私信只读能力", "决定私信回复模型可按需查询哪些公开信息；不会自动执行，也不会发动态或进入直播间发弹幕", "controller")}${renderToolSummary()}</section>
+    <section class="card section-card tool-access-card">${sectionHead("B站端私信回复工具", "仅供B站私信收到消息后的回复模型按需查询公开信息；与 QQ/AstrBot 聊天工具分开，不会自动执行", "controller")}${renderToolSummary()}</section>
     <div class="two-column">
       ${renderConfigSection("记忆隔离与安全共享", "默认隔离；开启共享后也只向已绑定主人侧提供脱敏摘要", ["MEMORY_ISOLATION_MODE", "ENABLE_SAFE_CROSS_PLATFORM_MEMORY", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES", "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT"], "memory-card")}
       ${renderConfigSection("私信安全", "链接域名、危险私信与拉黑白名单", ["PRIVATE_MESSAGE_AUTO_BLOCK", "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS", "PRIVATE_MESSAGE_TRUSTED_DOMAINS"], "user")}
@@ -1451,7 +1451,7 @@ function discardDraft() {
 }
 
 function toolOriginLabel(tool) {
-  return tool.origin_name || ({ builtin: "AstrBot Core", plugin: "插件工具", mcp: "MCP 服务", bilibot: "BiliBot 安全适配器" }[tool.origin] || "其他工具");
+  return tool.origin_name || ({ builtin: "AstrBot Core", plugin: "插件工具", mcp: "MCP 服务", bilibot: "B站端私信回复工具" }[tool.origin] || "其他工具");
 }
 
 function openToolPicker() {
@@ -1473,7 +1473,7 @@ function renderToolPickerModal() {
     const haystack = `${tool.label || ""} ${tool.name || ""} ${tool.description || ""} ${tool.origin_name || ""}`.toLowerCase();
     return `<label class="tool-option ${checked ? "is-selected" : ""} ${enabled ? "" : "is-disabled"}" data-tool-option data-tool-search="${esc(haystack)}"><input data-tool-name="${esc(tool.name)}" type="checkbox" ${checked ? "checked" : ""} ${enabled ? "" : "disabled"}/><span class="tool-check">${icon(checked ? "unlock" : "lock")}</span><span class="tool-option-copy"><strong>${esc(tool.label || tool.name)}</strong><p>${esc(tool.description || "暂无说明")}</p><small>${esc(tool.reason || (enabled ? "只读安全能力" : "未适配"))}</small></span><span class="tool-state">${enabled ? (checked ? "已选择" : "可选择") : "不可用"}</span></label>`;
   };
-  modalRoot.innerHTML = `<div class="modal-backdrop tool-picker-backdrop" data-modal-backdrop><div class="modal tool-modal" role="dialog" aria-modal="true" aria-labelledby="tool-modal-title"><div class="tool-modal-head"><span class="modal-icon">${icon("controller")}</span><div><h2 id="tool-modal-title">选择 B站私信只读能力</h2><p>私信用户确实提出查询请求时，回复模型才可调用已勾选能力；勾选不会创建自动任务。</p></div><button class="modal-close" data-tool-close type="button" aria-label="关闭">×</button></div><label class="tool-search">${icon("search")}<input id="tool-search-input" type="search" value="" placeholder="搜索能力或插件" /></label><div class="tool-modal-list">${[...groups.entries()].map(([group, items], index) => `<details class="tool-group" data-tool-group ${index < 2 ? "open" : ""}><summary><div><strong>${esc(group)}</strong><span data-group-count>${items.length} 项</span></div>${icon("arrow-right")}</summary><div class="tool-group-body">${items.map(optionHtml).join("")}</div></details>`).join("") || `<div class="empty-search">${icon("search")}<strong>没有可用能力</strong><span>请检查 AstrBot 工具注册状态。</span></div>`}<div class="empty-search tool-search-empty" hidden>${icon("search")}<strong>没有匹配能力</strong><span>换一个关键词试试。</span></div></div><div class="tool-modal-actions"><span>已选择 <b data-tool-selected-count>${state.toolPickerSelection.size}</b> 项</span><div><button class="button soft" data-tool-close type="button">取消</button><button class="button primary" data-tool-confirm type="button">${icon("save")}确认选择</button></div></div></div></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop tool-picker-backdrop" data-modal-backdrop><div class="modal tool-modal" role="dialog" aria-modal="true" aria-labelledby="tool-modal-title"><div class="tool-modal-head"><span class="modal-icon">${icon("controller")}</span><div><h2 id="tool-modal-title">选择 B站端私信回复工具</h2><p>仅当B站私信用户提出查询请求时，私信回复模型才可调用已勾选工具；这里不控制 QQ/AstrBot 聊天工具。</p></div><button class="modal-close" data-tool-close type="button" aria-label="关闭">×</button></div><label class="tool-search">${icon("search")}<input id="tool-search-input" type="search" value="" placeholder="搜索工具或插件" /></label><div class="tool-modal-list">${[...groups.entries()].map(([group, items], index) => `<details class="tool-group" data-tool-group ${index < 2 ? "open" : ""}><summary><div><strong>${esc(group)}</strong><span data-group-count>${items.length} 项</span></div>${icon("arrow-right")}</summary><div class="tool-group-body">${items.map(optionHtml).join("")}</div></details>`).join("") || `<div class="empty-search">${icon("search")}<strong>没有可用工具</strong><span>请检查 AstrBot 工具注册状态。</span></div>`}<div class="empty-search tool-search-empty" hidden>${icon("search")}<strong>没有匹配工具</strong><span>换一个关键词试试。</span></div></div><div class="tool-modal-actions"><span>已选择 <b data-tool-selected-count>${state.toolPickerSelection.size}</b> 项</span><div><button class="button soft" data-tool-close type="button">取消</button><button class="button primary" data-tool-confirm type="button">${icon("save")}确认选择</button></div></div></div></div>`;
   const backdrop = modalRoot.querySelector(".tool-picker-backdrop");
   const close = () => {
     backdrop?.classList.add("is-closing");

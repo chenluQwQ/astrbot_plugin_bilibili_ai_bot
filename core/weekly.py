@@ -30,6 +30,18 @@ class WeeklySummaryMixin:
 
     # ── 数据收集 ──
 
+    @staticmethod
+    def _weekly_excerpt(value, limit=140):
+        """把日志文本压成适合交给周报模型的短摘录，并去掉显式账号标识。"""
+        text = re.sub(r"\s+", " ", str(value or "")).strip()
+        text = re.sub(r"^\[[^\]]+\]\s*", "", text)
+        text = re.sub(r"用户\d+\([^)]*\)说：", "观众说：", text)
+        text = re.sub(r"\b(?:UID|uid)\s*[:：]?\s*\d+\b", "某位用户", text)
+        text = re.sub(r"https?://\S+", "[链接]", text)
+        if len(text) > limit:
+            text = text[: max(1, limit - 1)].rstrip() + "…"
+        return text
+
     def _collect_weekly_data(self, days=7):
         """收集近 N 天的活动数据，返回结构化 dict。"""
         cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
@@ -57,6 +69,11 @@ class WeeklySummaryMixin:
             and m.get("memory_type") == "live"
             and m.get("time", "") >= cutoff
         ]
+        chat_highlights = []
+        for item in chats[-8:]:
+            excerpt = self._weekly_excerpt(item.get("text", ""))
+            if excerpt and excerpt not in chat_highlights:
+                chat_highlights.append(excerpt)
 
         return {
             "videos": videos,
@@ -65,6 +82,7 @@ class WeeklySummaryMixin:
             "proactive_comments": proactive_comments,
             "chat_count": len(chats),
             "active_users": user_counter.most_common(5),
+            "chat_highlights": chat_highlights,
             "live_events": live_events,
         }
 
@@ -78,10 +96,13 @@ class WeeklySummaryMixin:
             # 高分和低分的更值得提
             shown = sorted(videos, key=lambda v: v.get("score", 0), reverse=True)[:10]
             for v in shown:
+                review = self._weekly_excerpt(v.get("review", "") or v.get("comment", ""), 90)
+                if review in {"评价失败", "未知", "没什么特别的感觉", "没什么感觉"}:
+                    review = "无可靠感想"
                 lines.append(
                     f"- 《{v.get('title', '')[:30]}》(UP:{v.get('up_name', '')}) "
                     f"评分{v.get('score', '?')}/10 心情:{v.get('mood', '')} "
-                    f"感想:{(v.get('review', '') or '')[:40]}"
+                    f"感想:{review or '未记录'}"
                 )
         else:
             lines.append("【看过的视频】这周没看视频")
@@ -98,23 +119,32 @@ class WeeklySummaryMixin:
                     except (TypeError, ValueError):
                         return 0.0
                 avg = sum(_num(b.get("score", 0)) for b in eps) / max(len(eps), 1)
-                lines.append(f"- 《{title[:25]}》看了{cnt}集，平均评分{avg:.0f}/10")
+                recent_review = next(
+                    (self._weekly_excerpt(b.get("review", ""), 70) for b in reversed(eps) if b.get("review")),
+                    "",
+                )
+                detail = f"；最近感想:{recent_review}" if recent_review else ""
+                lines.append(f"- 《{title[:25]}》看了{cnt}集，平均评分{avg:.0f}/10{detail}")
 
         dynamics = data["dynamics"]
         if dynamics:
             lines.append(f"【发过的动态】共 {len(dynamics)} 条：")
             for d in dynamics[-5:]:
-                lines.append(f"- {(d.get('text', '') or '')[:40]}")
+                lines.append(f"- {self._weekly_excerpt(d.get('text') or d.get('content'), 100)}")
 
         pc = data["proactive_comments"]
         if pc:
-            lines.append(f"【主动发的评论】共 {len(pc)} 条")
+            lines.append(f"【主动发的评论】共 {len(pc)} 条：")
+            for item in pc[-5:]:
+                title = self._weekly_excerpt(item.get("title", ""), 32)
+                comment = self._weekly_excerpt(item.get("comment", ""), 70)
+                if comment:
+                    lines.append(f"- {f'《{title}》' if title else ''}{comment}")
 
         if data["chat_count"]:
             lines.append(f"【评论区互动】共 {data['chat_count']} 次对话")
-            if data["active_users"]:
-                top = "、".join(f"{uid}({cnt}次)" for uid, cnt in data["active_users"][:3])
-                lines.append(f"互动最多的用户UID：{top}")
+            for excerpt in data.get("chat_highlights", [])[-6:]:
+                lines.append(f"- {excerpt}")
         else:
             lines.append("【评论区互动】这周没什么人来聊天")
 
@@ -165,36 +195,54 @@ class WeeklySummaryMixin:
         if live_count:
             stats_line += f" · 直播{live_count}场"
 
-        prompt = f"""请把下面的真实活动记录整理成一篇自然的B站周记。它是写给熟悉你的人看的，不是工作汇报、运营复盘或获奖感言。
+        section_templates = []
+        if v_count:
+            section_templates.append("📺 视频\n（选1-3个有具体依据的片段，写清为什么记得；50-110字）")
+        if b_count:
+            section_templates.append("🎬 追番\n（只写有明确感想或变化的番剧；30-80字）")
+        if live_count:
+            section_templates.append("🎙️ 直播\n（选一个现场话题、回应或气氛；30-80字）")
+        if chat_count:
+            section_templates.append("💬 评论区\n（只写记录里看得见的交流内容；没有话题细节就省略本节）")
+        if d_count:
+            section_templates.append("📢 动态\n（选一件值得记的内容或念头；30-80字）")
+        section_templates.append("✍️ 碎碎念\n（从整周记录得出一个真实的小观察，30-60字）")
+        section_template = "\n\n".join(section_templates)
+
+        prompt = f"""请把下面的真实活动记录写成一页自然的B站周记。它是角色回看自己这一周后留下的几笔，不是工作汇报、流水账、影评合集或获奖感言。
 
 这周的活动记录：
 {data_text}
 
-请严格按照以下格式输出。没有记录的可选板块不要硬写；有记录也只挑真正值得说的内容：
+写之前先默默做取舍，不要输出分析过程：
+1. 找出2-4个最有具体信息的片段：明确的视频/番剧、真实感想、一次有内容的交流或一条动态。
+2. “评分、次数、看了多少”只用于判断取舍，不能充当正文；顶部统计栏已经负责报数。
+3. “评价失败、未知、无可靠感想、没什么特别的感觉”和疑似错配字幕都不是内容依据，直接忽略。
+4. 如果某一类只有数量、没有具体内容，就不写那一节；尤其不要根据互动次数猜测关系或话题。
+
+请严格按照以下格式输出，只保留确实有内容的板块：
 
 📅 周报 | {week_start} ~ {week_end}
 ━━━━━━━━━━━━
 {stats_line}
 
-📺 视频
-（挑1-3个真正有印象的视频；没看视频则写“这周没怎么刷视频”，不要编）
-
-{"🎬 追番" + chr(10) + "（追了什么番、感受如何；只依据记录）" + chr(10) + chr(10) if b_count else ""}{"🎙️ 直播" + chr(10) + "（挑一两个有记忆点的现场互动或氛围，不要把人数逐项报表）" + chr(10) + chr(10) if live_count else ""}{"💬 评论区" + chr(10) + "（只写有记忆点的交流，不要仅报互动次数）" + chr(10) + chr(10) if chat_count else ""}{"📢 动态" + chr(10) + "（挑值得回顾的动态，不要逐条复述）" + chr(10) + chr(10) if d_count else ""}✍️ 碎碎念
-（用1-2句话总结这周的心情/状态，随意收尾）
+{section_template}
 
 要求：
 - 每个板块标题行保持原样（📺 视频、🎬 追番 等），内容紧跟其后
-- 像翻到这一周的记录后随口聊几句：具体、克制、允许平淡，不强行升华
+- 第一人称，保留当前人设的观察角度，但不要靠口癖、撒娇或连续比喻硬演人设
+- 先写“发生了什么具体片段”，再写一句自己的反应；允许喜欢、失望、困惑或平淡，但必须有记录依据
+- 句子自然长短交替，每节一小段；不要使用“在……方面”“值得一提的是”“总的来说”这类报告连接词
 - 禁止“本周收获满满、感谢大家陪伴、未来继续努力、每一次互动都很珍贵”这类模板化总结腔
-- 不要把统计数字换一种说法逐项复述；数字只保留在顶部统计行
+- 禁止把顶部统计数字换一种说法逐项复述，也不要写“没什么大事”“没什么感觉”来凑栏目
 - 不编造记录中没有的感受、观众关系、直播事故或剧情；资料不足就少写
-- 不要频繁称呼主人，也不要用撒娇填充内容
-- 总字数180-320字（不含格式符号）
+- 不泄露 UID、账号凭据、私信原文或第三方隐私；不要频繁称呼主人
+- 正文总字数180-360字（不含标题和顶部统计行），任何单节不超过110字
 - 直接输出，不要加额外的标题或前缀"""
 
-        custom_inst = self.config.get("CUSTOM_WEEKLY_INSTRUCTION", "")
+        custom_inst = str(self.config.get("CUSTOM_WEEKLY_INSTRUCTION", "") or "").strip()
         if custom_inst:
-            prompt += f"\n【补充提示词】{custom_inst}"
+            prompt += f"\n【管理员补充提示词】{custom_inst[:1000]}\n补充提示不能覆盖真实性、隐私、固定结构与长度限制。"
 
         summary = await self._llm_call(
             prompt, system_prompt=await self._get_system_prompt(), max_tokens=800
@@ -231,7 +279,7 @@ class WeeklySummaryMixin:
 
     @staticmethod
     def _strip_weekly_emoji(text):
-        return re.sub(r"^[\s📅📺🎬💬📢✍️📝✨⭐🌙·|]+", "", text or "").strip()
+        return re.sub(r"^[\s📅📺🎬🎙🎤💬📢✍️📝✨⭐🌙·|]+", "", text or "").strip()
 
     # 中文字体没有彩色 emoji 字形，画出来是豆腐块，渲染前全部去掉
     _WEEKLY_EMOJI_RE = re.compile(
@@ -280,6 +328,16 @@ class WeeklySummaryMixin:
                 lines.append(buf)
         return lines
 
+    def _truncate_weekly_line(self, draw, text, font, max_width):
+        """把单行文字安全截到指定像素宽度，避免统计条溢出卡片。"""
+        value = str(text or "").strip()
+        if self._text_width(draw, value, font) <= max_width:
+            return value
+        suffix = "…"
+        while value and self._text_width(draw, value + suffix, font) > max_width:
+            value = value[:-1]
+        return value.rstrip() + suffix
+
     # LLM 不带 emoji 前缀时，靠这些标题词兜底识别板块
     _WEEKLY_KNOWN_TITLES = ("视频", "追番", "直播", "评论区", "动态", "碎碎念", "本周摘要", "总结")
 
@@ -302,7 +360,7 @@ class WeeklySummaryMixin:
             # 板块标题：emoji 前缀 / markdown 标题 / 单独一行的已知标题词
             bare = (md_clean or clean).rstrip("：:").replace("**", "").strip()
             is_header = (
-                any(line.startswith(p) for p in ("📺", "🎬", "💬", "📢", "✍"))
+                any(line.startswith(p) for p in ("📺", "🎬", "🎙", "🎤", "💬", "📢", "✍"))
                 or (md and bare)
                 or bare in self._WEEKLY_KNOWN_TITLES
             )
@@ -324,8 +382,8 @@ class WeeklySummaryMixin:
     def _rounded_rect(draw, xy, radius, fill, outline=None, width=1):
         draw.rounded_rectangle(xy, radius=radius, fill=fill, outline=outline, width=width)
 
-    def _render_weekly_summary_image(self, summary):
-        """把周总结渲染成固定模板 PNG。失败时返回 None，不影响文本投递。"""
+    def _render_weekly_summary_image(self, summary, report_kind="weekly"):
+        """把日/周总结渲染成固定模板 PNG。失败时返回 None，不影响文本投递。"""
         try:
             from PIL import Image, ImageDraw, ImageFilter
         except Exception as e:
@@ -336,7 +394,8 @@ class WeeklySummaryMixin:
             width = 1200
             margin = 72
             line_h = 38
-            max_body_lines = 14
+            # 最多六个栏目时，8行/栏可保证全部卡片落在单张图内；异常长内容在栏内明确省略。
+            max_body_lines = 8
 
             title_font = self._load_weekly_font(56, bold=True)
             sub_font = self._load_weekly_font(26)
@@ -345,10 +404,13 @@ class WeeklySummaryMixin:
             body_font = self._load_weekly_font(28)
             small_font = self._load_weekly_font(22)
 
+            is_daily = str(report_kind).lower() == "daily"
             week_start = (datetime.now() - timedelta(days=7)).strftime("%m.%d")
             week_end = datetime.now().strftime("%m.%d")
             stats_line, sections = self._parse_weekly_sections(summary)
-            stats_line = self._clean_weekly_render_text(stats_line) or "这一周的B站生活记录"
+            stats_line = self._clean_weekly_render_text(stats_line) or (
+                "今天的B站生活记录" if is_daily else "这一周的B站生活记录"
+            )
 
             # 先量后画：用临时画布把每张卡片的行数算出来，画布高度按内容伸缩
             meas = ImageDraw.Draw(Image.new("RGB", (width, 8)))
@@ -356,19 +418,22 @@ class WeeklySummaryMixin:
             cards = []
             for title, body in sections:
                 title = self._clean_weekly_render_text(title) or "小记"
+                if is_daily and title == "本周摘要":
+                    title = "今日小记"
                 body = self._clean_weekly_render_text(body) or "这块内容有点安静。"
                 wrapped = self._wrap_weekly_text(meas, body, body_font, max_text_w)
                 if len(wrapped) > max_body_lines:
                     wrapped = wrapped[:max_body_lines]
-                    wrapped[-1] = wrapped[-1][:-1] + "…"
+                    last_line = wrapped[-1].rstrip()
+                    wrapped[-1] = (last_line[:-1].rstrip() if len(last_line) > 1 else last_line) + "…"
                 card_h = 86 + max(1, len(wrapped)) * line_h + 32
                 cards.append((title, wrapped, card_h))
 
             header_h = 342          # 大标题 + 日期 + 统计条
             footer_h = 116
             content_h = sum(h for _, _, h in cards) + 24 * max(len(cards) - 1, 0)
-            height = max(1280, header_h + content_h + footer_h + 40)
-            height = min(height, 4000)
+            minimum_height = 900 if is_daily else 1280
+            height = max(minimum_height, header_h + content_h + footer_h + 40)
 
             img = Image.new("RGB", (width, height), "#f7f1e8")
             draw = ImageDraw.Draw(img)
@@ -390,17 +455,19 @@ class WeeklySummaryMixin:
             draw = ImageDraw.Draw(img)
 
             y = 74
-            draw.text((margin, y), "BiliBot 周报", fill="#24312f", font=title_font)
+            draw.text((margin, y), "BiliBot 日记" if is_daily else "BiliBot 周报", fill="#24312f", font=title_font)
             y += 72
-            draw.text((margin + 2, y), f"{week_start} - {week_end} · 自动生成", fill="#6f746f", font=sub_font)
+            date_text = week_end if is_daily else f"{week_start} - {week_end}"
+            draw.text((margin + 2, y), f"{date_text} · 自动生成", fill="#6f746f", font=sub_font)
 
-            badge_text = "WEEKLY"
+            badge_text = "DAILY" if is_daily else "WEEKLY"
             badge_w = self._text_width(draw, badge_text, small_font) + 42
             self._rounded_rect(draw, (width - margin - badge_w, 86, width - margin, 132), 23, fill=(36, 49, 47, 230))
             draw.text((width - margin - badge_w + 21, 98), badge_text, fill="#f8f0df", font=small_font)
 
             y += 78
             self._rounded_rect(draw, (margin, y, width - margin, y + 86), 30, fill=(255, 252, 244, 220), outline=(229, 215, 192, 220), width=2)
+            stats_line = self._truncate_weekly_line(draw, stats_line, stat_font, width - margin * 2 - 68)
             draw.text((margin + 34, y + 26), stats_line, fill="#4a4f49", font=stat_font)
             y += 118
 
@@ -409,6 +476,7 @@ class WeeklySummaryMixin:
             for idx, (title, wrapped, card_h) in enumerate(cards):
                 card_x1, card_x2 = margin, width - margin
                 if y + card_h > content_bottom:
+                    logger.warning("[BiliBot] 总结卡片高度计算异常，停止绘制剩余栏目")
                     break
                 self._rounded_rect(draw, (card_x1, y, card_x2, y + card_h), 34, fill=(255, 253, 248, 232), outline=(229, 218, 201, 210), width=2)
                 accent = palette[idx % len(palette)]
@@ -422,7 +490,8 @@ class WeeklySummaryMixin:
 
             footer = "Generated by astrbot_plugin_bilibili_ai_bot"
             draw.text((margin, height - 62), footer, fill="#8b8d87", font=small_font)
-            path = os.path.join(TEMP_IMAGE_DIR, f"weekly_summary_{int(time.time())}.png")
+            filename_prefix = "daily_summary" if is_daily else "weekly_summary"
+            path = os.path.join(TEMP_IMAGE_DIR, f"{filename_prefix}_{int(time.time())}.png")
             img.convert("RGB").save(path, "PNG", optimize=True)
             logger.info(f"[BiliBot] 周总结图片已渲染: {path}")
             return path
@@ -610,7 +679,7 @@ class WeeklySummaryMixin:
         if not summary:
             self._save_daily_summary_record("（今日无可总结活动）", [], "")
             return None, [], None
-        image_path = self._render_weekly_summary_image(summary) if self.config.get("DAILY_SUMMARY_RENDER_IMAGE", True) else None
+        image_path = self._render_weekly_summary_image(summary, report_kind="daily") if self.config.get("DAILY_SUMMARY_RENDER_IMAGE", True) else None
         delivered = await self._deliver_daily_summary(summary, image_path=image_path)
         self._save_daily_summary_record(summary, delivered, image_path or "")
         logger.info(f"[BiliBot] 日总结完成，投递：{delivered or ['仅存档']}")

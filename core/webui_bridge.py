@@ -541,8 +541,8 @@ async def handle_available_tools(plugin: Any):
             "bili_search_and_watch": ("搜索并观看", "搜索并分析公开视频"),
             "watch_video": ("观看视频", "读取并分析指定 BV 号的公开视频"),
             "bili_parse_video": ("解析视频", "读取并分析指定 BV 号或公开视频链接"),
-            "check_following_updates": ("关注更新查询", "B站私信有人询问时，按需查看今天关注 UP 主的新动态与投稿"),
-            "check_following_live": ("关注开播查询", "B站私信有人询问时，按需查看关注列表中当前正在直播的 UP 主"),
+            "check_following_updates": ("关注更新查询", "B站端私信回复模型按需查看今天关注 UP 主的新动态与投稿"),
+            "check_following_live": ("关注开播查询", "B站端私信回复模型按需查看关注列表中当前正在直播的 UP 主"),
             "get_bangumi_info": ("番剧详情", "按 season_id 读取番剧公开资料与最近剧集"),
             "get_bangumi_trending": ("番剧排行", "只读查看 B站番剧或国创热度排行"),
             "get_bangumi_timeline": ("新番时间表", "只读查看近期番剧更新日程"),
@@ -583,8 +583,8 @@ async def handle_available_tools(plugin: Any):
             if name not in seen:
                 result.append({
                     "name": name, "label": label, "description": description,
-                    "origin": "bilibot", "origin_name": "BiliBot 安全适配器",
-                    "active": True, "compatible": True, "reason": "插件内置只读安全适配器",
+                    "origin": "bilibot", "origin_name": "B站端私信回复工具",
+                    "active": True, "compatible": True, "reason": "仅供B站私信回复模型按需调用",
                 })
         result.sort(key=lambda item: (not item["compatible"], item["origin_name"], item["label"]))
         return _response(result)

@@ -1055,13 +1055,13 @@
     "hint": "强烈建议保持开启。B站外部内容不会获得 AstrBot 命令、文件、执行或跨平台管理权限。"
   },
   "BILI_ALLOW_SEARCH_TOOLS": {
-    "description": "【安全与工具】允许 B站私信使用只读搜索类工具",
+    "description": "【安全与工具】允许 B站端私信回复使用只读查询工具",
     "type": "bool",
     "default": true,
     "hint": "仅允许下方白名单中的只读查询；写操作、命令和系统工具始终默认拒绝。"
   },
   "BILI_TOOL_ALLOWLIST": {
-    "description": "【安全与工具】B站私信回复可用的只读查询白名单",
+    "description": "【安全与工具】B站端私信回复工具白名单",
     "type": "list",
     "default": [
       "bili_up_info",
@@ -1073,7 +1073,7 @@
       "watch_video",
       "bili_parse_video"
     ],
-    "hint": "仅当私信用户确实提出查询请求时，回复模型才可按需调用所选能力；勾选不会创建自动任务。只有已提供 B站只读适配器的能力可启用，未知或不兼容名称会被忽略。"
+    "hint": "只控制B站私信收到消息后，私信回复模型可以按需调用哪些只读查询工具；不控制 QQ/AstrBot 聊天会话中的插件工具。勾选不会创建自动任务，未知或不兼容名称会被忽略。"
   },
   "BILI_PROMPT_INJECTION_DEFENSE": {
     "description": "【安全与工具】启用外部内容提示注入防护",
