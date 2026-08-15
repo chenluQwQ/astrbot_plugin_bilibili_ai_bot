@@ -210,7 +210,11 @@ async def handle_get_stats(plugin: Any):
         failed_today = sum(1 for item in failures if float(item.get("at", 0) or 0) >= today_start)
 
         reply_log = _today_entries(_load_json(plugin, REPLY_LOG_FILE, []), "time", "timestamp", "created_at")
-        comment_replies = sum(1 for item in reply_log if item.get("channel") != "private")
+        comment_replies = sum(
+            1
+            for item in reply_log
+            if item.get("channel") not in {"private", "live"}
+        )
         private_replies = sum(1 for item in reply_log if item.get("channel") == "private")
         dynamic_posts = len(_today_entries(_load_json(plugin, DYNAMIC_LOG_FILE, []), "time", "timestamp"))
         proactive_entries = _today_entries(_load_json(plugin, PROACTIVE_LOG_FILE, []), "time", "timestamp")

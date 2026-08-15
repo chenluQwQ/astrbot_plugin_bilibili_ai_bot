@@ -3,6 +3,7 @@
 """
 from datetime import datetime
 import asyncio
+import hashlib
 import random
 import time
 from pydantic import Field
@@ -12,6 +13,7 @@ from astrbot.core.astr_agent_context import AstrAgentContext
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.api import logger
 from .config import USER_PROFILE_FILE, AFFECTION_FILE, LEVEL_NAMES, DATA_DIR
+from .runtime import ActionRequest, EventPriority
 
 
 def create_tools(plugin):
@@ -23,6 +25,24 @@ def create_tools(plugin):
     owner_name = plugin.config.get("OWNER_NAME", "未知")
     private_share_last_sent = {}
     private_share_lock = asyncio.Lock()
+
+    async def execute_write_action(key, kind, target_id, handler, *, metadata=None):
+        """Put every LLM-triggered Bilibili write through the shared queue."""
+
+        return await plugin.event_runtime.execute(
+            ActionRequest(
+                key=str(key),
+                kind=str(kind),
+                event_key="bilibili:tool:write",
+                target_id=str(target_id),
+                priority=EventPriority.DIRECT_MENTION,
+                metadata={"tool_action": True, **dict(metadata or {})},
+            ),
+            handler,
+        )
+
+    def short_digest(value):
+        return hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:16]
 
     # ── 记忆类工具 ──
 
@@ -420,11 +440,16 @@ def create_tools(plugin):
                 result = await _watch_video_for_tool(requested_bvid)
                 if not result["ok"]:
                     return result["message"]
-                success = await plugin._send_bili_private_video_share(
+                share_bucket = int(time.time() // max(1, cooldown or 1))
+                share_outcome = await execute_write_action(
+                    f"tool_private_share:{receiver_mid}:{result['bvid']}:{share_bucket}",
+                    "private_video_share",
                     receiver_mid,
-                    result["video_info"],
+                    lambda: plugin._send_bili_private_video_share(
+                        receiver_mid, result["video_info"]
+                    ),
                 )
-                if not success:
+                if not share_outcome.success:
                     return (
                         f"{result['message']}\n\n"
                         "⚠️ 视频已看完并写入记忆，但 B站原生视频卡片发送失败；请检查 Cookie、CSRF、接收 UID 和风控日志。"
@@ -460,8 +485,13 @@ def create_tools(plugin):
             try:
                 oid = kwargs.get("oid", "")
                 comment_text = kwargs.get("comment_text", "")
-                success = await plugin._send_comment(int(oid), comment_text)
-                return f"评论成功：{comment_text}" if success else "评论发送失败。"
+                outcome = await execute_write_action(
+                    f"tool_comment:{oid}:{short_digest(comment_text)}",
+                    "tool_comment",
+                    oid,
+                    lambda: plugin._send_comment(int(oid), comment_text),
+                )
+                return f"评论成功：{comment_text}" if outcome.success else "评论发送失败。"
             except Exception as e:
                 return f"评论出错：{e}"
 
@@ -482,8 +512,13 @@ def create_tools(plugin):
             oid = str(kwargs.get("oid", "")).strip()
             if not oid.isdigit():
                 return "oid 无效：需要 watch_video 返回的数字 oid，不是 BV 号。"
-            success = await plugin._like_video(int(oid))
-            return "点赞成功。" if success else "点赞失败。"
+            outcome = await execute_write_action(
+                f"tool_like:{oid}",
+                "like",
+                oid,
+                lambda: plugin._like_video(int(oid)),
+            )
+            return "点赞成功。" if outcome.success else "点赞失败。"
 
     @dataclass
     class CoinVideoTool(FunctionTool[AstrAgentContext]):
@@ -508,8 +543,13 @@ def create_tools(plugin):
             except ValueError:
                 num = 1
             num = 1 if num < 2 else 2
-            success = await plugin._coin_video(int(oid), num=num)
-            return f"投了{num}个币。" if success else "投币失败。"
+            outcome = await execute_write_action(
+                f"tool_coin:{oid}:{num}",
+                "coin",
+                oid,
+                lambda: plugin._coin_video(int(oid), num=num),
+            )
+            return f"投了{num}个币。" if outcome.success else "投币失败。"
 
     @dataclass
     class FavVideoTool(FunctionTool[AstrAgentContext]):
@@ -528,8 +568,13 @@ def create_tools(plugin):
             oid = str(kwargs.get("oid", "")).strip()
             if not oid.isdigit():
                 return "oid 无效：需要 watch_video 返回的数字 oid，不是 BV 号。"
-            success = await plugin._fav_video(int(oid))
-            return "收藏成功。" if success else "收藏失败。"
+            outcome = await execute_write_action(
+                f"tool_favorite:{oid}",
+                "favorite",
+                oid,
+                lambda: plugin._fav_video(int(oid)),
+            )
+            return "收藏成功。" if outcome.success else "收藏失败。"
 
     @dataclass
     class FollowUpTool(FunctionTool[AstrAgentContext]):
@@ -551,8 +596,13 @@ def create_tools(plugin):
                 if not users:
                     return f"没有找到名为「{query}」的UP主，无法关注。"
                 mid = str(users[0]["mid"])
-            success = await plugin._follow_user(int(mid))
-            return f"已关注UP主(UID:{mid})。" if success else "关注失败。"
+            outcome = await execute_write_action(
+                f"tool_follow:{mid}",
+                "follow",
+                mid,
+                lambda: plugin._follow_user(int(mid)),
+            )
+            return f"已关注UP主(UID:{mid})。" if outcome.success else "关注失败。"
 
     @dataclass
     class CheckFollowingUpdatesTool(FunctionTool[AstrAgentContext]):
@@ -770,7 +820,14 @@ def create_tools(plugin):
             from datetime import datetime as dt
 
             # 调用B站API拉黑
-            api_ok = await plugin._block_user(int(uid))
+            block_outcome = await execute_write_action(
+                f"tool_block:{uid}",
+                "block_user",
+                uid,
+                lambda: plugin._block_user(int(uid)),
+                metadata={"budget_exempt": True, "safety_action": True},
+            )
+            api_ok = block_outcome.success
 
             # 写入本地黑名单
             bl_path = os.path.join(DATA_DIR, "block_log.json")

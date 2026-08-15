@@ -209,6 +209,101 @@ class EventRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(second.success)
         self.assertEqual(calls, 2)
 
+    async def test_action_queue_serializes_different_side_effects(self):
+        manager = runtime.EventRuntime()
+        active = 0
+        peak = 0
+
+        async def send():
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0.01)
+            active -= 1
+            return True
+
+        tasks = [
+            asyncio.create_task(
+                manager.execute(
+                    runtime.ActionRequest(key=f"queued:{index}", kind="comment_reply"),
+                    send,
+                )
+            )
+            for index in range(4)
+        ]
+        outcomes = await asyncio.gather(*tasks)
+
+        self.assertTrue(all(outcome.success for outcome in outcomes))
+        self.assertEqual(peak, 1)
+
+    async def test_action_queue_prefers_urgent_waiting_action(self):
+        manager = runtime.EventRuntime()
+        started = asyncio.Event()
+        release = asyncio.Event()
+        order = []
+
+        async def blocker():
+            order.append("blocker")
+            started.set()
+            await release.wait()
+            return True
+
+        async def record(label):
+            order.append(label)
+            return True
+
+        blocker_task = asyncio.create_task(
+            manager.execute(
+                runtime.ActionRequest(key="priority:blocker", kind="like"), blocker
+            )
+        )
+        await started.wait()
+        background = asyncio.create_task(
+            manager.execute(
+                runtime.ActionRequest(
+                    key="priority:background",
+                    kind="like",
+                    priority=runtime.EventPriority.BACKGROUND,
+                ),
+                lambda: record("background"),
+            )
+        )
+        urgent = asyncio.create_task(
+            manager.execute(
+                runtime.ActionRequest(
+                    key="priority:urgent",
+                    kind="private_reply",
+                    priority=runtime.EventPriority.ADMIN,
+                ),
+                lambda: record("urgent"),
+            )
+        )
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(blocker_task, background, urgent)
+
+        self.assertEqual(order, ["blocker", "urgent", "background"])
+
+    async def test_timed_out_action_becomes_unknown_and_is_not_retried(self):
+        manager = runtime.EventRuntime(action_timeout=0.01)
+        calls = 0
+
+        async def ambiguous_send():
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0.1)
+            return True
+
+        request = runtime.ActionRequest(key="timeout:1", kind="private_reply")
+        first = await manager.execute(request, ambiguous_send)
+        second = await manager.execute(request, ambiguous_send)
+
+        self.assertFalse(first.success)
+        self.assertEqual(first.state, "unknown")
+        self.assertTrue(second.duplicate)
+        self.assertEqual(second.state, "unknown")
+        self.assertEqual(calls, 1)
+
     async def test_failed_event_can_be_reclaimed_only_for_explicit_retry(self):
         manager = runtime.EventRuntime()
         event = self.make_event()

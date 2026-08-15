@@ -992,6 +992,36 @@
     "default": true,
     "hint": "主人私信和上下文重置指令不受兴趣选择影响，但仍受安全规则和每日硬上限保护。"
   },
+  "BEHAVIOR_BUDGET_ENABLED": {
+    "description": "【行为调度·总开关】统一限制主动看片、评论、私信、直播和动态动作",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后所有对外动作先进入同一队列，并在 SQLite 中原子预留额度；明确失败会退还，发送结果未知时不会盲目重试。"
+  },
+  "BEHAVIOR_GLOBAL_MAX_PER_MINUTE": {
+    "description": "【行为调度·全局】每分钟最多执行多少个对外动作",
+    "type": "int",
+    "default": 12,
+    "min": 0,
+    "max": 120,
+    "hint": "评论、私信、直播弹幕、动态及主动互动共用。0表示不限制；各功能自己的更小上限仍会生效。"
+  },
+  "BEHAVIOR_GLOBAL_DAILY_LIMIT": {
+    "description": "【行为调度·全局】每日最多执行多少个对外动作",
+    "type": "int",
+    "default": 200,
+    "min": 0,
+    "max": 5000,
+    "hint": "防止多个功能分别未超限、合计却刷屏。0表示不限制。"
+  },
+  "BEHAVIOR_ACTION_TIMEOUT_SECONDS": {
+    "description": "【行为调度·队列】单个发送动作超时秒数",
+    "type": "int",
+    "default": 45,
+    "min": 5,
+    "max": 180,
+    "hint": "超时会标为“发送结果未知”并停止自动重试，避免平台已收到但 Bot 再发一次。"
+  },
   "ENABLE_AUTONOMOUS_DAILY_PLAN": {
     "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",
     "type": "bool",

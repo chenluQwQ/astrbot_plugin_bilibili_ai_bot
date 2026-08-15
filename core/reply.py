@@ -30,7 +30,11 @@ class ReplyMixin:
         return sum(
             1 for item in logs if isinstance(item, dict)
             and str(item.get("time", "")).startswith(today)
-            and ((item.get("channel") == "private") if channel == "private" else (item.get("channel") != "private"))
+            and (
+                (item.get("channel") == "private")
+                if channel == "private"
+                else item.get("channel") not in {"private", "live"}
+            )
         )
 
     def _daily_reply_limit_reached(self, channel="comment"):
@@ -442,6 +446,8 @@ class ReplyMixin:
                             kind="comment_reply",
                             event_key=f"bilibili:comment:{rpid}",
                             target_id=str(rpid),
+                            priority=0,
+                            metadata={"budget_exempt": True, "safety_action": True},
                         ),
                         lambda: self._send_reply(
                             oid, rpid, comment_type, "我不想和你说话了。"
@@ -459,8 +465,26 @@ class ReplyMixin:
                         self._log_security_event(
                             "negative", mid, username, content, f"{cs}→{ns}({ds})"
                         )
-                        await self._block_user(int(mid))
-                        logger.info(f"[BiliBot] 🚫 拉黑 {username}")
+                        block_outcome = await self.event_runtime.execute(
+                            ActionRequest(
+                                key=f"comment_block:{mid}:{rpid}",
+                                kind="block_user",
+                                event_key=f"bilibili:comment:{rpid}",
+                                target_id=str(mid),
+                                priority=0,
+                                metadata={
+                                    "budget_exempt": True,
+                                    "safety_action": True,
+                                },
+                            ),
+                            lambda: self._block_user(int(mid)),
+                        )
+                        if block_outcome.success:
+                            logger.info(f"[BiliBot] 🚫 拉黑 {username}")
+                        else:
+                            logger.warning(
+                                f"[BiliBot] 拉黑动作未确认成功：{username}({mid})"
+                            )
                     return False
 
         # ── 更新用户画像（含视频遭遇记录） ──
@@ -478,6 +502,7 @@ class ReplyMixin:
                 kind="comment_reply",
                 event_key=f"bilibili:comment:{rpid}",
                 target_id=str(rpid),
+                priority=0 if self._is_owner(mid) else 20 if cs >= 40 else 40,
                 metadata={"oid": str(oid), "comment_type": comment_type},
             ),
             lambda: self._send_reply(oid, rpid, comment_type, ai_reply),

@@ -7,6 +7,7 @@ import random
 import base64
 import asyncio
 import traceback
+import hashlib
 import aiohttp
 from datetime import datetime
 from astrbot.api import logger
@@ -14,10 +15,31 @@ from .config import (
     DEFAULT_DYNAMIC_TOPICS, DYNAMIC_LOG_FILE,
     PERMANENT_MEMORY_FILE, TEMP_IMAGE_DIR,
 )
+from .runtime import ActionRequest, EventPriority
 
 
 class DynamicMixin:
     """B站动态发布。"""
+
+    async def _queue_dynamic_post(self, text, handler):
+        digest = hashlib.sha256(str(text).encode("utf-8")).hexdigest()[:20]
+        date_key = datetime.now().strftime("%Y-%m-%d")
+        outcome = await self.event_runtime.execute(
+            ActionRequest(
+                key=f"post_dynamic:{date_key}:{digest}",
+                kind="post_dynamic",
+                event_key=f"bilibili:proactive:dynamic:{date_key}",
+                target_id=str(self.config.get("DEDE_USER_ID", "") or "self"),
+                priority=EventPriority.BACKGROUND,
+                metadata={"proactive": True},
+            ),
+            handler,
+        )
+        if not outcome.success and str(outcome.reason).startswith("budget_exhausted:"):
+            logger.info(f"[BiliBot] 📢 统一行为预算已满，跳过动态：{outcome.reason}")
+        elif not outcome.success and outcome.state == "unknown":
+            logger.warning("[BiliBot] 动态发布结果未知，不会自动重发")
+        return outcome.success
 
     def _get_image_gen_config(self):
         api_key = self.config.get("IMAGE_GEN_API_KEY", "") or self.config.get("VIDEO_VISION_API_KEY", "")
@@ -178,17 +200,25 @@ B站动态的感觉：
             if local_path:
                 img_info = await self._upload_image_to_bilibili(local_path)
                 if img_info:
-                    success = await self._post_dynamic_with_image(text, img_info)
+                    success = await self._queue_dynamic_post(
+                        text, lambda: self._post_dynamic_with_image(text, img_info)
+                    )
                 else:
-                    success = await self._post_dynamic_text(text)
+                    success = await self._queue_dynamic_post(
+                        text, lambda: self._post_dynamic_text(text)
+                    )
                 try:
                     os.remove(local_path)
                 except Exception:
                     pass
             else:
-                success = await self._post_dynamic_text(text)
+                success = await self._queue_dynamic_post(
+                    text, lambda: self._post_dynamic_text(text)
+                )
         else:
-            success = await self._post_dynamic_text(text)
+            success = await self._queue_dynamic_post(
+                text, lambda: self._post_dynamic_text(text)
+            )
         if success:
             log.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "text": text, "has_image": need_image and bool(image_prompt), "image_prompt": image_prompt if need_image else ""})
             self._save_json(DYNAMIC_LOG_FILE, log[-100:])

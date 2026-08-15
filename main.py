@@ -1,5 +1,5 @@
 """
-AstrBot Plugin - Bilibili Bot 1.4.3
+AstrBot Plugin - Bilibili Bot 1.4.4
 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布。
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
@@ -34,7 +34,7 @@ _astrbot_site_packages = os.path.join(os.path.expanduser("~"), ".astrbot", "data
 if os.path.isdir(_astrbot_site_packages) and _astrbot_site_packages not in sys.path:
     sys.path.insert(0, _astrbot_site_packages)
 
-@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.4.3","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
+@register("astrbot_plugin_bilibili_ai_bot","chenluQwQ","B站 AI Bot — 自动回复评论、好感度、记忆、心情、用户画像、主动视频、动态发布、LLM工具调用","1.4.4","https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot")
 class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, AffectionMixin, PersonalityMixin, BilibiliAPIMixin, BangumiMixin, WebSearchMixin, VideoMixin, ReplyMixin, ProactiveMixin, DynamicMixin, ScheduleMixin, WeeklySummaryMixin, ShareMixin, PrivateMessageMixin, LiveDanmakuMixin):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -77,7 +77,16 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._private_message_last_activity_at = 0.0
         self._private_message_last_warned_backoff = 0
         self.layered_runtime = LayeredRuntime(self.config, LAYERED_DB_FILE)
-        self.event_runtime = EventRuntime(observer=self.layered_runtime)
+        try:
+            action_timeout = float(
+                self.config.get("BEHAVIOR_ACTION_TIMEOUT_SECONDS", 45) or 45
+            )
+        except (TypeError, ValueError):
+            action_timeout = 45
+        self.event_runtime = EventRuntime(
+            observer=self.layered_runtime,
+            action_timeout=action_timeout,
+        )
         self._init_live_danmaku_state()
         self._special_follow_times, self._special_follow_triggered = [], set()
         self._log_environment_warnings()
@@ -413,6 +422,10 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     async def terminate(self):
         await self._stop_bot()
         try:
+            await self.event_runtime.close()
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 动作队列关闭异常: {exc}")
+        try:
             await self.layered_runtime.close()
         except Exception as exc:
             logger.warning(f"[BiliBot] 四层运行服务关闭异常: {exc}")
@@ -555,8 +568,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         live_status = self._live_danmaku_status()
         runtime_status = await self.event_runtime.snapshot()
         runtime_priorities = runtime_status.get("event_priorities", {})
+        runtime_actions = runtime_status.get("action_states", {})
         lines = [
-            f"📺 BiliBot 1.4.3 状态","━━━━━━━━━━━━",f"🍪 {info}",
+            f"📺 BiliBot 1.4.4 状态","━━━━━━━━━━━━",f"🍪 {info}",
             f"{'🟢 运行中' if self._running else '🔴 未运行'}",
             f"🧠 记忆:{mc}条 | 💎永久:{pmc}条 | 👤档案:{pc}个",
             f"   📊 今日:{sum(1 for m in self._memory if m.get('level')=='today')} | 近期:{sum(1 for m in self._memory if m.get('level')=='recent')} | 长期:{sum(1 for m in self._memory if m.get('level')=='long_term')} | 老化:{sum(1 for m in self._memory if m.get('aged'))}",
@@ -577,7 +591,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             f"🔗 群/私聊解析:{'✅' if self.config.get('ENABLE_BILI_SHARE_PARSE', False) else '❌'} 发原视频:{'✅' if self.config.get('BILI_SHARE_PARSE_SEND_VIDEO', True) else '❌'}",
             f"   解析触发 自动:{'✅' if self.config.get('BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED',True) else '❌'} 手动:{'✅' if self.config.get('BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED',True) else '❌'} LLM:{'✅' if self.config.get('BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED',True) else '❌'}",
             f"🎙️ 直播记忆:{live_memory_count}条 | 外部接口:v{self.memory_api.api_version}",
-            f"🧱 统一事件:处理中{runtime_status['event_states']['processing']} | 已发送{runtime_status['event_states']['sent']} | 失败{runtime_status['event_states']['failed']} | 动作{runtime_status['actions']}",
+            f"🧱 统一调度:事件处理中{runtime_status['event_states']['processing']} | 队列{runtime_status.get('queue_depth', 0)} | 动作成功{runtime_actions.get('succeeded', 0)} | 失败{runtime_actions.get('failed', 0)} | 结果未知{runtime_actions.get('unknown', 0)}",
             f"🧭 近期优先级:管理员{runtime_priorities.get('admin', 0)} | @提及{runtime_priorities.get('direct_mention', 0)} | 对话{runtime_priorities.get('active_conversation', 0)} | 兴趣{runtime_priorities.get('interesting', 0)} | 普通{runtime_priorities.get('normal', 0)} | 后台{runtime_priorities.get('background', 0)}",
             f"🧭 看片筛选:{'✅' if self.config.get('ENABLE_PROACTIVE_LLM_PREFILTER', False) else '❌'} 最多拒绝:{self.config.get('PROACTIVE_LLM_PREFILTER_MAX_REJECTS', 3)}次 | 分区口味:{self._taste_window_days()}天",
             f"🎞️ 视频分段:{self.config.get('VIDEO_SEGMENT_MINUTES', 5)}分钟/段，最多{self.config.get('VIDEO_SEGMENT_MAX_COUNT', 10)}段",

@@ -15,8 +15,9 @@ from typing import Any, Iterable
 
 from .adapter.events import EventAdapter, EventState as StoredEventState
 from .adapter.events import InboundEvent as StoredInboundEvent
+from .behavior_budget import BehaviorBudget
 from .persona import PersonaEngine
-from .runtime import ActionRequest, EventState, InboundEvent
+from .runtime import ActionRequest, ActionState, EventState, InboundEvent
 from .security import (
     CapabilityStore,
     IdentityResolver,
@@ -63,6 +64,7 @@ class LayeredRuntime:
         self.capabilities = CapabilityStore(self.db)
         self.pending_confirmations = PendingConfirmations(self.db)
         self.tool_gate = ToolGate(self._get, audit=self._audit)
+        self.behavior_budget = BehaviorBudget(self._get)
         self._event_ids: dict[str, int] = {}
 
     @property
@@ -78,9 +80,47 @@ class LayeredRuntime:
 
     async def open(self) -> None:
         await self.db.open()
+        await self._recover_interrupted_actions()
         # Create the initial state eagerly so WebUI never has to guess whether the
         # persona layer exists. Day-plan generation remains lazy and side-effect free.
         await self.persona.snapshot()
+
+    async def _recover_interrupted_actions(self) -> None:
+        """Resolve queue state left by an unclean plugin stop.
+
+        Queued work never reached a handler and is safe to retry, so its reservation
+        is refunded. A running request may already have reached Bilibili and becomes
+        unknown; it is deliberately not retried or refunded automatically.
+        """
+
+        def _recover(conn):
+            at = now()
+            queued = conn.execute(
+                "SELECT key,budget FROM actions WHERE state='queued'"
+            ).fetchall()
+            for row in queued:
+                try:
+                    reservations = json.loads(row["budget"] or "[]")
+                except (TypeError, ValueError):
+                    reservations = []
+                self.behavior_budget.refund_in_transaction(conn, reservations, at)
+                conn.execute(
+                    "UPDATE actions SET state='failed',budget='[]',detail=?,"
+                    "updated_at=?,finished_at=? WHERE key=?",
+                    ("restart_before_send", at, at, row["key"]),
+                )
+            running = conn.execute(
+                "SELECT key FROM actions WHERE state='running'"
+            ).fetchall()
+            for row in running:
+                conn.execute(
+                    "UPDATE actions SET state='unknown',detail=?,updated_at=?,"
+                    "finished_at=? WHERE key=?",
+                    ("restart_during_send", at, at, row["key"]),
+                )
+            return {"failed_queued": len(queued), "unknown_running": len(running)}
+
+        await self.db.run(_recover)
 
     async def close(self) -> None:
         self._event_ids.clear()
@@ -281,69 +321,136 @@ class LayeredRuntime:
 
     async def before_action(
         self, request: ActionRequest
-    ) -> tuple[bool, str, bool] | None:
-        """Reserve a side effect, providing idempotency across plugin restarts."""
+    ) -> tuple[bool, str, bool, str] | None:
+        """Persist a queued action and atomically reserve its behaviour budgets."""
 
         if not self.is_open:
             return None
-        stale_before = now() - 1800
-
         def _reserve(conn):
             row = conn.execute(
-                "SELECT state,created_at FROM actions WHERE key=?", (request.key,)
+                "SELECT state FROM actions WHERE key=?", (request.key,)
             ).fetchone()
             at = now()
             if row is not None:
                 state = str(row["state"])
                 if state == "succeeded":
-                    return False, "already_succeeded", True
-                if state == "running" and float(row["created_at"] or 0) > stale_before:
-                    return False, "already_running", False
+                    return False, "already_succeeded", True, state
+                if state in {"queued", "running"}:
+                    return False, f"already_{state}", False, state
+                if state == "unknown":
+                    return False, "send_state_unknown", False, state
+
+            allowed, reason, reservations = self.behavior_budget.reserve_in_transaction(
+                conn, request, at
+            )
+            if not allowed:
+                return False, reason, False, "failed"
+            budget_json = json.dumps(
+                [reservation.as_dict() for reservation in reservations],
+                ensure_ascii=False,
+            )
+            digest = json.dumps(
+                dict(request.metadata or {}), ensure_ascii=False, default=str
+            )[:500]
+            if row is not None:
                 conn.execute(
-                    "UPDATE actions SET state='running',detail='',created_at=?,"
+                    "UPDATE actions SET kind=?,event_key=?,target_id=?,state='queued',"
+                    "priority=?,digest=?,budget=?,detail='',created_at=?,updated_at=?,"
                     "finished_at=NULL WHERE key=?",
-                    (at, request.key),
+                    (
+                        request.kind,
+                        request.event_key,
+                        request.target_id,
+                        int(request.priority),
+                        digest,
+                        budget_json,
+                        at,
+                        at,
+                        request.key,
+                    ),
                 )
-                return True, "retry", False
+                return True, "retry", False, "queued"
             conn.execute(
-                "INSERT INTO actions(key,kind,event_key,target_id,state,digest,detail,created_at) "
-                "VALUES(?,?,?,?,?,?,?,?)",
+                "INSERT INTO actions(key,kind,event_key,target_id,state,priority,"
+                "digest,budget,detail,created_at,updated_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     request.key,
                     request.kind,
                     request.event_key,
                     request.target_id,
-                    "running",
-                    json.dumps(
-                        dict(request.metadata or {}), ensure_ascii=False, default=str
-                    )[:500],
+                    "queued",
+                    int(request.priority),
+                    digest,
+                    budget_json,
                     "",
+                    at,
                     at,
                 ),
             )
-            return True, "", False
+            return True, "", False, "queued"
 
         return await self.db.run(_reserve)
 
-    async def on_action_finished(
-        self, request: ActionRequest, succeeded: bool, reason: str = ""
-    ) -> None:
+    async def on_action_started(self, request: ActionRequest) -> None:
         if not self.is_open:
             return
         await self.db.execute(
-            "UPDATE actions SET state=?,detail=?,finished_at=? WHERE key=?",
-            (
-                "succeeded" if succeeded else "failed",
-                str(reason or "")[:500],
-                now(),
-                request.key,
-            ),
+            "UPDATE actions SET state='running',attempts=attempts+1,updated_at=? "
+            "WHERE key=? AND state='queued'",
+            (now(), request.key),
         )
+
+    async def on_action_finished(
+        self, request: ActionRequest, state: ActionState | str, reason: str = ""
+    ) -> None:
+        if not self.is_open:
+            return
+        normalized = state.value if isinstance(state, ActionState) else str(state)
+
+        def _finish(conn):
+            at = now()
+            row = conn.execute(
+                "SELECT budget FROM actions WHERE key=?", (request.key,)
+            ).fetchone()
+            budget_json = row["budget"] if row is not None else "[]"
+            if normalized == ActionState.FAILED.value:
+                try:
+                    reservations = json.loads(budget_json or "[]")
+                except (TypeError, ValueError):
+                    reservations = []
+                self.behavior_budget.refund_in_transaction(conn, reservations, at)
+                budget_json = "[]"
+            conn.execute(
+                "UPDATE actions SET state=?,budget=?,detail=?,updated_at=?,"
+                "finished_at=? WHERE key=?",
+                (
+                    normalized,
+                    budget_json,
+                    str(reason or "")[:500],
+                    at,
+                    at,
+                    request.key,
+                ),
+            )
+
+        await self.db.run(_finish)
 
     async def snapshot(self) -> dict[str, Any]:
         if not self.is_open:
             return {"open": False}
         persona = await self.persona.snapshot()
+        action_rows = await self.db.fetch_all(
+            "SELECT state,COUNT(*) AS count FROM actions GROUP BY state"
+        )
+        action_states = {
+            str(row["state"]): int(row["count"]) for row in action_rows
+        }
+        day_key, minute_key = self.behavior_budget.window_keys(now())
+        counter_rows = await self.db.fetch_all(
+            "SELECT bucket,window_key,count FROM counters WHERE window_key IN (?,?)",
+            (day_key, minute_key),
+        )
         return {
             "open": True,
             "events": await self.events.stats(),
@@ -354,6 +461,10 @@ class LayeredRuntime:
                 "social": round(float(persona.social) * 100),
                 "mood": persona.mood,
                 "phase": persona.phase,
+            },
+            "behavior": {
+                "action_states": action_states,
+                "current_counters": [dict(row) for row in counter_rows],
             },
             "tools": {
                 "total": len(self.tool_gate.all_specs()),
@@ -387,9 +498,12 @@ class LayeredRuntime:
 
     async def purge_expired(self) -> dict[str, int]:
         if not self.is_open:
-            return {"memories": 0, "profile_facts": 0, "media": 0}
+            return {"memories": 0, "profile_facts": 0, "media": 0, "counters": 0}
         return {
             "memories": await self.memories.purge_expired(),
             "profile_facts": await self.profiles.purge_expired_facts(),
             "media": await self.media.purge_expired(),
+            "counters": await self.db.execute(
+                "DELETE FROM counters WHERE updated_at<?", (now() - 8 * 86400,)
+            ),
         }

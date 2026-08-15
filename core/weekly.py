@@ -552,10 +552,15 @@ class WeeklySummaryMixin:
                     img_info = await self._upload_image_to_bilibili(image_path)
                     if img_info:
                         dynamic_text = "📅 这周的B站生活周报来啦，整理成图片存档一下。"
-                        success = await self._post_dynamic_with_image(dynamic_text, img_info)
+                        success = await self._queue_dynamic_post(
+                            dynamic_text,
+                            lambda: self._post_dynamic_with_image(dynamic_text, img_info),
+                        )
                         has_image = success
                 if not success:
-                    success = await self._post_dynamic_text(summary)
+                    success = await self._queue_dynamic_post(
+                        summary, lambda: self._post_dynamic_text(summary)
+                    )
                 if success:
                     results.append("B站动态图片" if has_image else "B站动态")
                     log = self._load_json(DYNAMIC_LOG_FILE, [])
@@ -621,10 +626,17 @@ class WeeklySummaryMixin:
                     image_info = await self._upload_image_to_bilibili(image_path)
                     if image_info:
                         dynamic_text = "今天的B站生活小结，留个轻量存档。"
-                        success = await self._post_dynamic_with_image(dynamic_text, image_info)
+                        success = await self._queue_dynamic_post(
+                            dynamic_text,
+                            lambda: self._post_dynamic_with_image(
+                                dynamic_text, image_info
+                            ),
+                        )
                         has_image = success
                 if not success:
-                    success = await self._post_dynamic_text(summary)
+                    success = await self._queue_dynamic_post(
+                        summary, lambda: self._post_dynamic_text(summary)
+                    )
                 if success:
                     results.append("B站动态图片" if has_image else "B站动态")
                     log = self._load_json(DYNAMIC_LOG_FILE, [])

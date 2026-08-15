@@ -436,6 +436,7 @@ class LiveDanmakuMixin:
                 kind="live_reply",
                 event_key=f"bilibili:live:{event['event_id']}",
                 target_id=str(self._live_room_id()),
+                priority=int(self._live_runtime_event(event).priority),
             ),
             lambda: self._send_live_danmaku_text(reply_text),
             success=lambda value: int(value or 0) > 0,

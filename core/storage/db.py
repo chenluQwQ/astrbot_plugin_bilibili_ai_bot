@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 SCHEMA_FILE = Path(__file__).resolve().parent / "schema.sql"
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 
 def now() -> float:
@@ -48,6 +48,7 @@ class Database:
         conn = sqlite3.connect(self._path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
+        self._migrate_schema_sync(conn)
         conn.execute(
             "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -55,6 +56,31 @@ class Database:
         )
         conn.commit()
         self._conn = conn
+
+    @staticmethod
+    def _migrate_schema_sync(conn: sqlite3.Connection) -> None:
+        """Apply additive migrations for databases created before schema v3."""
+
+        columns = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(actions)").fetchall()
+        }
+        additions = {
+            "priority": "INTEGER NOT NULL DEFAULT 40",
+            "attempts": "INTEGER NOT NULL DEFAULT 0",
+            "budget": "TEXT NOT NULL DEFAULT '[]'",
+            "updated_at": "REAL",
+        }
+        for name, declaration in additions.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE actions ADD COLUMN {name} {declaration}")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_actions_queue "
+            "ON actions(state,priority,created_at)"
+        )
+        conn.execute(
+            "UPDATE actions SET updated_at=COALESCE(updated_at,finished_at,created_at)"
+        )
 
     async def close(self) -> None:
         conn, self._conn = self._conn, None

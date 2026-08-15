@@ -352,21 +352,22 @@ class ActionRegistry:
         """登记写动作。返回 action ID；已存在则返回 0。"""
         key = request.digest_key()
         existing = await self._db.fetch_one(
-            "SELECT id FROM actions WHERE key=?", (key,)
+            "SELECT rowid AS id FROM actions WHERE key=?", (key,)
         )
         if existing:
             return 0
         event_key = f"event:{event_id}" if event_id else ""
         return await self._db.execute(
-            "INSERT INTO actions(key,kind,event_key,target_id,digest,state,created_at) "
-            "VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO actions(key,kind,event_key,target_id,digest,state,created_at,updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?)",
             (
                 key,
                 request.tool,
                 event_key,
                 request.target_id,
                 json.dumps(request.args, ensure_ascii=False)[:500],
-                "running",
+                "queued",
+                now(),
                 now(),
             ),
         )
@@ -375,6 +376,6 @@ class ActionRegistry:
         self, key: str, state: str = "succeeded", detail: str = ""
     ) -> None:
         await self._db.execute(
-            "UPDATE actions SET state=?, detail=?, finished_at=? WHERE key=?",
-            (state, detail[:500], now(), key),
+            "UPDATE actions SET state=?, detail=?, updated_at=?, finished_at=? WHERE key=?",
+            (state, detail[:500], now(), now(), key),
         )

@@ -58,10 +58,14 @@ CREATE TABLE IF NOT EXISTS actions (
     kind       TEXT NOT NULL,
     event_key  TEXT NOT NULL DEFAULT '',
     target_id  TEXT NOT NULL DEFAULT '',
-    state      TEXT NOT NULL DEFAULT 'running',  -- running/succeeded/failed/unknown
+    state      TEXT NOT NULL DEFAULT 'queued',  -- queued/running/succeeded/failed/unknown
+    priority   INTEGER NOT NULL DEFAULT 40,
+    attempts   INTEGER NOT NULL DEFAULT 0,
     digest     TEXT NOT NULL DEFAULT '',
+    budget     TEXT NOT NULL DEFAULT '[]',
     detail     TEXT NOT NULL DEFAULT '',
     created_at REAL NOT NULL,
+    updated_at REAL,
     finished_at REAL
 );
 CREATE INDEX IF NOT EXISTS idx_actions_state ON actions (state, created_at);
