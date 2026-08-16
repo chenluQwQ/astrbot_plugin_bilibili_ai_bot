@@ -3,7 +3,7 @@ import hashlib
 import json
 import random
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from astrbot.api import logger
 from .config import (
     AUTONOMOUS_PLAN_FILE, BANGUMI_SCHEDULE_FILE, DYNAMIC_SCHEDULE_FILE,
@@ -63,10 +63,92 @@ class ScheduleMixin:
             pass
         return None
 
+    @classmethod
+    def _parse_window_value(cls, value):
+        """Parse ``HH:MM-HH:MM`` or a schedule-window mapping."""
+        if isinstance(value, dict):
+            start_raw = value.get("start_time") or value.get("start")
+            end_raw = value.get("end_time") or value.get("end")
+            scheduled_raw = value.get("scheduled_time") or value.get("time")
+        else:
+            parts = re.split(r"\s*(?:-|—|–|~|至)\s*", str(value or "").strip(), maxsplit=1)
+            if len(parts) != 2:
+                return None
+            start_raw, end_raw = parts
+            scheduled_raw = None
+        start = cls._parse_time_value(start_raw)
+        end = cls._parse_time_value(end_raw)
+        if start is None or end is None:
+            return None
+        start_minute = start[0] * 60 + start[1]
+        end_minute = end[0] * 60 + end[1]
+        duration = (end_minute - start_minute) % 1440
+        if duration < 15:
+            return None
+        scheduled = cls._parse_time_value(scheduled_raw) if scheduled_raw else None
+        return {
+            "start_time": f"{start[0]:02d}:{start[1]:02d}",
+            "end_time": f"{end[0]:02d}:{end[1]:02d}",
+            "start_minute": start_minute,
+            "end_minute": end_minute,
+            "duration_minutes": duration,
+            "scheduled_time": f"{scheduled[0]:02d}:{scheduled[1]:02d}" if scheduled else "",
+        }
+
+    @staticmethod
+    def _minute_text(minute):
+        minute %= 1440
+        return f"{minute // 60:02d}:{minute % 60:02d}"
+
+    def _window_trigger_minute(self, start_minute, duration_minutes, seed):
+        """Pick a stable 15-minute trigger inside the middle half of a window."""
+        safe_duration = max(15, int(duration_minutes))
+        low = max(0, safe_duration // 4)
+        high = max(low, safe_duration - low - 1)
+        digest = int(hashlib.sha256(str(seed).encode()).hexdigest()[:8], 16)
+        offset = low + digest % max(1, high - low + 1)
+        return ((start_minute + offset) // 15 * 15) % 1440
+
+    def _fixed_window_entries(self):
+        entries = []
+        for index, raw in enumerate(self.config.get("FIXED_PROACTIVE_WINDOWS", []) or []):
+            parsed = self._parse_window_value(raw)
+            if parsed and self._is_awake_minute(parsed["start_minute"]):
+                if not parsed["scheduled_time"]:
+                    trigger = self._window_trigger_minute(parsed["start_minute"], parsed["duration_minutes"], f"fixed|{index}|{raw}")
+                    parsed["scheduled_time"] = self._minute_text(trigger)
+                entries.append(parsed)
+        if entries:
+            return entries
+        # Backward compatibility: turn old exact times into centered windows.
+        duration = max(30, int(self.config.get("AUTONOMOUS_PROACTIVE_WINDOW_MINUTES", 90)))
+        for index, pair in enumerate(self._fixed_time_pairs("FIXED_PROACTIVE_TIMES")):
+            center = pair[0] * 60 + pair[1]
+            start = max(0, center - duration // 2)
+            end = min(1439, start + duration)
+            entries.append({
+                "start_time": self._minute_text(start), "end_time": self._minute_text(end),
+                "start_minute": start, "end_minute": end, "duration_minutes": end - start,
+                "scheduled_time": self._minute_text(center),
+            })
+        return entries
+
+    def _autonomous_generation_due(self, now=None):
+        now = now or datetime.now()
+        mode = str(self.config.get("AUTONOMOUS_PLAN_GENERATION_MODE", "after_sleep") or "after_sleep")
+        if mode == "fixed_time":
+            parsed = self._parse_time_value(self.config.get("AUTONOMOUS_PLAN_GENERATION_TIME", "08:05")) or (8, 5)
+            due_minute = parsed[0] * 60 + parsed[1]
+        else:
+            due_minute = (int(self.config.get("SLEEP_END", 8)) * 60 + max(0, int(self.config.get("AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", 5)))) % 1440
+        return now.hour * 60 + now.minute >= due_minute
+
     def _autonomous_config_fingerprint(self):
         keys = (
             "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL",
-            "AUTONOMOUS_PLAN_PROMPT",
+            "AUTONOMOUS_PLAN_PROMPT", "AUTONOMOUS_PLAN_GENERATION_MODE",
+            "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME",
+            "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES",
             "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX",
             "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
             "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX",
@@ -79,7 +161,7 @@ class ScheduleMixin:
             "DYNAMIC_DAILY_COUNT", "ENABLE_BANGUMI", "BANGUMI_PROACTIVE",
             "BANGUMI_DAILY_LIMIT", "SPECIAL_FOLLOW_TIMES_COUNT",
             "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE",
-            "SPECIAL_FOLLOW_FIXED_TIMES", "FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES",
+            "SPECIAL_FOLLOW_FIXED_TIMES", "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES",
             "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES",
             "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
             "FIXED_DYNAMIC_WATCH_TIMES", "SLEEP_START", "SLEEP_END",
@@ -197,8 +279,19 @@ class ScheduleMixin:
         today = datetime.now().strftime("%Y-%m-%d")
         fingerprint = self._autonomous_config_fingerprint()
         cached = self._load_json(AUTONOMOUS_PLAN_FILE, {})
-        if not force and isinstance(cached, dict) and cached.get("date") == today and cached.get("config_fingerprint") == fingerprint:
+        cached_matches = isinstance(cached, dict) and cached.get("date") == today and cached.get("config_fingerprint") == fingerprint
+        if not force and cached_matches and cached.get("generation_status") != "error":
             return cached
+        if not force and not self._autonomous_generation_due():
+            return cached if cached_matches else {}
+        if not force and cached_matches and cached.get("generation_status") == "error":
+            retry_minutes = max(5, int(self.config.get("AUTONOMOUS_PLAN_RETRY_MINUTES", 15)))
+            try:
+                generated_at = datetime.strptime(str(cached.get("generated_at")), "%Y-%m-%d %H:%M:%S")
+                if datetime.now() - generated_at < timedelta(minutes=retry_minutes):
+                    return cached
+            except (TypeError, ValueError):
+                pass
 
         activity = max(0, min(100, int(self.config.get("AUTONOMOUS_ACTIVITY_LEVEL", 55))))
         proactive_min, proactive_cap = self._autonomous_limit_range("proactive")
@@ -224,11 +317,11 @@ class ScheduleMixin:
 当前心情：{mood}
 活跃度：{activity}/100（低时应明显减少事件，高时也不能刷屏）
 睡眠区间：{int(self.config.get('SLEEP_START', 2)):02d}:00 到 {int(self.config.get('SLEEP_END', 8)):02d}:00
-管理员范围：主动浏览 {proactive_min}-{proactive_max} 次，发布动态 {dynamic_min}-{dynamic_max} 次；关注动态巡视最多 {dynamic_watch_max} 次，追番最多 {bangumi_max} 次，特别关注最多 {follow_max} 次。下限只在对应能力已启用且当天条件允许时尽量满足。
+管理员范围：主动浏览 {proactive_min}-{proactive_max} 个时间段，发布动态 {dynamic_min}-{dynamic_max} 次；关注动态巡视最多 {dynamic_watch_max} 次，追番最多 {bangumi_max} 次，特别关注最多 {follow_max} 次。下限只在对应能力已启用且当天条件允许时尽量满足。
 相邻主动事件至少间隔 {max(15, int(self.config.get('AUTONOMOUS_MIN_ACTION_GAP_MINUTES', 45)))} 分钟。
 人设摘要：{str(persona)[:1200]}
 管理员补充：{str(self.config.get('AUTONOMOUS_PLAN_PROMPT', ''))[:800]}
-JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_watch_times":["HH:MM"],"bangumi_times":["HH:MM"],"special_follow_times":["HH:MM"],"rationale":"一句话说明今日节奏"}}"""
+JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"dynamic_watch_times":["HH:MM"],"bangumi_times":["HH:MM"],"special_follow_times":["HH:MM"],"rationale":"一句话说明今日节奏"}}"""
         model_plan = {}
         generation_status = "success"
         model_error = ""
@@ -283,8 +376,31 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
         rng = random.Random(f"{today}|{fingerprint}")
         occupied = []
         normalized = {}
-        for key in ("dynamic_times", "proactive_times", "dynamic_watch_times", "bangumi_times", "special_follow_times"):
+        for key in ("dynamic_times", "dynamic_watch_times", "bangumi_times", "special_follow_times"):
             normalized[key] = self._sanitize_autonomous_times(model_plan.get(key, []), targets[key], occupied, rng)
+        requested_windows = model_plan.get("proactive_windows", [])
+        window_centers = []
+        for raw in requested_windows if isinstance(requested_windows, list) else []:
+            parsed = self._parse_window_value(raw)
+            if parsed:
+                center = (parsed["start_minute"] + parsed["duration_minutes"] // 2) % 1440
+                window_centers.append(self._minute_text(center))
+        proactive_times = self._sanitize_autonomous_times(window_centers, targets["proactive_times"], occupied, rng)
+        window_duration = max(30, min(360, int(self.config.get("AUTONOMOUS_PROACTIVE_WINDOW_MINUTES", 90))))
+        active_start, active_end = self._activity_awake_window()
+        proactive_windows = []
+        normalized_times = []
+        for index, time_text in enumerate(proactive_times):
+            center_pair = self._parse_time_value(time_text)
+            center = center_pair[0] * 60 + center_pair[1]
+            start = max(active_start, center - window_duration // 2)
+            end = min(active_end, start + window_duration)
+            start = max(active_start, end - window_duration)
+            trigger = self._window_trigger_minute(start, max(15, end - start), f"{today}|{fingerprint}|{index}")
+            proactive_windows.append({"start_time": self._minute_text(start), "end_time": self._minute_text(end), "scheduled_time": self._minute_text(trigger), "trigger_policy": "once_in_window"})
+            normalized_times.append(self._minute_text(trigger))
+        normalized["proactive_windows"] = proactive_windows
+        normalized["proactive_times"] = normalized_times
         reply_min, reply_max = self._autonomous_limit_range("reply")
         private_min, private_max = self._autonomous_limit_range("private")
         plan = {
@@ -304,6 +420,7 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
         self._save_json(AUTONOMOUS_PLAN_FILE, plan)
         # Replace runtime schedule state immediately so WebUI regeneration and the
         # current main-loop iteration both see the new plan.
+        self._proactive_windows = list(plan.get("proactive_windows", []))
         self._proactive_times = [parsed for value in plan["proactive_times"] if (parsed := self._parse_time_value(value)) is not None]
         self._dynamic_times = [parsed for value in plan["dynamic_times"] if (parsed := self._parse_time_value(value)) is not None]
         self._bangumi_times = [parsed for value in plan["bangumi_times"] if (parsed := self._parse_time_value(value)) is not None]
@@ -326,42 +443,41 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
     # ── 主动视频调度 ──
     def _generate_daily_schedule(self):
         if not self._schedule_feature_enabled("proactive"):
+            self._proactive_windows = []
             self._save_schedule_state([], set())
             return [], set()
-        planned = self._plan_time_pairs("proactive_times")
-        if planned or self._autonomous_plan_for_today():
+        plan = self._autonomous_plan_for_today()
+        if self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
+            planned = self._plan_time_pairs("proactive_times")
+            self._proactive_windows = list(plan.get("proactive_windows", [])) if plan else []
             self._save_schedule_state(planned, set())
             return planned, set()
-        fixed = self._fixed_time_pairs("FIXED_PROACTIVE_TIMES")
-        if fixed:
-            times = fixed
-        else:
-            n_times = self.config.get("PROACTIVE_TIMES_COUNT", 2)
-            times = sorted(random.sample(range(10, 23), min(n_times, 12)))
-            times = [(h, random.randint(0, 59)) for h in times]
-        schedule = {"date": datetime.now().strftime("%Y-%m-%d"), "proactive_times": [f"{h}:{m:02d}" for h, m in times], "proactive_triggered": []}
-        self._save_json(SCHEDULE_FILE, schedule)
+        windows = self._fixed_window_entries()
+        self._proactive_windows = [{key: item[key] for key in ("start_time", "end_time", "scheduled_time")} | {"trigger_policy": "once_in_window"} for item in windows]
+        times = [self._parse_time_value(item["scheduled_time"]) for item in windows]
+        times = [item for item in times if item is not None]
+        self._save_schedule_state(times, set())
         return times, set()
 
     def _load_or_generate_schedule(self):
         if not self._schedule_feature_enabled("proactive"):
+            self._proactive_windows = []
             self._save_schedule_state([], set())
             return [], set()
-        try:
-            schedule = self._load_json(SCHEDULE_FILE, {})
-            if schedule.get("date") == datetime.now().strftime("%Y-%m-%d"):
-                times = []
-                for t in schedule.get("proactive_times", []):
-                    h, m = t.split(":")
-                    times.append((int(h), int(m)))
-                triggered = set(schedule.get("proactive_triggered", []))
-                return times, triggered
-        except Exception:
-            pass
+        schedule = self._load_json(SCHEDULE_FILE, {})
+        if schedule.get("date") == datetime.now().strftime("%Y-%m-%d"):
+            pairs = [self._parse_time_value(value) for value in schedule.get("proactive_times", [])]
+            self._proactive_windows = list(schedule.get("proactive_windows", []))
+            return [value for value in pairs if value is not None], set(schedule.get("proactive_triggered", []))
         return self._generate_daily_schedule()
 
     def _save_schedule_state(self, times, triggered):
-        schedule = {"date": datetime.now().strftime("%Y-%m-%d"), "proactive_times": [f"{h}:{m:02d}" for h, m in times], "proactive_triggered": list(triggered)}
+        schedule = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "proactive_times": self._format_time_pairs(times),
+            "proactive_windows": list(getattr(self, "_proactive_windows", [])),
+            "proactive_triggered": sorted(triggered),
+        }
         self._save_json(SCHEDULE_FILE, schedule)
 
     # ── 动态调度 ──
@@ -370,7 +486,7 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
             self._save_dynamic_schedule_state([], set())
             return [], set()
         planned = self._plan_time_pairs("dynamic_times")
-        if planned or self._autonomous_plan_for_today():
+        if self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
             self._save_dynamic_schedule_state(planned, set())
             return planned, set()
         fixed = self._fixed_time_pairs("FIXED_DYNAMIC_TIMES")
@@ -411,7 +527,7 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
             self._save_bangumi_schedule_state([], set(), False)
             return [], set(), False
         planned = self._plan_time_pairs("bangumi_times")
-        if planned or self._autonomous_plan_for_today():
+        if self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
             self._save_bangumi_schedule_state(planned, set(), False)
             return planned, set(), False
         fixed = self._fixed_time_pairs("FIXED_BANGUMI_TIMES")
@@ -455,36 +571,19 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
         plan = self._autonomous_plan_for_today()
         if plan:
             return f"autonomous|{plan.get('config_fingerprint', '')}"
-        mode = self.config.get("SPECIAL_FOLLOW_MODE", "random")
-        count = self.config.get("SPECIAL_FOLLOW_TIMES_COUNT", 1)
-        fixed = self.config.get("SPECIAL_FOLLOW_FIXED_TIMES", [])
-        return f"{mode}|{count}|{','.join(str(t) for t in fixed)}"
+        fixed = self.config.get("FIXED_SPECIAL_FOLLOW_TIMES", [])
+        return f"fixed-plan|{','.join(str(t) for t in fixed)}"
 
     def _generate_special_follow_schedule(self):
         if not self._schedule_feature_enabled("special_follow"):
             self._save_special_follow_schedule_state([], set())
             return [], set()
         planned = self._plan_time_pairs("special_follow_times")
-        if planned or self._autonomous_plan_for_today():
+        if self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
             self._save_special_follow_schedule_state(planned, set())
             return planned, set()
-        mode = self.config.get("SPECIAL_FOLLOW_MODE", "random").lower().strip()
-        if mode == "fixed":
-            # 固定时间模式：从配置读 HH:MM 列表
-            fixed = self.config.get("SPECIAL_FOLLOW_FIXED_TIMES", [])
-            times = []
-            for t in fixed:
-                try:
-                    parts = str(t).split(":")
-                    times.append((int(parts[0]), int(parts[1])))
-                except (ValueError, IndexError):
-                    pass
-            times.sort()
-        else:
-            # 随机时间模式
-            n_times = self.config.get("SPECIAL_FOLLOW_TIMES_COUNT", 1)
-            hours = sorted(random.sample(range(10, 23), min(n_times, 12)))
-            times = [(h, random.randint(0, 59)) for h in hours]
+        # 固定计划模式统一从“当天计划生成方式”板块读取，不再使用能力抽屉中的旧触发方式/次数。
+        times = self._fixed_time_pairs("FIXED_SPECIAL_FOLLOW_TIMES")
         schedule = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "special_follow_times": [f"{h}:{m:02d}" for h, m in times],
@@ -531,7 +630,7 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
             self._save_dynamic_watch_schedule_state([], set())
             return [], set()
         planned = self._plan_time_pairs("dynamic_watch_times")
-        if planned or self._autonomous_plan_for_today():
+        if self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
             self._save_dynamic_watch_schedule_state(planned, set())
             return planned, set()
         fixed = self._fixed_time_pairs("FIXED_DYNAMIC_WATCH_TIMES")
@@ -608,6 +707,7 @@ JSON 格式：{{"proactive_times":["HH:MM"],"dynamic_times":["HH:MM"],"dynamic_w
         return {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "proactive_times": self._format_time_pairs(self._proactive_times) if self._schedule_feature_enabled("proactive") else [],
+            "proactive_windows": list(getattr(self, "_proactive_windows", [])) if self._schedule_feature_enabled("proactive") else [],
             "proactive_triggered": sorted(self._proactive_triggered) if self._schedule_feature_enabled("proactive") else [],
             "dynamic_times": self._format_time_pairs(self._dynamic_times) if self._schedule_feature_enabled("dynamic") else [],
             "dynamic_triggered": sorted(self._dynamic_triggered) if self._schedule_feature_enabled("dynamic") else [],

@@ -61,7 +61,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._web_search_client = None
         self._consecutive_llm_failures = 0
         self._llm_cooldown_until = 0
-        self._proactive_times, self._proactive_triggered = [], set()
+        self._proactive_windows, self._proactive_times, self._proactive_triggered = [], [], set()
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._bangumi_times, self._bangumi_triggered, self._bangumi_update_checked = [], set(), False

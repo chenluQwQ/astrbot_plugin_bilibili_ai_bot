@@ -19,6 +19,10 @@ const state = {
   persona: {},
   account: null,
   schedule: { events: [] },
+  scheduleOriginal: { events: [] },
+  scheduleDraft: { events: [] },
+  scheduleDirty: false,
+  scheduleGesture: null,
   scheduleStats: {},
   memory: {},
   profiles: [],
@@ -64,11 +68,11 @@ const PAGE_KEYS = {
     "BILI_SHARE_PARSE_MAX_VIDEO_MB", "BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT", "BILI_SHARE_PARSE_COOLDOWN",
   ],
   autonomy: [
-    "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL", "AUTONOMOUS_PLAN_PROMPT",
+    "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL", "AUTONOMOUS_PLAN_PROMPT", "AUTONOMOUS_PLAN_GENERATION_MODE", "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME", "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES",
     "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
     "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
     "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
-    "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
+    "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT",
     "PROACTIVE_COMMENT_COUNT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
@@ -82,7 +86,7 @@ const PAGE_KEYS = {
     "DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION",
     "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
     "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT",
-    "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "FIXED_PROACTIVE_TIMES",
+    "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
     "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES",
   ],
   memory: [
@@ -106,12 +110,12 @@ const SCHEDULE_REGEN_KEYS = new Set([
   "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
   "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
   "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
-  "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
+  "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT",
   "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT",
   "ENABLE_BANGUMI", "BANGUMI_PROACTIVE", "BANGUMI_DAILY_LIMIT",
   "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE", "SPECIAL_FOLLOW_TIMES_COUNT", "SPECIAL_FOLLOW_FIXED_TIMES",
   "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
-  "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "FIXED_PROACTIVE_TIMES",
+  "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
   "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES",
 ]);
 
@@ -137,6 +141,11 @@ const MOCK_FIELDS = {
   ENABLE_AUTONOMOUS_DAILY_PLAN: ["【自主安排】允许 Bot 根据人设与活跃度生成每日计划", "bool", true],
   AUTONOMOUS_ACTIVITY_LEVEL: ["【自主安排】今日基础活跃度（0-100）", "int", 62],
   AUTONOMOUS_PLAN_PROMPT: ["【自主安排】每日计划补充提示词", "text", "自然安排一天，低价值内容不必回复，避免短时间密集互动。"],
+  AUTONOMOUS_PLAN_GENERATION_MODE: ["【自主安排】每日计划生成时机", "string", "after_sleep", ["after_sleep", "fixed_time"]],
+  AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES: ["【自主安排】休眠结束后生成计划的偏移（分钟）", "int", 5],
+  AUTONOMOUS_PLAN_GENERATION_TIME: ["【自主安排】每日计划固定生成时刻", "string", "08:05"],
+  AUTONOMOUS_PLAN_RETRY_MINUTES: ["【自主安排】模型失败重试间隔（分钟）", "int", 15],
+  AUTONOMOUS_PROACTIVE_WINDOW_MINUTES: ["【自主安排】主动浏览默认时间段长度（分钟）", "int", 90],
   AUTONOMOUS_REPLY_DAILY_MIN: ["【自主安排·范围】每日评论回复下限", "int", 0],
   AUTONOMOUS_REPLY_DAILY_MAX: ["【自主安排·范围】每日评论回复上限", "int", 80],
   AUTONOMOUS_PRIVATE_DAILY_MIN: ["【自主安排·范围】每日私信回复下限", "int", 0],
@@ -200,7 +209,8 @@ const MOCK_FIELDS = {
   DYNAMIC_WATCH_INTEREST_PROMPT: ["【关注动态巡视】兴趣判断补充提示词", "text", "挑选真正值得留意、适合之后与主人分享或形成个人记忆的动态。"],
   FIXED_REPLY_DAILY_TARGET: ["【固定计划】每日评论回复目标数量", "int", 30],
   FIXED_PRIVATE_DAILY_TARGET: ["【固定计划】每日私信回复目标数量", "int", 10],
-  FIXED_PROACTIVE_TIMES: ["【固定计划】主动浏览准确时刻", "list", ["10:30", "19:30"]],
+  FIXED_PROACTIVE_WINDOWS: ["【固定计划】主动浏览时间段", "list", ["10:00-11:30", "19:00-21:00"]],
+  FIXED_PROACTIVE_TIMES: ["【固定计划·兼容】主动浏览准确时刻", "list", ["10:30", "19:30"]],
   FIXED_DYNAMIC_TIMES: ["【固定计划】发布动态准确时刻", "list", ["18:30"]],
   FIXED_DYNAMIC_WATCH_TIMES: ["【固定计划】关注动态巡视准确时刻", "list", ["11:30", "20:30"]],
   FIXED_BANGUMI_TIMES: ["【固定计划】追番准确时刻", "list", ["21:00"]],
@@ -258,7 +268,7 @@ function buildMock() {
     { time: "09:20", label: "特别关注", kind: "follow", description: "巡视特别关注用户的新内容" },
     { time: "12:10", label: "追番", kind: "bangumi", description: "检查更新或观看番剧" },
     { time: "16:30", label: "发布动态", kind: "dynamic", description: "根据今日状态发布一条动态" },
-    { time: "20:15", label: "主动浏览", kind: "proactive", description: "浏览视频并选择感兴趣的内容" },
+    { time: "20:15", start_time: "19:30", end_time: "21:00", trigger_policy: "once_in_window", label: "主动浏览", kind: "proactive", description: "在时间段内浏览视频并选择感兴趣的内容" },
   ].map((event) => ({ ...event, triggered: toPreviewMinute(event.time) < nowMinute }));
   const previewCompleted = previewEvents.filter((event) => event.triggered).length;
   const previewNext = previewEvents.find((event) => !event.triggered) || null;
@@ -313,12 +323,12 @@ function regenerateMockSchedule() {
   const events = [];
   const now = new Date();
   const nowMinute = now.getHours() * 60 + now.getMinutes();
-  const add = (time, label, kind, description) => events.push({ time, label, kind, description, triggered: minutesOf(time) < nowMinute });
+  const add = (time, label, kind, description, extra = {}) => events.push({ time, label, kind, description, triggered: minutesOf(time) < nowMinute, ...extra });
   const proactiveMin = num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MIN, 0);
   const proactiveMax = Math.min(num(cfg.PROACTIVE_DAILY_LIMIT, 5), num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MAX, 4));
   const proactiveSoft = activity >= 85 ? 3 : activity >= 50 ? 2 : activity >= 20 ? 1 : 0;
   const proactiveCount = cfg.ENABLE_PROACTIVE ? Math.min(proactiveMax, Math.max(proactiveMin, proactiveSoft)) : 0;
-  ["10:20", "15:30", "20:15"].slice(0, proactiveCount).forEach((time) => add(time, "主动浏览", "proactive", "浏览视频、选择感兴趣的内容"));
+  [["10:20", "09:45", "11:15"], ["15:30", "14:45", "16:15"], ["20:15", "19:30", "21:00"]].slice(0, proactiveCount).forEach(([time, start_time, end_time]) => add(time, "主动浏览", "proactive", "浏览视频、选择感兴趣的内容", { start_time, end_time, trigger_policy: "once_in_window" }));
   const dynamicMin = num(cfg.AUTONOMOUS_DYNAMIC_DAILY_MIN, 0);
   const dynamicMax = Math.min(num(cfg.DYNAMIC_DAILY_COUNT, 1), num(cfg.AUTONOMOUS_DYNAMIC_DAILY_MAX, 2));
   const dynamicSoft = activity >= 88 ? 2 : activity >= 40 ? 1 : 0;
@@ -387,6 +397,11 @@ async function apiPost(path, body = {}) {
     if (path === "memory/purge") mock.memory.total = Math.max(0, mock.memory.total - 23);
     if (path === "account/logout") mock.account = { logged_in: false, configured: false, reason: "尚未连接 B站账号" };
     if (path === "schedule/regenerate") return structuredClone(regenerateMockSchedule());
+    if (path === "schedule/override") {
+      mock.schedule.events = structuredClone(body.events || []);
+      mock.scheduleStats = { ...mock.scheduleStats, total: mock.schedule.events.length, remaining: mock.schedule.events.filter((event) => !event.triggered).length, completed: mock.schedule.events.filter((event) => event.triggered).length, next: mock.schedule.events.find((event) => !event.triggered) || null };
+      return structuredClone(mock.schedule);
+    }
     if (path === "cache/purge") {
       const deep = body.mode === "deep";
       const removedBytes = deep ? mock.cache.total_bytes : Object.entries(mock.cache.buckets || {}).filter(([key]) => key !== "qr").reduce((sum, [, item]) => sum + num(item.bytes), 0);
@@ -441,14 +456,15 @@ function renderSidebar() {
 }
 
 function updateSaveDock() {
-  if (!state.dirtyKeys.size && !state.isSaving) {
+  const pendingChanges = state.dirtyKeys.size + (state.scheduleDirty ? 1 : 0);
+  if (!pendingChanges && !state.isSaving) {
     saveDock.classList.remove("is-visible");
     saveDock.innerHTML = "";
     return;
   }
   const pending = state.isSaving;
   saveDock.innerHTML = `<div class="save-dock-inner ${pending ? "is-saving" : ""}" aria-live="polite" aria-busy="${pending}">
-    <div class="save-dock-copy"><strong>${pending ? "正在保存并刷新计划" : `${state.dirtyKeys.size} 项修改待保存`}</strong><span>${pending ? "自主模式会调用当前模型，请稍候" : "确认后写入插件配置"}</span></div>
+    <div class="save-dock-copy"><strong>${pending ? "正在保存并刷新计划" : `${pendingChanges} 项修改待保存`}</strong><span>${pending ? "正在写入配置与日程，请稍候" : "配置与事件环修改会一起写入"}</span></div>
     <button class="button soft" data-action="discard" type="button" ${pending ? "disabled" : ""}>放弃</button>
     <button class="button primary" data-action="save" type="button" ${pending ? "disabled" : ""}>${pending ? `<i class="dock-spinner"></i>处理中` : `${icon("save")}保存修改`}</button>
   </div>`;
@@ -458,6 +474,7 @@ function updateSaveDock() {
     saveDock.querySelector('[data-action="discard"]')?.addEventListener("click", discardDraft);
   }
 }
+
 
 function closeMobileNav() {
   sidebar.classList.remove("is-open");
@@ -490,6 +507,10 @@ async function refreshPageData(page) {
   } else if (page === "autonomy") {
     const [schedule, scheduleStats] = await Promise.all([apiGet("schedule/today"), apiGet("schedule/stats")]);
     state.schedule = schedule || { events: [] };
+    if (!state.scheduleDirty) {
+      state.scheduleOriginal = structuredClone(state.schedule);
+      state.scheduleDraft = structuredClone(state.schedule);
+    }
     state.scheduleStats = scheduleStats || {};
     if (state.selectedScheduleIndex >= (state.schedule.events || []).length) state.selectedScheduleIndex = -1;
   } else if (page === "memory") {
@@ -590,6 +611,7 @@ const OPTION_LABELS = {
   },
   PRIVATE_MESSAGE_REPLY_SCOPE: { all: "全部安全用户", owner: "仅主人", whitelist: "主人和白名单" },
   SPECIAL_FOLLOW_MODE: { random: "随机时间", fixed: "固定时间" },
+  AUTONOMOUS_PLAN_GENERATION_MODE: { after_sleep: "休眠结束后生成", fixed_time: "固定时刻生成" },
   MEMORY_ISOLATION_MODE: { isolated: "严格隔离", safe_share: "安全共享" },
   ABUSE_ALERT_MODE: { off: "关闭", log: "仅记录日志", qq: "QQ 通知" },
   DAILY_SUMMARY_MODE: { off: "仅存档", qq: "发送到 QQ", bili: "发布到 B 站", both: "QQ + B 站" },
@@ -750,14 +772,16 @@ const EVENT_STYLES = {
 };
 
 const AUTONOMY_CAPABILITIES = [
-  { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "浏览视频并执行受评分阈值保护的点赞、投币、收藏、评论或关注。", keys: ["PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT", "PROACTIVE_COMMENT_COUNT"] },
-  { id: "prefilter", title: "内容挑选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "用关注源、兴趣提示词和模型预筛选决定今天值得看的内容。", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS", "CUSTOM_PROACTIVE_INSTRUCTION"] },
-  { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "只在发现真正有趣的内容后分享，并受每日上限与最低评分保护。", keys: ["RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
-  { id: "dynamic", title: "动态发布", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按今日计划生成并发布 B站动态，关闭后不会进入事件环。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT", "DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION"] },
-  { id: "dynamic-watch", title: "查看关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "巡视关注者的新动态图文与视频投稿，每条内容使用独立模型上下文。", keys: ["DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
-  { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "单独巡视特别关注用户，可选择随机节奏或管理员固定时刻。", keys: ["SPECIAL_FOLLOW_MODE", "SPECIAL_FOLLOW_TIMES_COUNT", "SPECIAL_FOLLOW_FIXED_TIMES"] },
-  { id: "bangumi", title: "番剧日程", icon: "video", toggle: "ENABLE_BANGUMI", description: "查看番剧更新并在主动追番开启时安排真实追番事件。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
+  { id: "plan-generation", title: "每日计划编排", icon: "calendar", toggle: "ENABLE_AUTONOMOUS_DAILY_PLAN", description: "决定由模型安排今天的事件，或切换到管理员固定计划。", keys: ["AUTONOMOUS_PLAN_GENERATION_MODE", "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME", "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES", "AUTONOMOUS_PLAN_PROMPT"] },
+  { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在主动浏览时间段内观看视频，并执行受评分阈值保护的互动。", keys: ["PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_COUNT"] },
+  { id: "dynamic", title: "动态发布", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按今日计划生成并发布 B站动态；时间由固定计划或自主计划统一安排。", keys: ["DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION"] },
+  { id: "dynamic-watch", title: "关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "查看关注用户的新动态图文与视频投稿，触发节奏由统一日程管理。", keys: ["DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
+  { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "巡视特别关注用户；不在此处重复设置固定时刻或触发次数。", keys: [] },
+  { id: "bangumi", title: "番剧日程", icon: "video", toggle: "ENABLE_BANGUMI", description: "查看番剧更新，并在主动追番开启时安排真实追番事件。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
+  { id: "prefilter", title: "内容挑选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "用关注源、兴趣提示词和模型预筛选决定今天值得看的内容。", dependency: "依赖主动浏览", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS", "CUSTOM_PROACTIVE_INSTRUCTION"] },
+  { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "只在主动浏览发现真正有趣的内容后分享，不独立创建日程。", dependency: "依赖主动浏览", keys: ["RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
 ];
+
 
 function activityLabel(value) {
   const n = num(value);
@@ -791,19 +815,40 @@ function arcPath(start, end, radius = 132, center = 180) {
   return `M ${a[0].toFixed(2)} ${a[1].toFixed(2)} A ${radius} ${radius} 0 ${duration > 720 ? 1 : 0} 1 ${b[0].toFixed(2)} ${b[1].toFixed(2)}`;
 }
 
-function ringEventArc(event, originalIndex, orderIndex) {
-  const minute = minutesOf(event.time);
-  if (minute === null) return "";
+function eventWindow(event) {
+  const start = minutesOf(event?.start_time);
+  const end = minutesOf(event?.end_time);
+  if (start === null || end === null || start === end) return null;
+  let duration = end - start;
+  if (duration <= 0) duration += 1440;
+  return { start, end, duration };
+}
+
+function eventArcData(event) {
+  const window = eventWindow(event);
+  if (window) return { ...window, d: arcPath(window.start, window.end) };
+  const minute = minutesOf(event?.time);
+  if (minute === null) return null;
   const start = (minute - 15 + 1440) % 1440;
   const end = (minute + 15) % 1440;
   const d = start < end ? arcPath(start, end) : `${arcPath(start, 1439)} ${arcPath(0, end)}`;
+  return { start, end, duration: 30, d };
+}
+
+function ringEventArc(event, originalIndex, orderIndex) {
+  const geometry = eventArcData(event);
+  if (!geometry) return "";
   const style = EVENT_STYLES[event.kind] || EVENT_STYLES.proactive;
   const meta = eventPhaseMeta(event);
-  const label = esc(`${event.time} ${event.label || style.label}，${meta.label}`);
+  const window = eventWindow(event);
+  const label = esc(`${window ? `${event.start_time}-${event.end_time}` : event.time} ${event.label || style.label}，${meta.label}`);
   const active = originalIndex === state.selectedScheduleIndex;
-  return `<g class="ring-event-group phase-${meta.phase}">
-    <path class="ring-event-hit" data-segment-index="${originalIndex}" d="${d}" tabindex="0" role="button" aria-label="${label}" aria-pressed="${active}" />
-    <path class="ring-event ${active ? "is-active" : ""} is-${meta.phase}" data-ring-index="${originalIndex}" d="${d}" pathLength="100" stroke="url(#grad-${event.kind || "proactive"})" style="--segment-delay:${orderIndex * 48}ms" aria-hidden="true" />
+  const startPoint = pointForMinute(geometry.start, 132);
+  const endPoint = pointForMinute(geometry.end, 132);
+  return `<g class="ring-event-group phase-${meta.phase} ${window ? "is-window" : "is-point"}" data-ring-group="${originalIndex}">
+    <path class="ring-event-hit" data-segment-index="${originalIndex}" data-ring-gesture="${window ? "window" : "point"}" d="${geometry.d}" tabindex="0" role="button" aria-label="${label}" aria-pressed="${active}" />
+    <path class="ring-event ${active ? "is-active" : ""} is-${meta.phase}" data-ring-index="${originalIndex}" d="${geometry.d}" pathLength="100" stroke="url(#grad-${event.kind || "proactive"})" style="--segment-delay:${orderIndex * 48}ms" aria-hidden="true" />
+    ${window ? `<circle class="ring-resize-handle" data-ring-handle="start" data-segment-index="${originalIndex}" cx="${startPoint[0]}" cy="${startPoint[1]}" r="7" tabindex="0" aria-label="调整${esc(event.label)}开始时间" /><circle class="ring-resize-handle" data-ring-handle="end" data-segment-index="${originalIndex}" cx="${endPoint[0]}" cy="${endPoint[1]}" r="7" tabindex="0" aria-label="调整${esc(event.label)}结束时间" />` : ""}
   </g>`;
 }
 
@@ -822,7 +867,7 @@ function eventPhase(event, nowMinute = currentMinuteOfDay()) {
 function eventPhaseMeta(event) {
   const phase = eventPhase(event);
   if (phase === "done") return { phase, label: "已完成", detail: "已按计划执行" };
-  if (phase === "overdue") return { phase, label: "已错过", detail: "时刻已过，等待补执行或重新生成" };
+  if (phase === "overdue") return { phase, label: "已错过", detail: "时段触发时刻已过，等待补执行或重新生成" };
   if (phase === "invalid") return { phase, label: "时间无效", detail: "请修正该事件的执行时刻后保存" };
   return { phase, label: "待执行", detail: "等待计划时刻" };
 }
@@ -867,7 +912,7 @@ function renderScheduleRing(events) {
   const sleepArc = sleepStart === sleepEnd ? "" : `<path class="sleep-arc" d="${arcPath(sleepStart, sleepEnd, 111)}" stroke="url(#grad-sleep)" />`;
   const selectedMeta = selected ? eventPhaseMeta(selected) : null;
   const center = selected
-    ? `<span>已选择事件</span><strong>${esc(selected.time)}</strong><b>${esc(selected.label || (EVENT_STYLES[selected.kind] || EVENT_STYLES.proactive).label)}</b><small>${selectedMeta.label} · ${selectedMeta.detail}</small>`
+    ? `<span>已选择事件</span><strong>${esc(eventWindow(selected) ? `${selected.start_time}–${selected.end_time}` : selected.time)}</strong><b>${esc(selected.label || (EVENT_STYLES[selected.kind] || EVENT_STYLES.proactive).label)}</b><small>${selectedMeta.label} · ${selectedMeta.detail}</small>`
     : `<span>当前时间</span><strong>${currentClockText()}</strong><b>${next ? `下一步 · ${esc(next.label || (EVENT_STYLES[next.kind] || EVENT_STYLES.proactive).label)}` : "今日暂无后续事件"}</b><small>${next?.time ? `预计 ${esc(next.time)} 执行` : "过时未执行项目会在列表中标记为已错过"}</small>`;
   return `<div class="ring-shell">
     <svg class="schedule-ring" viewBox="0 0 360 360" aria-label="24小时事件环">
@@ -875,11 +920,12 @@ function renderScheduleRing(events) {
       <circle class="ring-track" cx="180" cy="180" r="132" />${ticks}${labels}${sleepArc}
       ${ordered.map(({ event, index }, orderIndex) => ringEventArc(event, index, orderIndex)).join("")}
       <g class="now-pointer" transform="rotate(${nowAngle} 180 180)" aria-label="当前时间 ${currentClockText()}">
-        <path class="now-pointer-halo" d="M180 39 L164 7 L196 7 Z" />
-        <path class="now-pointer-cone" d="M180 35 L170 12 L190 12 Z" />
+        <path class="now-pointer-halo" d="M180 39 L165 9 Q180 4 195 9 Z" />
+        <path class="now-pointer-cone" d="M180 36 L171 12 Q180 8 189 12 Z" />
+        <path class="now-pointer-highlight" d="M180 33 L176 14" />
       </g>
     </svg>
-    <div class="ring-center">${center}</div>
+    <button class="ring-center" type="button" aria-label="显示当前时间">${center}</button>
     <div class="ring-glow" style="--ring-a:${selectedStyle.gradient[0]};--ring-b:${selectedStyle.gradient[1]}"></div>
   </div>`;
 }
@@ -898,7 +944,7 @@ function renderEventList(events) {
   return `<div class="event-list">${events.map((event, index) => {
     const style = EVENT_STYLES[event.kind] || EVENT_STYLES.proactive;
     const meta = eventPhaseMeta(event);
-    return `<button class="event-row phase-${meta.phase} ${index === state.selectedScheduleIndex ? "is-active" : ""}" data-segment-index="${index}" type="button"><span class="event-color" style="--a:${style.gradient[0]};--b:${style.gradient[1]}">${icon(style.icon)}</span><span class="event-time">${esc(event.time)}</span><span class="event-copy"><strong>${esc(event.label || style.label)}</strong><small>${esc(event.description || "按今日计划执行")}</small></span><span class="event-status ${meta.phase}" title="${esc(meta.detail)}">${meta.label}</span></button>`;
+    return `<button class="event-row phase-${meta.phase} ${index === state.selectedScheduleIndex ? "is-active" : ""}" data-segment-index="${index}" type="button"><span class="event-color" style="--a:${style.gradient[0]};--b:${style.gradient[1]}">${icon(style.icon)}</span><span class="event-time">${esc(eventWindow(event) ? `${event.start_time}–${event.end_time}` : event.time)}</span><span class="event-copy"><strong>${esc(event.label || style.label)}</strong><small>${esc(event.description || "按今日计划执行")}</small></span><span class="event-status ${meta.phase}" title="${esc(meta.detail)}">${meta.label}</span></button>`;
   }).join("")}</div>`;
 }
 
@@ -911,7 +957,7 @@ function renderSelectedEvent(events) {
   }
   const style = EVENT_STYLES[event.kind] || EVENT_STYLES.proactive;
   const meta = eventPhaseMeta(event);
-  return `<div id="selected-event" class="selected-event phase-${meta.phase}" style="--a:${style.gradient[0]};--b:${style.gradient[1]}"><span class="selected-event-icon">${icon(style.icon)}</span><div><span>${meta.phase === "done" ? "已完成事件" : meta.phase === "overdue" ? "已错过事件" : "计划事件"}</span><h3>${esc(event.time)} · ${esc(event.label || style.label)}</h3><p>${esc(event.description || "Bot 会按今天的计划执行。")} · ${esc(meta.detail)}</p></div></div>`;
+  return `<div id="selected-event" class="selected-event phase-${meta.phase}" style="--a:${style.gradient[0]};--b:${style.gradient[1]}"><span class="selected-event-icon">${icon(style.icon)}</span><div><span>${meta.phase === "done" ? "已完成事件" : meta.phase === "overdue" ? "已错过事件" : "计划事件"}</span><h3>${esc(eventWindow(event) ? `${event.start_time}–${event.end_time}` : event.time)} · ${esc(event.label || style.label)}</h3><p>${esc(event.description || "Bot 会按今天的计划执行。")} · ${esc(meta.detail)}</p></div></div>`;
 }
 
 const PROACTIVE_BEHAVIORS = [
@@ -940,9 +986,25 @@ function renderPlanStatus(plan, autonomous) {
   return `<div class="plan-status ${failed ? "has-error" : autonomous ? "is-model" : "is-fixed"}"><span>${icon(failed ? "lightning" : autonomous ? "star" : "clock")}</span><div><strong>${esc(status)}</strong><p>${esc(detail)}</p></div>${plan.generated_at ? `<small>${esc(plan.generated_at)}</small>` : ""}</div>`;
 }
 
+function renderAdminRangeRow(label, minKey, maxKey, unit) {
+  const minimum = num(currentValue(minKey), 0);
+  const maximum = num(currentValue(maxKey), 0);
+  return `<div class="admin-range-row"><div class="admin-range-label"><strong>${esc(label)}</strong><small>${esc(unit)}</small></div><div class="admin-range-control"><div class="range-number"><button type="button" data-step-key="${minKey}" data-step-dir="-1" aria-label="减少${esc(label)}下限">−</button><input data-config-key="${minKey}" data-range-bound="min" type="number" min="0" max="${Math.max(maximum, 1)}" step="1" value="${minimum}" aria-label="${esc(label)}下限" /><button type="button" data-step-key="${minKey}" data-step-dir="1" aria-label="增加${esc(label)}下限">＋</button></div><span class="range-dash">—</span><div class="range-number"><button type="button" data-step-key="${maxKey}" data-step-dir="-1" aria-label="减少${esc(label)}上限">−</button><input data-config-key="${maxKey}" data-range-bound="max" type="number" min="${minimum}" max="999" step="1" value="${maximum}" aria-label="${esc(label)}上限" /><button type="button" data-step-key="${maxKey}" data-step-dir="1" aria-label="增加${esc(label)}上限">＋</button></div><span class="range-unit">${esc(unit)}</span></div></div>`;
+}
+
+function renderAdminRanges() {
+  const rows = [
+    ["每日评论回复", "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "次"],
+    ["每日私信回复", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX", "次"],
+    ["主动浏览轮次", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX", "轮"],
+    ["每日发布动态", "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "条"],
+  ];
+  const summary = rows.map(([label, minKey, maxKey, unit]) => `${label.replace("每日", "")} ${fmt(currentValue(minKey))}-${fmt(currentValue(maxKey))}${unit}`).join(" · ");
+  return `<details class="admin-range-details"><summary><span><strong>管理员范围限制</strong><small>${esc(summary)}</small></span><i>${icon("arrow-right")}</i></summary><div class="admin-range-list">${rows.map((row) => renderAdminRangeRow(...row)).join("")}<p class="admin-range-hint">下限不能大于上限；主动浏览的数量是时间段轮次，每轮视频数量与每日视频总数仍单独控制。</p></div></details>`;
+}
+
 function renderAutonomousTemplate(plan, autonomous, events) {
   const next = nextScheduleEvent(events);
-  const limitKeys = ["SLEEP_START", "SLEEP_END", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX", "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX"];
   return `<section class="plan-template autonomous-template ${autonomous ? "is-active" : ""}" data-plan-template="autonomous" aria-hidden="${!autonomous}" ${autonomous ? "" : "inert"}>
     ${renderPlanStatus(plan, true)}
     <div class="plan-facts">
@@ -952,12 +1014,11 @@ function renderAutonomousTemplate(plan, autonomous, events) {
       <div><span>计划来源</span><strong>${plan.source === "fallback" ? "安全回退" : "当前模型"}</strong><small>仅保存时更新当天计划</small></div>
     </div>
     ${renderConfigSection("自主计划提示词", "作为 B站每日安排的附加提示，不会替换 AstrBot 原人设", ["AUTONOMOUS_PLAN_PROMPT"], "star", "", "embedded-section")}
-    <section class="embedded-section limit-section">${sectionHead("管理员范围限制", "分别设置计划下限和执行上限；休眠区间不会生成主动事件", "lock")}<div class="plan-limit-grid">${limitKeys.map((key) => renderField(key, { tile: true })).join("")}</div></section>
   </section>`;
 }
 
 function renderFixedTemplate(plan, autonomous) {
-  const exactKeys = ["FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES"];
+  const exactKeys = ["FIXED_PROACTIVE_WINDOWS", "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES"];
   return `<section class="plan-template fixed-template ${autonomous ? "" : "is-active"}" data-plan-template="fixed" aria-hidden="${autonomous}" ${autonomous ? "inert" : ""}>
     ${renderPlanStatus(plan, false)}
     <div class="fixed-target-grid">${["FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "SLEEP_START", "SLEEP_END", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES"].map((key) => renderField(key, { tile: true })).join("")}</div>
@@ -969,23 +1030,25 @@ function renderPlanModeCard(plan, autonomous, events) {
   return `<section class="card plan-mode-card">
     <div class="plan-mode-head"><div><span>DAILY PLAN MODE</span><h2>当天计划生成方式</h2><p>切换只修改草稿，只有点击“保存修改”才会重新生成当天计划。</p></div><div class="plan-mode-switch ${autonomous ? "is-autonomous" : "is-fixed"}" role="tablist" aria-label="当天计划模式"><button class="${autonomous ? "is-active" : ""}" data-plan-mode="autonomous" role="tab" aria-selected="${autonomous}" type="button">${icon("star")}自主安排</button><button class="${autonomous ? "" : "is-active"}" data-plan-mode="fixed" role="tab" aria-selected="${!autonomous}" type="button">${icon("clock")}固定计划</button><i aria-hidden="true"></i></div></div>
     <div class="plan-template-stage ${autonomous ? "show-autonomous" : "show-fixed"}">${renderAutonomousTemplate(plan, autonomous, events)}${renderFixedTemplate(plan, autonomous)}</div>
+    ${renderAdminRanges()}
   </section>`;
 }
 
 function capabilitySummary(item) {
   if (!currentValue(item.toggle)) return "总开关已关闭，不会生成相关事件";
-  if (item.id === "proactive") return `每天最多 ${fmt(currentValue("PROACTIVE_DAILY_LIMIT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个视频`;
+  if (item.id === "plan-generation") return currentValue("ENABLE_AUTONOMOUS_DAILY_PLAN") ? `每日计划：${currentValue("AUTONOMOUS_PLAN_GENERATION_MODE") === "fixed_time" ? currentValue("AUTONOMOUS_PLAN_GENERATION_TIME") : `休眠后 ${fmt(currentValue("AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES"))} 分钟`}` : "当前使用固定计划";
+  if (item.id === "proactive") return `时间段内最多 ${fmt(currentValue("PROACTIVE_DAILY_LIMIT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个视频`;
   if (item.id === "owner-share") return `最低 ${fmt(currentValue("RECOMMEND_OWNER_MIN_SCORE"))} 分 · 每天最多 ${fmt(currentValue("RECOMMEND_OWNER_DAILY_LIMIT"))} 次`;
-  if (item.id === "dynamic") return `每天最多 ${fmt(currentValue("DYNAMIC_DAILY_COUNT"))} 条动态`;
+  if (item.id === "dynamic") return "时间由统一日程管理";
   if (item.id === "dynamic-watch") return `每天最多 ${fmt(currentValue("DYNAMIC_WATCH_DAILY_LIMIT"))} 次 · 包含视频投稿 ${currentValue("DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS") ? "开启" : "关闭"}`;
-  if (item.id === "special-follow") return `${currentValue("SPECIAL_FOLLOW_MODE") === "fixed" ? "固定时刻" : "自主节奏"} · 每天 ${fmt(currentValue("SPECIAL_FOLLOW_TIMES_COUNT"))} 次`;
+  if (item.id === "special-follow") return "日程统一由自主安排或固定计划管理";
   if (item.id === "bangumi") return `${currentValue("BANGUMI_PROACTIVE") ? "主动追番" : "仅启用资料能力"} · 每天最多 ${fmt(currentValue("BANGUMI_DAILY_LIMIT"))} 次`;
   return "模型预筛选已启用";
 }
 
 function renderCapabilityCard(item) {
   const enabled = Boolean(currentValue(item.toggle));
-  return `<article class="capability-card ${enabled ? "is-enabled" : ""}" data-capability-card="${item.id}"><div class="capability-top"><span class="capability-icon">${icon(item.icon)}</span>${renderControl(item.toggle, state.schema[item.toggle])}</div><div class="capability-copy"><strong>${esc(item.title)}</strong><p>${esc(item.description)}</p><small>${esc(capabilitySummary(item))}</small></div><button class="capability-settings" data-capability-open="${item.id}" type="button">${icon("settings")}详细设置</button></article>`;
+  return `<article class="capability-card ${enabled ? "is-enabled" : ""}" data-capability-card="${item.id}"><div class="capability-top"><span class="capability-icon">${icon(item.icon)}</span>${renderControl(item.toggle, state.schema[item.toggle])}</div><div class="capability-copy"><strong>${esc(item.title)}</strong>${item.dependency ? `<em class="capability-dependency">${esc(item.dependency)}</em>` : ""}<p>${esc(item.description)}</p><small>${esc(capabilitySummary(item))}</small></div><button class="capability-settings" data-capability-open="${item.id}" type="button">${icon("settings")}详细设置</button></article>`;
 }
 
 function renderCapabilityCards() {
@@ -1028,6 +1091,15 @@ function openAutonomyDrawer(id) {
   renderAutonomyDrawer(item);
 }
 
+function hasEventCreatingCapability() {
+  return Boolean(currentValue("ENABLE_PROACTIVE") || currentValue("ENABLE_DYNAMIC") || currentValue("ENABLE_DYNAMIC_WATCH") || currentValue("SPECIAL_FOLLOW_ENABLED") || (currentValue("ENABLE_BANGUMI") && currentValue("BANGUMI_PROACTIVE")));
+}
+
+function renderBeginnerGuide() {
+  if (hasEventCreatingCapability()) return "";
+  return `<div class="beginner-guide" role="note"><svg viewBox="0 0 180 62" aria-hidden="true"><path d="M12 8 C24 44 70 53 142 34" /><path d="M132 25 L143 34 L130 42" /></svg><div><strong>今天还没有可生成日程的主动能力</strong><span>先在下方开启“主动浏览”“动态发布”或其他能力，内容挑选和给主人分享会跟随主动浏览工作。</span></div></div>`;
+}
+
 function renderAutonomy() {
   const events = Array.isArray(state.schedule.events) ? state.schedule.events : [];
   const plan = state.schedule.autonomous_plan || {};
@@ -1045,7 +1117,7 @@ function renderAutonomy() {
         ${renderScheduleRing(events)}
         <div class="ring-legend">${Object.entries(EVENT_STYLES).map(([key, item]) => `<span><i style="--a:${item.gradient[0]};--b:${item.gradient[1]}"></i>${esc(item.label)}</span>`).join("")}</div>
       </article>
-      <aside class="schedule-side"><article class="card event-card">${sectionHead("今日事件", `${completedCount} 已完成 · ${upcomingCount} 待执行${overdueCount ? ` · ${overdueCount} 已错过` : ""}${invalidCount ? ` · ${invalidCount} 时间无效` : ""}`, "calendar")}${renderSelectedEvent(events)}${renderEventList(events)}</article></aside>
+      <aside class="schedule-side"><article class="card event-card">${sectionHead("今日事件", `${completedCount} 已完成 · ${upcomingCount} 待执行${overdueCount ? ` · ${overdueCount} 已错过` : ""}${invalidCount ? ` · ${invalidCount} 时间无效` : ""}`, "calendar")}${renderSelectedEvent(events)}${renderEventList(events)}${renderBeginnerGuide()}</article></aside>
     </section>
     ${renderPlanModeCard(plan, autonomous, events)}
     <section class="card section-card behavior-section">${sectionHead("主动行为评分", "管理员决定每个动作的最低内容评分；模型意愿不能绕过阈值", "controller")}${renderBehaviorMatrix()}</section>
@@ -1108,7 +1180,7 @@ function renderSecurity() {
   const isolated = currentValue("BILI_TOOL_ISOLATION_ENABLED") !== false;
   const memoryMode = currentValue("MEMORY_ISOLATION_MODE") || "isolated";
   return `${pageHead("SECURITY", "安全与工具", "B站外部内容默认是不可信输入；工具、命令和跨平台记忆必须经过显式授权。", button("刷新审计", "refresh-security", "refresh"))}
-    <section class="security-hero ${isolated ? "is-safe" : "is-risk"}"><span>${icon(isolated ? "lock" : "unlock")}</span><div><small>TOOL ISOLATION</small><h2>${isolated ? "B站端权限已隔离" : "工具隔离已关闭"}</h2><p>${isolated ? "B站评论与私信无法运行 AstrBot/QQ 命令、文件、Shell 或写操作。" : "建议立即重新开启隔离；只读白名单仍由后端硬限制。"}</p></div>${statusPill(isolated ? "默认安全" : "需要处理", isolated ? "green" : "red")}</section>
+    <section class="security-hero ${isolated ? "is-safe" : "is-risk"}"><span>${icon(isolated ? "lock" : "unlock")}</span><div><small>TOOL ISOLATION</small><h2>${isolated ? "B站端权限已隔离" : "工具隔离已关闭"}</h2><p>${isolated ? "B站评论与私信无法运行 AstrBot/QQ 命令、文件、Shell 或写操作。" : "建议立即重新开启隔离；只读白名单仍由后端硬限制。"}</p></div><span class="security-status ${isolated ? "is-safe" : "is-risk"}"><i></i>${isolated ? "保护已开启" : "需要处理"}</span></section>
     <section class="metrics-grid four">
       ${metricCard("今日安全事件", fmt(state.security.today_total), "过滤、拒绝与审计总数", "shield", "blue")}
       ${metricCard("内容过滤", fmt(securityCount(["low_value_filtered", "duplicate_filtered", "ad_filtered"])), "低价值、复读与广告", "message", "green")}
@@ -1175,6 +1247,7 @@ function renderBasics() {
     ${renderCacheCard()}
     <section class="settings-search card"><span>${icon("search")}</span><input id="settings-search" type="search" value="${esc(state.settingsSearch)}" placeholder="搜索配置名称、说明或 KEY" aria-label="搜索基础设置" />${state.settingsSearch ? `<button data-action="clear-settings-search" type="button">清除</button>` : ""}</section>
     <div class="settings-summary"><span>共 ${allEntries.length} 项长期配置</span><span>当前显示 ${filtered.length} 项</span><span>${state.dirtyKeys.size} 项待保存</span></div>
+    ${hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<section class="personality-feature card ${currentValue("ENABLE_PERSONALITY_EVOLUTION") ? "is-enabled" : ""}"><div><span class="section-icon">${icon("star")}</span><div><strong>性格演化总开关</strong><p>关闭后不会执行每日性格演化，但已有性格数据会保留。</p></div></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</section>` : ""}
     <div class="accordion-list">${BASIC_GROUP_ORDER.map((name, index) => {
       const keys = groups[name];
       if (!keys.length) return "";
@@ -1198,6 +1271,16 @@ function bindConfigControls(root = content) {
       else if (field.type === "int") value = control.value === "" ? "" : Number.parseInt(control.value, 10);
       else if (field.type === "float") value = control.value === "" ? "" : Number.parseFloat(control.value);
       else value = control.value;
+      if (control.dataset.rangeBound) {
+        const row = control.closest(".admin-range-row");
+        const inputs = row ? row.querySelectorAll("input[data-config-key]") : [];
+        const minInput = inputs[0];
+        const maxInput = inputs[1];
+        if (minInput && maxInput) {
+          if (control.dataset.rangeBound === "min" && num(minInput.value) > num(maxInput.value)) { maxInput.value = minInput.value; setDraft(maxInput.dataset.configKey, num(maxInput.value)); }
+          if (control.dataset.rangeBound === "max" && num(maxInput.value) < num(minInput.value)) { minInput.value = maxInput.value; setDraft(minInput.dataset.configKey, num(minInput.value)); }
+        }
+      }
       setDraft(key, value);
       if (control.id === "activity-slider") {
         const sliderValue = clamp(num(value), 0, 100);
@@ -1220,8 +1303,153 @@ function bindConfigControls(root = content) {
   });
 }
 
+function formatMinute(minute) {
+  const value = ((Math.round(Number(minute) / 15) * 15) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function minuteFromPointer(pointerEvent, node) {
+  const svg = node?.closest("svg");
+  if (!svg || !svg.createSVGPoint || !svg.getScreenCTM()) return null;
+  const point = svg.createSVGPoint();
+  point.x = pointerEvent.clientX;
+  point.y = pointerEvent.clientY;
+  const local = point.matrixTransform(svg.getScreenCTM().inverse());
+  const angle = Math.atan2(local.y - 180, local.x - 180) + Math.PI / 2;
+  return ((angle / (Math.PI * 2) * 1440) + 1440) % 1440;
+}
+
+function scheduleEventGeometry(event) {
+  const window = eventWindow(event);
+  if (window) return window;
+  const minute = minutesOf(event?.time);
+  return minute === null ? null : { start: minute, end: minute, duration: 30 };
+}
+
+function updateScheduleDraftEvent(index, update) {
+  const source = state.scheduleDraft.events?.[index];
+  if (!source) return;
+  state.scheduleDraft.events[index] = { ...source, ...update };
+  state.schedule = state.scheduleDraft;
+}
+
+function updateRingGestureVisual(index) {
+  const event = state.scheduleDraft.events?.[index];
+  const geometry = eventArcData(event);
+  const group = content.querySelector(`[data-ring-group="${index}"]`);
+  if (!event || !geometry || !group) return;
+  group.querySelector(".ring-event-hit")?.setAttribute("d", geometry.d);
+  group.querySelector(".ring-event")?.setAttribute("d", geometry.d);
+  const start = pointForMinute(geometry.start, 132);
+  const end = pointForMinute(geometry.end, 132);
+  const handles = group.querySelectorAll(".ring-resize-handle");
+  handles[0]?.setAttribute("cx", start[0]);
+  handles[0]?.setAttribute("cy", start[1]);
+  handles[1]?.setAttribute("cx", end[0]);
+  handles[1]?.setAttribute("cy", end[1]);
+}
+
+function beginRingGesture(index, mode, pointerEvent) {
+  const event = state.scheduleDraft.events?.[index];
+  if (!event || event.triggered) return;
+  const geometry = scheduleEventGeometry(event);
+  const pointerMinute = minuteFromPointer(pointerEvent, pointerEvent.currentTarget);
+  if (!geometry || pointerMinute === null) return;
+  state.scheduleGesture = {
+    index, mode,
+    pointerOffset: ((pointerMinute - (geometry.start ?? pointerMinute)) + 1440) % 1440,
+    duration: geometry.duration || 30,
+    start: geometry.start,
+    end: geometry.end,
+    moved: false,
+  };
+  pointerEvent.currentTarget.setPointerCapture?.(pointerEvent.pointerId);
+  const move = (moveEvent) => {
+    const gesture = state.scheduleGesture;
+    if (!gesture || gesture.index !== index) return;
+    const minute = minuteFromPointer(moveEvent, pointerEvent.currentTarget);
+    if (minute === null) return;
+    let next = {};
+    if (mode === "point") {
+      next.time = formatMinute(minute);
+    } else if (mode === "window") {
+      const start = ((minute - gesture.pointerOffset) + 1440) % 1440;
+      next.start_time = formatMinute(start);
+      next.end_time = formatMinute(start + gesture.duration);
+      next.time = formatMinute(start + Math.max(15, Math.round(gesture.duration / 2)));
+    } else {
+      const minDuration = 15;
+      if (mode === "start") {
+        const end = gesture.end;
+        const duration = ((end - minute) + 1440) % 1440;
+        if (duration >= minDuration) {
+          next.start_time = formatMinute(minute);
+          next.time = formatMinute(minute + Math.round(duration / 2));
+        }
+      } else {
+        const start = gesture.start;
+        const duration = ((minute - start) + 1440) % 1440;
+        if (duration >= minDuration) {
+          next.end_time = formatMinute(minute);
+          next.time = formatMinute(start + Math.round(duration / 2));
+        }
+      }
+    }
+    if (Object.keys(next).length) {
+      gesture.moved = true;
+      updateScheduleDraftEvent(index, next);
+      updateRingGestureVisual(index);
+    }
+  };
+  const finish = () => {
+    const gesture = state.scheduleGesture;
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", finish);
+    document.removeEventListener("pointercancel", finish);
+    state.scheduleGesture = null;
+    if (gesture?.moved) {
+      state.scheduleDirty = true;
+      updateSaveDock();
+      renderCurrentPage();
+      toast("日程已加入待保存", "可以继续拖动，或点击底部保存；放弃可撤回本次调整。", "success");
+    }
+  };
+  document.addEventListener("pointermove", move, { passive: true });
+  document.addEventListener("pointerup", finish, { once: true });
+  document.addEventListener("pointercancel", finish, { once: true });
+}
+
+function bindRingInteractions() {
+  content.querySelectorAll("[data-ring-gesture]").forEach((node) => node.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const index = num(node.dataset.segmentIndex);
+    setActiveScheduleEvent(index);
+    beginRingGesture(index, node.dataset.ringGesture, event);
+  }));
+  content.querySelectorAll("[data-ring-handle]").forEach((node) => node.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const index = num(node.dataset.segmentIndex);
+    setActiveScheduleEvent(index);
+    beginRingGesture(index, node.dataset.ringHandle, event);
+  }));
+  content.querySelector(".ring-center")?.addEventListener("click", () => {
+    state.selectedScheduleIndex = -1;
+    const shell = content.querySelector(".ring-shell");
+    if (shell) {
+      shell.outerHTML = renderScheduleRing(state.scheduleDraft.events || []);
+      bindRingInteractions();
+      const next = content.querySelector(".ring-center");
+      next?.classList.add("is-pulsing");
+      window.setTimeout(() => next?.classList.remove("is-pulsing"), 430);
+    }
+  });
+}
+
 function bindContent() {
   bindConfigControls();
+  if (state.currentPage === "autonomy") bindRingInteractions();
   content.querySelectorAll("[data-action]").forEach((node) => node.addEventListener("click", () => handleAction(node.dataset.action, node)));
   content.querySelectorAll("[data-page-target]").forEach((node) => node.addEventListener("click", () => navigate(node.dataset.pageTarget)));
   content.querySelectorAll("[data-plan-mode]").forEach((node) => node.addEventListener("click", () => {
@@ -1416,17 +1644,20 @@ async function refreshCurrent() {
 
 async function saveDraft() {
   const keys = [...state.dirtyKeys];
-  if (!keys.length || state.isSaving) return;
+  const scheduleNeedsSave = state.scheduleDirty;
+  if ((!keys.length && !scheduleNeedsSave) || state.isSaving) return;
   const body = Object.fromEntries(keys.map((key) => [key, state.draft[key]]));
   const refreshSchedule = keys.some((key) => SCHEDULE_REGEN_KEYS.has(key));
   state.isSaving = true;
   updateSaveDock();
   try {
-    await apiPost("config", body);
-    Object.assign(state.config, body);
-    Object.assign(mock.config, body);
-    state.dirtyKeys.clear();
-    state.draft = structuredClone(state.config);
+    if (keys.length) {
+      await apiPost("config", body);
+      Object.assign(state.config, body);
+      Object.assign(mock.config, body);
+      state.dirtyKeys.clear();
+      state.draft = structuredClone(state.config);
+    }
 
     let scheduleError = null;
     let regeneratedPlan = null;
@@ -1434,10 +1665,24 @@ async function saveDraft() {
       try {
         const regenerated = await apiPost("schedule/regenerate", {});
         state.schedule = { ...state.schedule, ...(regenerated || {}) };
+        state.scheduleOriginal = structuredClone(state.schedule);
+        state.scheduleDraft = structuredClone(state.schedule);
         regeneratedPlan = regenerated?.autonomous_plan || null;
         state.scheduleStats = await apiGet("schedule/stats") || {};
         const eventCount = (state.schedule.events || []).length;
         state.selectedScheduleIndex = eventCount ? clamp(state.selectedScheduleIndex, -1, eventCount - 1) : -1;
+      } catch (error) {
+        scheduleError = error;
+      }
+    }
+    if (!scheduleError && scheduleNeedsSave) {
+      try {
+        const result = await apiPost("schedule/override", { events: state.scheduleDraft.events || [] });
+        state.schedule = result || state.scheduleDraft;
+        state.scheduleOriginal = structuredClone(state.schedule);
+        state.scheduleDraft = structuredClone(state.schedule);
+        state.scheduleDirty = false;
+        state.scheduleStats = await apiGet("schedule/stats") || {};
       } catch (error) {
         scheduleError = error;
       }
@@ -1448,11 +1693,11 @@ async function saveDraft() {
     renderSidebar();
     renderCurrentPage();
     if (scheduleError) {
-      toast("配置已保存，日程刷新失败", scheduleError.message || "可点击“重新生成今日计划”重试", "error");
+      toast("保存未完成", scheduleError.message || "日程修改未写入，请检查时间间隔", "error");
     } else if (regeneratedPlan?.generation_status === "error") {
-      toast("配置已保存，模型调用失败", `${regeneratedPlan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback；请检查模型提供商与 AI 对话总开关。`, "error");
-    } else if (refreshSchedule) {
-      toast("配置与今日计划已更新", `已保存 ${keys.length} 项，并根据新边界重新生成真实日程`);
+      toast("配置已保存，模型调用失败", `${regeneratedPlan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback；系统会按重试间隔再次调用。`, "error");
+    } else if (refreshSchedule || scheduleNeedsSave) {
+      toast("配置与今日计划已更新", `已保存 ${keys.length + (scheduleNeedsSave ? 1 : 0)} 项修改`);
     } else {
       toast("配置已保存", `已写入 ${keys.length} 项设置`);
     }
@@ -1466,11 +1711,15 @@ async function saveDraft() {
 function discardDraft() {
   state.draft = structuredClone(state.config);
   state.dirtyKeys.clear();
+  state.schedule = structuredClone(state.scheduleOriginal);
+  state.scheduleDraft = structuredClone(state.scheduleOriginal);
+  state.scheduleDirty = false;
   updateSaveDock();
   renderSidebar();
   renderCurrentPage();
-  toast("已放弃修改", "配置已恢复为上次保存状态");
+  toast("已放弃修改", "配置与事件环已恢复为上次保存状态");
 }
+
 
 function toolOriginLabel(tool) {
   return tool.origin_name || ({ builtin: "AstrBot Core", plugin: "插件工具", mcp: "MCP 服务", bilibot: "BiliBot 安全适配器" }[tool.origin] || "其他工具");
@@ -1633,7 +1882,7 @@ function init() {
   mobileMenu?.addEventListener("click", openMobileNav);
   document.querySelector("#sidebar-scrim")?.addEventListener("click", closeMobileNav);
   window.addEventListener("beforeunload", (event) => {
-    if (state.dirtyKeys.size) {
+    if (state.dirtyKeys.size || state.scheduleDirty) {
       event.preventDefault();
       event.returnValue = "";
     }

@@ -1017,6 +1017,46 @@
     "default": "结合角色人设、当前心情和活跃度，安排自然、不机械、不刷屏的一天。优先保证作息合理，避免连续发布或短时间密集互动；低价值内容可以不回复。",
     "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到范围限制。"
   },
+  "AUTONOMOUS_PLAN_GENERATION_MODE": {
+    "description": "【自主安排】每日计划生成时机",
+    "type": "string",
+    "default": "after_sleep",
+    "options": [
+      "after_sleep",
+      "fixed_time"
+    ],
+    "hint": "after_sleep=休眠结束后按偏移生成；fixed_time=每天在指定时刻生成。"
+  },
+  "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES": {
+    "description": "【自主安排】休眠结束后多少分钟生成计划",
+    "type": "int",
+    "default": 5,
+    "min": 0,
+    "max": 180,
+    "hint": "仅在“休眠结束后”模式生效，默认 5 分钟。错过时刻会在醒来后的下一轮补生成。"
+  },
+  "AUTONOMOUS_PLAN_GENERATION_TIME": {
+    "description": "【自主安排】每日计划固定生成时刻",
+    "type": "string",
+    "default": "08:05",
+    "hint": "仅在“固定时刻”模式生效，格式 HH:MM。错过时刻会在下一轮补生成。"
+  },
+  "AUTONOMOUS_PLAN_RETRY_MINUTES": {
+    "description": "【自主安排】模型生成失败重试间隔（分钟）",
+    "type": "int",
+    "default": 15,
+    "min": 5,
+    "max": 360,
+    "hint": "失败时保留安全回退计划，并按此间隔重新调用默认对话模型；成功后替换回退。"
+  },
+  "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES": {
+    "description": "【自主安排】主动浏览默认时间段长度（分钟）",
+    "type": "int",
+    "default": 90,
+    "min": 30,
+    "max": 360,
+    "hint": "自主计划会把主动浏览生成为时间段，并在段内确定一次实际触发时刻。"
+  },
   "AUTONOMOUS_REPLY_DAILY_LIMIT": {
     "description": "【兼容旧配置】每日评论回复旧版单值上限（请改用下限/上限）",
     "type": "int",
@@ -1235,6 +1275,15 @@
     "min": 0,
     "max": 200
   },
+  "FIXED_PROACTIVE_WINDOWS": {
+    "description": "【固定计划】主动浏览时间段",
+    "type": "list",
+    "default": [
+      "10:00-11:30",
+      "19:00-21:00"
+    ],
+    "hint": "格式 HH:MM-HH:MM。Bot 会在每个时间段内确定一次触发时刻；可在事件环拖动整体或两端调整。"
+  },
   "FIXED_PROACTIVE_TIMES": {
     "description": "【固定计划】主动浏览准确时刻",
     "type": "list",
@@ -1242,7 +1291,8 @@
       "10:30",
       "19:30"
     ],
-    "hint": "仅在开启主动浏览且使用固定计划时执行。"
+    "hint": "旧版兼容字段；WebUI 已改用主动浏览时间段。",
+    "deprecated": true
   },
   "FIXED_DYNAMIC_TIMES": {
     "description": "【固定计划】发布动态准确时刻",

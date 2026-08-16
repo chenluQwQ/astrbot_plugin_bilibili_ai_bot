@@ -119,6 +119,7 @@ def register_webui(plugin_instance: Any, context: Context):
         ("schedule/today", "GET", handle_get_schedule, "BiliBot daily schedule"),
         ("schedule/stats", "GET", handle_get_schedule_stats, "BiliBot scheduler statistics"),
         ("schedule/regenerate", "POST", handle_schedule_regenerate, "Regenerate today's schedule"),
+        ("schedule/override", "POST", handle_schedule_override, "Save edited today's schedule"),
         ("security/stats", "GET", handle_security_stats, "BiliBot security statistics"),
         ("tools/available", "GET", handle_available_tools, "Available AstrBot tools for BiliBot"),
     ]
@@ -226,23 +227,33 @@ def _coerce_config_value(key: str, field: dict[str, Any], value: Any) -> Any:
 
 def _schedule_events(plugin: Any, snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     definitions = tuple(item for item in (
-        ("proactive_times", "主动浏览", "proactive", "浏览视频、选择感兴趣的内容", bool(_config_value(plugin, "ENABLE_PROACTIVE", False))),
+        ("proactive_times", "主动浏览", "proactive", "在时间段内浏览视频并选择感兴趣的内容", bool(_config_value(plugin, "ENABLE_PROACTIVE", False))),
         ("dynamic_times", "发布动态", "dynamic", "根据今日状态发布一条动态", bool(_config_value(plugin, "ENABLE_DYNAMIC", False))),
         ("bangumi_times", "追番", "bangumi", "检查更新或观看番剧", bool(_config_value(plugin, "ENABLE_BANGUMI", False) and _config_value(plugin, "BANGUMI_PROACTIVE", False))),
         ("special_follow_times", "特别关注", "follow", "巡视特别关注用户的新内容", bool(_config_value(plugin, "SPECIAL_FOLLOW_ENABLED", False))),
         ("dynamic_watch_times", "查看关注动态", "dynamic_watch", "查看关注用户的新动态图文", bool(_config_value(plugin, "ENABLE_DYNAMIC_WATCH", False))),
     ) if item[4])
     events: list[dict[str, Any]] = []
+    proactive_windows = snapshot.get("proactive_windows", []) or []
     for key, label, kind, description, _enabled in definitions:
         triggered = set(snapshot.get(key.replace("_times", "_triggered"), []))
-        for value in snapshot.get(key, []) or []:
-            events.append({
+        values = snapshot.get(key, []) or []
+        for index, value in enumerate(values):
+            item = {
                 "time": str(value),
                 "label": label,
                 "kind": kind,
                 "description": description,
                 "triggered": str(value) in triggered,
-            })
+            }
+            if kind == "proactive" and index < len(proactive_windows):
+                window = proactive_windows[index] if isinstance(proactive_windows[index], dict) else {}
+                item.update({
+                    "start_time": str(window.get("start_time") or ""),
+                    "end_time": str(window.get("end_time") or ""),
+                    "trigger_policy": str(window.get("trigger_policy") or "once_in_window"),
+                })
+            events.append(item)
     plan = _load_json(plugin, AUTONOMOUS_PLAN_FILE, {})
     events.sort(key=lambda item: item["time"])
     return events, plan if isinstance(plan, dict) else {}
@@ -539,6 +550,102 @@ async def handle_schedule_regenerate(plugin: Any):
         return _failure(str(exc), 500)
 
 
+async def handle_schedule_override(plugin: Any):
+    """Persist a user's drag/resize edits without changing unrelated settings."""
+    try:
+        body = await request.json(default={})
+        events = body.get("events") if isinstance(body, dict) else None
+        if not isinstance(events, list):
+            return _failure("日程修改必须提供 events 数组")
+        now = datetime.now().strftime("%Y-%m-%d")
+        min_gap = max(15, int(_config_value(plugin, "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", 45)))
+        point_keys = {
+            "dynamic": "dynamic_times", "dynamic_watch": "dynamic_watch_times",
+            "bangumi": "bangumi_times", "follow": "special_follow_times",
+        }
+        normalized: dict[str, list[str]] = {key: [] for key in ("proactive_times", "dynamic_times", "dynamic_watch_times", "bangumi_times", "special_follow_times")}
+        windows: list[dict[str, str]] = []
+        all_minutes: list[int] = []
+        triggered_by_kind: dict[str, set[str]] = {kind: set() for kind in ("proactive", "dynamic", "dynamic_watch", "bangumi", "follow")}
+        for event in events:
+            if not isinstance(event, dict):
+                return _failure("事件格式无效")
+            kind = str(event.get("kind") or "")
+            time_value = str(event.get("time") or "")
+            parsed = plugin._parse_time_value(time_value) if hasattr(plugin, "_parse_time_value") else None
+            if parsed is None:
+                return _failure(f"无效时间：{time_value}")
+            minute = parsed[0] * 60 + parsed[1]
+            if kind == "proactive":
+                start_raw = str(event.get("start_time") or "")
+                end_raw = str(event.get("end_time") or "")
+                window = plugin._parse_window_value(f"{start_raw}-{end_raw}") if hasattr(plugin, "_parse_window_value") else None
+                if not window:
+                    return _failure("主动浏览必须提供有效的 start_time 与 end_time")
+                start_minute = window["start_minute"]
+                end_minute = window["end_minute"]
+                in_window = (start_minute <= minute <= end_minute) if start_minute < end_minute else (minute >= start_minute or minute <= end_minute)
+                if not in_window:
+                    return _failure("主动浏览的触发时刻必须位于时间段内")
+                windows.append({"start_time": window["start_time"], "end_time": window["end_time"], "scheduled_time": time_value, "trigger_policy": "once_in_window"})
+                normalized["proactive_times"].append(time_value)
+            elif kind in point_keys:
+                normalized[point_keys[kind]].append(time_value)
+            else:
+                return _failure(f"不支持修改的事件类型：{kind}")
+            if event.get("triggered") and kind in triggered_by_kind:
+                triggered_by_kind[kind].add(time_value)
+            all_minutes.append(minute)
+        if any(b - a < min_gap for a, b in zip(sorted(all_minutes), sorted(all_minutes)[1:])):
+            return _failure(f"相邻事件至少需要间隔 {min_gap} 分钟")
+
+        autonomous = bool(_config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False))
+        if autonomous:
+            plan = _load_json(plugin, AUTONOMOUS_PLAN_FILE, {})
+            if not isinstance(plan, dict) or plan.get("date") != now:
+                plan = {"date": now, "config_fingerprint": plugin._autonomous_config_fingerprint() if hasattr(plugin, "_autonomous_config_fingerprint") else ""}
+            plan.update({key: values for key, values in normalized.items() if key != "proactive_times"})
+            plan["proactive_times"] = normalized["proactive_times"]
+            plan["proactive_windows"] = windows
+            plan["source"] = plan.get("source") or "manual"
+            plan["edited_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            plugin._save_json(AUTONOMOUS_PLAN_FILE, plan)
+        else:
+            updates = {
+                "FIXED_PROACTIVE_WINDOWS": [f"{item['start_time']}-{item['end_time']}" for item in windows],
+                "FIXED_DYNAMIC_TIMES": normalized["dynamic_times"],
+                "FIXED_DYNAMIC_WATCH_TIMES": normalized["dynamic_watch_times"],
+                "FIXED_BANGUMI_TIMES": normalized["bangumi_times"],
+                "FIXED_SPECIAL_FOLLOW_TIMES": normalized["special_follow_times"],
+            }
+            for key, value in updates.items():
+                plugin.config[key] = value
+            plugin.config.save_config()
+
+        plugin._proactive_windows = windows
+        plugin._proactive_times = [plugin._parse_time_value(value) for value in normalized["proactive_times"] if plugin._parse_time_value(value)]
+        plugin._dynamic_times = [plugin._parse_time_value(value) for value in normalized["dynamic_times"] if plugin._parse_time_value(value)]
+        plugin._dynamic_watch_times = [plugin._parse_time_value(value) for value in normalized["dynamic_watch_times"] if plugin._parse_time_value(value)]
+        plugin._bangumi_times = [plugin._parse_time_value(value) for value in normalized["bangumi_times"] if plugin._parse_time_value(value)]
+        plugin._special_follow_times = [plugin._parse_time_value(value) for value in normalized["special_follow_times"] if plugin._parse_time_value(value)]
+        plugin._proactive_triggered = set(triggered_by_kind["proactive"])
+        plugin._dynamic_triggered = set(triggered_by_kind["dynamic"])
+        plugin._dynamic_watch_triggered = set(triggered_by_kind["dynamic_watch"])
+        plugin._bangumi_triggered = set(triggered_by_kind["bangumi"])
+        plugin._special_follow_triggered = set(triggered_by_kind["follow"])
+        plugin._save_schedule_state(plugin._proactive_times, plugin._proactive_triggered)
+        plugin._save_dynamic_schedule_state(plugin._dynamic_times, plugin._dynamic_triggered)
+        plugin._save_dynamic_watch_schedule_state(plugin._dynamic_watch_times, plugin._dynamic_watch_triggered)
+        plugin._save_bangumi_schedule_state(plugin._bangumi_times, plugin._bangumi_triggered, False)
+        plugin._save_special_follow_schedule_state(plugin._special_follow_times, plugin._special_follow_triggered)
+        snapshot = plugin._get_schedule_snapshot()
+        event_list, plan = _schedule_events(plugin, snapshot)
+        return _response({"date": now, "events": event_list, "autonomous_plan": plan}, "日程修改已保存")
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] schedule override failed: {exc}")
+        return _failure(str(exc), 500)
+
+
 async def handle_security_stats(plugin: Any):
     try:
         logs = _load_json(plugin, SECURITY_LOG_FILE, [])
@@ -706,7 +813,9 @@ async def handle_save_config(plugin: Any):
         if updates:
             plugin.config.save_config()
             schedule_config_keys = {
-                "ENABLE_AUTONOMOUS_DAILY_PLAN",
+                "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_PLAN_GENERATION_MODE",
+                "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME",
+                "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES",
                 "ENABLE_PROACTIVE", "PROACTIVE_TIMES_COUNT", "PROACTIVE_DAILY_LIMIT",
                 "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT",
                 "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
@@ -715,7 +824,7 @@ async def handle_save_config(plugin: Any):
                 "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE", "SPECIAL_FOLLOW_TIMES_COUNT",
                 "SPECIAL_FOLLOW_FIXED_TIMES", "SLEEP_START", "SLEEP_END",
                 "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET",
-                "FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES", "FIXED_BANGUMI_TIMES",
+                "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES", "FIXED_BANGUMI_TIMES",
                 "FIXED_SPECIAL_FOLLOW_TIMES", "FIXED_DYNAMIC_WATCH_TIMES",
             }
             schedule_keys = {key for key in updates if key.startswith("AUTONOMOUS_") or key in schedule_config_keys}
