@@ -16,7 +16,7 @@
 - **人格与周期行为基础设施**：新增 `core/persona/`、`core/governance/`、`core/schedule/`，为人格状态、行为决策、内容治理和主动计划提供独立模块。
 - **内置 AstrBot Plugin Page**：新增 `pages/bilibot/` 和 `core/webui_bridge.py`，在 AstrBot 内提供状态、配置、账号、二维码登录、人格、主动计划、记忆、媒体和安全信息的管理页面。
 - **B 站登录与管理能力补充**：WebUI 可读取配置 schema、保存配置、查看账号状态、生成二维码、轮询登录和退出登录；B 站扫码登录仍可通过 `/bili登录` 使用。
-- **测试覆盖补充**：增加事件适配、分层运行时、安全层和可靠性测试，当前本地测试结果为 `72 passed`。
+- **测试覆盖补充**：增加事件适配、分层运行时、安全层和可靠性测试，当前本地测试结果为 `77 passed`。
 
 这些改动的目标是：在不改变原版主要使用方式的前提下，让项目更容易维护、更容易观察运行状态，并降低跨会话数据污染、重复处理和高风险工具误调用的风险。
 
@@ -62,6 +62,8 @@
 - 写操作：评论、动态、私信分享等需要更高权限的动作
 
 分层运行时会对工具进行身份、会话、scope、能力票据和审计检查。聊天模型不支持 tool calling 时，命令功能仍可单独使用。
+
+只读工具白名单的分类、不可选原因和当前适配范围，见 [`docs/READONLY_TOOLS_REPORT.md`](docs/READONLY_TOOLS_REPORT.md)。
 
 ## 🖥️ 内置 WebUI
 
@@ -152,7 +154,8 @@ git clone -b feat/four-layer-refactor https://github.com/zzz27578/astrbot_plugin
 | `IMAGE_GEN_API_KEY`、`IMAGE_GEN_MODEL` | 动态配图配置 |
 | `ENABLE_WEB_SEARCH`、`WEB_SEARCH_BACKEND`、`WEB_SEARCH_API_KEY` | 联网搜索配置 |
 | `BILI_TOOL_ISOLATION_ENABLED` 等安全配置 | 工具隔离、allowlist、提示词注入防护和审计配置 |
-| `AUTONOMOUS_ACTIVITY_LEVEL` 等主动行为配置 | 活跃度、每日上限、最小间隔和固定计划配置 |
+| `AUTONOMOUS_ACTIVITY_LEVEL` 等主动行为配置 | 活跃度、每日范围下限/上限、最小间隔和固定计划配置 |
+| `ENABLE_OWNER_RECOMMEND` | 主人分享总开关；分享方式在 `RECOMMEND_OWNER_DELIVERY` 中选择 |
 
 ### 登录
 
@@ -246,7 +249,7 @@ python -m pytest -q
 当前 Fork 版本本地测试结果：
 
 ```text
-72 passed
+77 passed
 ```
 
 修改事件、安全、存储或 WebUI 时，建议至少运行完整测试，并检查 AstrBot 实际加载插件后的日志和页面。
@@ -261,3 +264,4 @@ python -m pytest -q
 ## 📄 License
 
 本项目沿用上游仓库的 MIT License。新增代码和文档也在该许可范围内发布；第三方图标素材的授权说明见 [`pages/bilibot/GAME_ICON_PACK_LICENSE.txt`](pages/bilibot/GAME_ICON_PACK_LICENSE.txt)。
+

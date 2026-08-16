@@ -786,6 +786,10 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         return result or "这个细节还挺有意思"
 
     def _owner_recommend_delivery(self):
+        # The boolean switch is the page-level capability toggle.  Keep the
+        # legacy string value for the delivery-mode selector and old configs.
+        if "ENABLE_OWNER_RECOMMEND" in self.config and not bool(self.config.get("ENABLE_OWNER_RECOMMEND")):
+            return "off"
         value = str(
             self.config.get("RECOMMEND_OWNER_DELIVERY", "private_message") or ""
         ).strip().lower()
@@ -895,7 +899,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             if any(self._is_owner_recommend_action(action) for action in (item.get("actions") or []))
         )
         daily_limit = max(0, int(self.config.get("PROACTIVE_DAILY_LIMIT", 0) or 0))
-        autonomous_limit = max(0, int(self.config.get("AUTONOMOUS_PROACTIVE_DAILY_LIMIT", daily_limit) or 0))
+        autonomous_limit = self._autonomous_limit_max("proactive") if hasattr(self, "_autonomous_limit_max") else max(0, int(self.config.get("AUTONOMOUS_PROACTIVE_DAILY_LIMIT", daily_limit) or 0))
         if autonomous_limit:
             daily_limit = min(daily_limit, autonomous_limit) if daily_limit else autonomous_limit
         if daily_limit > 0 and len(today_watched) >= daily_limit:

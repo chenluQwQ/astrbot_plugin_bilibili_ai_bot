@@ -37,6 +37,45 @@ from .config import (
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "_conf_schema.json"
 PROTECTED_CONFIG_KEYS = {"SESSDATA", "BILI_JCT", "DEDE_USER_ID", "REFRESH_TOKEN"}
+
+# Only these names are safe Bilibot-side read adapters.  The AstrBot registry
+# also contains write tools, private-memory tools, built-ins, other plugins and
+# MCP tools; those must never be presented as selectable Bilibili read tools.
+BILI_READONLY_ADAPTERS = {
+    "bili_up_info": ("UP 主信息", "读取公开 UP 主资料"),
+    "get_up_info": ("UP 主信息", "读取公开 UP 主资料"),
+    "bili_video_search": ("视频搜索", "查询公开 B站视频"),
+    "search_bilibili": ("视频搜索", "查询公开 B站视频"),
+    "bili_search_and_watch": ("搜索并观看", "搜索并分析公开视频，不执行互动写操作"),
+    "watch_video": ("观看视频", "读取并分析指定 BV 号的公开视频"),
+    "check_following_updates": ("关注动态", "只读查看今天关注 UP 主的新动态与投稿"),
+    "check_following_live": ("关注直播", "只读查看当前正在直播的关注 UP 主"),
+    "get_bangumi_info": ("番剧详情", "按 season_id 读取番剧公开资料与最近剧集"),
+    "get_bangumi_trending": ("番剧排行", "只读查看 B站番剧或国创热度排行"),
+    "get_bangumi_timeline": ("新番时间表", "只读查看近期番剧更新日程"),
+    "get_bangumi_updates": ("追番更新", "只读查看账号当前在追番剧的更新概况"),
+    "web_search": ("联网搜索", "通过插件当前配置的只读搜索接口检索公开网页"),
+}
+BILI_WRITE_TOOLS = {
+    "bili_action", "bili_block_user", "bili_parse_video", "watch_and_share_video_private",
+}
+BILI_PRIVATE_TOOLS = {
+    "bili_recall", "recall_user", "recall_conversation", "recall_today", "recall_video",
+    "recall_dynamic", "recall_bangumi",
+}
+BILI_COMPOSITE_TOOLS = {"bili_bangumi", "bili_watch_videos"}
+AUTONOMOUS_MAX_COMPAT = {
+    "AUTONOMOUS_REPLY_DAILY_MAX": ("AUTONOMOUS_REPLY_DAILY_LIMIT", 80),
+    "AUTONOMOUS_PRIVATE_DAILY_MAX": ("AUTONOMOUS_PRIVATE_DAILY_LIMIT", 30),
+    "AUTONOMOUS_DYNAMIC_DAILY_MAX": ("AUTONOMOUS_DYNAMIC_DAILY_LIMIT", 2),
+    "AUTONOMOUS_PROACTIVE_DAILY_MAX": ("AUTONOMOUS_PROACTIVE_DAILY_LIMIT", 4),
+}
+AUTONOMOUS_RANGE_PAIRS = (
+    ("AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "评论回复"),
+    ("AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX", "私信回复"),
+    ("AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "动态发布"),
+    ("AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX", "主动行为"),
+)
 Handler = Callable[[Any], Awaitable[Any]]
 
 
@@ -102,10 +141,27 @@ def _load_schema(*, include_protected: bool = False) -> dict[str, dict[str, Any]
 
 def _config_value(plugin: Any, key: str, default: Any = None) -> Any:
     try:
-        return plugin.config.get(key, default)
+        if key == "ENABLE_OWNER_RECOMMEND" and str(plugin.config.get("RECOMMEND_OWNER_DELIVERY", "")).lower() == "off":
+            return False
+        value = plugin.config.get(key, default)
+        if key == "RECOMMEND_OWNER_DELIVERY" and str(value).lower() == "off":
+            return "private_message"
+        compat = AUTONOMOUS_MAX_COMPAT.get(key)
+        if compat:
+            legacy_key, schema_default = compat
+            legacy_value = plugin.config.get(legacy_key, None)
+            if legacy_value is not None and value == schema_default and legacy_value != schema_default:
+                return legacy_value
+        return value
     except Exception:
         data = getattr(plugin.config, "data", {})
-        return data.get(key, default) if isinstance(data, dict) else default
+        if isinstance(data, dict):
+            value = data.get(key, default)
+            compat = AUTONOMOUS_MAX_COMPAT.get(key)
+            if compat and value == compat[1] and data.get(compat[0]) not in (None, compat[1]):
+                return data[compat[0]]
+            return value
+        return default
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -237,7 +293,7 @@ async def handle_get_stats(plugin: Any):
 
         proactive_max = int(_config_value(plugin, "PROACTIVE_DAILY_LIMIT", 0) or 0)
         if _config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False):
-            autonomous_limit = int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_LIMIT", proactive_max) or 0)
+            autonomous_limit = int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_MAX", proactive_max) or 0)
             if autonomous_limit > 0:
                 proactive_max = min([value for value in (proactive_max, autonomous_limit) if value > 0], default=autonomous_limit)
 
@@ -531,24 +587,8 @@ def _tool_origin(plugin: Any, tool: Any) -> tuple[str, str]:
 
 
 async def handle_available_tools(plugin: Any):
-    """Expose the real AstrBot registry, while only enabling explicitly adapted read-only tools."""
+    """Expose the real registry with an explicit BiliBot security category."""
     try:
-        compatible = {
-            "bili_up_info": ("UP 主信息", "读取公开 UP 主资料"),
-            "get_up_info": ("UP 主信息", "读取公开 UP 主资料"),
-            "bili_video_search": ("视频搜索", "查询公开 B站视频"),
-            "search_bilibili": ("视频搜索", "查询公开 B站视频"),
-            "bili_search_and_watch": ("搜索并观看", "搜索并分析公开视频"),
-            "watch_video": ("观看视频", "读取并分析指定 BV 号的公开视频"),
-            "bili_parse_video": ("解析视频", "读取并分析指定 BV 号或公开视频链接"),
-            "check_following_updates": ("关注动态", "只读查看今天关注 UP 主的新动态与投稿"),
-            "check_following_live": ("关注直播", "只读查看当前正在直播的关注 UP 主"),
-            "get_bangumi_info": ("番剧详情", "按 season_id 读取番剧公开资料与最近剧集"),
-            "get_bangumi_trending": ("番剧排行", "只读查看 B站番剧或国创热度排行"),
-            "get_bangumi_timeline": ("新番时间表", "只读查看近期番剧更新日程"),
-            "get_bangumi_updates": ("追番更新", "只读查看账号当前在追番剧的更新概况"),
-            "web_search": ("联网搜索", "通过插件当前配置的只读搜索接口检索公开网页"),
-        }
         manager = plugin.context.get_llm_tool_manager()
         registered = list(getattr(manager, "func_list", []) or [])
         try:
@@ -565,28 +605,46 @@ async def handle_available_tools(plugin: Any):
                 continue
             seen.add(name)
             origin, origin_name = _tool_origin(plugin, tool)
-            is_compatible = name in compatible
+            is_compatible = name in BILI_READONLY_ADAPTERS
             layered = getattr(plugin, "layered_runtime", None)
             spec = layered.tool_gate.get(name) if layered else None
+            if is_compatible:
+                category = "bilibot_read"
+                reason = "已提供 B站只读安全适配器"
+            elif name in BILI_WRITE_TOOLS:
+                category = "bilibot_write"
+                reason = "写操作工具，需要确认或能力票据，不属于只读白名单"
+            elif name in BILI_PRIVATE_TOOLS:
+                category = "bilibot_private"
+                reason = "私域记忆工具，需要会话 scope，不属于公开 B站只读适配器"
+            elif name in BILI_COMPOSITE_TOOLS:
+                category = "bilibot_composite"
+                reason = "复合工具可能包含观看、追番或主动行为，不作为只读工具开放"
+            else:
+                category = "other_registered"
+                reason = "来自 AstrBot、其他插件或 MCP，未提供 B站只读适配器"
             result.append({
                 "name": name,
-                "label": compatible.get(name, (name, ""))[0],
-                "description": str(getattr(tool, "description", "") or compatible.get(name, ("", "暂无说明"))[1]),
+                "label": BILI_READONLY_ADAPTERS.get(name, (name, ""))[0],
+                "description": str(getattr(tool, "description", "") or BILI_READONLY_ADAPTERS.get(name, ("", "暂无说明"))[1]),
                 "origin": origin,
                 "origin_name": origin_name,
                 "active": bool(getattr(tool, "active", True)),
                 "compatible": is_compatible,
-                "reason": "已提供 B站只读安全适配器" if is_compatible else "已注册，但尚未提供 B站只读适配器",
+                "category": category,
+                "reason": reason,
                 "security_tier": spec.tier.value if spec else "unclassified",
             })
-        for name, (label, description) in compatible.items():
+        for name, (label, description) in BILI_READONLY_ADAPTERS.items():
             if name not in seen:
                 result.append({
                     "name": name, "label": label, "description": description,
                     "origin": "bilibot", "origin_name": "BiliBot 安全适配器",
-                    "active": True, "compatible": True, "reason": "插件内置只读安全适配器",
+                    "active": False, "compatible": False, "category": "bilibot_read_missing",
+                    "reason": "已定义只读能力，但当前工具注册表没有可用的对应适配器",
+                    "security_tier": "unavailable",
                 })
-        result.sort(key=lambda item: (not item["compatible"], item["origin_name"], item["label"]))
+        result.sort(key=lambda item: (not item["compatible"], item["category"], item["origin_name"], item["label"]))
         return _response(result)
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] tools discovery failed: {exc}")
@@ -627,15 +685,22 @@ async def handle_save_config(plugin: Any):
                 updates[key] = _coerce_config_value(key, field, value)
             except (TypeError, ValueError) as exc:
                 return _failure(str(exc))
+        if updates.get("ENABLE_OWNER_RECOMMEND") is True and str(_config_value(plugin, "RECOMMEND_OWNER_DELIVERY", "private_message")).lower() == "off":
+            updates.setdefault("RECOMMEND_OWNER_DELIVERY", "private_message")
+        for min_key, max_key, label in AUTONOMOUS_RANGE_PAIRS:
+            minimum = updates.get(min_key, _config_value(plugin, min_key, 0))
+            maximum = updates.get(max_key, _config_value(plugin, max_key, 0))
+            if int(minimum or 0) > int(maximum or 0):
+                return _failure(f"{label}下限不能大于上限")
         if "BILI_TOOL_ALLOWLIST" in updates:
-            compatible_names = {
-                "bili_up_info", "get_up_info", "bili_video_search", "search_bilibili",
-                "bili_search_and_watch", "watch_video", "bili_parse_video",
-                "check_following_updates", "check_following_live", "get_bangumi_info",
-                "get_bangumi_trending", "get_bangumi_timeline", "get_bangumi_updates",
-                "web_search",
-            }
-            updates["BILI_TOOL_ALLOWLIST"] = [name for name in updates["BILI_TOOL_ALLOWLIST"] if name in compatible_names]
+            updates["BILI_TOOL_ALLOWLIST"] = [
+                name for name in updates["BILI_TOOL_ALLOWLIST"] if name in BILI_READONLY_ADAPTERS
+            ]
+        # Keep the deprecated scalar keys synchronized for older runtime code
+        # and existing installations while the WebUI uses the new range fields.
+        for max_key, (legacy_key, _default) in AUTONOMOUS_MAX_COMPAT.items():
+            if max_key in updates:
+                updates[legacy_key] = updates[max_key]
         for key, value in updates.items():
             plugin.config[key] = value
         if updates:

@@ -37,7 +37,7 @@ const state = {
 
 const NAV_ITEMS = [
   ["overview", "house", "总览", "健康、配额与运行监控"],
-  ["autonomy", "clock", "自主与作息", "活跃度、彩虹日程与硬上限"],
+  ["autonomy", "clock", "自主与作息", "活跃度、彩虹日程与范围限制"],
   ["interaction", "message", "回复与互动", "评论、私信、弹幕与分享"],
   ["memory", "memory-card", "记忆与关系", "记忆、画像、心情与好感度"],
   ["security", "shield", "安全与工具", "权限隔离、脱敏与风控"],
@@ -65,15 +65,16 @@ const PAGE_KEYS = {
   ],
   autonomy: [
     "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL", "AUTONOMOUS_PLAN_PROMPT",
-    "AUTONOMOUS_REPLY_DAILY_LIMIT", "AUTONOMOUS_PRIVATE_DAILY_LIMIT", "AUTONOMOUS_DYNAMIC_DAILY_LIMIT",
-    "AUTONOMOUS_PROACTIVE_DAILY_LIMIT", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
+    "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
+    "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
+    "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
     "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
     "PROACTIVE_COMMENT_COUNT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
     "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE",
     "PROACTIVE_FOLLOW", "PROACTIVE_FOLLOW_MIN_SCORE",
-    "CUSTOM_PROACTIVE_INSTRUCTION", "RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE",
+    "CUSTOM_PROACTIVE_INSTRUCTION", "ENABLE_OWNER_RECOMMEND", "RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE",
     "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION", "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE",
     "SPECIAL_FOLLOW_TIMES_COUNT", "SPECIAL_FOLLOW_FIXED_TIMES", "ENABLE_BANGUMI", "BANGUMI_PROACTIVE",
     "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT",
@@ -102,8 +103,9 @@ const PAGE_KEYS = {
 
 const SCHEDULE_REGEN_KEYS = new Set([
   "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL", "AUTONOMOUS_PLAN_PROMPT",
-  "AUTONOMOUS_REPLY_DAILY_LIMIT", "AUTONOMOUS_PRIVATE_DAILY_LIMIT", "AUTONOMOUS_DYNAMIC_DAILY_LIMIT",
-  "AUTONOMOUS_PROACTIVE_DAILY_LIMIT", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
+  "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
+  "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
+  "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
   "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
   "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT",
   "ENABLE_BANGUMI", "BANGUMI_PROACTIVE", "BANGUMI_DAILY_LIMIT",
@@ -135,10 +137,14 @@ const MOCK_FIELDS = {
   ENABLE_AUTONOMOUS_DAILY_PLAN: ["【自主安排】允许 Bot 根据人设与活跃度生成每日计划", "bool", true],
   AUTONOMOUS_ACTIVITY_LEVEL: ["【自主安排】今日基础活跃度（0-100）", "int", 62],
   AUTONOMOUS_PLAN_PROMPT: ["【自主安排】每日计划补充提示词", "text", "自然安排一天，低价值内容不必回复，避免短时间密集互动。"],
-  AUTONOMOUS_REPLY_DAILY_LIMIT: ["【自主安排·硬上限】每日评论回复最多次数", "int", 80],
-  AUTONOMOUS_PRIVATE_DAILY_LIMIT: ["【自主安排·硬上限】每日私信回复最多次数", "int", 30],
-  AUTONOMOUS_DYNAMIC_DAILY_LIMIT: ["【自主安排·硬上限】每日发布动态最多次数", "int", 2],
-  AUTONOMOUS_PROACTIVE_DAILY_LIMIT: ["【自主安排·硬上限】每日主动行为最多次数", "int", 4],
+  AUTONOMOUS_REPLY_DAILY_MIN: ["【自主安排·范围】每日评论回复下限", "int", 0],
+  AUTONOMOUS_REPLY_DAILY_MAX: ["【自主安排·范围】每日评论回复上限", "int", 80],
+  AUTONOMOUS_PRIVATE_DAILY_MIN: ["【自主安排·范围】每日私信回复下限", "int", 0],
+  AUTONOMOUS_PRIVATE_DAILY_MAX: ["【自主安排·范围】每日私信回复上限", "int", 30],
+  AUTONOMOUS_DYNAMIC_DAILY_MIN: ["【自主安排·范围】每日发布动态下限", "int", 0],
+  AUTONOMOUS_DYNAMIC_DAILY_MAX: ["【自主安排·范围】每日发布动态上限", "int", 2],
+  AUTONOMOUS_PROACTIVE_DAILY_MIN: ["【自主安排·范围】每日主动行为下限", "int", 0],
+  AUTONOMOUS_PROACTIVE_DAILY_MAX: ["【自主安排·范围】每日主动行为上限", "int", 4],
   AUTONOMOUS_MIN_ACTION_GAP_MINUTES: ["【自主安排·硬约束】主动事件最小间隔（分钟）", "int", 45],
   SLEEP_START: ["【系统】休眠开始时间（0-23）", "int", 2],
   SLEEP_END: ["【系统】休眠结束时间（0-23）", "int", 8],
@@ -154,7 +160,8 @@ const MOCK_FIELDS = {
   ENABLE_PROACTIVE_LLM_PREFILTER: ["【主动看片·筛选】启用模型预筛选", "bool", true],
   PROACTIVE_LLM_PREFILTER_MAX_REJECTS: ["【主动看片·筛选】预筛选最多拒绝次数", "int", 4],
   CUSTOM_PROACTIVE_INSTRUCTION: ["【主动行为】主动评论补充提示词", "text", "只在确实有内容可说时评论，保持自然。"],
-  RECOMMEND_OWNER_DELIVERY: ["【给主人分享】允许分享有趣视频", "bool", true],
+  ENABLE_OWNER_RECOMMEND: ["【给主人分享】启用给主人分享", "bool", true],
+  RECOMMEND_OWNER_DELIVERY: ["【给主人分享】分享方式", "string", "private_message", ["private_message", "comment", "both"]],
   RECOMMEND_OWNER_MIN_SCORE: ["【给主人分享】最低内容评分", "int", 8],
   RECOMMEND_OWNER_DAILY_LIMIT: ["【给主人分享】每日最多分享次数", "int", 2],
   CUSTOM_RECOMMEND_INSTRUCTION: ["【给主人分享】分享补充提示词", "text", "说明为什么觉得主人会喜欢，不要只发链接。"],
@@ -307,13 +314,19 @@ function regenerateMockSchedule() {
   const now = new Date();
   const nowMinute = now.getHours() * 60 + now.getMinutes();
   const add = (time, label, kind, description) => events.push({ time, label, kind, description, triggered: minutesOf(time) < nowMinute });
-  const proactiveCount = cfg.ENABLE_PROACTIVE ? Math.min(num(cfg.PROACTIVE_DAILY_LIMIT, 5), num(cfg.AUTONOMOUS_PROACTIVE_DAILY_LIMIT, 4), activity >= 85 ? 3 : activity >= 50 ? 2 : activity >= 20 ? 1 : 0) : 0;
+  const proactiveMin = num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MIN, 0);
+  const proactiveMax = Math.min(num(cfg.PROACTIVE_DAILY_LIMIT, 5), num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MAX, 4));
+  const proactiveSoft = activity >= 85 ? 3 : activity >= 50 ? 2 : activity >= 20 ? 1 : 0;
+  const proactiveCount = cfg.ENABLE_PROACTIVE ? Math.min(proactiveMax, Math.max(proactiveMin, proactiveSoft)) : 0;
   ["10:20", "15:30", "20:15"].slice(0, proactiveCount).forEach((time) => add(time, "主动浏览", "proactive", "浏览视频、选择感兴趣的内容"));
-  const dynamicCount = cfg.ENABLE_DYNAMIC ? Math.min(num(cfg.DYNAMIC_DAILY_COUNT, 1), num(cfg.AUTONOMOUS_DYNAMIC_DAILY_LIMIT, 2), activity >= 88 ? 2 : activity >= 40 ? 1 : 0) : 0;
+  const dynamicMin = num(cfg.AUTONOMOUS_DYNAMIC_DAILY_MIN, 0);
+  const dynamicMax = Math.min(num(cfg.DYNAMIC_DAILY_COUNT, 1), num(cfg.AUTONOMOUS_DYNAMIC_DAILY_MAX, 2));
+  const dynamicSoft = activity >= 88 ? 2 : activity >= 40 ? 1 : 0;
+  const dynamicCount = cfg.ENABLE_DYNAMIC ? Math.min(dynamicMax, Math.max(dynamicMin, dynamicSoft)) : 0;
   ["16:30", "21:10"].slice(0, dynamicCount).forEach((time) => add(time, "发布动态", "dynamic", "根据今日状态发布一条动态"));
   if (cfg.ENABLE_BANGUMI && cfg.BANGUMI_PROACTIVE && activity >= 30) add("12:10", "追番", "bangumi", "检查更新或观看番剧");
   if (cfg.ENABLE_DYNAMIC_WATCH && activity >= 20) {
-    ["11:30", "20:30"].slice(0, Math.max(0, Math.min(num(cfg.DYNAMIC_WATCH_TIMES_COUNT, 2), num(cfg.AUTONOMOUS_PROACTIVE_DAILY_LIMIT, 4)))).forEach((time) => add(time, "关注动态", "dynamic_watch", "查看关注者的新动态图文与视频投稿"));
+    ["11:30", "20:30"].slice(0, Math.max(0, num(cfg.DYNAMIC_WATCH_TIMES_COUNT, 2))).forEach((time) => add(time, "关注动态", "dynamic_watch", "查看关注者的新动态图文与视频投稿"));
   }
   if (cfg.SPECIAL_FOLLOW_ENABLED) {
     const times = cfg.SPECIAL_FOLLOW_MODE === "fixed" && Array.isArray(cfg.SPECIAL_FOLLOW_FIXED_TIMES) ? cfg.SPECIAL_FOLLOW_FIXED_TIMES : ["09:20", "19:40"];
@@ -329,8 +342,8 @@ function regenerateMockSchedule() {
     autonomous_plan: {
       rationale: cfg.ENABLE_AUTONOMOUS_DAILY_PLAN ? `${activityLabel(activity)}状态下，根据真实开关与管理员边界生成今日节奏。` : "当前使用管理员固定计划。",
       generated_at: new Date().toLocaleString("zh-CN", { hour12: false }),
-      reply_target: cfg.ENABLE_REPLY ? Math.round(num(cfg.AUTONOMOUS_REPLY_DAILY_LIMIT, 80) * (0.15 + activity / 140)) : 0,
-      private_target: cfg.ENABLE_PRIVATE_MESSAGES ? Math.round(num(cfg.AUTONOMOUS_PRIVATE_DAILY_LIMIT, 30) * (0.12 + activity / 150)) : 0,
+      reply_target: cfg.ENABLE_REPLY ? Math.max(num(cfg.AUTONOMOUS_REPLY_DAILY_MIN, 0), Math.min(num(cfg.AUTONOMOUS_REPLY_DAILY_MAX, 80), Math.round(num(cfg.AUTONOMOUS_REPLY_DAILY_MIN, 0) + (num(cfg.AUTONOMOUS_REPLY_DAILY_MAX, 80) - num(cfg.AUTONOMOUS_REPLY_DAILY_MIN, 0)) * (0.15 + activity / 140)))) : 0,
+      private_target: cfg.ENABLE_PRIVATE_MESSAGES ? Math.max(num(cfg.AUTONOMOUS_PRIVATE_DAILY_MIN, 0), Math.min(num(cfg.AUTONOMOUS_PRIVATE_DAILY_MAX, 30), Math.round(num(cfg.AUTONOMOUS_PRIVATE_DAILY_MIN, 0) + (num(cfg.AUTONOMOUS_PRIVATE_DAILY_MAX, 30) - num(cfg.AUTONOMOUS_PRIVATE_DAILY_MIN, 0)) * (0.12 + activity / 150)))) : 0,
     },
     events,
   };
@@ -568,6 +581,26 @@ function renderTimeList(key, value, label) {
   return `<div class="time-list" data-time-list="${key}">${values.map((item, index) => `<div class="time-row"><input class="input time-input" data-time-index="${index}" type="time" value="${esc(item)}" aria-label="${esc(label)} ${index + 1}" /><button class="time-remove" data-time-remove="${index}" type="button" aria-label="删除 ${esc(item)}">−</button></div>`).join("")}<button class="time-add" data-time-add="${key}" type="button">${icon("clock")}添加时间</button></div>`;
 }
 
+const OPTION_LABELS = {
+  RECOMMEND_OWNER_DELIVERY: {
+    private_message: "B站私信分享",
+    comment: "评论区 @主人",
+    both: "私信 + 评论区 @主人",
+    off: "关闭分享方式",
+  },
+  PRIVATE_MESSAGE_REPLY_SCOPE: { all: "全部安全用户", owner: "仅主人", whitelist: "主人和白名单" },
+  SPECIAL_FOLLOW_MODE: { random: "随机时间", fixed: "固定时间" },
+  MEMORY_ISOLATION_MODE: { isolated: "严格隔离", safe_share: "安全共享" },
+  ABUSE_ALERT_MODE: { off: "关闭", log: "仅记录日志", qq: "QQ 通知" },
+  DAILY_SUMMARY_MODE: { off: "仅存档", qq: "发送到 QQ", bili: "发布到 B 站", both: "QQ + B 站" },
+  WEB_SEARCH_BACKEND: { tavily: "Tavily", perplexity: "Perplexity", bocha: "博查", custom: "自定义接口" },
+  VIDEO_VISION_FORMAT: { none: "截帧分析", gemini: "Gemini 视频接口", qwen: "通义千问视频接口" },
+};
+
+function optionLabel(key, option) {
+  return OPTION_LABELS[key]?.[option] || option;
+}
+
 function renderControl(key, field = {}, compact = false) {
   const value = currentValue(key);
   const type = field.type || "string";
@@ -576,7 +609,7 @@ function renderControl(key, field = {}, compact = false) {
     return `<label class="switch-control"><input data-config-key="${key}" type="checkbox" ${value ? "checked" : ""} /><span class="switch-track"><i></i></span><span class="sr-only">切换${esc(label)}</span></label>`;
   }
   if (field.options?.length) {
-    return `<select class="input" data-config-key="${key}" aria-label="${esc(label)}">${field.options.map((option) => `<option value="${esc(option)}" ${String(value) === String(option) ? "selected" : ""}>${esc(option)}</option>`).join("")}</select>`;
+    return `<select class="input" data-config-key="${key}" aria-label="${esc(label)}">${field.options.map((option) => `<option value="${esc(option)}" ${String(value) === String(option) ? "selected" : ""}>${esc(optionLabel(key, option))}</option>`).join("")}</select>`;
   }
   if (/^FIXED_.*_TIMES$/.test(key) || key === "SPECIAL_FOLLOW_FIXED_TIMES") return renderTimeList(key, value, label);
   if (key === "SLEEP_START" || key === "SLEEP_END" || (/_HOUR$/.test(key) && num(field.min, 0) === 0 && num(field.max, 23) === 23)) {
@@ -598,7 +631,7 @@ function renderControl(key, field = {}, compact = false) {
 }
 
 function renderField(key, options = {}) {
-  if (!hasKey(key)) return "";
+  if (!hasKey(key) || state.schema[key]?.deprecated) return "";
   const field = state.schema[key] || {};
   const meta = descriptionMeta(field);
   const isBool = field.type === "bool";
@@ -644,8 +677,8 @@ function renderOverview() {
   const schedulerHealthy = Boolean(s.scheduler_healthy);
   const proactiveMax = num(s.proactive_max);
   const proactiveProgress = proactiveMax > 0 ? num(s.proactive_used) / proactiveMax * 100 : 0;
-  const replyLimit = Math.max(1, num(currentValue("AUTONOMOUS_REPLY_DAILY_LIMIT"), 80));
-  const privateLimit = Math.max(1, num(currentValue("AUTONOMOUS_PRIVATE_DAILY_LIMIT"), 30));
+  const replyLimit = Math.max(1, num(currentValue("AUTONOMOUS_REPLY_DAILY_MAX"), 80));
+  const privateLimit = Math.max(1, num(currentValue("AUTONOMOUS_PRIVATE_DAILY_MAX"), 30));
   return `${pageHead("MONITOR", "运行总览", "最重要的账号、调度、互动、安全与配额状态集中在这里。", button("刷新状态", "refresh", "refresh"))}
     <section class="health-hero ${isHealthy ? "is-healthy" : "has-warning"}">
       <div class="health-orb">${icon(isHealthy ? "shield" : "lightning")}</div>
@@ -719,7 +752,7 @@ const EVENT_STYLES = {
 const AUTONOMY_CAPABILITIES = [
   { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "浏览视频并执行受评分阈值保护的点赞、投币、收藏、评论或关注。", keys: ["PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT", "PROACTIVE_COMMENT_COUNT"] },
   { id: "prefilter", title: "内容挑选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "用关注源、兴趣提示词和模型预筛选决定今天值得看的内容。", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS", "CUSTOM_PROACTIVE_INSTRUCTION"] },
-  { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "RECOMMEND_OWNER_DELIVERY", description: "只在发现真正有趣的内容后分享，并受每日上限与最低评分保护。", keys: ["RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
+  { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "只在发现真正有趣的内容后分享，并受每日上限与最低评分保护。", keys: ["RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
   { id: "dynamic", title: "动态发布", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按今日计划生成并发布 B站动态，关闭后不会进入事件环。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT", "DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION"] },
   { id: "dynamic-watch", title: "查看关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "巡视关注者的新动态图文与视频投稿，每条内容使用独立模型上下文。", keys: ["DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
   { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "单独巡视特别关注用户，可选择随机节奏或管理员固定时刻。", keys: ["SPECIAL_FOLLOW_MODE", "SPECIAL_FOLLOW_TIMES_COUNT", "SPECIAL_FOLLOW_FIXED_TIMES"] },
@@ -861,7 +894,7 @@ function renderActivityControl() {
 }
 
 function renderEventList(events) {
-  if (!events.length) return `<div class="empty-event">${icon("calendar")}<strong>今天没有主动事件</strong><span>关闭总开关、低活跃度或硬上限为 0 时，这是正常状态。</span></div>`;
+  if (!events.length) return `<div class="empty-event">${icon("calendar")}<strong>今天没有主动事件</strong><span>关闭总开关、低活跃度或范围上限为 0 时，这是正常状态。</span></div>`;
   return `<div class="event-list">${events.map((event, index) => {
     const style = EVENT_STYLES[event.kind] || EVENT_STYLES.proactive;
     const meta = eventPhaseMeta(event);
@@ -900,7 +933,7 @@ function renderBehaviorMatrix() {
 
 function renderPlanStatus(plan, autonomous) {
   const failed = autonomous && plan.generation_status === "error";
-  const status = failed ? "模型调用失败，当前使用安全 fallback" : autonomous ? "模型计划已通过硬边界校验" : "管理员固定计划";
+  const status = failed ? "模型调用失败，当前使用安全 fallback" : autonomous ? "模型计划已通过范围边界校验" : "管理员固定计划";
   const detail = failed
     ? `${plan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 请检查模型提供商和 AI 对话总开关。`
     : plan.rationale || (autonomous ? "保存修改后调用当前模型生成当天计划。" : "保存修改后按准确时刻刷新当天计划。");
@@ -909,17 +942,17 @@ function renderPlanStatus(plan, autonomous) {
 
 function renderAutonomousTemplate(plan, autonomous, events) {
   const next = nextScheduleEvent(events);
-  const limitKeys = ["SLEEP_START", "SLEEP_END", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "AUTONOMOUS_REPLY_DAILY_LIMIT", "AUTONOMOUS_PRIVATE_DAILY_LIMIT", "AUTONOMOUS_DYNAMIC_DAILY_LIMIT", "AUTONOMOUS_PROACTIVE_DAILY_LIMIT"];
+  const limitKeys = ["SLEEP_START", "SLEEP_END", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX", "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX"];
   return `<section class="plan-template autonomous-template ${autonomous ? "is-active" : ""}" data-plan-template="autonomous" aria-hidden="${!autonomous}" ${autonomous ? "" : "inert"}>
     ${renderPlanStatus(plan, true)}
     <div class="plan-facts">
       <div><span>今日事件</span><strong>${events.length}</strong><small>只来自已启用能力</small></div>
       <div><span>下一事件</span><strong>${next?.time ? esc(next.time) : "—"}</strong><small>${esc(next?.label || "暂无待执行事件")}</small></div>
-      <div><span>评论 / 私信目标</span><strong>${fmt(plan.reply_target)} / ${fmt(plan.private_target)}</strong><small>模型目标仍受硬上限保护</small></div>
+      <div><span>评论 / 私信目标</span><strong>${fmt(plan.reply_target)} / ${fmt(plan.private_target)}</strong><small>模型目标仍受上下限保护</small></div>
       <div><span>计划来源</span><strong>${plan.source === "fallback" ? "安全回退" : "当前模型"}</strong><small>仅保存时更新当天计划</small></div>
     </div>
     ${renderConfigSection("自主计划提示词", "作为 B站每日安排的附加提示，不会替换 AstrBot 原人设", ["AUTONOMOUS_PLAN_PROMPT"], "star", "", "embedded-section")}
-    <section class="embedded-section limit-section">${sectionHead("管理员硬上限", "模型只能在这些边界内安排，休眠区间不会生成主动事件", "lock")}<div class="plan-limit-grid">${limitKeys.map((key) => renderField(key, { tile: true })).join("")}</div></section>
+    <section class="embedded-section limit-section">${sectionHead("管理员范围限制", "分别设置计划下限和执行上限；休眠区间不会生成主动事件", "lock")}<div class="plan-limit-grid">${limitKeys.map((key) => renderField(key, { tile: true })).join("")}</div></section>
   </section>`;
 }
 
@@ -1130,7 +1163,7 @@ function renderCacheCard() {
 
 function renderBasics() {
   const assigned = new Set(Object.values(PAGE_KEYS).flat());
-  const allEntries = Object.entries(state.schema).filter(([key]) => !assigned.has(key));
+  const allEntries = Object.entries(state.schema).filter(([key, field]) => !assigned.has(key) && !field.deprecated);
   const query = state.settingsSearch.trim().toLowerCase();
   const filtered = allEntries.filter(([key, field]) => {
     if (!query) return true;
@@ -1310,7 +1343,7 @@ async function handleAction(action, source = null) {
   }
   if (action === "generate-qr") return generateQr();
   if (action === "regenerate-schedule") {
-    const ok = await confirmModal("重新生成今日计划", "这会清空今天尚未完成的日程并立即根据当前活跃度与硬上限重新生成。", "重新生成");
+    const ok = await confirmModal("重新生成今日计划", "这会清空今天尚未完成的日程并立即根据当前活跃度与范围限制重新生成。", "重新生成");
     if (!ok) return;
     const regenerated = await apiPost("schedule/regenerate", {});
     state.schedule = { ...state.schedule, ...(regenerated || {}) };
@@ -1320,7 +1353,7 @@ async function handleAction(action, source = null) {
     if (plan?.generation_status === "error") {
       toast("计划已生成，但模型调用失败", `${plan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback。`, "error");
     } else {
-      toast("今日计划已更新", "新计划已经过睡眠区间、最小间隔与硬上限校验");
+      toast("今日计划已更新", "新计划已经过睡眠区间、最小间隔与范围限制校验");
     }
     return;
   }
@@ -1450,8 +1483,10 @@ function openToolPicker() {
 }
 
 function renderToolPickerModal() {
+  const compatibleTools = state.availableTools.filter((tool) => tool.compatible && tool.active !== false);
+  const unavailableTools = state.availableTools.filter((tool) => !tool.compatible || tool.active === false);
   const groups = new Map();
-  state.availableTools.forEach((tool) => {
+  compatibleTools.forEach((tool) => {
     const group = toolOriginLabel(tool);
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(tool);
@@ -1462,7 +1497,8 @@ function renderToolPickerModal() {
     const haystack = `${tool.label || ""} ${tool.name || ""} ${tool.description || ""} ${tool.origin_name || ""}`.toLowerCase();
     return `<label class="tool-option ${checked ? "is-selected" : ""} ${enabled ? "" : "is-disabled"}" data-tool-option data-tool-search="${esc(haystack)}"><input data-tool-name="${esc(tool.name)}" type="checkbox" ${checked ? "checked" : ""} ${enabled ? "" : "disabled"}/><span class="tool-check">${icon(checked ? "unlock" : "lock")}</span><span class="tool-option-copy"><strong>${esc(tool.label || tool.name)}</strong><p>${esc(tool.description || "暂无说明")}</p><small>${esc(tool.reason || (enabled ? "只读安全能力" : "未适配"))}</small></span><span class="tool-state">${enabled ? (checked ? "已选择" : "可选择") : "不可用"}</span></label>`;
   };
-  modalRoot.innerHTML = `<div class="modal-backdrop tool-picker-backdrop" data-modal-backdrop><div class="modal tool-modal" role="dialog" aria-modal="true" aria-labelledby="tool-modal-title"><div class="tool-modal-head"><span class="modal-icon">${icon("controller")}</span><div><h2 id="tool-modal-title">选择 B站只读工具</h2><p>列表来自 AstrBot 当前真实注册表。只有已提供 B站安全适配器的工具可以勾选。</p></div><button class="modal-close" data-tool-close type="button" aria-label="关闭">×</button></div><label class="tool-search">${icon("search")}<input id="tool-search-input" type="search" value="" placeholder="搜索工具或插件" /></label><div class="tool-modal-list">${[...groups.entries()].map(([group, items], index) => `<details class="tool-group" data-tool-group ${index < 2 ? "open" : ""}><summary><div><strong>${esc(group)}</strong><span data-group-count>${items.length} 项</span></div>${icon("arrow-right")}</summary><div class="tool-group-body">${items.map(optionHtml).join("")}</div></details>`).join("") || `<div class="empty-search">${icon("search")}<strong>没有已注册工具</strong><span>请检查 AstrBot 工具注册状态。</span></div>`}<div class="empty-search tool-search-empty" hidden>${icon("search")}<strong>没有匹配工具</strong><span>换一个关键词试试。</span></div></div><div class="tool-modal-actions"><span>已选择 <b data-tool-selected-count>${state.toolPickerSelection.size}</b> 项</span><div><button class="button soft" data-tool-close type="button">取消</button><button class="button primary" data-tool-confirm type="button">${icon("save")}确认选择</button></div></div></div></div>`;
+  const unavailableSummary = unavailableTools.length ? `<details class="tool-unavailable" data-tool-unavailable><summary><span>${icon("lock")}其他已注册工具（不可加入 B站只读白名单）</span><b>${unavailableTools.length} 项</b></summary><p>这些工具来自 AstrBot 内置工具、其他插件或 MCP；它们不是 B站只读适配器，因此不会进入白名单，也不会被 B站评论/私信上下文调用。</p><div class="tool-unavailable-list">${unavailableTools.slice(0, 80).map((tool) => `<span><strong>${esc(tool.label || tool.name)}</strong><small>${esc(tool.reason || "未提供 B站只读适配器")}</small></span>`).join("")}</div></details>` : "";
+  modalRoot.innerHTML = `<div class="modal-backdrop tool-picker-backdrop" data-modal-backdrop><div class="modal tool-modal" role="dialog" aria-modal="true" aria-labelledby="tool-modal-title"><div class="tool-modal-head"><span class="modal-icon">${icon("controller")}</span><div><h2 id="tool-modal-title">选择 B站只读工具</h2><p>这里只展示已提供 B站安全适配器的工具；其他注册工具仅作说明，不会出现在可选白名单中。</p></div><button class="modal-close" data-tool-close type="button" aria-label="关闭">×</button></div><label class="tool-search">${icon("search")}<input id="tool-search-input" type="search" value="" placeholder="搜索 B站只读工具" /></label><div class="tool-modal-list">${[...groups.entries()].map(([group, items], index) => `<details class="tool-group" data-tool-group ${index < 2 ? "open" : ""}><summary><div><strong>${esc(group)}</strong><span data-group-count>${items.length} 项</span></div>${icon("arrow-right")}</summary><div class="tool-group-body">${items.map(optionHtml).join("")}</div></details>`).join("") || `<div class="empty-search">${icon("search")}<strong>当前没有可用的 B站只读适配器</strong><span>这不影响普通评论和私信处理。</span></div>`}<div class="empty-search tool-search-empty" hidden>${icon("search")}<strong>没有匹配工具</strong><span>换一个关键词试试。</span></div>${unavailableSummary}</div><div class="tool-modal-actions"><span>已选择 <b data-tool-selected-count>${state.toolPickerSelection.size}</b> 项</span><div><button class="button soft" data-tool-close type="button">取消</button><button class="button primary" data-tool-confirm type="button">${icon("save")}确认选择</button></div></div></div></div>`;
   const backdrop = modalRoot.querySelector(".tool-picker-backdrop");
   const close = () => {
     backdrop?.classList.add("is-closing");

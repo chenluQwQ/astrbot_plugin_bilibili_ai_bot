@@ -478,10 +478,15 @@
     "options": [
       "private_message",
       "comment",
-      "both",
-      "off"
+      "both"
     ],
-    "hint": "private_message=通过B站私信分享，不@；comment=在视频评论区@主人；both=两种都发；off=关闭推荐。私信使用 OWNER_MID，评论区使用 OWNER_BILI_NAME。"
+    "hint": "private_message=通过B站私信分享；comment=在视频评论区@主人；both=两种都发。是否启用由上方总开关控制。私信使用 OWNER_MID，评论区使用 OWNER_BILI_NAME。"
+  },
+  "ENABLE_OWNER_RECOMMEND": {
+    "description": "【主动行为·给主人推荐】启用给主人分享",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后不会向主人发送私信或评论区推荐；分享方式由下方选项决定。"
   },
   "RECOMMEND_OWNER_MIN_SCORE": {
     "description": "【主动行为·给主人推荐】最低视频评分",
@@ -996,7 +1001,7 @@
     "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",
     "type": "bool",
     "default": false,
-    "hint": "计划只会在管理员设定的回复、私信、动态和主动行为硬上限内调整次数与时间。"
+    "hint": "计划只会在管理员设定的回复、私信、动态和主动行为范围限制内调整次数与时间。"
   },
   "AUTONOMOUS_ACTIVITY_LEVEL": {
     "description": "【自主安排】今日基础活跃度（0-100）",
@@ -1010,35 +1015,107 @@
     "description": "【自主安排】每日计划补充提示词",
     "type": "text",
     "default": "结合角色人设、当前心情和活跃度，安排自然、不机械、不刷屏的一天。优先保证作息合理，避免连续发布或短时间密集互动；低价值内容可以不回复。",
-    "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到硬上限。"
+    "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到范围限制。"
   },
   "AUTONOMOUS_REPLY_DAILY_LIMIT": {
-    "description": "【自主安排·硬上限】每日评论回复最多次数",
+    "description": "【兼容旧配置】每日评论回复旧版单值上限（请改用下限/上限）",
     "type": "int",
     "default": 80,
     "min": 0,
-    "max": 500
+    "max": 500,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_REPLY_DAILY_MIN": {
+    "description": "【自主安排·范围】每日评论回复下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 500,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_REPLY_DAILY_MAX": {
+    "description": "【自主安排·范围】每日评论回复上限",
+    "type": "int",
+    "default": 80,
+    "min": 0,
+    "max": 500,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
   },
   "AUTONOMOUS_PRIVATE_DAILY_LIMIT": {
-    "description": "【自主安排·硬上限】每日私信回复最多次数",
+    "description": "【兼容旧配置】每日私信回复旧版单值上限（请改用下限/上限）",
     "type": "int",
     "default": 30,
     "min": 0,
-    "max": 200
+    "max": 200,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_PRIVATE_DAILY_MIN": {
+    "description": "【自主安排·范围】每日私信回复下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 200,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_PRIVATE_DAILY_MAX": {
+    "description": "【自主安排·范围】每日私信回复上限",
+    "type": "int",
+    "default": 30,
+    "min": 0,
+    "max": 200,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
   },
   "AUTONOMOUS_DYNAMIC_DAILY_LIMIT": {
-    "description": "【自主安排·硬上限】每日发布动态最多次数",
+    "description": "【兼容旧配置】每日发布动态旧版单值上限（请改用下限/上限）",
     "type": "int",
     "default": 2,
     "min": 0,
-    "max": 20
+    "max": 20,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_DYNAMIC_DAILY_MIN": {
+    "description": "【自主安排·范围】每日发布动态下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 20,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_DYNAMIC_DAILY_MAX": {
+    "description": "【自主安排·范围】每日发布动态上限",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 20,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
   },
   "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": {
-    "description": "【自主安排·硬上限】每日主动行为最多次数",
+    "description": "【兼容旧配置】每日主动行为旧版单值上限（请改用下限/上限）",
     "type": "int",
     "default": 4,
     "min": 0,
-    "max": 30
+    "max": 30,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_PROACTIVE_DAILY_MIN": {
+    "description": "【自主安排·范围】每日主动行为下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 30,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_PROACTIVE_DAILY_MAX": {
+    "description": "【自主安排·范围】每日主动行为上限",
+    "type": "int",
+    "default": 4,
+    "min": 0,
+    "max": 30,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
   },
   "AUTONOMOUS_MIN_ACTION_GAP_MINUTES": {
     "description": "【自主安排·硬约束】主动事件最小间隔（分钟）",
@@ -1070,10 +1147,9 @@
       "web_search",
       "get_up_info",
       "search_bilibili",
-      "watch_video",
-      "bili_parse_video"
+      "watch_video"
     ],
-    "hint": "由安全页从 AstrBot 实际注册工具中选择；仅已提供 B站只读适配器的工具可启用，未知或不兼容名称会被忽略。"
+    "hint": "由安全页从已提供 B站只读适配器的工具中选择；写操作、私域记忆和复合工具不会进入此白名单。"
   },
   "BILI_PROMPT_INJECTION_DEFENSE": {
     "description": "【安全与工具】启用外部内容提示注入防护",
@@ -1147,7 +1223,7 @@
     "description": "【固定计划】每日评论回复目标数量",
     "type": "int",
     "default": 30,
-    "hint": "仅作为固定计划目标；无合适评论时不会为了凑数回复，且始终受每日硬上限保护。",
+    "hint": "仅作为固定计划目标；无合适评论时不会为了凑数回复，且始终受每日范围上限保护。",
     "min": 0,
     "max": 500
   },
@@ -1155,7 +1231,7 @@
     "description": "【固定计划】每日私信回复目标数量",
     "type": "int",
     "default": 10,
-    "hint": "仅作为固定计划目标；无有效私信时不会凑数回复，且始终受每日硬上限保护。",
+    "hint": "仅作为固定计划目标；无有效私信时不会凑数回复，且始终受每日范围上限保护。",
     "min": 0,
     "max": 200
   },
