@@ -72,7 +72,7 @@ const PAGE_KEYS = {
     "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
     "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
     "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
-    "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT",
+    "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
     "PROACTIVE_COMMENT_COUNT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
@@ -94,7 +94,7 @@ const PAGE_KEYS = {
     "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD",
   ],
   security: [
-    "BILI_TOOL_ISOLATION_ENABLED", "BILI_ALLOW_SEARCH_TOOLS", "BILI_TOOL_ALLOWLIST",
+    "BILI_TOOL_ISOLATION_ENABLED", "BILI_ALLOW_SEARCH_TOOLS", "BILI_TOOL_ALLOWLIST", "ENABLE_LLM_TOOLS",
     "BILI_PROMPT_INJECTION_DEFENSE", "BILI_TOOL_AUDIT_ENABLED", "MEMORY_ISOLATION_MODE",
     "ENABLE_SAFE_CROSS_PLATFORM_MEMORY", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES",
     "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT", "PRIVATE_MESSAGE_AUTO_BLOCK",
@@ -782,8 +782,7 @@ const AUTONOMY_CAPABILITIES = [
   { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "巡视特别关注用户；不在此处重复设置固定时刻或触发次数。", keys: [] },
   { id: "bangumi", title: "番剧日程", icon: "video", toggle: "ENABLE_BANGUMI", description: "番剧是独立日程，不并入主动浏览；需同时开启番剧功能与主动追番，才会在计划和事件环中出现。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
   { id: "prefilter", title: "内容挑选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "用关注源、兴趣提示词和模型预筛选决定今天值得看的内容。", dependency: "依赖主动浏览", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS", "CUSTOM_PROACTIVE_INSTRUCTION"] },
-  { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "只在主动浏览发现真正有趣的内容后分享，可投递到 B站或主人 QQ，不独立创建日程。", dependency: "依赖主动浏览", keys: ["RECOMMEND_OWNER_DELIVERY", "OWNER_QQ_UMO", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
-  { id: "cross-platform", title: "跨端当前活动", icon: "controller", toggle: "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS", description: "把正在浏览或追番的短期状态同步给已绑定的主人 QQ；任务结束后立即清除，不写入长期记忆。", keys: ["OWNER_QQ_UMO"] },
+  { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "统一管理给主人推荐与 QQ 当前活动同步；活动状态任务结束后立即清除，不写入长期记忆。", dependency: "依赖主动浏览", keys: ["RECOMMEND_OWNER_DELIVERY", "OWNER_QQ_UMO", "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
 ];
 
 
@@ -1192,7 +1191,7 @@ function renderSecurity() {
       ${metricCard("工具拒绝", fmt(securityCount(["bili_tool_denied"])), "未授权请求未执行", "lock", "violet")}
       ${metricCard("记忆策略", memoryMode === "safe_share" ? "安全共享" : "平台隔离", "仅向主人侧开放脱敏摘要", "memory-card", "orange")}
     </section>
-    ${renderConfigSection("工具隔离总控", "高风险工具不会因为关闭前端开关而自动获得权限；后端仍执行硬白名单", ["BILI_TOOL_ISOLATION_ENABLED", "BILI_ALLOW_SEARCH_TOOLS", "BILI_PROMPT_INJECTION_DEFENSE", "BILI_TOOL_AUDIT_ENABLED"], "shield")}
+    ${renderConfigSection("工具隔离总控", "高风险工具不会因为关闭前端开关而自动获得权限；关闭 LLM 工具会拒绝全部 B站查询、看视频与搜索调用", ["BILI_TOOL_ISOLATION_ENABLED", "ENABLE_LLM_TOOLS", "BILI_ALLOW_SEARCH_TOOLS", "BILI_PROMPT_INJECTION_DEFENSE", "BILI_TOOL_AUDIT_ENABLED"], "shield")}
     <section class="card section-card tool-access-card">${sectionHead("只读工具白名单", "从 AstrBot 当前真实注册表中选择；未提供 B站安全适配器的工具不能启用", "controller")}${renderToolSummary()}</section>
     <div class="two-column">
       ${renderConfigSection("记忆隔离与安全共享", "默认隔离；开启共享后也只向已绑定主人侧提供脱敏摘要", ["MEMORY_ISOLATION_MODE", "ENABLE_SAFE_CROSS_PLATFORM_MEMORY", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES", "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT"], "memory-card")}
@@ -1210,7 +1209,7 @@ function renderAccount() {
     ${renderConfigSection("主人身份", "用于私信推荐、@主人和安全的跨平台记忆共享校验", ["OWNER_MID", "OWNER_NAME", "OWNER_BILI_NAME"], "heart")}`;
 }
 
-const BASIC_GROUP_ORDER = ["人设与模型", "性格演化", "Embedding 与记忆", "视频与图片视觉", "图片生成", "联网搜索", "总结", "Cookie 与系统", "高级接口", "其他长期配置"];
+const BASIC_GROUP_ORDER = ["人设与模型", "性格演化", "Embedding 与记忆", "视频与图片视觉", "图片生成", "联网搜索", "总结", "Cookie 与系统", "高级接口"];
 
 function basicGroupFor(key, field) {
   const group = descriptionMeta(field).group;
@@ -1223,7 +1222,7 @@ function basicGroupFor(key, field) {
   if (/总结/.test(group) || key.includes("DAILY") || key.includes("WEEKLY")) return "总结";
   if (/系统/.test(group) || key.startsWith("COOKIE_")) return "Cookie 与系统";
   if (/高级/.test(group) || /(API|MODEL|PROVIDER)/.test(key)) return "高级接口";
-  return "其他长期配置";
+  return null;
 }
 
 function renderCacheCard() {
@@ -1243,11 +1242,16 @@ function renderBasics() {
   const allEntries = Object.entries(state.schema).filter(([key, field]) => !assigned.has(key) && !field.deprecated);
   const query = state.settingsSearch.trim().toLowerCase();
   const filtered = allEntries.filter(([key, field]) => {
+    const group = basicGroupFor(key, field);
+    if (!group) return false;
     if (!query) return true;
     return `${key} ${field.description || ""} ${field.hint || ""}`.toLowerCase().includes(query);
   });
   const groups = Object.fromEntries(BASIC_GROUP_ORDER.map((name) => [name, []]));
-  filtered.forEach(([key, field]) => groups[basicGroupFor(key, field)].push(key));
+  filtered.forEach(([key, field]) => {
+    const group = basicGroupFor(key, field);
+    if (group) groups[group].push(key);
+  });
   return `${pageHead("FOUNDATION", "基础设置", "这里只保留完成初始化后很少需要调整的人设、模型和高级能力；常用行为已拆到对应页面。")}
     ${renderCacheCard()}
     <section class="settings-search card"><span>${icon("search")}</span><input id="settings-search" type="search" value="${esc(state.settingsSearch)}" placeholder="搜索配置名称、说明或 KEY" aria-label="搜索基础设置" />${state.settingsSearch ? `<button data-action="clear-settings-search" type="button">清除</button>` : ""}</section>
