@@ -587,9 +587,19 @@ async def handle_schedule_override(plugin: Any):
                 in_window = (start_minute <= minute <= end_minute) if start_minute < end_minute else (minute >= start_minute or minute <= end_minute)
                 if not in_window:
                     return _failure("主动浏览的触发时刻必须位于时间段内")
+                # Every saved schedule event must stay awake. Check the trigger
+                # and each quarter-hour in the window so a drag cannot straddle
+                # the configured sleep interval.
+                duration = window["duration_minutes"]
+                if hasattr(plugin, "_is_awake_minute"):
+                    window_minutes = [(start_minute + offset) % 1440 for offset in range(0, duration + 1, 15)]
+                    if any(not plugin._is_awake_minute(value) for value in window_minutes):
+                        return _failure("主动浏览时间段不能进入休眠时间")
                 windows.append({"start_time": window["start_time"], "end_time": window["end_time"], "scheduled_time": time_value, "trigger_policy": "once_in_window"})
                 normalized["proactive_times"].append(time_value)
             elif kind in point_keys:
+                if hasattr(plugin, "_is_awake_minute") and not plugin._is_awake_minute(minute):
+                    return _failure("事件时刻不能安排在休眠时间")
                 normalized[point_keys[kind]].append(time_value)
             else:
                 return _failure(f"不支持修改的事件类型：{kind}")

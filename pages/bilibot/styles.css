@@ -236,6 +236,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus
 .hour-label { fill: #929bad; font-size: 8px; font-weight: 700; user-select: none; }
 .sleep-arc { fill: none; stroke-width: 10; stroke-linecap: round; opacity: .48; }
 .ring-event-group { isolation: isolate; }
+.ring-event-group .ring-resize-handle { opacity: 0; pointer-events: none; transform: scale(.72); transform-origin: center; transition: opacity .18s var(--ease), transform .2s var(--spring); }
+.ring-event-group .ring-resize-handle.is-visible { opacity: 1; pointer-events: auto; transform: scale(1); }
 .ring-event-hit { fill: none; stroke: transparent; stroke-width: 44; stroke-linecap: round; cursor: pointer; pointer-events: stroke; }
 .ring-event { fill: none; stroke-width: 14; stroke-linecap: round; opacity: .92; pointer-events: none; transform-box: fill-box; transform-origin: center; transition: stroke-width .28s var(--spring), opacity .22s, filter .22s, transform .28s var(--spring); }
 .ring-event-hit:hover + .ring-event { stroke-width: 18; opacity: 1; filter: drop-shadow(0 5px 8px rgba(68,76,123,.19)); }
@@ -776,6 +778,8 @@ button:disabled { cursor: wait; opacity: .58; transform: none !important; }
 .dock-spinner { width: 16px; height: 16px; display: inline-block; border: 2px solid rgba(255,255,255,.32); border-top-color: #fff; border-radius: 50%; animation: spin .75s linear infinite; }
 
 .time-input::-webkit-calendar-picker-indicator { margin-left: auto; opacity: .68; }
+.number-stepper input[inputmode="numeric"], .number-stepper input[inputmode="decimal"] { appearance: textfield; -moz-appearance: textfield; }
+.number-stepper input::-webkit-outer-spin-button, .number-stepper input::-webkit-inner-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
 
 @media (max-width: 1180px) {
   .autonomy-grid { grid-template-columns: 1fr; }
@@ -888,7 +892,7 @@ button:disabled { cursor: wait; opacity: .58; transform: none !important; }
 .plan-template .time-list { min-width: 0; }
 
 .behavior-section, .capability-section { margin-top: 16px; }
-.capability-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; }
+.capability-grid { margin: 0 4px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; }
 .capability-card { min-height: 205px; padding: 15px; display: flex; flex-direction: column; border: 1px solid rgba(72,87,122,.08); border-radius: 19px; background: rgba(248,250,253,.78); transition: transform .23s var(--ease), box-shadow .23s var(--ease), border-color .23s var(--ease), background .23s var(--ease); }
 .capability-card:hover { transform: translateY(-2px); box-shadow: 0 13px 28px rgba(44,57,89,.08); }
 .capability-card.is-enabled { border-color: rgba(91,116,199,.15); background: linear-gradient(145deg, rgba(248,249,255,.96), rgba(242,249,248,.91)); }
@@ -1156,8 +1160,8 @@ body { background: #f3f6fa; }
 .activity-fill {
   background: linear-gradient(90deg, #7186d8 0%, #5ca6df 18%, #51b9ae 38%, #82c77d 57%, #e7b268 78%, #d77cad 100%);
   background-size: 100% 100%;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 9px, #000 calc(100% - 11px), transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 9px, #000 calc(100% - 11px), transparent 100%);
+  -webkit-mask-image: none;
+  mask-image: none;
   filter: saturate(.98);
   transition: width .28s var(--ease), filter .28s var(--ease);
 }
@@ -1255,7 +1259,8 @@ body { background: #f3f6fa; }
 
 .ring-event-hit { cursor: grab; }
 .ring-event-hit:active { cursor: grabbing; }
-.ring-resize-handle { fill: #fff; stroke: #526aa9; stroke-width: 2; cursor: ew-resize; filter: drop-shadow(0 2px 4px rgba(46,67,113,.2)); }
+.ring-resize-handle { fill: #fff; stroke: #526aa9; stroke-width: 2; cursor: ew-resize; filter: drop-shadow(0 2px 4px rgba(46,67,113,.2)); opacity: 0; pointer-events: none; transform: scale(.72); transform-origin: center; transition: opacity .18s var(--ease), transform .2s var(--spring); }
+.ring-resize-handle.is-visible { opacity: 1; pointer-events: auto; transform: scale(1); }
 .ring-resize-handle:hover, .ring-resize-handle:focus-visible { fill: #dbe5ff; stroke: #3f5a9c; stroke-width: 2.5; outline: none; }
 .now-pointer-halo { fill: rgba(35,49,77,.13); stroke: rgba(35,49,77,.12); stroke-width: 1; }
 .now-pointer-cone { fill: #24324e; stroke: rgba(255,255,255,.72); stroke-width: 1; stroke-linejoin: round; }
@@ -1277,7 +1282,8 @@ body { background: #f3f6fa; }
 .personality-feature strong, .personality-feature p { display: block; }
 .personality-feature strong { color: var(--text-strong); font-size: 13px; }
 .personality-feature p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
-.security-status { display: inline-flex; align-items: center; gap: 7px; color: #2b805d; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.security-status { display: none; }
+.security-status i { display: none; }
 .security-status i { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px rgba(43,128,93,.12); }
 .security-status.is-risk { color: #b64b5c; }
 .save-dock-inner { width: min(560px, calc(100vw - 36px)); min-width: 0; height: 64px; min-height: 64px; max-height: 64px; contain: layout paint; }
@@ -1303,3 +1309,11 @@ body { background: #f3f6fa; }
   .activity-panel.is-max .activity-fill, .activity-panel.is-max .activity-fill::after, .ring-center.is-pulsing { animation: none !important; }
   .ring-center:hover { transform: none; }
 }
+
+.settings-inline-toggle { margin: 0 0 14px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 15px; background: #fbfcff; }
+.settings-inline-toggle strong, .settings-inline-toggle small { display: block; }
+.settings-inline-toggle strong { color: var(--text-strong); font-size: 12.5px; }
+.settings-inline-toggle small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+
+.number-stepper input[inputmode="numeric"], .number-stepper input[inputmode="decimal"] { appearance: textfield; -moz-appearance: textfield; }
+.number-stepper input::-webkit-outer-spin-button, .number-stepper input::-webkit-inner-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }

@@ -161,7 +161,7 @@ const MOCK_FIELDS = {
   PROACTIVE_DAILY_LIMIT: ["【主动看片·数量】每天最多看几个视频", "int", 5],
   PROACTIVE_TIMES_COUNT: ["【主动看片·频率】每天触发几次主动浏览", "int", 2],
   PROACTIVE_VIDEO_COUNT: ["【主动看片·数量】每次计划观看几个视频", "int", 3],
-  PROACTIVE_COMMENT_COUNT: ["【主动看片·互动】每次最多评论几个视频", "int", 1],
+  PROACTIVE_COMMENT_COUNT: ["【主动看片·互动】每个视频最多主动评论几条", "int", 1],
   PROACTIVE_FOLLOW_UIDS: ["【主动看片·来源】优先关注的 UP 主 UID", "list", ["184028", "902418"]],
   PROACTIVE_SEARCH_QUERY_PROMPT: ["【主动看片·搜索】搜索词生成提示词", "text", "结合今天的心情与长期兴趣，生成自然且不过度重复的搜索词。"],
   PROACTIVE_TASTE_WINDOW_DAYS: ["【主动看片·偏好】近期兴趣窗口（天）", "int", 14],
@@ -777,7 +777,7 @@ const AUTONOMY_CAPABILITIES = [
   { id: "dynamic", title: "动态发布", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按今日计划生成并发布 B站动态；时间由固定计划或自主计划统一安排。", keys: ["DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION"] },
   { id: "dynamic-watch", title: "关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "查看关注用户的新动态图文与视频投稿，触发节奏由统一日程管理。", keys: ["DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
   { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "巡视特别关注用户；不在此处重复设置固定时刻或触发次数。", keys: [] },
-  { id: "bangumi", title: "番剧日程", icon: "video", toggle: "ENABLE_BANGUMI", description: "查看番剧更新，并在主动追番开启时安排真实追番事件。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
+  { id: "bangumi", title: "番剧日程", icon: "video", toggle: "ENABLE_BANGUMI", description: "番剧是独立日程，不并入主动浏览；需同时开启番剧功能与主动追番，才会在计划和事件环中出现。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
   { id: "prefilter", title: "内容挑选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "用关注源、兴趣提示词和模型预筛选决定今天值得看的内容。", dependency: "依赖主动浏览", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS", "CUSTOM_PROACTIVE_INSTRUCTION"] },
   { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "只在主动浏览发现真正有趣的内容后分享，不独立创建日程。", dependency: "依赖主动浏览", keys: ["RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "CUSTOM_RECOMMEND_INSTRUCTION"] },
 ];
@@ -848,7 +848,7 @@ function ringEventArc(event, originalIndex, orderIndex) {
   return `<g class="ring-event-group phase-${meta.phase} ${window ? "is-window" : "is-point"}" data-ring-group="${originalIndex}">
     <path class="ring-event-hit" data-segment-index="${originalIndex}" data-ring-gesture="${window ? "window" : "point"}" d="${geometry.d}" tabindex="0" role="button" aria-label="${label}" aria-pressed="${active}" />
     <path class="ring-event ${active ? "is-active" : ""} is-${meta.phase}" data-ring-index="${originalIndex}" d="${geometry.d}" pathLength="100" stroke="url(#grad-${event.kind || "proactive"})" style="--segment-delay:${orderIndex * 48}ms" aria-hidden="true" />
-    ${window ? `<circle class="ring-resize-handle" data-ring-handle="start" data-segment-index="${originalIndex}" cx="${startPoint[0]}" cy="${startPoint[1]}" r="7" tabindex="0" aria-label="调整${esc(event.label)}开始时间" /><circle class="ring-resize-handle" data-ring-handle="end" data-segment-index="${originalIndex}" cx="${endPoint[0]}" cy="${endPoint[1]}" r="7" tabindex="0" aria-label="调整${esc(event.label)}结束时间" />` : ""}
+    ${window ? `<circle class="ring-resize-handle ${active ? "is-visible" : ""}" data-ring-handle="start" data-segment-index="${originalIndex}" cx="${startPoint[0]}" cy="${startPoint[1]}" r="7" tabindex="${active ? "0" : "-1"}" aria-label="调整${esc(event.label)}开始时间" /><circle class="ring-resize-handle ${active ? "is-visible" : ""}" data-ring-handle="end" data-segment-index="${originalIndex}" cx="${endPoint[0]}" cy="${endPoint[1]}" r="7" tabindex="${active ? "0" : "-1"}" aria-label="调整${esc(event.label)}结束时间" />` : ""}
   </g>`;
 }
 
@@ -949,7 +949,7 @@ function renderEventList(events) {
 }
 
 function renderSelectedEvent(events) {
-  const event = events[state.selectedScheduleIndex];
+  const event = state.scheduleDraft.events?.[state.selectedScheduleIndex] || events[state.selectedScheduleIndex];
   if (!event) {
     const next = nextScheduleEvent(events);
     const style = EVENT_STYLES[next?.kind] || EVENT_STYLES.proactive;
@@ -1247,12 +1247,13 @@ function renderBasics() {
     ${renderCacheCard()}
     <section class="settings-search card"><span>${icon("search")}</span><input id="settings-search" type="search" value="${esc(state.settingsSearch)}" placeholder="搜索配置名称、说明或 KEY" aria-label="搜索基础设置" />${state.settingsSearch ? `<button data-action="clear-settings-search" type="button">清除</button>` : ""}</section>
     <div class="settings-summary"><span>共 ${allEntries.length} 项长期配置</span><span>当前显示 ${filtered.length} 项</span><span>${state.dirtyKeys.size} 项待保存</span></div>
-    ${hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<section class="personality-feature card ${currentValue("ENABLE_PERSONALITY_EVOLUTION") ? "is-enabled" : ""}"><div><span class="section-icon">${icon("star")}</span><div><strong>性格演化总开关</strong><p>关闭后不会执行每日性格演化，但已有性格数据会保留。</p></div></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</section>` : ""}
     <div class="accordion-list">${BASIC_GROUP_ORDER.map((name, index) => {
       const keys = groups[name];
       if (!keys.length) return "";
       const iconName = { "人设与模型": "heart", "性格演化": "star", "Embedding 与记忆": "memory-card", "视频与图片视觉": "video", "图片生成": "sun", "联网搜索": "search", "总结": "calendar", "Cookie 与系统": "settings", "高级接口": "controller" }[name] || "settings";
-      return `<details class="settings-group card" ${query || index < 2 ? "open" : ""}><summary><span class="section-icon">${icon(iconName)}</span><div><strong>${esc(name)}</strong><small>${keys.length} 项配置</small></div>${icon("arrow-right")}</summary><div class="settings-group-body"><div class="settings-group-inner">${renderFields(keys)}</div></div></details>`;
+      const evolutionToggle = name === "性格演化" && hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<div class="settings-inline-toggle"><div><strong>性格演化总开关</strong><small>关闭后下方性格演化设置不生效，已有数据会保留。</small></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</div>` : "";
+      const evolutionKeys = name === "性格演化" ? keys.filter((key) => key !== "ENABLE_PERSONALITY_EVOLUTION") : keys;
+      return `<details class="settings-group card" ${query || index < 2 ? "open" : ""}><summary><span class="section-icon">${icon(iconName)}</span><div><strong>${esc(name)}</strong><small>${evolutionKeys.length + (evolutionToggle ? 1 : 0)} 项配置</small></div>${icon("arrow-right")}</summary><div class="settings-group-body"><div class="settings-group-inner">${evolutionToggle}${renderFields(evolutionKeys)}</div></div></details>`;
     }).join("") || `<div class="card empty-search">${icon("search")}<strong>没有匹配的配置</strong><span>换一个关键词试试。</span></div>`}</div>`;
 }
 
@@ -1306,6 +1307,20 @@ function bindConfigControls(root = content) {
 function formatMinute(minute) {
   const value = ((Math.round(Number(minute) / 15) * 15) % 1440 + 1440) % 1440;
   return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function isAwakeMinuteFrontend(minute) {
+  const start = num(currentValue("SLEEP_START"), 2) * 60;
+  const end = num(currentValue("SLEEP_END"), 8) * 60;
+  const value = ((Math.round(Number(minute)) % 1440) + 1440) % 1440;
+  if (start === end) return true;
+  const sleeping = start < end ? value >= start && value < end : value >= start || value < end;
+  return !sleeping;
+}
+
+function windowIsAwakeFrontend(start, duration) {
+  return Array.from({ length: Math.floor(Number(duration) / 15) + 1 }, (_, index) => (Number(start) + index * 15) % 1440)
+    .every((minute) => isAwakeMinuteFrontend(minute));
 }
 
 function minuteFromPointer(pointerEvent, node) {
@@ -1396,6 +1411,12 @@ function beginRingGesture(index, mode, pointerEvent) {
       }
     }
     if (Object.keys(next).length) {
+      const candidate = { ...event, ...next };
+      const candidateWindow = eventWindow(candidate);
+      const safe = mode === "point"
+        ? isAwakeMinuteFrontend(minutesOf(candidate.time))
+        : candidateWindow && windowIsAwakeFrontend(candidateWindow.start, candidateWindow.duration);
+      if (!safe) return;
       gesture.moved = true;
       updateScheduleDraftEvent(index, next);
       updateRingGestureVisual(index);
@@ -1541,13 +1562,18 @@ function setActiveScheduleEvent(index) {
     node.classList.toggle("is-active", num(nodeIndex) === index);
   });
   content.querySelectorAll(".ring-event-hit").forEach((node) => node.setAttribute("aria-pressed", String(num(node.dataset.segmentIndex) === index)));
+  content.querySelectorAll(".ring-event-group").forEach((node) => {
+    const active = num(node.dataset.ringGroup) === index;
+    node.classList.toggle("is-active", active);
+    node.querySelectorAll(".ring-resize-handle").forEach((handle) => { handle.classList.toggle("is-visible", active); handle.setAttribute("tabindex", active ? "0" : "-1"); });
+  });
   const selectedContainer = content.querySelector("#selected-event");
   if (selectedContainer) selectedContainer.outerHTML = renderSelectedEvent(events);
   const center = content.querySelector(".ring-center");
   if (center) {
-    const event = events[index];
+    const event = state.scheduleDraft.events?.[index] || events[index];
     const meta = eventPhaseMeta(event);
-    center.innerHTML = `<span>已选择事件</span><strong>${esc(event.time)}</strong><b>${esc(event.label)}</b><small>${meta.label} · ${meta.detail}</small>`;
+    center.innerHTML = `<span>已选择事件</span><strong>${esc(eventWindow(event) ? `${event.start_time}–${event.end_time}` : event.time)}</strong><b>${esc(event.label)}</b><small>${meta.label} · ${meta.detail}</small>`;
   }
   const style = EVENT_STYLES[events[index].kind] || EVENT_STYLES.proactive;
   const glow = content.querySelector(".ring-glow");

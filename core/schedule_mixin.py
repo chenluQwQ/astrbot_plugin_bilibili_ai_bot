@@ -296,10 +296,11 @@ class ScheduleMixin:
         activity = max(0, min(100, int(self.config.get("AUTONOMOUS_ACTIVITY_LEVEL", 55))))
         proactive_min, proactive_cap = self._autonomous_limit_range("proactive")
         dynamic_min, dynamic_cap = self._autonomous_limit_range("dynamic")
-        proactive_max = max(0, min(
-            int(self.config.get("PROACTIVE_DAILY_LIMIT", 5)),
-            proactive_cap,
-        )) if self._schedule_feature_enabled("proactive") else 0
+        # 0 means no additional video-count cap. The autonomous action-range
+        # maximum remains the safety ceiling for the number of browsing windows.
+        configured_video_limit = max(0, int(self.config.get("PROACTIVE_DAILY_LIMIT", 0) or 0))
+        proactive_max = min(configured_video_limit, proactive_cap) if configured_video_limit else proactive_cap
+        proactive_max = max(0, proactive_max) if self._schedule_feature_enabled("proactive") else 0
         dynamic_max = max(0, min(
             int(self.config.get("DYNAMIC_TIMES_COUNT", self.config.get("DYNAMIC_DAILY_COUNT", 1))),
             int(self.config.get("DYNAMIC_DAILY_COUNT", 1)),

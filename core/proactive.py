@@ -1106,7 +1106,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                         if await self._fav_video(oid):
                             actions.append("⭐收藏")
                             logger.info("[BiliBot] ⭐ 收藏成功")
-                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
+                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and daily_comment > 0 and self.config.get("PROACTIVE_COMMENT", True):
                         proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
                         if await self._send_comment(oid, proactive_comment):
                             actions.append("💬评论")
@@ -1428,7 +1428,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     if score >= self._proactive_score_threshold("PROACTIVE_FAV_MIN_SCORE", 8) and self.config.get("PROACTIVE_FAV", True):
                         if await self._fav_video(oid):
                             actions.append("⭐收藏")
-                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
+                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and daily_comment > 0 and self.config.get("PROACTIVE_COMMENT", True):
                         proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
                         if await self._send_comment(oid, proactive_comment):
                             actions.append("💬评论")
