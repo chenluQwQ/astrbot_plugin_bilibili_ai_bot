@@ -846,9 +846,8 @@ function ringEventArc(event, originalIndex, orderIndex) {
   const startPoint = pointForMinute(geometry.start, 132);
   const endPoint = pointForMinute(geometry.end, 132);
   return `<g class="ring-event-group phase-${meta.phase} ${window ? "is-window" : "is-point"}" data-ring-group="${originalIndex}">
-    <path class="ring-event-hit" data-segment-index="${originalIndex}" data-ring-gesture="${window ? "window" : "point"}" d="${geometry.d}" tabindex="0" role="button" aria-label="${label}" aria-pressed="${active}" />
+    <path class="ring-event-hit" data-segment-index="${originalIndex}" d="${geometry.d}" tabindex="0" role="button" aria-label="${label}" aria-pressed="${active}" />
     <path class="ring-event ${active ? "is-active" : ""} is-${meta.phase}" data-ring-index="${originalIndex}" d="${geometry.d}" pathLength="100" stroke="url(#grad-${event.kind || "proactive"})" style="--segment-delay:${orderIndex * 48}ms" aria-hidden="true" />
-    ${window ? `<circle class="ring-resize-handle ${active ? "is-visible" : ""}" data-ring-handle="start" data-segment-index="${originalIndex}" cx="${startPoint[0]}" cy="${startPoint[1]}" r="7" tabindex="${active ? "0" : "-1"}" aria-label="调整${esc(event.label)}开始时间" /><circle class="ring-resize-handle ${active ? "is-visible" : ""}" data-ring-handle="end" data-segment-index="${originalIndex}" cx="${endPoint[0]}" cy="${endPoint[1]}" r="7" tabindex="${active ? "0" : "-1"}" aria-label="调整${esc(event.label)}结束时间" />` : ""}
   </g>`;
 }
 
@@ -934,7 +933,7 @@ function renderActivityControl() {
   if (!hasKey("AUTONOMOUS_ACTIVITY_LEVEL")) return "";
   const value = clamp(num(currentValue("AUTONOMOUS_ACTIVITY_LEVEL"), 55), 0, 100);
   return `<section class="activity-panel activity-enter ${value >= 100 ? "is-max" : ""}">
-    <div class="activity-copy"><span>TODAY'S ACTIVITY</span><h2><b id="activity-value">${value}</b><small>%</small></h2><p id="activity-label">${activityLabel(value)}状态 · 活跃度越高，已启用事件会更频繁、活动时段也更长</p></div>
+    <div class="activity-copy"><span>TODAY'S ACTIVITY</span><h2><b id="activity-value">${value}</b><small>%</small></h2><p id="activity-label">${activityLabel(value)}状态 · 事件更频繁，活动时间也更长</p></div>
     <div class="activity-slider-wrap"><div class="activity-track" style="--activity:${value}%"><span class="activity-fill"></span><input id="activity-slider" class="activity-slider" data-config-key="AUTONOMOUS_ACTIVITY_LEVEL" type="range" min="0" max="100" step="1" value="${value}" aria-label="今日基础活跃度" /></div><div class="activity-scale"><span>低迷</span><span>平稳</span><span>活跃</span><span>高能</span></div></div>
   </section>`;
 }
@@ -1063,6 +1062,7 @@ function refreshCapabilityCard(id) {
   const newCard = content.querySelector(`[data-capability-card="${id}"]`);
   if (!newCard) return;
   bindConfigControls(newCard);
+  bindStepperControls(newCard);
   newCard.querySelector("[data-capability-open]")?.addEventListener("click", () => openAutonomyDrawer(id));
 }
 
@@ -1070,6 +1070,7 @@ function renderAutonomyDrawer(item) {
   const keys = item.keys.filter(hasKey);
   modalRoot.innerHTML = `<div class="drawer-backdrop" data-drawer-backdrop><aside class="autonomy-drawer" role="dialog" aria-modal="true" aria-labelledby="autonomy-drawer-title"><header><span class="drawer-icon">${icon(item.icon)}</span><div><small>AUTONOMY CAPABILITY</small><h2 id="autonomy-drawer-title">${esc(item.title)}</h2><p>${esc(item.description)}</p></div><button class="modal-close" data-drawer-close type="button" aria-label="关闭">×</button></header><div class="drawer-toggle"><div><strong>总开关</strong><span>关闭后保存，相关事件会从当天计划移除。</span></div>${renderControl(item.toggle, state.schema[item.toggle])}</div><div class="drawer-fields">${renderFields(keys)}</div><footer><button class="button soft" data-drawer-close type="button">完成设置</button></footer></aside></div>`;
   bindConfigControls(modalRoot);
+  bindStepperControls(modalRoot);
   const close = () => {
     modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-closing");
     window.setTimeout(() => {
@@ -1113,7 +1114,7 @@ function renderAutonomy() {
     ${renderActivityControl()}
     <section class="schedule-layout">
       <article class="card ring-card">
-        ${sectionHead("24 小时时刻事件环", "三角指针指向当前时刻；事件按当天真实日程从 0 点起顺时针铺开", "clock", statusPill(autonomous ? "Bot 自主" : "固定计划", autonomous ? "violet" : "neutral"))}
+        ${sectionHead("24 小时时刻事件环", "", "clock", statusPill(autonomous ? "Bot 自主" : "固定计划", autonomous ? "violet" : "neutral"))}
         ${renderScheduleRing(events)}
         <div class="ring-legend">${Object.entries(EVENT_STYLES).map(([key, item]) => `<span><i style="--a:${item.gradient[0]};--b:${item.gradient[1]}"></i>${esc(item.label)}</span>`).join("")}</div>
       </article>
@@ -1180,7 +1181,7 @@ function renderSecurity() {
   const isolated = currentValue("BILI_TOOL_ISOLATION_ENABLED") !== false;
   const memoryMode = currentValue("MEMORY_ISOLATION_MODE") || "isolated";
   return `${pageHead("SECURITY", "安全与工具", "B站外部内容默认是不可信输入；工具、命令和跨平台记忆必须经过显式授权。", button("刷新审计", "refresh-security", "refresh"))}
-    <section class="security-hero ${isolated ? "is-safe" : "is-risk"}"><span>${icon(isolated ? "lock" : "unlock")}</span><div><small>TOOL ISOLATION</small><h2>${isolated ? "B站端权限已隔离" : "工具隔离已关闭"}</h2><p>${isolated ? "B站评论与私信无法运行 AstrBot/QQ 命令、文件、Shell 或写操作。" : "建议立即重新开启隔离；只读白名单仍由后端硬限制。"}</p></div><span class="security-status ${isolated ? "is-safe" : "is-risk"}"><i></i>${isolated ? "保护已开启" : "需要处理"}</span></section>
+    <section class="security-hero ${isolated ? "is-safe" : "is-risk"}"><span>${icon(isolated ? "lock" : "unlock")}</span><div><small>TOOL ISOLATION</small><h2>${isolated ? "B站端权限已隔离" : "工具隔离已关闭"}</h2><p>${isolated ? "B站评论与私信无法运行 AstrBot/QQ 命令、文件、Shell 或写操作。" : "建议立即重新开启隔离；只读白名单仍由后端硬限制。"}</p></div></section>
     <section class="metrics-grid four">
       ${metricCard("今日安全事件", fmt(state.security.today_total), "过滤、拒绝与审计总数", "shield", "blue")}
       ${metricCard("内容过滤", fmt(securityCount(["low_value_filtered", "duplicate_filtered", "ad_filtered"])), "低价值、复读与广告", "message", "green")}
@@ -1291,7 +1292,7 @@ function bindConfigControls(root = content) {
         const valueNode = root.querySelector("#activity-value") || content.querySelector("#activity-value");
         const labelNode = root.querySelector("#activity-label") || content.querySelector("#activity-label");
         if (valueNode) valueNode.textContent = sliderValue;
-        if (labelNode) labelNode.textContent = `${activityLabel(sliderValue)}状态 · 活跃度越高，真实事件更频繁、活动时段也更长`;
+        if (labelNode) labelNode.textContent = `${activityLabel(sliderValue)}状态 · 事件更频繁，活动时间也更长`;
       }
       if (control.classList.contains("behavior-range")) {
         control.style.setProperty("--score", `${clamp(num(value), 0, 10) * 10}%`);
@@ -1323,149 +1324,37 @@ function windowIsAwakeFrontend(start, duration) {
     .every((minute) => isAwakeMinuteFrontend(minute));
 }
 
-function minuteFromPointer(pointerEvent, node) {
-  const svg = node?.closest("svg");
-  if (!svg || !svg.createSVGPoint || !svg.getScreenCTM()) return null;
-  const point = svg.createSVGPoint();
-  point.x = pointerEvent.clientX;
-  point.y = pointerEvent.clientY;
-  const local = point.matrixTransform(svg.getScreenCTM().inverse());
-  const angle = Math.atan2(local.y - 180, local.x - 180) + Math.PI / 2;
-  return ((angle / (Math.PI * 2) * 1440) + 1440) % 1440;
-}
-
-function scheduleEventGeometry(event) {
-  const window = eventWindow(event);
-  if (window) return window;
-  const minute = minutesOf(event?.time);
-  return minute === null ? null : { start: minute, end: minute, duration: 30 };
-}
-
-function updateScheduleDraftEvent(index, update) {
-  const source = state.scheduleDraft.events?.[index];
-  if (!source) return;
-  state.scheduleDraft.events[index] = { ...source, ...update };
-  state.schedule = state.scheduleDraft;
-}
-
-function updateRingGestureVisual(index) {
-  const event = state.scheduleDraft.events?.[index];
-  const geometry = eventArcData(event);
-  const group = content.querySelector(`[data-ring-group="${index}"]`);
-  if (!event || !geometry || !group) return;
-  group.querySelector(".ring-event-hit")?.setAttribute("d", geometry.d);
-  group.querySelector(".ring-event")?.setAttribute("d", geometry.d);
-  const start = pointForMinute(geometry.start, 132);
-  const end = pointForMinute(geometry.end, 132);
-  const handles = group.querySelectorAll(".ring-resize-handle");
-  handles[0]?.setAttribute("cx", start[0]);
-  handles[0]?.setAttribute("cy", start[1]);
-  handles[1]?.setAttribute("cx", end[0]);
-  handles[1]?.setAttribute("cy", end[1]);
-}
-
-function beginRingGesture(index, mode, pointerEvent) {
-  const event = state.scheduleDraft.events?.[index];
-  if (!event || event.triggered) return;
-  const geometry = scheduleEventGeometry(event);
-  const pointerMinute = minuteFromPointer(pointerEvent, pointerEvent.currentTarget);
-  if (!geometry || pointerMinute === null) return;
-  state.scheduleGesture = {
-    index, mode,
-    pointerOffset: ((pointerMinute - (geometry.start ?? pointerMinute)) + 1440) % 1440,
-    duration: geometry.duration || 30,
-    start: geometry.start,
-    end: geometry.end,
-    moved: false,
-  };
-  pointerEvent.currentTarget.setPointerCapture?.(pointerEvent.pointerId);
-  const move = (moveEvent) => {
-    const gesture = state.scheduleGesture;
-    if (!gesture || gesture.index !== index) return;
-    const minute = minuteFromPointer(moveEvent, pointerEvent.currentTarget);
-    if (minute === null) return;
-    let next = {};
-    if (mode === "point") {
-      next.time = formatMinute(minute);
-    } else if (mode === "window") {
-      const start = ((minute - gesture.pointerOffset) + 1440) % 1440;
-      next.start_time = formatMinute(start);
-      next.end_time = formatMinute(start + gesture.duration);
-      next.time = formatMinute(start + Math.max(15, Math.round(gesture.duration / 2)));
-    } else {
-      const minDuration = 15;
-      if (mode === "start") {
-        const end = gesture.end;
-        const duration = ((end - minute) + 1440) % 1440;
-        if (duration >= minDuration) {
-          next.start_time = formatMinute(minute);
-          next.time = formatMinute(minute + Math.round(duration / 2));
-        }
-      } else {
-        const start = gesture.start;
-        const duration = ((minute - start) + 1440) % 1440;
-        if (duration >= minDuration) {
-          next.end_time = formatMinute(minute);
-          next.time = formatMinute(start + Math.round(duration / 2));
-        }
-      }
-    }
-    if (Object.keys(next).length) {
-      const candidate = { ...event, ...next };
-      const candidateWindow = eventWindow(candidate);
-      const safe = mode === "point"
-        ? isAwakeMinuteFrontend(minutesOf(candidate.time))
-        : candidateWindow && windowIsAwakeFrontend(candidateWindow.start, candidateWindow.duration);
-      if (!safe) return;
-      gesture.moved = true;
-      updateScheduleDraftEvent(index, next);
-      updateRingGestureVisual(index);
-    }
-  };
-  const finish = () => {
-    const gesture = state.scheduleGesture;
-    document.removeEventListener("pointermove", move);
-    document.removeEventListener("pointerup", finish);
-    document.removeEventListener("pointercancel", finish);
-    state.scheduleGesture = null;
-    if (gesture?.moved) {
-      state.scheduleDirty = true;
-      updateSaveDock();
-      renderCurrentPage();
-      toast("日程已加入待保存", "可以继续拖动，或点击底部保存；放弃可撤回本次调整。", "success");
-    }
-  };
-  document.addEventListener("pointermove", move, { passive: true });
-  document.addEventListener("pointerup", finish, { once: true });
-  document.addEventListener("pointercancel", finish, { once: true });
-}
-
 function bindRingInteractions() {
-  content.querySelectorAll("[data-ring-gesture]").forEach((node) => node.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const index = num(node.dataset.segmentIndex);
-    setActiveScheduleEvent(index);
-    beginRingGesture(index, node.dataset.ringGesture, event);
-  }));
-  content.querySelectorAll("[data-ring-handle]").forEach((node) => node.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const index = num(node.dataset.segmentIndex);
-    setActiveScheduleEvent(index);
-    beginRingGesture(index, node.dataset.ringHandle, event);
-  }));
+  content.querySelectorAll(".ring-event-hit").forEach((node) => {
+    const activate = () => setActiveScheduleEvent(num(node.dataset.segmentIndex));
+    node.addEventListener("click", activate);
+    node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        activate();
+      }
+    });
+  });
   content.querySelector(".ring-center")?.addEventListener("click", () => {
     state.selectedScheduleIndex = -1;
-    const shell = content.querySelector(".ring-shell");
-    if (shell) {
-      shell.outerHTML = renderScheduleRing(state.scheduleDraft.events || []);
-      bindRingInteractions();
-      const next = content.querySelector(".ring-center");
-      next?.classList.add("is-pulsing");
-      window.setTimeout(() => next?.classList.remove("is-pulsing"), 430);
-    }
+    renderCurrentPage();
   });
+}
+
+function bindStepperControls(root = content) {
+  root.querySelectorAll("[data-step-key]").forEach((buttonNode) => buttonNode.addEventListener("click", () => {
+    const key = buttonNode.dataset.stepKey;
+    const scope = buttonNode.closest(".admin-range-row") || root;
+    const input = scope.querySelector(`[data-config-key="${key}"]`) || content.querySelector(`[data-config-key="${key}"]`);
+    if (!input) return;
+    const field = state.schema[key] || {};
+    const step = num(input.dataset.step || input.step, field.type === "float" ? 0.1 : 1);
+    const min = num(input.dataset.min || input.min, -999999);
+    const max = num(input.dataset.max || input.max, 999999);
+    const next = clamp(num(input.value) + num(buttonNode.dataset.stepDir) * step, min, max);
+    input.value = field.type === "int" ? String(Math.round(next)) : String(Math.round(next * 1000) / 1000);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }));
 }
 
 function bindContent() {
@@ -1510,18 +1399,7 @@ function bindContent() {
       }
     });
   });
-  content.querySelectorAll("[data-step-key]").forEach((buttonNode) => buttonNode.addEventListener("click", () => {
-    const key = buttonNode.dataset.stepKey;
-    const input = content.querySelector(`[data-config-key="${key}"]`);
-    if (!input) return;
-    const field = state.schema[key] || {};
-    const step = num(input.dataset.step, field.type === "float" ? 0.1 : 1);
-    const min = num(input.dataset.min, -999999);
-    const max = num(input.dataset.max, 999999);
-    const next = clamp(num(input.value) + num(buttonNode.dataset.stepDir) * step, min, max);
-    input.value = field.type === "int" ? String(Math.round(next)) : String(Math.round(next * 1000) / 1000);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  }));
+  bindStepperControls(content);
   content.querySelectorAll("[data-time-list]").forEach((list) => {
     const key = list.dataset.timeList;
     const commit = () => setDraft(key, [...list.querySelectorAll("[data-time-index]")].map((node) => node.value).filter(Boolean));
@@ -1562,11 +1440,6 @@ function setActiveScheduleEvent(index) {
     node.classList.toggle("is-active", num(nodeIndex) === index);
   });
   content.querySelectorAll(".ring-event-hit").forEach((node) => node.setAttribute("aria-pressed", String(num(node.dataset.segmentIndex) === index)));
-  content.querySelectorAll(".ring-event-group").forEach((node) => {
-    const active = num(node.dataset.ringGroup) === index;
-    node.classList.toggle("is-active", active);
-    node.querySelectorAll(".ring-resize-handle").forEach((handle) => { handle.classList.toggle("is-visible", active); handle.setAttribute("tabindex", active ? "0" : "-1"); });
-  });
   const selectedContainer = content.querySelector("#selected-event");
   if (selectedContainer) selectedContainer.outerHTML = renderSelectedEvent(events);
   const center = content.querySelector(".ring-center");
