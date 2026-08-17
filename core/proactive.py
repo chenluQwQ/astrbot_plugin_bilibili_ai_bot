@@ -801,11 +801,30 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             "评论": "comment",
             "both": "both",
             "两者": "both",
+            "qq": "qq_private",
+            "qq_private": "qq_private",
+            "bili_private_and_qq": "bili_private_and_qq",
+            "all": "all",
             "off": "off",
             "关闭": "off",
         }
         value = aliases.get(value, value)
-        return value if value in {"private_message", "comment", "both", "off"} else "private_message"
+        return value if value in {"private_message", "comment", "both", "qq_private", "bili_private_and_qq", "all", "off"} else "private_message"
+
+    async def _send_owner_recommend_qq(self, text, bvid):
+        umo = str(self.config.get("OWNER_QQ_UMO", "") or "").strip()
+        if not umo:
+            logger.warning("[BiliBot] 跳过 QQ 推荐：未配置 OWNER_QQ_UMO")
+            return False
+        try:
+            from astrbot.api.event import MessageChain
+            message = f"{text}\nhttps://www.bilibili.com/video/{bvid}"
+            await self.context.send_message(umo, MessageChain().message(message))
+            logger.info(f"[BiliBot] ✉️ 已通过 QQ 私信给主人分享：{bvid}")
+            return True
+        except Exception as exc:
+            logger.warning(f"[BiliBot] QQ 推荐发送失败: {exc}")
+            return False
 
     @staticmethod
     def _is_owner_recommend_action(action):
@@ -876,12 +895,17 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
 
     # ── 主流程 ──
     async def _run_proactive(self, max_watch=None, max_comment=None):
+        if hasattr(self, "_set_cross_platform_activity"):
+            self._set_cross_platform_activity("proactive", "正在挑选视频")
         try:
             await self._run_proactive_inner(max_watch=max_watch, max_comment=max_comment)
         except asyncio.CancelledError:
             logger.info("[BiliBot] 主动看视频任务被取消")
         except Exception as e:
             logger.error(f"[BiliBot] 主动看视频任务异常退出: {e}\n{traceback.format_exc()}")
+        finally:
+            if hasattr(self, "_clear_cross_platform_activity"):
+                self._clear_cross_platform_activity("proactive")
 
     async def _run_proactive_inner(self, max_watch=None, max_comment=None):
         env = self._get_environment_status()
@@ -1042,6 +1066,8 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             if watch_count >= daily_watch:
                 break
             bvid = video["bvid"]
+            if hasattr(self, "_set_cross_platform_activity"):
+                self._set_cross_platform_activity("proactive", "正在分析视频", title=video.get("title", ""), up_name=video.get("up_name", ""))
             if str(video.get("up_mid", "")) == self.config.get("DEDE_USER_ID", ""):
                 continue
             allow_watch, prefilter_reason = await self._should_watch_video_before_download(video, taste_tids, prefilter_rejected, prefilter_max_rejects)
@@ -1128,13 +1154,14 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             owner_interest = await self._owner_recommendation_context(
                                 f"{video.get('title', '')} {(video_description or '')[:500]}"
                             )
-                            delivery_scene = (
-                                "通过B站私信把链接分享给对方"
-                                if delivery == "private_message"
-                                else "在视频评论区@对方"
-                                if delivery == "comment"
-                                else "通过B站私信分享，并在视频评论区@对方"
-                            )
+                            delivery_scene = {
+                                "private_message": "通过B站私信把链接分享给对方",
+                                "comment": "在视频评论区@对方",
+                                "both": "通过B站私信分享，并在视频评论区@对方",
+                                "qq_private": "通过QQ私信把链接分享给对方",
+                                "bili_private_and_qq": "通过B站私信和QQ私信分享",
+                                "all": "通过B站私信、QQ私信分享，并在视频评论区@对方",
+                            }.get(delivery, "通过B站私信把链接分享给对方")
                             rec_prompt = f"""你刚看完一个B站视频，确实想到{on}可能会喜欢。现在要{delivery_scene}，请写一句自然的随手分享。
 
 视频信息：
@@ -1164,7 +1191,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
                             rec_text = re.sub(rf'^({"|".join(_name_patterns)})[，,\s]*', '', rec_text)
                             sent_owner_recommend = False
-                            if delivery in {"private_message", "both"}:
+                            if delivery in {"private_message", "both", "bili_private_and_qq", "all"}:
                                 if owner_mid:
                                     private_msg = (
                                         f"{rec_text}\n"
@@ -1180,7 +1207,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                                     logger.warning(
                                         "[BiliBot] 跳过B站私信推荐：未配置 OWNER_MID"
                                     )
-                            if delivery in {"comment", "both"}:
+                            if delivery in {"comment", "both", "all"}:
                                 if owner_bili:
                                     rec_msg = f"@{owner_bili} {rec_text}"
                                     if await self._send_comment(oid, rec_msg):
@@ -1191,6 +1218,10 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                                     logger.warning(
                                         "[BiliBot] 跳过评论区推荐：未配置 OWNER_BILI_NAME"
                                     )
+                            if delivery in {"qq_private", "bili_private_and_qq", "all"}:
+                                if await self._send_owner_recommend_qq(rec_text, bvid):
+                                    actions.append("💬QQ推荐给主人")
+                                    sent_owner_recommend = True
                             if sent_owner_recommend:
                                 owner_recommend_count += 1
                         except Exception as e:
@@ -1224,9 +1255,10 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     memory_text += f" | 觉得不错，通过B站私信分享给{on}"
                 else:
                     memory_text += f" | 觉得不错，在评论区@了{on}来看"
-            await self._save_self_memory_record("proactive_watch", memory_text, memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")})
+            if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+                await self._save_self_memory_record("proactive_watch", self._clip_media_text(memory_text, 320), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")})
             if bvid not in external_memory:
-                external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": video_description, "score": score, "mood": mood, "review": review, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
+                external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": self._clip_media_text(video_description, 220), "score": score, "mood": mood, "review": self._clip_media_text(review, 120), "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
                 self._save_json(EXTERNAL_MEMORY_FILE, external_memory)
             # 写入与评论回复共用的视频分析缓存，避免同一视频被重复下载分析
             try:
@@ -1239,6 +1271,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     "owner_mid": str(analysis_info.get("up_mid", video.get("up_mid", ""))),
                     "tname": analysis_info.get("tname", ""),
                     "analysis": video_description,
+                    "summary": self._clip_media_text(video_description, 220),
                     "time": log_entry["time"],
                 }
                 self._save_json(VIDEO_MEMORY_FILE, vc)
@@ -1462,8 +1495,8 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             if bvid not in external_memory:
                 external_memory[bvid] = {
                     "title": video.get("title", ""), "up_name": video.get("up_name", ""),
-                    "up_mid": str(video.get("up_mid", "")), "description": video_description,
-                    "score": score, "mood": mood, "review": review,
+                    "up_mid": str(video.get("up_mid", "")), "description": self._clip_media_text(video_description, 220),
+                    "score": score, "mood": mood, "review": self._clip_media_text(review, 120),
                     "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": [],
                 }
                 self._save_json(EXTERNAL_MEMORY_FILE, external_memory)

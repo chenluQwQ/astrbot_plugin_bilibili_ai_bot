@@ -282,6 +282,33 @@ class AffectionMixin:
             },
         )
 
+    def _record_relationship_interaction(self, mid, username, score_delta, source):
+        """Keep explanatory counters with the UID profile; affection remains the sole relationship score."""
+        profiles = self._load_json(USER_PROFILE_FILE, {})
+        uid = str(mid)
+        profile = self._normalize_user_profile(profiles.get(uid))
+        relation = profile.setdefault("relationship", {"positive_interactions": 0, "negative_interactions": 0, "severe_negative_streak": 0})
+        relation.setdefault("positive_interactions", 0)
+        relation.setdefault("negative_interactions", 0)
+        relation.setdefault("severe_negative_streak", 0)
+        relation["last_source"] = str(source)
+        relation["last_interaction_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if score_delta > 0:
+            relation["positive_interactions"] += 1
+            relation["severe_negative_streak"] = 0
+        elif score_delta < 0:
+            relation["negative_interactions"] += 1
+            if score_delta <= -3:
+                relation["severe_negative_streak"] += 1
+            else:
+                relation["severe_negative_streak"] = 0
+        else:
+            relation["severe_negative_streak"] = 0
+        profile["username"] = username or profile.get("username", "")
+        profiles[uid] = profile
+        self._save_json(USER_PROFILE_FILE, profiles)
+        return relation
+
     # ── 心情 ──
     def _get_today_mood(self):
         if not self.config.get("ENABLE_MOOD", True):

@@ -412,6 +412,7 @@ class ReplyMixin:
                 ns = max(-99, min(mx, cs + sd))
                 self._affection[str(mid)] = ns
                 self._save_json(AFFECTION_FILE, self._affection)
+                self._record_relationship_interaction(mid, username, sd, "comment")
                 ds = f"+{sd}" if sd >= 0 else str(sd)
                 logger.info(f"[BiliBot] 💛 {cs}→{ns}（{ds}）| {LEVEL_NAMES[self._get_level(ns, mid)]}")
                 mm = self._check_milestone(mid, cs, ns, username)

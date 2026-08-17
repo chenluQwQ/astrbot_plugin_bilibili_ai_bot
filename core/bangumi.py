@@ -680,12 +680,17 @@ want_continue：是否值得继续追，烂番可以果断弃。
 
     async def _run_bangumi(self, season_id=None, max_episodes=None, start_ep_id=None):
         """安全入口。"""
+        if hasattr(self, "_set_cross_platform_activity"):
+            self._set_cross_platform_activity("bangumi", "正在挑选番剧")
         try:
             await self._run_bangumi_inner(season_id=season_id, max_episodes=max_episodes, start_ep_id=start_ep_id)
         except asyncio.CancelledError:
             logger.info("[BiliBot] 看番任务被取消")
         except Exception as e:
             logger.error(f"[BiliBot] 看番任务异常退出: {e}\n{traceback.format_exc()}")
+        finally:
+            if hasattr(self, "_clear_cross_platform_activity"):
+                self._clear_cross_platform_activity("bangumi")
 
     async def _run_bangumi_inner(self, season_id=None, max_episodes=None, start_ep_id=None):
         """看番主流程：选番 → 逐集看 → 评分高则追更。"""
@@ -705,6 +710,8 @@ want_continue：是否值得继续追，烂番可以果断弃。
             return
 
         season_info = detail
+        if hasattr(self, "_set_cross_platform_activity"):
+            self._set_cross_platform_activity("bangumi", "正在准备观看", title=season_info.get("title", ""))
         all_eps = detail["episodes"]
         watched_ids = self._get_watched_ep_ids(season_id)
         logger.info(f"[BiliBot] 📺 开始看番：《{season_info['title']}》共{len(all_eps)}集，已看{len(watched_ids)}集")
@@ -742,6 +749,8 @@ want_continue：是否值得继续追，烂番可以果断弃。
         for ep in unwatched:
             if watched_count >= max_episodes:
                 break
+            if hasattr(self, "_set_cross_platform_activity"):
+                self._set_cross_platform_activity("bangumi", "正在分析内容", title=season_info.get("title", ""), episode=f"第{ep.get('ep_index', '?')}话")
             bangumi_context = await self._get_bangumi_context_with_summary(season_id, season_info["title"])
             score, evaluation = await self._watch_bangumi_episode(season_info, ep, bangumi_context)
             watched_count += 1

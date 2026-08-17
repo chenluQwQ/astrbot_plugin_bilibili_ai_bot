@@ -833,6 +833,8 @@ button:disabled { cursor: wait; opacity: .58; transform: none !important; }
 .schedule-layout { align-items: stretch; }
 .ring-card, .schedule-side, .event-card { height: 100%; }
 .ring-card { min-height: 620px; display: flex; flex-direction: column; }
+.ring-card > .section-head { align-items: center; padding-top: 6px; }
+.ring-card > .section-head .section-title { align-items: center; }
 .ring-shell { width: min(100%, 500px); flex: 0 0 auto; }
 .schedule-side { min-height: 0; }
 .event-card { min-height: 620px; max-height: none; display: flex; flex-direction: column; overflow: hidden; }

@@ -1025,6 +1025,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         if self.config.get("ENABLE_AFFECTION", True):
             self._affection[mid] = new_score
             self._save_json(AFFECTION_FILE, self._affection)
+            self._record_relationship_interaction(mid, username, score_delta, "private")
             if milestone_hit:
                 self._commit_milestone(mid, milestone_hit[0], username)
 

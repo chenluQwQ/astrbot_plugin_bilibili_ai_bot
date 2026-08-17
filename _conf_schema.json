@@ -472,16 +472,31 @@
     "default": "",
     "hint": "例如：评论风格偏毒舌但不恶意。"
   },
+  "OWNER_QQ_UMO": {
+    "description": "【跨端活动与分享】主人 QQ 私聊 UMO",
+    "type": "string",
+    "default": "",
+    "hint": "用于当前活动同步和 QQ 推荐分享；在主人 QQ 私聊中执行 /biliUMO 可取得该值。"
+  },
+  "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS": {
+    "description": "【跨端活动与分享】向已绑定主人同步当前活动",
+    "type": "bool",
+    "default": true,
+    "hint": "仅向已绑定且对应 OWNER_MID 的主人 QQ 提供短期活动状态；任务结束后立即清除，不写入长期记忆。"
+  },
   "RECOMMEND_OWNER_DELIVERY": {
-    "description": "【主动行为·给主人推荐】发送方式（私信 / @主人）",
+    "description": "【主动行为·给主人推荐】发送方式（B站 / QQ）",
     "type": "string",
     "default": "private_message",
     "options": [
       "private_message",
       "comment",
-      "both"
+      "both",
+      "qq_private",
+      "bili_private_and_qq",
+      "all"
     ],
-    "hint": "private_message=通过B站私信分享；comment=在视频评论区@主人；both=两种都发。是否启用由上方总开关控制。私信使用 OWNER_MID，评论区使用 OWNER_BILI_NAME。"
+    "hint": "private_message=B站私信；comment=评论区@主人；both=B站两种都发；qq_private=QQ私信；bili_private_and_qq=B站私信+QQ；all=全部通道。QQ 使用 OWNER_QQ_UMO。"
   },
   "ENABLE_OWNER_RECOMMEND": {
     "description": "【主动行为·给主人推荐】启用给主人分享",
@@ -510,6 +525,33 @@
     "type": "text",
     "default": "",
     "hint": "例如：推荐语要简短可爱，带点撒娇。会影响B站私信分享或评论区@主人时的文案风格。"
+  },
+  "VIDEO_VISUAL_ANALYSIS_POLICY": {
+    "description": "【视频分析】视觉分析策略",
+    "type": "string",
+    "default": "when_text_insufficient",
+    "options": ["when_text_insufficient", "always"],
+    "hint": "when_text_insufficient=优先标题、简介、字幕、标签和热评；信息不足时才下载截帧/直读。always=每次都尝试视觉分析，成本较高。"
+  },
+  "VIDEO_CACHE_TTL_MINUTES": {
+    "description": "【视频分析】完整视频分析缓存保留分钟数",
+    "type": "int",
+    "default": 30,
+    "min": 5,
+    "max": 1440,
+    "hint": "到期后删除完整分析，仅保留简短摘要索引供评论回复，避免重复观看和长期上下文占用。"
+  },
+  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
+    "description": "【视频分析】保留视频长期记忆",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
+  },
+  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
+    "description": "【视频分析】保留视频长期记忆",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
   },
   "VIDEO_SEGMENT_MINUTES": {
     "description": "【视频分析】长视频自动切片长度（分钟/段）",
