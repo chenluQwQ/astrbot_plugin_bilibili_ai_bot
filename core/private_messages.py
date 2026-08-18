@@ -24,7 +24,6 @@ from .config import (
     BILI_PRIVATE_SESSIONS_URL,
     DATA_DIR,
     LEVEL_NAMES,
-    PERMANENT_MEMORY_FILE,
     PRIVATE_MESSAGE_STATE_FILE,
     REPLY_LOG_FILE,
 )
@@ -1015,11 +1014,18 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 kind="private_reply",
                 event_key=f"bilibili:private:{message['msg_key']}",
                 target_id=mid,
+                priority=0 if self._is_owner(mid) else 20,
             ),
             lambda: self._send_bili_private_message(mid, ai_reply),
         )
         if not outcome.success:
-            logger.warning(f"[BiliBot] 私信回复发送失败，UID={mid}，不会自动重发")
+            if outcome.state == "unknown":
+                logger.warning(
+                    f"[BiliBot] 私信回复发送结果未知，UID={mid}；"
+                    "本条按已处理收口，不提交好感度/画像且不会自动重发"
+                )
+                return True
+            logger.warning(f"[BiliBot] 私信回复明确失败，UID={mid}，进入有限重试")
             return False
 
         if self.config.get("ENABLE_AFFECTION", True):
@@ -1037,17 +1043,8 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 username=username,
                 impression=impression or None,
                 new_facts=user_facts or None,
+                source_scope="bili_dm",
             )
-
-        permanent = result.get("permanent_memory", "")
-        if permanent:
-            memories = self._load_json(PERMANENT_MEMORY_FILE, [])
-            if len(memories) < 20:
-                memories.append({
-                    "text": permanent,
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                })
-                self._save_json(PERMANENT_MEMORY_FILE, memories)
 
         reply_log = self._load_json(REPLY_LOG_FILE, [])
         reply_log.append({
@@ -1070,7 +1067,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             source="bilibili_private",
         )
         await self._compress_thread_memory(thread_id)
-        await self._compress_user_memory(mid, username)
+        await self._compress_user_memory(mid, username, "bili_dm")
         logger.info(
             f"[BiliBot] ✉️ 私信回复 {username}（{LEVEL_NAMES[self._get_level(new_score, mid)]}|{new_score}分）：{ai_reply[:80]}"
         )
@@ -1284,6 +1281,8 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                         kind="block_user",
                         event_key=claim.event_key,
                         target_id=mid,
+                        priority=0,
+                        metadata={"budget_exempt": True, "safety_action": True},
                     ),
                     lambda: self._block_user(int(mid)),
                 )
@@ -1326,6 +1325,8 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                     kind="private_reply",
                     event_key=claim.event_key,
                     target_id=mid,
+                    priority=0 if self._is_owner(mid) else 10,
+                    metadata={"budget_exempt": True, "control_reply": True},
                 ),
                 lambda: self._send_bili_private_message(mid, reset_reply),
             )
@@ -1409,6 +1410,7 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                     kind="private_progress_reply",
                     event_key=claim.event_key,
                     target_id=mid,
+                    priority=0 if self._is_owner(mid) else 20,
                 ),
                 lambda: self._send_bili_private_message(mid, progress_reply),
             )

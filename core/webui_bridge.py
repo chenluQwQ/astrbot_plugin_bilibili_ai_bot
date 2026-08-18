@@ -48,8 +48,8 @@ BILI_READONLY_ADAPTERS = {
     "search_bilibili": ("视频搜索", "查询公开 B站视频"),
     "bili_search_and_watch": ("搜索并观看", "搜索并分析公开视频，不执行互动写操作"),
     "watch_video": ("观看视频", "读取并分析指定 BV 号的公开视频"),
-    "check_following_updates": ("关注动态", "只读查看今天关注 UP 主的新动态与投稿"),
-    "check_following_live": ("关注直播", "只读查看当前正在直播的关注 UP 主"),
+    "check_following_updates": ("关注更新查询", "B站端私信回复模型按需查看今天关注 UP 主的新动态与投稿"),
+    "check_following_live": ("关注开播查询", "B站端私信回复模型按需查看关注列表中当前正在直播的 UP 主"),
     "get_bangumi_info": ("番剧详情", "按 season_id 读取番剧公开资料与最近剧集"),
     "get_bangumi_trending": ("番剧排行", "只读查看 B站番剧或国创热度排行"),
     "get_bangumi_timeline": ("新番时间表", "只读查看近期番剧更新日程"),
@@ -277,7 +277,11 @@ async def handle_get_stats(plugin: Any):
         failed_today = sum(1 for item in failures if float(item.get("at", 0) or 0) >= today_start)
 
         reply_log = _today_entries(_load_json(plugin, REPLY_LOG_FILE, []), "time", "timestamp", "created_at")
-        comment_replies = sum(1 for item in reply_log if item.get("channel") != "private")
+        comment_replies = sum(
+            1
+            for item in reply_log
+            if item.get("channel") not in {"private", "live"}
+        )
         private_replies = sum(1 for item in reply_log if item.get("channel") == "private")
         dynamic_posts = len(_today_entries(_load_json(plugin, DYNAMIC_LOG_FILE, []), "time", "timestamp"))
         proactive_entries = _today_entries(_load_json(plugin, PROACTIVE_LOG_FILE, []), "time", "timestamp")
@@ -402,7 +406,7 @@ async def handle_memory_stats(plugin: Any):
 
 async def handle_memory_purge(plugin: Any):
     try:
-        removed = int(plugin._consolidation.cleanup_aged()) if getattr(plugin, "_consolidation", None) else 0
+        removed = int(await plugin._consolidation.cleanup_aged()) if getattr(plugin, "_consolidation", None) else 0
         layered = getattr(plugin, "layered_runtime", None)
         layered_removed = await layered.purge_expired() if layered and layered.is_open else {}
         total = removed + sum(int(value or 0) for value in layered_removed.values())
@@ -463,26 +467,6 @@ async def handle_get_profiles(plugin: Any):
         for uid, score in affection.items() if isinstance(affection, dict) else []:
             if str(uid) not in known:
                 data.append({"user_id": str(uid), "name": f"UID {uid}", "affection": int(score or 0), "relationship": plugin._get_level(score, uid) if hasattr(plugin, "_get_level") else "unknown", "impression": "", "tags": [], "facts_count": 0, "video_refs_count": 0, "last_interaction": ""})
-        layered = getattr(plugin, "layered_runtime", None)
-        if layered and layered.is_open:
-            for profile in await layered.recent_profiles(limit=50):
-                actor_id = str(profile.get("actor_id", ""))
-                platform, _, raw_id = actor_id.partition(":")
-                if platform != "bili" or not raw_id or raw_id in known:
-                    continue
-                data.append({
-                    "user_id": raw_id,
-                    "name": profile.get("display_name") or f"UID {raw_id}",
-                    "affection": int(affection.get(raw_id, 0) or 0),
-                    "relationship": profile.get("stage", "stranger"),
-                    "impression": profile.get("impression", ""),
-                    "tags": json.loads(profile.get("topics") or "[]")[-6:],
-                    "facts_count": 0,
-                    "video_refs_count": 0,
-                    "last_interaction": datetime.fromtimestamp(
-                        float(profile.get("last_seen", 0) or 0)
-                    ).strftime("%Y-%m-%d %H:%M") if profile.get("last_seen") else "",
-                })
         data.sort(key=lambda item: (item["affection"], item["last_interaction"]), reverse=True)
         return _response(data[:50])
     except Exception as exc:
@@ -756,7 +740,7 @@ async def handle_available_tools(plugin: Any):
             if name not in seen:
                 result.append({
                     "name": name, "label": label, "description": description,
-                    "origin": "bilibot", "origin_name": "BiliBot 安全适配器",
+                    "origin": "bilibot", "origin_name": "B站端私信回复工具",
                     "active": False, "compatible": False, "category": "bilibot_read_missing",
                     "reason": "已定义只读能力，但当前工具注册表没有可用的对应适配器",
                     "security_tier": "unavailable",

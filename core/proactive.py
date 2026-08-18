@@ -11,6 +11,7 @@ from .config import (
     PROACTIVE_TRIGGER_LOG_FILE, VIDEO_MEMORY_FILE, WATCH_LOG_FILE,
     DYNAMIC_WATCH_LOG_FILE,
 )
+from .runtime import ActionRequest, EventPriority
 
 
 class ProactiveMixin:
@@ -31,6 +32,39 @@ class ProactiveMixin:
         "ranking": "ranking", "rank": "ranking", "排行": "ranking", "排行榜": "ranking", "分区排行": "ranking",
         "newlist": "newlist", "new": "newlist", "最新": "newlist", "新稿件": "newlist", "分区最新": "newlist",
     }
+
+    async def _execute_proactive_action(
+        self, key, kind, target_id, handler, *, metadata=None
+    ):
+        """Route proactive work and writes through the shared action queue."""
+
+        outcome = await self.event_runtime.execute(
+            ActionRequest(
+                key=str(key),
+                kind=str(kind),
+                event_key=f"bilibili:proactive:{target_id}",
+                target_id=str(target_id),
+                priority=EventPriority.BACKGROUND,
+                metadata={"proactive": True, **dict(metadata or {})},
+            ),
+            handler,
+        )
+        if not outcome.success and str(outcome.reason).startswith("budget_exhausted:"):
+            logger.info(f"[BiliBot] 🧭 统一行为预算已满，跳过 {kind}: {outcome.reason}")
+        elif not outcome.success and outcome.state == "unknown":
+            logger.warning(
+                f"[BiliBot] 主动动作发送结果未知，不自动重试 {kind}: {key}"
+            )
+        return outcome
+
+    async def _reserve_proactive_watch(self, bvid, source="proactive"):
+        return await self._execute_proactive_action(
+            f"proactive_watch:{bvid}",
+            "proactive_watch",
+            bvid,
+            lambda: True,
+            metadata={"source": source, "reservation_only": True},
+        )
 
     def _proactive_score_threshold(self, key, default):
         """Read an administrator-controlled action threshold in the 0-10 range."""
@@ -1066,8 +1100,6 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             if watch_count >= daily_watch:
                 break
             bvid = video["bvid"]
-            if hasattr(self, "_set_cross_platform_activity"):
-                self._set_cross_platform_activity("proactive", "正在分析视频", title=video.get("title", ""), up_name=video.get("up_name", ""))
             if str(video.get("up_mid", "")) == self.config.get("DEDE_USER_ID", ""):
                 continue
             allow_watch, prefilter_reason = await self._should_watch_video_before_download(video, taste_tids, prefilter_rejected, prefilter_max_rejects)
@@ -1075,6 +1107,13 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 prefilter_rejected += 1
                 logger.info(f"[BiliBot] 🧭 标题筛选跳过({prefilter_rejected}/{prefilter_max_rejects})：{video['title']} | {prefilter_reason}")
                 continue
+            watch_reservation = await self._reserve_proactive_watch(
+                bvid, video.get("_source", "proactive")
+            )
+            if not watch_reservation.success:
+                continue
+            if hasattr(self, "_set_cross_platform_activity"):
+                self._set_cross_platform_activity("proactive", "正在分析视频", title=video.get("title", ""), up_name=video.get("up_name", ""))
             source_note = {"follow": "关注", "search": "搜索", "pool": "视频池"}.get(video.get("_source", ""), "候选")
             logger.info(f"[BiliBot] 🎬 [{watch_count + 1}/{daily_watch}] [{source_note}] {video['title']} by {video.get('up_name', '')}")
             oid = video.get("oid") or await self._get_video_oid(bvid) or 0
@@ -1117,7 +1156,14 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     logger.warning("[BiliBot] ⚠️ Cookie 已失效，跳过本轮所有互动操作")
                     interaction_failed = True
                 elif score >= self._proactive_score_threshold("PROACTIVE_LIKE_MIN_SCORE", 6) and self.config.get("PROACTIVE_LIKE", True):
-                    if await self._like_video(oid):
+                    if (
+                        await self._execute_proactive_action(
+                            f"proactive_like:{bvid}",
+                            "like",
+                            bvid,
+                            lambda: self._like_video(oid),
+                        )
+                    ).success:
                         actions.append("👍点赞")
                         logger.info("[BiliBot] 👍 点赞成功")
                     else:
@@ -1125,16 +1171,37 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                         interaction_failed = True
                 if not interaction_failed:
                     if score >= self._proactive_score_threshold("PROACTIVE_COIN_MIN_SCORE", 8) and self.config.get("PROACTIVE_COIN", False):
-                        if await self._coin_video(oid):
+                        if (
+                            await self._execute_proactive_action(
+                                f"proactive_coin:{bvid}",
+                                "coin",
+                                bvid,
+                                lambda: self._coin_video(oid),
+                            )
+                        ).success:
                             actions.append("🪙投币")
                             logger.info("[BiliBot] 🪙 投币成功")
                     if score >= self._proactive_score_threshold("PROACTIVE_FAV_MIN_SCORE", 8) and self.config.get("PROACTIVE_FAV", True):
-                        if await self._fav_video(oid):
+                        if (
+                            await self._execute_proactive_action(
+                                f"proactive_favorite:{bvid}",
+                                "favorite",
+                                bvid,
+                                lambda: self._fav_video(oid),
+                            )
+                        ).success:
                             actions.append("⭐收藏")
                             logger.info("[BiliBot] ⭐ 收藏成功")
-                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and daily_comment > 0 and self.config.get("PROACTIVE_COMMENT", True):
+                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
                         proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
-                        if await self._send_comment(oid, proactive_comment):
+                        if (
+                            await self._execute_proactive_action(
+                                f"proactive_comment:{bvid}",
+                                "proactive_comment",
+                                bvid,
+                                lambda: self._send_comment(oid, proactive_comment),
+                            )
+                        ).success:
                             actions.append("💬评论")
                             comment_count += 1
                             logger.info(f"[BiliBot] 💬 评论成功：{proactive_comment}")
@@ -1197,7 +1264,16 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                                         f"{rec_text}\n"
                                         f"https://www.bilibili.com/video/{bvid}"
                                     )
-                                    if await self._send_bili_private_message(owner_mid, private_msg):
+                                    if (
+                                        await self._execute_proactive_action(
+                                            f"proactive_owner_private:{bvid}",
+                                            "proactive_owner_recommend",
+                                            owner_mid,
+                                            lambda: self._send_bili_private_message(
+                                                owner_mid, private_msg
+                                            ),
+                                        )
+                                    ).success:
                                         actions.append("✉️私信推荐给主人")
                                         sent_owner_recommend = True
                                         logger.info(
@@ -1210,7 +1286,14 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             if delivery in {"comment", "both", "all"}:
                                 if owner_bili:
                                     rec_msg = f"@{owner_bili} {rec_text}"
-                                    if await self._send_comment(oid, rec_msg):
+                                    if (
+                                        await self._execute_proactive_action(
+                                            f"proactive_owner_comment:{bvid}",
+                                            "proactive_owner_recommend",
+                                            bvid,
+                                            lambda: self._send_comment(oid, rec_msg),
+                                        )
+                                    ).success:
                                         actions.append("📢评论区推荐给主人")
                                         sent_owner_recommend = True
                                         logger.info(f"[BiliBot] 📢 已在评论区@主人：{rec_msg}")
@@ -1228,7 +1311,14 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             logger.warning(f"[BiliBot] 生成或发送主人推荐失败: {e}")
             if not interaction_failed and score >= self._proactive_score_threshold("PROACTIVE_FOLLOW_MIN_SCORE", 9) and self.config.get("PROACTIVE_FOLLOW", True):
                 if str(video.get("up_mid", "")) != str(self.config.get("OWNER_MID", "")):
-                    if await self._follow_user(video["up_mid"]):
+                    if (
+                        await self._execute_proactive_action(
+                            f"proactive_follow:{video['up_mid']}",
+                            "follow",
+                            video["up_mid"],
+                            lambda: self._follow_user(video["up_mid"]),
+                        )
+                    ).success:
                         actions.append("➕关注")
                         logger.info(f"[BiliBot] ➕ 关注了 {video.get('up_name', '')}")
             log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "source": video.get("_source", ""), "source_detail": video.get("_source_detail", ""), "manual": is_manual}
@@ -1401,6 +1491,11 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             if str(video.get("up_mid", "")) == self.config.get("DEDE_USER_ID", ""):
                 continue
 
+            watch_reservation = await self._reserve_proactive_watch(
+                bvid, "special_follow"
+            )
+            if not watch_reservation.success:
+                continue
             logger.info(f"[BiliBot] ⭐ 特关看视频：{video.get('up_name', '')} - {video['title']}")
             oid = video.get("oid") or await self._get_video_oid(bvid) or 0
             vi = await self._get_video_info(oid) if oid else None
@@ -1450,20 +1545,48 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     logger.warning("[BiliBot] ⚠️ Cookie 已失效，跳过互动")
                     interaction_failed = True
                 elif score >= self._proactive_score_threshold("PROACTIVE_LIKE_MIN_SCORE", 6) and self.config.get("PROACTIVE_LIKE", True):
-                    if await self._like_video(oid):
+                    if (
+                        await self._execute_proactive_action(
+                            f"special_follow_like:{bvid}",
+                            "like",
+                            bvid,
+                            lambda: self._like_video(oid),
+                        )
+                    ).success:
                         actions.append("👍点赞")
                     else:
                         interaction_failed = True
                 if not interaction_failed:
                     if score >= self._proactive_score_threshold("PROACTIVE_COIN_MIN_SCORE", 8) and self.config.get("PROACTIVE_COIN", False):
-                        if await self._coin_video(oid):
+                        if (
+                            await self._execute_proactive_action(
+                                f"special_follow_coin:{bvid}",
+                                "coin",
+                                bvid,
+                                lambda: self._coin_video(oid),
+                            )
+                        ).success:
                             actions.append("🪙投币")
                     if score >= self._proactive_score_threshold("PROACTIVE_FAV_MIN_SCORE", 8) and self.config.get("PROACTIVE_FAV", True):
-                        if await self._fav_video(oid):
+                        if (
+                            await self._execute_proactive_action(
+                                f"special_follow_favorite:{bvid}",
+                                "favorite",
+                                bvid,
+                                lambda: self._fav_video(oid),
+                            )
+                        ).success:
                             actions.append("⭐收藏")
-                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and daily_comment > 0 and self.config.get("PROACTIVE_COMMENT", True):
+                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
                         proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
-                        if await self._send_comment(oid, proactive_comment):
+                        if (
+                            await self._execute_proactive_action(
+                                f"special_follow_comment:{bvid}",
+                                "proactive_comment",
+                                bvid,
+                                lambda: self._send_comment(oid, proactive_comment),
+                            )
+                        ).success:
                             actions.append("💬评论")
                             comment_count += 1
                             commented_videos.add(bvid)

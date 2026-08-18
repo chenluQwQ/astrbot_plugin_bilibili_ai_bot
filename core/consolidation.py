@@ -47,10 +47,10 @@ MEMORY_EVALUATE_PROMPT = """你是记忆管理系统。请对以下记忆逐条�
 
 
 class ConsolidationEngine:
-    """BiliBot 日终清算引擎（JSON 架构，不依赖 SQLite）。
+    """BiliBot 日终清算引擎。
 
     由 MemoryMixin 所在的 Bot 实例持有，通过 mixin 方法访问
-    self._memory / self._save_json / self._load_json / self._llm_call。
+    内存工作视图；SQLite 是主库，memory.json 仅作为清算中的恢复备份。
     """
 
     def __init__(self, bot):
@@ -63,8 +63,16 @@ class ConsolidationEngine:
 
     async def run_daily(self) -> str:
         """完整日终清算，返回结果摘要字符串。"""
+        async with self.bot._memory_write_lock:
+            return await self._run_daily_locked()
+
+    async def _run_daily_locked(self) -> str:
+        """持有统一记忆写锁执行清算，防止实时回复写入被快照覆盖。"""
         lines = []
         start = datetime.now()
+        # 清算会成批修改内存视图。若进程中途退出，下次启动按 JSON 备份恢复；
+        # 正常结束则一次性原子替换 SQLite 中的兼容记忆集合。
+        self.bot._mark_memory_sync_pending("daily consolidation in progress")
 
         # 0. 迁移旧数据
         migrated = self._migrate_legacy_entries()
@@ -89,6 +97,8 @@ class ConsolidationEngine:
         auto_promoted = self._auto_promote_non_chat()
         if auto_promoted:
             lines.append(f"🎬 {auto_promoted} 条视频/动态 → recent")
+
+        await self.bot._replace_memory_snapshot(assume_locked=True)
 
         elapsed = (datetime.now() - start).total_seconds()
         lines.append(f"⏱️ 耗时 {elapsed:.1f}s")
@@ -379,19 +389,20 @@ class ConsolidationEngine:
     #  用户命令：清理 aged 记忆
     # ══════════════════════════════════════
 
-    def cleanup_aged(self) -> int:
+    async def cleanup_aged(self) -> int:
         """删除 aged=true 的 chat 记忆，非 chat 类型只保留 aged 标记不删除。"""
-        before = len(self.bot._memory)
-        self.bot._memory = [
-            m for m in self.bot._memory
-            if not m.get("aged")
-            or self.bot._normalize_memory_entry(m).get("memory_type", "chat") != "chat"
-        ]
-        after = len(self.bot._memory)
-        removed = before - after
-        if removed:
-            self.bot._save_json(MEMORY_FILE, self.bot._memory)
-        return removed
+        async with self.bot._memory_write_lock:
+            before = len(self.bot._memory)
+            self.bot._memory = [
+                m for m in self.bot._memory
+                if not m.get("aged")
+                or self.bot._normalize_memory_entry(m).get("memory_type", "chat") != "chat"
+            ]
+            after = len(self.bot._memory)
+            removed = before - after
+            if removed:
+                await self.bot._replace_memory_snapshot(assume_locked=True)
+            return removed
 
     def get_stats(self) -> dict:
         """返回各级别的记忆统计。"""

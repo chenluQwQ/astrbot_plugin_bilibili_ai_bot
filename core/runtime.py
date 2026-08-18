@@ -37,9 +37,11 @@ class EventState(str, Enum):
 
 
 class ActionState(str, Enum):
+    QUEUED = "queued"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True)
@@ -124,6 +126,7 @@ class ActionRequest:
     kind: str
     event_key: str = ""
     target_id: str = ""
+    priority: int | EventPriority = EventPriority.NORMAL
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -137,6 +140,11 @@ class ActionRequest:
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "event_key", str(self.event_key or "").strip())
         object.__setattr__(self, "target_id", str(self.target_id or "").strip())
+        try:
+            priority = max(0, min(100, int(self.priority)))
+        except (TypeError, ValueError):
+            priority = int(EventPriority.NORMAL)
+        object.__setattr__(self, "priority", priority)
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
 
 
@@ -154,6 +162,7 @@ class ActionOutcome:
     value: Any = None
     reason: str = ""
     duplicate: bool = False
+    state: str = ActionState.FAILED.value
 
 
 @dataclass
@@ -191,24 +200,62 @@ class EventRuntime:
         *,
         event_ttl: float = 6 * 3600,
         action_ttl: float = 24 * 3600,
+        action_timeout: float = 45.0,
         max_events: int = 2000,
         max_actions: int = 2000,
         observer: Any = None,
     ):
         self.event_ttl = max(60.0, float(event_ttl))
         self.action_ttl = max(60.0, float(action_ttl))
+        self.action_timeout = max(0.01, float(action_timeout))
         self.max_events = max(100, int(max_events))
         self.max_actions = max(100, int(max_actions))
         self._events: OrderedDict[str, _EventRecord] = OrderedDict()
         self._actions: OrderedDict[str, _ActionRecord] = OrderedDict()
         self._recent_failures = deque(maxlen=50)
         self._lock = asyncio.Lock()
+        self._action_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+        self._action_queue_lock = asyncio.Lock()
+        self._action_sequence = 0
+        self._action_worker_task: asyncio.Task | None = None
         self._observer = observer
 
     def set_observer(self, observer: Any = None) -> None:
         """Attach an optional persistent observer without coupling this module to it."""
 
         self._observer = observer
+
+    async def close(self) -> None:
+        """Stop the action worker before its persistent observer is closed."""
+
+        async with self._action_queue_lock:
+            worker = self._action_worker_task
+            if worker is not None and not worker.done():
+                worker.cancel()
+        if worker is not None:
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
+
+        pending = []
+        async with self._action_queue_lock:
+            self._action_worker_task = None
+            while not self._action_queue.empty():
+                pending.append(self._action_queue.get_nowait())
+        for _, _, request, _, _, future in pending:
+            reason = "plugin_stopped_before_send"
+            await self._finish_action(request, ActionState.FAILED, None, reason)
+            if not future.done():
+                future.set_result(
+                    ActionOutcome(
+                        False,
+                        request.key,
+                        reason=reason,
+                        state=ActionState.FAILED.value,
+                    )
+                )
+            self._action_queue.task_done()
 
     async def _notify_observer(self, method: str, *args: Any) -> Any:
         observer = self._observer
@@ -375,10 +422,10 @@ class EventRuntime:
         *,
         success: Optional[SuccessPredicate] = None,
     ) -> ActionOutcome:
-        """执行一次幂等动作。
+        """将一次幂等动作放入统一优先队列并等待执行结果。
 
-        相同 ``request.key`` 已成功时不会再次调用平台；正在执行时也不会并发
-        重复发送。失败动作允许下一轮重新尝试。
+        已成功动作不会重发；明确失败可重试；超时或执行中取消会进入
+        ``unknown``，不会盲目重试可能已经被平台接收的请求。
         """
 
         persistent = await self._notify_observer("before_action", request)
@@ -398,12 +445,23 @@ class EventRuntime:
                 if isinstance(persistent, tuple) and len(persistent) > 2
                 else False
             )
+            persistent_state = (
+                str(persistent[3])
+                if isinstance(persistent, tuple) and len(persistent) > 3
+                else (ActionState.SUCCEEDED.value if previous_success else ActionState.FAILED.value)
+            )
             if not allowed:
                 return ActionOutcome(
                     previous_success,
                     request.key,
                     reason=reason,
-                    duplicate=True,
+                    duplicate=reason.startswith("already_") or persistent_state in {
+                        ActionState.QUEUED.value,
+                        ActionState.RUNNING.value,
+                        ActionState.SUCCEEDED.value,
+                        ActionState.UNKNOWN.value,
+                    },
+                    state=persistent_state,
                 )
 
         now = time.monotonic()
@@ -419,28 +477,119 @@ class EventRuntime:
                     previous.value,
                     "already_succeeded",
                     duplicate=True,
+                    state=ActionState.SUCCEEDED.value,
                 )
-            if previous and previous.state == ActionState.RUNNING:
+            if previous and previous.state in {ActionState.QUEUED, ActionState.RUNNING}:
                 self._actions.move_to_end(request.key)
                 return ActionOutcome(
                     False,
                     request.key,
-                    reason="already_running",
+                    reason=f"already_{previous.state.value}",
                     duplicate=True,
+                    state=previous.state.value,
+                )
+            if previous and previous.state == ActionState.UNKNOWN:
+                self._actions.move_to_end(request.key)
+                return ActionOutcome(
+                    False,
+                    request.key,
+                    reason="send_state_unknown",
+                    duplicate=True,
+                    state=ActionState.UNKNOWN.value,
                 )
             self._actions[request.key] = _ActionRecord(
                 request=request,
-                state=ActionState.RUNNING,
+                state=ActionState.QUEUED,
                 created_at=now,
                 updated_at=now,
             )
             self._actions.move_to_end(request.key)
+
+        future = asyncio.get_running_loop().create_future()
+        async with self._action_queue_lock:
+            self._action_sequence += 1
+            self._action_queue.put_nowait(
+                (
+                    int(request.priority),
+                    self._action_sequence,
+                    request,
+                    handler,
+                    success,
+                    future,
+                )
+            )
+            if self._action_worker_task is None or self._action_worker_task.done():
+                self._action_worker_task = asyncio.create_task(
+                    self._action_worker(), name="bilibot-action-worker"
+                )
+        return await asyncio.shield(future)
+
+    async def _action_worker(self) -> None:
+        """Drain queued side effects one at a time, choosing the highest priority."""
+
+        while True:
+            async with self._action_queue_lock:
+                if self._action_queue.empty():
+                    self._action_worker_task = None
+                    return
+                item = self._action_queue.get_nowait()
+            _, _, request, handler, success, future = item
+            try:
+                outcome = await self._run_queued_action(request, handler, success)
+                if not future.done():
+                    future.set_result(outcome)
+            except asyncio.CancelledError:
+                if not future.done():
+                    future.set_result(
+                        ActionOutcome(
+                            False,
+                            request.key,
+                            reason="send_state_unknown:worker_cancelled",
+                            state=ActionState.UNKNOWN.value,
+                        )
+                    )
+                async with self._action_queue_lock:
+                    if self._action_worker_task is asyncio.current_task():
+                        self._action_worker_task = None
+                raise
+            except Exception as exc:
+                # A runtime bookkeeping failure must not leave the caller waiting
+                # forever. Platform handler failures are normally converted by
+                # _run_queued_action before they reach this guard.
+                if not future.done():
+                    future.set_result(
+                        ActionOutcome(
+                            False,
+                            request.key,
+                            reason=f"action_worker_failed:{exc}",
+                            state=ActionState.FAILED.value,
+                        )
+                    )
+            finally:
+                self._action_queue.task_done()
+
+    async def _run_queued_action(
+        self,
+        request: ActionRequest,
+        handler: ActionHandler,
+        success: Optional[SuccessPredicate],
+    ) -> ActionOutcome:
+        now = time.monotonic()
+        sending_event = None
+        async with self._lock:
+            record = self._actions.get(request.key)
+            if record is None:
+                record = _ActionRecord(request=request, state=ActionState.QUEUED)
+                self._actions[request.key] = record
+            record.state = ActionState.RUNNING
+            record.updated_at = now
             event_record = self._events.get(request.event_key)
             if event_record is not None:
                 event_record.state = EventState.SENDING
                 event_record.updated_at = now
                 sending_event = event_record.event
 
+        await self._notify_observer("on_action_started", request)
         if sending_event is not None:
             await self._notify_observer(
                 "on_event_transition", sending_event, EventState.SENDING, ""
@@ -449,35 +598,59 @@ class EventRuntime:
         try:
             value = handler()
             if inspect.isawaitable(value):
-                value = await value
+                value = await asyncio.wait_for(value, timeout=self.action_timeout)
             succeeded = success(value) if success is not None else bool(value)
+            state = ActionState.SUCCEEDED if succeeded else ActionState.FAILED
             reason = "" if succeeded else "handler_returned_unsuccessful"
         except asyncio.CancelledError:
-            await self._finish_action(request, False, None, "cancelled")
+            reason = "send_state_unknown:worker_cancelled"
+            await self._finish_action(request, ActionState.UNKNOWN, None, reason)
             raise
+        except (asyncio.TimeoutError, TimeoutError) as exc:
+            reason = f"send_state_unknown:{exc or 'timeout'}"
+            await self._finish_action(request, ActionState.UNKNOWN, None, reason)
+            return ActionOutcome(
+                False,
+                request.key,
+                reason=reason,
+                state=ActionState.UNKNOWN.value,
+            )
         except Exception as exc:
-            await self._finish_action(request, False, None, str(exc))
-            return ActionOutcome(False, request.key, reason=str(exc))
+            reason = str(exc)
+            await self._finish_action(request, ActionState.FAILED, None, reason)
+            return ActionOutcome(
+                False,
+                request.key,
+                reason=reason,
+                state=ActionState.FAILED.value,
+            )
 
-        await self._finish_action(request, succeeded, value, reason)
-        return ActionOutcome(succeeded, request.key, value=value, reason=reason)
+        await self._finish_action(request, state, value, reason)
+        return ActionOutcome(
+            succeeded,
+            request.key,
+            value=value,
+            reason=reason,
+            state=state.value,
+        )
 
     async def _finish_action(
         self,
         request: ActionRequest,
-        succeeded: bool,
+        state: ActionState,
         value: Any,
         reason: str,
     ):
         now = time.monotonic()
         finished_event = None
+        succeeded = state == ActionState.SUCCEEDED
         finished_state = EventState.SENT if succeeded else EventState.FAILED
         async with self._lock:
             record = self._actions.get(request.key)
             if record is None:
                 record = _ActionRecord(request=request, state=ActionState.RUNNING)
                 self._actions[request.key] = record
-            record.state = ActionState.SUCCEEDED if succeeded else ActionState.FAILED
+            record.state = state
             record.value = value
             record.reason = str(reason or "")[:300]
             record.updated_at = now
@@ -489,7 +662,7 @@ class EventRuntime:
                 event_record.updated_at = now
                 self._events.move_to_end(request.event_key)
                 finished_event = event_record.event
-            if not succeeded:
+            if state in {ActionState.FAILED, ActionState.UNKNOWN}:
                 self._recent_failures.append(
                     {
                         "kind": request.kind,
@@ -500,7 +673,7 @@ class EventRuntime:
                 )
             self._prune_locked(now)
         await self._notify_observer(
-            "on_action_finished", request, succeeded, record.reason
+            "on_action_finished", request, state, record.reason
         )
         if finished_event is not None:
             await self._notify_observer(
@@ -537,6 +710,8 @@ class EventRuntime:
                 "event_priorities": event_priorities,
                 "actions": len(self._actions),
                 "action_states": action_states,
+                "queue_depth": self._action_queue.qsize(),
+                "action_timeout": self.action_timeout,
                 "recent_events": recent_events,
                 "recent_failures": list(self._recent_failures),
             }

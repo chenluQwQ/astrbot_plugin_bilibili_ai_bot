@@ -13,7 +13,6 @@ from .config import (
     AFFECTION_FILE,
     DATA_DIR,
     LEVEL_NAMES,
-    PERMANENT_MEMORY_FILE,
     REPLY_LOG_FILE,
 )
 from .runtime import ActionRequest, EventState, InboundEvent
@@ -437,6 +436,7 @@ class LiveDanmakuMixin:
                 kind="live_reply",
                 event_key=f"bilibili:live:{event['event_id']}",
                 target_id=str(self._live_room_id()),
+                priority=int(self._live_runtime_event(event).priority),
             ),
             lambda: self._send_live_danmaku_text(reply_text),
             success=lambda value: int(value or 0) > 0,
@@ -468,19 +468,8 @@ class LiveDanmakuMixin:
                 username=username,
                 impression=impression or None,
                 new_facts=user_facts or None,
+                source_scope="bili_live",
             )
-
-        permanent = str(result.get("permanent_memory", "") or "").strip()
-        if permanent:
-            memories = self._load_json(PERMANENT_MEMORY_FILE, [])
-            if len(memories) < 20:
-                memories.append(
-                    {
-                        "text": permanent,
-                        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    }
-                )
-                self._save_json(PERMANENT_MEMORY_FILE, memories)
 
         self._live_last_reply_at = time.time()
         self._live_reply_marks.append(self._live_last_reply_at)

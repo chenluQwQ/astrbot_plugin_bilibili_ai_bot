@@ -58,10 +58,14 @@ CREATE TABLE IF NOT EXISTS actions (
     kind       TEXT NOT NULL,
     event_key  TEXT NOT NULL DEFAULT '',
     target_id  TEXT NOT NULL DEFAULT '',
-    state      TEXT NOT NULL DEFAULT 'running',  -- running/succeeded/failed/unknown
+    state      TEXT NOT NULL DEFAULT 'queued',  -- queued/running/succeeded/failed/unknown
+    priority   INTEGER NOT NULL DEFAULT 40,
+    attempts   INTEGER NOT NULL DEFAULT 0,
     digest     TEXT NOT NULL DEFAULT '',
+    budget     TEXT NOT NULL DEFAULT '[]',
     detail     TEXT NOT NULL DEFAULT '',
     created_at REAL NOT NULL,
+    updated_at REAL,
     finished_at REAL
 );
 CREATE INDEX IF NOT EXISTS idx_actions_state ON actions (state, created_at);
@@ -100,6 +104,15 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
     dim       INTEGER NOT NULL,
     vec       BLOB NOT NULL           -- float32 紧凑存储，不进 JSON
 );
+
+-- 旧版 memory.json 与统一记忆表之间的稳定映射。旧字段保存在 memories.meta
+-- 的 legacy 对象中；映射表只负责幂等迁移、兼容导出和按 rpid 精确删除。
+-- 单独建表而不是给 memories 直接加列，可让已有 v1 数据库无损升级。
+CREATE TABLE IF NOT EXISTS legacy_memory_map (
+    memory_id  INTEGER PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    legacy_key TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_legacy_memory_key ON legacy_memory_map (legacy_key);
 
 -- 用户群像：小体积结构化，增量更新（只改动变化字段，不重写全量摘要）。
 CREATE TABLE IF NOT EXISTS profiles (

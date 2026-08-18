@@ -79,18 +79,20 @@ def _policy(
 SCOPE_POLICIES: dict[Scope, ScopePolicy] = {
     Scope.COMMENT: _policy(
         Scope.COMMENT,
-        readable={Scope.COMMENT},
+        # Bot 主动观看/发布产生的是公开媒体事实，可用于理解当前视频；
+        # 仍不能读取私信、直播或 SELF 私密认知。
+        readable={Scope.COMMENT, Scope.PROACTIVE},
         writable={Scope.COMMENT},
     ),
     Scope.DM: _policy(
         Scope.DM,
         # 私信可以读该用户在评论区的公开互动，帮助保持人物连续性。
-        readable={Scope.DM, Scope.COMMENT},
+        readable={Scope.DM, Scope.COMMENT, Scope.PROACTIVE},
         writable={Scope.DM},
     ),
     Scope.LIVE: _policy(
         Scope.LIVE,
-        readable={Scope.LIVE},
+        readable={Scope.LIVE, Scope.PROACTIVE},
         writable={Scope.LIVE},
     ),
     Scope.QQ_GROUP: _policy(

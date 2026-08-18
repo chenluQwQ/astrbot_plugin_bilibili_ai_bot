@@ -1,4 +1,4 @@
-"""联网搜索：Tavily / Perplexity / 博查 / 自定义后端。"""
+"""联网搜索：Tavily / Firecrawl / Grok / Perplexity / 博查 / 自定义后端。"""
 import re
 import json
 import time
@@ -35,7 +35,10 @@ class WebSearchMixin:
         if not api_key:
             return ""
         backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower().strip()
-        max_results = self.config.get("WEB_SEARCH_MAX_RESULTS", 5)
+        try:
+            max_results = max(1, min(10, int(self.config.get("WEB_SEARCH_MAX_RESULTS", 5) or 5)))
+        except (TypeError, ValueError):
+            max_results = 5
         raw_cache = self._load_json(WEB_SEARCH_CACHE_FILE, {})
         # 按访问时间排序重建 OrderedDict，确保 LRU 淘汰正确
         cache = OrderedDict(
@@ -55,6 +58,10 @@ class WebSearchMixin:
         try:
             if backend == "tavily":
                 result = await self._search_tavily(query, api_key, max_results)
+            elif backend == "firecrawl":
+                result = await self._search_firecrawl(query, api_key, max_results)
+            elif backend in ("grok", "xai"):
+                result = await self._search_grok(query, api_key)
             elif backend == "perplexity":
                 result = await self._search_perplexity(query, max_results)
             elif backend == "bocha":
@@ -74,6 +81,142 @@ class WebSearchMixin:
                 cache.popitem(last=False)
             self._save_json(WEB_SEARCH_CACHE_FILE, dict(cache))
         return result
+
+    @staticmethod
+    def _format_firecrawl_results(data: dict, max_results: int) -> str:
+        """Normalize Firecrawl v2 (and older flat) search responses for prompts."""
+        payload = data.get("data", {}) if isinstance(data, dict) else {}
+        if isinstance(payload, dict):
+            results = payload.get("web", []) or payload.get("results", [])
+        elif isinstance(payload, list):
+            results = payload
+        else:
+            results = []
+        snippets = []
+        for item in results[:max_results]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or item.get("name") or "网页结果").strip()
+            url = str(item.get("url") or "").strip()
+            description = str(
+                item.get("description")
+                or item.get("snippet")
+                or item.get("markdown")
+                or item.get("content")
+                or ""
+            )
+            description = re.sub(r"\s+", " ", description).strip()[:500]
+            label = f"[{title}]({url})" if url else title
+            if description:
+                snippets.append(f"- {label}: {description}")
+            elif url or title:
+                snippets.append(f"- {label}")
+        return "\n".join(snippets)
+
+    async def _search_firecrawl(self, query: str, api_key: str, max_results: int) -> str:
+        base_url = str(self.config.get("WEB_SEARCH_API_BASE", "") or "https://api.firecrawl.dev").strip().rstrip("/")
+        if base_url.lower().endswith("/v2/search"):
+            url = base_url
+        elif base_url.lower().endswith("/v2"):
+            url = f"{base_url}/search"
+        else:
+            url = f"{base_url}/v2/search"
+        payload = {
+            "query": query,
+            "limit": max_results,
+            "sources": ["web"],
+            "safe": True,
+        }
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] Firecrawl HTTP {r.status}: {body[:200]}")
+                    return ""
+                data = await r.json(content_type=None)
+        return self._format_firecrawl_results(data, max_results)
+
+    @staticmethod
+    def _format_grok_response(data: dict) -> str:
+        """Extract final text and URL citations from an xAI Responses payload."""
+        if not isinstance(data, dict):
+            return ""
+        texts = []
+        citations = []
+
+        def add_citation(value, fallback_title=""):
+            if isinstance(value, str):
+                url, title = value.strip(), fallback_title or value.strip()
+            elif isinstance(value, dict):
+                url = str(value.get("url") or "").strip()
+                title = str(value.get("title") or fallback_title or url).strip()
+            else:
+                return
+            if url and url not in {item[0] for item in citations}:
+                citations.append((url, title))
+
+        direct_text = data.get("output_text")
+        if isinstance(direct_text, str) and direct_text.strip():
+            texts.append(direct_text.strip())
+        for output in data.get("output", []) or []:
+            if not isinstance(output, dict) or output.get("type") != "message":
+                continue
+            for block in output.get("content", []) or []:
+                if not isinstance(block, dict):
+                    continue
+                text = block.get("text")
+                if block.get("type") in ("output_text", "text") and isinstance(text, str) and text.strip():
+                    texts.append(text.strip())
+                for annotation in block.get("annotations", []) or []:
+                    if not isinstance(annotation, dict):
+                        continue
+                    nested = annotation.get("url_citation")
+                    add_citation(nested if isinstance(nested, dict) else annotation)
+        for citation in data.get("citations", []) or []:
+            add_citation(citation)
+        text = "\n".join(dict.fromkeys(texts)).strip()
+        uncited = [(url, title) for url, title in citations if url not in text]
+        if uncited:
+            sources = "\n".join(f"- [{title}]({url})" for url, title in uncited[:8])
+            text = f"{text}\n\n相关来源：\n{sources}" if text else sources
+        return text
+
+    async def _search_grok(self, query: str, api_key: str) -> str:
+        base_url = str(self.config.get("WEB_SEARCH_API_BASE", "") or "https://api.x.ai/v1").strip().rstrip("/")
+        if base_url.lower().endswith("/responses"):
+            url = base_url
+        else:
+            if not base_url.lower().endswith("/v1"):
+                base_url = f"{base_url}/v1"
+            url = f"{base_url}/responses"
+        model = str(self.config.get("WEB_SEARCH_MODEL", "") or "grok-4.6").strip()
+        payload = {
+            "model": model,
+            "input": [{
+                "role": "user",
+                "content": f"请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：{query}",
+            }],
+            "tools": [{"type": "web_search"}],
+            "max_output_tokens": 600,
+        }
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] Grok 搜索 HTTP {r.status}: {body[:300]}")
+                    return ""
+                data = await r.json(content_type=None)
+        return self._format_grok_response(data)
 
     async def _search_tavily(self, query: str, api_key: str, max_results: int) -> str:
         payload = {"query": query, "max_results": max_results, "search_depth": "basic", "include_answer": True}

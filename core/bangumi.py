@@ -574,6 +574,20 @@ want_continue：是否值得继续追，烂番可以果断弃。
         try:
             ep_index = ep_info.get("ep_index", "?")
             ep_title = ep_info.get("long_title", "") or ep_info.get("title", "")
+            episode_key = str(
+                ep_info.get("ep_id")
+                or ep_info.get("aid")
+                or f"{season_info['season_id']}:{ep_index}"
+            )
+            admission = await self._execute_proactive_action(
+                f"bangumi_watch:{episode_key}",
+                "bangumi_watch",
+                episode_key,
+                lambda: True,
+                metadata={"source": "bangumi", "reservation_only": True},
+            )
+            if not admission.success:
+                return 0, None
             logger.info(f"[BiliBot] 🎬 看番：《{season_info['title']}》第{ep_index}话 {ep_title}")
 
             analysis = await self._analyze_bangumi_episode(season_info, ep_info)
@@ -624,7 +638,14 @@ want_continue：是否值得继续追，烂番可以果断弃。
                     interaction_ok = False
                 if interaction_ok and score >= 6 and self.config.get("PROACTIVE_LIKE", True):
                     try:
-                        if await self._like_video(aid):
+                        if (
+                            await self._execute_proactive_action(
+                                f"bangumi_like:{episode_key}",
+                                "like",
+                                episode_key,
+                                lambda: self._like_video(aid),
+                            )
+                        ).success:
                             actions.append("👍点赞")
                         else:
                             interaction_ok = False
@@ -633,13 +654,27 @@ want_continue：是否值得继续追，烂番可以果断弃。
                 if interaction_ok:
                     if score >= 8 and self.config.get("PROACTIVE_COIN", False):
                         try:
-                            if await self._coin_video(aid):
+                            if (
+                                await self._execute_proactive_action(
+                                    f"bangumi_coin:{episode_key}",
+                                    "coin",
+                                    episode_key,
+                                    lambda: self._coin_video(aid),
+                                )
+                            ).success:
                                 actions.append("🪙投币")
                         except Exception:
                             pass
                     if score >= 8 and self.config.get("PROACTIVE_FAV", True):
                         try:
-                            if await self._fav_video(aid):
+                            if (
+                                await self._execute_proactive_action(
+                                    f"bangumi_favorite:{episode_key}",
+                                    "favorite",
+                                    episode_key,
+                                    lambda: self._fav_video(aid),
+                                )
+                            ).success:
                                 actions.append("⭐收藏")
                         except Exception:
                             pass
@@ -652,7 +687,16 @@ want_continue：是否值得继续追，烂番可以果断弃。
                             except Exception:
                                 comment = "这集还行"
                         try:
-                            if await self._send_comment(aid, comment, oid_type=1):
+                            if (
+                                await self._execute_proactive_action(
+                                    f"bangumi_comment:{episode_key}",
+                                    "proactive_comment",
+                                    episode_key,
+                                    lambda: self._send_comment(
+                                        aid, comment, oid_type=1
+                                    ),
+                                )
+                            ).success:
                                 actions.append("💬评论")
                                 logger.info(f"[BiliBot] 💬 番剧评论：{comment}")
                                 pl = self._load_json(PROACTIVE_LOG_FILE, [])
@@ -667,7 +711,14 @@ want_continue：是否值得继续追，烂番可以果断弃。
             # 评分高自动追番
             if interaction_ok and score >= 7 and self.config.get("BANGUMI_AUTO_FOLLOW", True):
                 try:
-                    if await self._follow_bangumi(season_info["season_id"]):
+                    if (
+                        await self._execute_proactive_action(
+                            f"bangumi_follow:{season_info['season_id']}",
+                            "follow_bangumi",
+                            season_info["season_id"],
+                            lambda: self._follow_bangumi(season_info["season_id"]),
+                        )
+                    ).success:
                         logger.info(f"[BiliBot] 📌 自动追番：《{season_info['title']}》")
                 except Exception:
                     pass

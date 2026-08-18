@@ -1,4 +1,54 @@
 """Regression tests for AstrBot 4.27+ chat provider resolution."""
+
+import sys
+import tempfile
+import types
+from pathlib import Path
+
+
+class _Logger:
+    def __getattr__(self, _name):
+        return lambda *_args, **_kwargs: None
+
+
+def _install_astrbot_stub():
+    """Import core.* without a real AstrBot install (matches the other test modules)."""
+    root = str(Path(__file__).resolve().parents[1])
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    if isinstance(getattr(sys.modules.get("astrbot"), "api", None), types.ModuleType):
+        return
+    astrbot = types.ModuleType("astrbot")
+    astrbot.__path__ = []
+    api = types.ModuleType("astrbot.api")
+    api.__path__ = []
+    api.logger = _Logger()
+    star = types.ModuleType("astrbot.api.star")
+    data_dir = Path(tempfile.mkdtemp(prefix="bilibot-test-"))
+    star.StarTools = types.SimpleNamespace(get_data_dir=lambda _name: data_dir)
+    event = types.ModuleType("astrbot.api.event")
+
+    class _MessageChain:
+        def __init__(self, *_args, **_kwargs):
+            self.chain = []
+
+        def message(self, *_args, **_kwargs):
+            return self
+
+    event.MessageChain = _MessageChain
+    api.star = star
+    api.event = event
+    astrbot.api = api
+    sys.modules.update({
+        "astrbot": astrbot,
+        "astrbot.api": api,
+        "astrbot.api.star": star,
+        "astrbot.api.event": event,
+    })
+
+
+_install_astrbot_stub()
+
 import asyncio
 from types import SimpleNamespace
 
