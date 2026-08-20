@@ -19,11 +19,11 @@ class LLMMixin:
             threshold = 5
         try:
             cooldown = max(
-                float(self.config.get("LLM_CIRCUIT_COOLDOWN_SECONDS", 300) or 300),
+                float(self.config.get("LLM_CIRCUIT_COOLDOWN_SECONDS", 120) or 120),
                 1.0,
             )
         except (TypeError, ValueError):
-            cooldown = 300.0
+            cooldown = 120.0
         return threshold, cooldown
 
     def _llm_circuit_lock_obj(self):
@@ -45,6 +45,7 @@ class LLMMixin:
             return "disabled"
 
         should_log = False
+        skip_reason = ""
         async with self._llm_circuit_lock_obj():
             now = time.monotonic()
             open_until = float(getattr(self, "_llm_circuit_open_until", 0.0) or 0.0)
@@ -53,9 +54,12 @@ class LLMMixin:
                 if now - last_log >= 30:
                     self._llm_circuit_last_skip_log = now
                     should_log = True
+                remaining = max(1, int(open_until - now))
+                skip_reason = f"模型服务连续失败后正在冷却，约 {remaining} 秒后自动探测"
                 mode = None
             elif open_until > 0:
                 if getattr(self, "_llm_circuit_half_open", False):
+                    skip_reason = "模型服务正在进行恢复探测，本次调用已跳过以避免重复请求"
                     mode = None
                 else:
                     self._llm_circuit_half_open = True
@@ -66,6 +70,8 @@ class LLMMixin:
         if should_log:
             remaining = max(1, int(open_until - time.monotonic()))
             logger.warning(f"[BiliBot] LLM 熔断中，本次调用已跳过；约 {remaining} 秒后允许一次探测")
+        if mode is None:
+            self._last_llm_error = skip_reason or "模型服务暂时不可用，本次调用已安全跳过"
         return mode
 
     async def _record_llm_success(self, mode):
@@ -146,6 +152,7 @@ class LLMMixin:
         return ""
 
     async def _llm_call(self, prompt, system_prompt="", max_tokens=300, provider_id=None):
+        self._last_llm_error = ""
         circuit_mode = await self._enter_llm_circuit()
         if circuit_mode is None:
             return None
@@ -153,6 +160,7 @@ class LLMMixin:
             pid = self._resolve_chat_provider_id(provider_id)
             if not pid:
                 reason = "未找到可用的默认对话模型"
+                self._last_llm_error = reason
                 logger.error(f"[BiliBot] LLM 调用失败：{reason}，请检查 AstrBot 的默认聊天模型配置")
                 await self._record_llm_failure(circuit_mode, reason)
                 return None
@@ -164,12 +172,14 @@ class LLMMixin:
             text = resp.completion_text.strip() if resp and resp.completion_text else ""
             if not text:
                 reason = "模型返回空内容"
+                self._last_llm_error = reason
                 logger.error(f"[BiliBot] LLM 调用失败：{reason}")
                 await self._record_llm_failure(circuit_mode, reason)
                 return None
             await self._record_llm_success(circuit_mode)
             return text
         except Exception as e:
+            self._last_llm_error = f"模型请求异常：{e}"[:240]
             logger.error(f"[BiliBot] LLM 调用失败: {e}")
             await self._record_llm_failure(circuit_mode, str(e))
             return None

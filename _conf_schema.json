@@ -77,8 +77,8 @@
   "LLM_CIRCUIT_COOLDOWN_SECONDS": {
     "description": "【模型可靠性】熔断冷却时间（秒）",
     "type": "int",
-    "default": 300,
-    "hint": "冷却结束后只放行一个探测请求；成功后恢复，失败则重新冷却。建议 60-1800 秒。"
+    "default": 120,
+    "hint": "冷却结束后只放行一个探测请求；成功后恢复，失败则重新冷却。建议 60-600 秒。"
   },
   "ENABLE_REPLY": {
     "description": "【功能开关】启用评论自动回复",

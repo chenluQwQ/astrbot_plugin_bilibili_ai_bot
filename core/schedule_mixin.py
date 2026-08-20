@@ -329,9 +329,15 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
         try:
             raw_plan = await self._llm_call(prompt, max_tokens=600)
             model_plan = self._extract_plan_json(raw_plan)
-            if not raw_plan or not model_plan:
+            if not raw_plan:
                 generation_status = "error"
-                model_error = "模型调用失败、未配置模型提供商，或模型未返回有效计划"
+                model_error = str(
+                    getattr(self, "_last_llm_error", "")
+                    or "模型没有返回计划内容"
+                )[:240]
+            elif not model_plan:
+                generation_status = "error"
+                model_error = "模型已返回内容，但没有按要求生成有效的 JSON 日程"
         except Exception as exc:
             generation_status = "error"
             model_error = f"模型调用失败：{exc}"[:240]

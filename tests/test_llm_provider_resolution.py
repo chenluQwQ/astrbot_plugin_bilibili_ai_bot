@@ -136,9 +136,11 @@ def _check_circuit_opens_without_multiplying_provider_requests():
             "LLM_CIRCUIT_COOLDOWN_SECONDS": 300,
         }, context)
         assert await bot._llm_call("first") is None
+        assert "provider unavailable" in bot._last_llm_error
         assert await bot._llm_call("second") is None
         assert await bot._llm_call("must be skipped") is None
         assert len(context.calls) == 2
+        assert "冷却" in bot._last_llm_error
 
     asyncio.run(run())
 

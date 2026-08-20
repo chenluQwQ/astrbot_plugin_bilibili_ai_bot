@@ -27,7 +27,7 @@ class ConfigSchemaOrderTests(unittest.TestCase):
             "LLM_CIRCUIT_COOLDOWN_SECONDS",
         ])
         self.assertEqual(self.schema["LLM_CIRCUIT_FAILURE_THRESHOLD"]["default"], 5)
-        self.assertEqual(self.schema["LLM_CIRCUIT_COOLDOWN_SECONDS"]["default"], 300)
+        self.assertEqual(self.schema["LLM_CIRCUIT_COOLDOWN_SECONDS"]["default"], 120)
 
     def test_private_message_settings_are_one_contiguous_section(self):
         self.assert_contiguous([

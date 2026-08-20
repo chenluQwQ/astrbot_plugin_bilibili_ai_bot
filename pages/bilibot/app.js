@@ -254,7 +254,7 @@ const MOCK_FIELDS = {
   OWNER_BILI_NAME: ["【账号】主人的B站昵称", "string", "示例昵称"],
   LLM_PROVIDER_ID: ["【人设】用于回复与记忆压缩的 LLM", "string", "default"],
   LLM_CIRCUIT_FAILURE_THRESHOLD: ["【模型可靠性】连续失败多少次后暂停调用", "int", 5],
-  LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 300],
+  LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 120],
   USE_ASTRBOT_PERSONA: ["【人设】使用 AstrBot 自带人设", "bool", true],
   CUSTOM_SYSTEM_PROMPT: ["【人设】自定义系统提示词", "text", "自然、克制、有自己的兴趣和判断。"],
   ENABLE_LLM_TOOLS: ["【功能开关】启用 LLM 工具", "bool", true],
@@ -1003,9 +1003,9 @@ function renderBehaviorMatrix() {
 
 function renderPlanStatus(plan, autonomous) {
   const failed = autonomous && plan.generation_status === "error";
-  const status = failed ? "模型调用失败，当前使用安全 fallback" : autonomous ? "模型计划已通过范围边界校验" : "管理员固定计划";
+  const status = failed ? "今日模型计划未生成，已使用安全计划" : autonomous ? "模型计划已通过范围边界校验" : "管理员固定计划";
   const detail = failed
-    ? `${plan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 请检查模型提供商和 AI 对话总开关。`
+    ? `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成；评论、私信等功能仍按各自开关运行。`
     : plan.rationale || (autonomous ? "保存修改后调用当前模型生成当天计划。" : "保存修改后按准确时刻刷新当天计划。");
   return `<div class="plan-status ${failed ? "has-error" : autonomous ? "is-model" : "is-fixed"}"><span>${icon(failed ? "lightning" : autonomous ? "star" : "clock")}</span><div><strong>${esc(status)}</strong><p>${esc(detail)}</p></div>${plan.generated_at ? `<small>${esc(plan.generated_at)}</small>` : ""}</div>`;
 }
@@ -1509,7 +1509,7 @@ async function handleAction(action, source = null) {
     renderCurrentPage();
     const plan = regenerated?.autonomous_plan;
     if (plan?.generation_status === "error") {
-      toast("计划已生成，但模型调用失败", `${plan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback。`, "error");
+      toast("已启用安全计划", `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成。`, "error");
     } else {
       toast("今日计划已更新", "新计划已经过睡眠区间、最小间隔与范围限制校验");
     }
@@ -1625,7 +1625,7 @@ async function saveDraft() {
     if (scheduleError) {
       toast("保存未完成", scheduleError.message || "日程修改未写入，请检查时间间隔", "error");
     } else if (regeneratedPlan?.generation_status === "error") {
-      toast("配置已保存，模型调用失败", `${regeneratedPlan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback；系统会按重试间隔再次调用。`, "error");
+      toast("配置已保存，并启用安全计划", `${regeneratedPlan.model_error || "计划模型暂时没有返回有效内容。"} 系统会按重试间隔再次尝试。`, "error");
     } else if (refreshSchedule || scheduleNeedsSave) {
       toast("配置与今日计划已更新", `已保存 ${keys.length + (scheduleNeedsSave ? 1 : 0)} 项修改`);
     } else {
