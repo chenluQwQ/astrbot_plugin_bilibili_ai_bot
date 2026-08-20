@@ -19,6 +19,16 @@
     "type": "string",
     "default": ""
   },
+  "COOKIE_AUTO_REFRESH": {
+    "description": "【系统】Cookie过期自动刷新",
+    "type": "bool",
+    "default": true
+  },
+  "COOKIE_CHECK_INTERVAL": {
+    "description": "【系统】Cookie检查间隔（小时）",
+    "type": "int",
+    "default": 6
+  },
   "OWNER_MID": {
     "description": "【账号】主人的B站UID（好感度与私信推荐）",
     "type": "string",
@@ -34,6 +44,12 @@
     "description": "【账号】主人的B站昵称（用于评论区@推荐）",
     "type": "string",
     "default": ""
+  },
+  "OWNER_QQ_UMO": {
+    "description": "【跨端活动与分享】主人 QQ 私聊 UMO",
+    "type": "string",
+    "default": "",
+    "hint": "用于当前活动同步和 QQ 推荐分享；在主人 QQ 私聊中执行 /biliUMO 可取得该值。"
   },
   "LLM_PROVIDER_ID": {
     "description": "【人设】选择用于回复/记忆压缩的LLM（留空用AstrBot默认）",
@@ -51,6 +67,18 @@
     "type": "text",
     "default": "你是一个活跃在B站的角色，会回复评论、看视频、发动态。用自然的口语化风格交流。",
     "hint": "无论是否启用 AstrBot 自带人设，都会作为 B站场景的附加设定追加；留空则不追加。"
+  },
+  "LLM_CIRCUIT_FAILURE_THRESHOLD": {
+    "description": "【模型可靠性】连续失败多少次后暂停调用",
+    "type": "int",
+    "default": 5,
+    "hint": "一次调用只请求一次，不在底层重复重试。达到阈值后进入冷却；设为 0 可关闭熔断。"
+  },
+  "LLM_CIRCUIT_COOLDOWN_SECONDS": {
+    "description": "【模型可靠性】熔断冷却时间（秒）",
+    "type": "int",
+    "default": 300,
+    "hint": "冷却结束后只放行一个探测请求；成功后恢复，失败则重新冷却。建议 60-1800 秒。"
   },
   "ENABLE_REPLY": {
     "description": "【功能开关】启用评论自动回复",
@@ -79,6 +107,33 @@
     "type": "list",
     "default": [],
     "hint": "这些UID不受回复概率和语义去重影响，一定会回复"
+  },
+  "ENABLE_INTEREST_BASED_REPLY": {
+    "description": "【回复筛选】让 Bot 只挑选自己感兴趣且值得回应的内容",
+    "type": "bool",
+    "default": true,
+    "hint": "先执行广告、低价值和重复内容过滤，再用轻量模型判断是否值得回复；主人、@和必回白名单仍优先。"
+  },
+  "INTEREST_SELECTION_PROMPT": {
+    "description": "【回复筛选】兴趣选择提示词",
+    "type": "text",
+    "default": "优先回应有明确问题、真诚交流、有趣观点、与角色兴趣或近期经历相关的内容。忽略无意义灌水、机械复读、引流广告、单纯求关注和无法形成自然交流的内容。",
+    "hint": "模型只输出是否值得回复的判断，不会直接生成评论回复。"
+  },
+  "FILTER_LOW_VALUE_MESSAGES": {
+    "description": "【回复筛选】过滤无意义或信息量过低的消息",
+    "type": "bool",
+    "default": true
+  },
+  "FILTER_DUPLICATE_MESSAGES": {
+    "description": "【回复筛选】过滤近期完全重复的消息",
+    "type": "bool",
+    "default": true
+  },
+  "FILTER_AD_MESSAGES": {
+    "description": "【回复筛选】过滤广告、引流和联系方式轰炸",
+    "type": "bool",
+    "default": true
   },
   "ENABLE_SIMILAR_SKIP": {
     "description": "【回复】启用语义相似去重（相似评论不重复回复）",
@@ -115,11 +170,53 @@
     ],
     "hint": "owner=只回复主人；whitelist=主人和回复白名单；all=回复所有通过安全检查的新私信。"
   },
+  "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS": {
+    "description": "【B站私信·回复】允许回复的额外UID白名单",
+    "type": "list",
+    "default": [],
+    "hint": "仅在回复范围为 whitelist 时生效；主人无需重复填写。"
+  },
   "PRIVATE_MESSAGE_AUTO_REPLY": {
     "description": "【B站私信·回复】自动回复安全私信",
     "type": "bool",
     "default": true,
     "hint": "使用当前 AstrBot 人设、BiliBot 记忆、用户画像和好感度回复；私信精确发送 new 可清空当前对话上下文。"
+  },
+  "PRIVATE_MESSAGE_POLL_INTERVAL": {
+    "description": "【B站私信·监听】活跃期检查间隔（秒）",
+    "type": "int",
+    "default": 60,
+    "hint": "收到新私信后的活跃期使用此间隔；默认60秒，也是允许的最短间隔。"
+  },
+  "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL": {
+    "description": "【B站私信·监听】空闲期检查间隔（秒）",
+    "type": "int",
+    "default": 180,
+    "hint": "长时间没有新私信时使用此间隔，默认180秒，且不会短于活跃期；可降低B站 -509 频控概率。"
+  },
+  "PRIVATE_MESSAGE_ACTIVE_WINDOW": {
+    "description": "【B站私信·监听】收到消息后保持活跃多久（秒）",
+    "type": "int",
+    "default": 600,
+    "hint": "收到新私信后在这段时间内使用活跃期检查间隔，默认600秒。遇到 -509 时仍会从10分钟开始倍增退避，最长60分钟，并在恢复后逐级缩短。"
+  },
+  "PRIVATE_MESSAGE_MAX_PER_POLL": {
+    "description": "【B站私信·回复】每轮最多处理几条",
+    "type": "int",
+    "default": 3,
+    "hint": "范围1-20，避免短时间大量调用LLM或拉黑接口。"
+  },
+  "PRIVATE_MESSAGE_MAX_MESSAGE_AGE": {
+    "description": "【B站私信·回复】只处理多少秒内的新消息",
+    "type": "int",
+    "default": 3600,
+    "hint": "最低60秒；用于避免网络或游标异常时处理很久以前的消息。"
+  },
+  "INTEREST_APPLY_TO_PRIVATE": {
+    "description": "【回复筛选】私信也使用兴趣选择",
+    "type": "bool",
+    "default": true,
+    "hint": "主人私信和上下文重置指令不受兴趣选择影响，但仍受安全规则和每日硬上限保护。"
   },
   "PRIVATE_MESSAGE_AUTO_WATCH_VIDEO": {
     "description": "【B站私信·视频】收到视频分享后先看完再回复",
@@ -151,23 +248,32 @@
     "default": 60,
     "hint": "成功发送后，同一视频在冷却期间不会再次私信给主人。"
   },
-  "PRIVATE_MESSAGE_POLL_INTERVAL": {
-    "description": "【B站私信·监听】活跃期检查间隔（秒）",
-    "type": "int",
-    "default": 60,
-    "hint": "收到新私信后的活跃期使用此间隔；默认60秒，也是允许的最短间隔。"
+  "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION": {
+    "description": "【B站私信·回复】私信回复补充提示词",
+    "type": "text",
+    "default": "",
+    "hint": "只追加到B站私信回复，不影响公开评论区提示词。"
   },
-  "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL": {
-    "description": "【B站私信·监听】空闲期检查间隔（秒）",
-    "type": "int",
-    "default": 180,
-    "hint": "长时间没有新私信时使用此间隔，默认180秒，且不会短于活跃期；可降低B站 -509 频控概率。"
+  "PRIVATE_MESSAGE_AUTO_BLOCK": {
+    "description": "【B站私信·安全】危险私信自动拉黑",
+    "type": "bool",
+    "default": true,
+    "hint": "不明外链、IP链接、疑似色情域名或成人引流会先隔离且不进入LLM；开启时再调用B站拉黑。"
   },
-  "PRIVATE_MESSAGE_ACTIVE_WINDOW": {
-    "description": "【B站私信·监听】收到消息后保持活跃多久（秒）",
-    "type": "int",
-    "default": 600,
-    "hint": "收到新私信后在这段时间内使用活跃期检查间隔，默认600秒。遇到 -509 时仍会从10分钟开始倍增退避，最长60分钟，并在恢复后逐级缩短。"
+  "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS": {
+    "description": "【B站私信·安全】永不因私信自动拉黑的UID",
+    "type": "list",
+    "default": [],
+    "hint": "主人、Bot自己及全局拉黑白名单已自动受保护。"
+  },
+  "PRIVATE_MESSAGE_TRUSTED_DOMAINS": {
+    "description": "【B站私信·安全】允许出现的链接域名",
+    "type": "list",
+    "default": [
+      "bilibili.com",
+      "b23.tv"
+    ],
+    "hint": "允许该域名及其子域名；其他可识别外链默认视为不明链接并隔离。安全检查不会打开网址。"
   },
   "ENABLE_LIVE_DANMAKU_REPLY": {
     "description": "【直播互动·总开关】进入指定直播间参与弹幕互动",
@@ -235,50 +341,47 @@
     "default": true,
     "hint": "允许模型调用 bili_parse_video，将解析卡和视频直接发送到当前会话；还受 LLM 工具总开关控制。可用 /bili开关 LLM解析 切换。"
   },
-  "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS": {
-    "description": "【B站私信·回复】允许回复的额外UID白名单",
-    "type": "list",
-    "default": [],
-    "hint": "仅在回复范围为 whitelist 时生效；主人无需重复填写。"
-  },
-  "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION": {
-    "description": "【B站私信·回复】私信回复补充提示词",
-    "type": "text",
-    "default": "",
-    "hint": "只追加到B站私信回复，不影响公开评论区提示词。"
-  },
-  "PRIVATE_MESSAGE_MAX_PER_POLL": {
-    "description": "【B站私信·回复】每轮最多处理几条",
+  "BILI_SHARE_PENDING_MAX_AGE": {
+    "description": "【分享解析】上一个待解析视频保留秒数",
     "type": "int",
-    "default": 3,
-    "hint": "范围1-20，避免短时间大量调用LLM或拉黑接口。"
+    "default": 1800,
+    "hint": "自动解析关闭时仍会按会话记住最近出现的B站视频，供回复后发送 /bili解析 或让 LLM 解析“上面那个”；默认保留30分钟。"
   },
-  "PRIVATE_MESSAGE_MAX_MESSAGE_AGE": {
-    "description": "【B站私信·回复】只处理多少秒内的新消息",
-    "type": "int",
-    "default": 3600,
-    "hint": "最低60秒；用于避免网络或游标异常时处理很久以前的消息。"
-  },
-  "PRIVATE_MESSAGE_AUTO_BLOCK": {
-    "description": "【B站私信·安全】危险私信自动拉黑",
+  "BILI_SHARE_PARSE_SEND_VIDEO": {
+    "description": "【分享解析】解析后发送原视频/切片",
     "type": "bool",
     "default": true,
-    "hint": "不明外链、IP链接、疑似色情域名或成人引流会先隔离且不进入LLM；开启时再调用B站拉黑。"
+    "hint": "开启后会尝试用 yt-dlp 下载原视频，并按配置切成群聊可发送的回放切片；失败时只发解析卡和链接。"
   },
-  "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS": {
-    "description": "【B站私信·安全】永不因私信自动拉黑的UID",
-    "type": "list",
-    "default": [],
-    "hint": "主人、Bot自己及全局拉黑白名单已自动受保护。"
+  "BILI_SHARE_PARSE_SEGMENT_SECONDS": {
+    "description": "【分享解析】原视频切片秒数",
+    "type": "int",
+    "default": 180,
+    "hint": "原视频过长或过大时，每段切多少秒；建议 120-300。填 0 表示不分段，直接尝试发送整段视频。"
   },
-  "PRIVATE_MESSAGE_TRUSTED_DOMAINS": {
-    "description": "【B站私信·安全】允许出现的链接域名",
-    "type": "list",
-    "default": [
-      "bilibili.com",
-      "b23.tv"
-    ],
-    "hint": "允许该域名及其子域名；其他可识别外链默认视为不明链接并隔离。安全检查不会打开网址。"
+  "BILI_SHARE_PARSE_MAX_SEGMENTS": {
+    "description": "【分享解析】每次最多发送几个切片",
+    "type": "int",
+    "default": 5,
+    "hint": "避免群聊刷屏；仅在启用分段时生效。后续内容会提示用户可调大此值。"
+  },
+  "BILI_SHARE_PARSE_MAX_VIDEO_MB": {
+    "description": "【分享解析】单个视频文件大小阈值MB",
+    "type": "int",
+    "default": 80,
+    "hint": "超过此大小会尝试切片；不同 QQ 适配器可能还有自己的上传大小限制。"
+  },
+  "BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT": {
+    "description": "【分享解析】原视频下载最高分辨率",
+    "type": "int",
+    "default": 720,
+    "hint": "下载原视频时优先尝试低清格式，例如 360p、480p、720p；默认 720p。实际可用清晰度由 B站返回决定。"
+  },
+  "BILI_SHARE_PARSE_COOLDOWN": {
+    "description": "【分享解析】同一视频重复解析冷却秒数",
+    "type": "int",
+    "default": 600,
+    "hint": "同一会话解析过的同一视频至少10分钟内不会重复解析；可设置更长时间，但低于600秒仍按600秒执行。"
   },
   "ENABLE_AFFECTION": {
     "description": "【功能开关】启用好感度系统",
@@ -319,6 +422,42 @@
     "description": "【好感度提示词】冷淡（负分）",
     "type": "text",
     "default": "这个人多次恶意攻击你。平静坚定划清界限，回复极简短，不恶语相向。"
+  },
+  "VIDEO_VISUAL_ANALYSIS_POLICY": {
+    "description": "【视频分析】视觉分析策略",
+    "type": "string",
+    "default": "when_text_insufficient",
+    "options": [
+      "when_text_insufficient",
+      "always"
+    ],
+    "hint": "when_text_insufficient=优先标题、简介、字幕、标签和热评；信息不足时才下载截帧/直读。always=每次都尝试视觉分析，成本较高。"
+  },
+  "VIDEO_CACHE_TTL_MINUTES": {
+    "description": "【视频分析】完整视频分析缓存保留分钟数",
+    "type": "int",
+    "default": 30,
+    "min": 5,
+    "max": 1440,
+    "hint": "到期后删除完整分析，仅保留简短摘要索引供评论回复，避免重复观看和长期上下文占用。"
+  },
+  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
+    "description": "【视频分析】保留视频长期记忆",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
+  },
+  "VIDEO_SEGMENT_MINUTES": {
+    "description": "【视频分析】长视频自动切片长度（分钟/段）",
+    "type": "int",
+    "default": 5,
+    "hint": "超过此时长的视频会按段分析再整合。默认 5 分钟较稳，建议 3~8 分钟；越短越细但 token 消耗越大。"
+  },
+  "VIDEO_SEGMENT_MAX_COUNT": {
+    "description": "【视频分析】长视频最多分析多少段",
+    "type": "int",
+    "default": 10,
+    "hint": "超长视频最多分析几段，超出部分跳过。建议不要超过 10 段，避免 token 和耗时过高。"
   },
   "ENABLE_PROACTIVE": {
     "description": "【主动看片·总开关】启用主动看视频与互动",
@@ -472,17 +611,11 @@
     "default": "",
     "hint": "例如：评论风格偏毒舌但不恶意。"
   },
-  "OWNER_QQ_UMO": {
-    "description": "【跨端活动与分享】主人 QQ 私聊 UMO",
-    "type": "string",
-    "default": "",
-    "hint": "用于当前活动同步和 QQ 推荐分享；在主人 QQ 私聊中执行 /biliUMO 可取得该值。"
-  },
-  "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS": {
-    "description": "【跨端活动与分享】向已绑定主人同步当前活动",
+  "ENABLE_OWNER_RECOMMEND": {
+    "description": "【主动行为·给主人推荐】启用给主人分享",
     "type": "bool",
     "default": true,
-    "hint": "仅向已绑定且对应 OWNER_MID 的主人 QQ 提供短期活动状态；任务结束后立即清除，不写入长期记忆。"
+    "hint": "关闭后不会向主人发送私信或评论区推荐；分享方式由下方选项决定。"
   },
   "RECOMMEND_OWNER_DELIVERY": {
     "description": "【主动行为·给主人推荐】发送方式（B站 / QQ）",
@@ -497,12 +630,6 @@
       "all"
     ],
     "hint": "private_message=B站私信；comment=评论区@主人；both=B站两种都发；qq_private=QQ私信；bili_private_and_qq=B站私信+QQ；all=全部通道。QQ 使用 OWNER_QQ_UMO。"
-  },
-  "ENABLE_OWNER_RECOMMEND": {
-    "description": "【主动行为·给主人推荐】启用给主人分享",
-    "type": "bool",
-    "default": true,
-    "hint": "关闭后不会向主人发送私信或评论区推荐；分享方式由下方选项决定。"
   },
   "RECOMMEND_OWNER_MIN_SCORE": {
     "description": "【主动行为·给主人推荐】最低视频评分",
@@ -526,80 +653,11 @@
     "default": "",
     "hint": "例如：推荐语要简短可爱，带点撒娇。会影响B站私信分享或评论区@主人时的文案风格。"
   },
-  "VIDEO_VISUAL_ANALYSIS_POLICY": {
-    "description": "【视频分析】视觉分析策略",
-    "type": "string",
-    "default": "when_text_insufficient",
-    "options": ["when_text_insufficient", "always"],
-    "hint": "when_text_insufficient=优先标题、简介、字幕、标签和热评；信息不足时才下载截帧/直读。always=每次都尝试视觉分析，成本较高。"
-  },
-  "VIDEO_CACHE_TTL_MINUTES": {
-    "description": "【视频分析】完整视频分析缓存保留分钟数",
-    "type": "int",
-    "default": 30,
-    "min": 5,
-    "max": 1440,
-    "hint": "到期后删除完整分析，仅保留简短摘要索引供评论回复，避免重复观看和长期上下文占用。"
-  },
-  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
-    "description": "【视频分析】保留视频长期记忆",
-    "type": "bool",
-    "default": false,
-    "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
-  },
-  "VIDEO_SEGMENT_MINUTES": {
-    "description": "【视频分析】长视频自动切片长度（分钟/段）",
-    "type": "int",
-    "default": 5,
-    "hint": "超过此时长的视频会按段分析再整合。默认 5 分钟较稳，建议 3~8 分钟；越短越细但 token 消耗越大。"
-  },
-  "VIDEO_SEGMENT_MAX_COUNT": {
-    "description": "【视频分析】长视频最多分析多少段",
-    "type": "int",
-    "default": 10,
-    "hint": "超长视频最多分析几段，超出部分跳过。建议不要超过 10 段，避免 token 和耗时过高。"
-  },
-  "BILI_SHARE_PENDING_MAX_AGE": {
-    "description": "【分享解析】上一个待解析视频保留秒数",
-    "type": "int",
-    "default": 1800,
-    "hint": "自动解析关闭时仍会按会话记住最近出现的B站视频，供回复后发送 /bili解析 或让 LLM 解析“上面那个”；默认保留30分钟。"
-  },
-  "BILI_SHARE_PARSE_SEND_VIDEO": {
-    "description": "【分享解析】解析后发送原视频/切片",
+  "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS": {
+    "description": "【跨端活动与分享】向已绑定主人同步当前活动",
     "type": "bool",
     "default": true,
-    "hint": "开启后会尝试用 yt-dlp 下载原视频，并按配置切成群聊可发送的回放切片；失败时只发解析卡和链接。"
-  },
-  "BILI_SHARE_PARSE_SEGMENT_SECONDS": {
-    "description": "【分享解析】原视频切片秒数",
-    "type": "int",
-    "default": 180,
-    "hint": "原视频过长或过大时，每段切多少秒；建议 120-300。填 0 表示不分段，直接尝试发送整段视频。"
-  },
-  "BILI_SHARE_PARSE_MAX_SEGMENTS": {
-    "description": "【分享解析】每次最多发送几个切片",
-    "type": "int",
-    "default": 5,
-    "hint": "避免群聊刷屏；仅在启用分段时生效。后续内容会提示用户可调大此值。"
-  },
-  "BILI_SHARE_PARSE_MAX_VIDEO_MB": {
-    "description": "【分享解析】单个视频文件大小阈值MB",
-    "type": "int",
-    "default": 80,
-    "hint": "超过此大小会尝试切片；不同 QQ 适配器可能还有自己的上传大小限制。"
-  },
-  "BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT": {
-    "description": "【分享解析】原视频下载最高分辨率",
-    "type": "int",
-    "default": 720,
-    "hint": "下载原视频时优先尝试低清格式，例如 360p、480p、720p；默认 720p。实际可用清晰度由 B站返回决定。"
-  },
-  "BILI_SHARE_PARSE_COOLDOWN": {
-    "description": "【分享解析】同一视频重复解析冷却秒数",
-    "type": "int",
-    "default": 600,
-    "hint": "同一会话解析过的同一视频至少10分钟内不会重复解析；可设置更长时间，但低于600秒仍按600秒执行。"
+    "hint": "仅向已绑定且对应 OWNER_MID 的主人 QQ 提供短期活动状态；任务结束后立即清除，不写入长期记忆。"
   },
   "SPECIAL_FOLLOW_ENABLED": {
     "description": "【特别关注】启用定时特关巡视（独立于主动刷视频）",
@@ -685,6 +743,41 @@
     "type": "bool",
     "default": true
   },
+  "ENABLE_DYNAMIC_WATCH": {
+    "description": "【关注动态巡视·总开关】查看关注者的新动态图文",
+    "type": "bool",
+    "default": false,
+    "hint": "只读取公开动态；每条新动态使用独立模型调用，长期记忆仅保存压缩文字摘要，不保存图片、URL 或 base64。"
+  },
+  "DYNAMIC_WATCH_TIMES_COUNT": {
+    "description": "【关注动态巡视】自主计划每日最多巡视次数",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 12
+  },
+  "DYNAMIC_WATCH_DAILY_LIMIT": {
+    "description": "【关注动态巡视】每天最多查看新动态数",
+    "type": "int",
+    "default": 12,
+    "min": 0,
+    "max": 100
+  },
+  "DYNAMIC_WATCH_SPECIAL_ONLY": {
+    "description": "【关注动态巡视】只查看特别关注用户",
+    "type": "bool",
+    "default": false
+  },
+  "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS": {
+    "description": "【关注动态巡视】同时查看视频投稿动态",
+    "type": "bool",
+    "default": true
+  },
+  "DYNAMIC_WATCH_INTEREST_PROMPT": {
+    "description": "【关注动态巡视】兴趣判断补充提示词",
+    "type": "text",
+    "default": "挑选真正值得留意、适合之后与主人分享或形成个人记忆的动态；忽略广告、抽奖、复读与无实质内容的转发。"
+  },
   "ENABLE_DYNAMIC": {
     "description": "【功能开关】启用自动发动态",
     "type": "bool",
@@ -717,6 +810,45 @@
     "type": "text",
     "default": "",
     "hint": "例如：动态风格偏文艺，多用比喻。"
+  },
+  "ENABLE_DAILY_SUMMARY": {
+    "description": "【总结·日总结】启用每日总结",
+    "type": "bool",
+    "default": false,
+    "hint": "在休眠时段、日终清算后生成当天B站生活总结。"
+  },
+  "DAILY_SUMMARY_HOUR": {
+    "description": "【总结·日总结】生成时间（0-23点）",
+    "type": "int",
+    "default": 3,
+    "min": 0,
+    "max": 23
+  },
+  "DAILY_SUMMARY_MODE": {
+    "description": "【总结·日总结】投递方式",
+    "type": "string",
+    "default": "archive",
+    "options": [
+      "archive",
+      "qq",
+      "dynamic",
+      "both"
+    ]
+  },
+  "DAILY_SUMMARY_QQ_UMO": {
+    "description": "【总结·日总结】QQ投递目标 UMO",
+    "type": "string",
+    "default": ""
+  },
+  "DAILY_SUMMARY_RENDER_IMAGE": {
+    "description": "【总结·日总结】渲染为图片",
+    "type": "bool",
+    "default": true
+  },
+  "CUSTOM_DAILY_INSTRUCTION": {
+    "description": "【总结·日总结】补充提示词",
+    "type": "text",
+    "default": "用自然、简短的口吻回顾今天在B站真正发生的事情，不虚构经历，也不泄露用户隐私。"
   },
   "ENABLE_WEEKLY_SUMMARY": {
     "description": "【周总结】启用每周总结（回顾一周的B站生活）",
@@ -756,12 +888,6 @@
     "type": "text",
     "default": ""
   },
-  "ENABLE_LLM_TOOLS": {
-    "description": "【功能开关】启用 LLM 工具（B站查询/看视频/搜索等函数调用）",
-    "type": "bool",
-    "default": true,
-    "hint": "关闭后所有已注册工具直接返回提示不执行"
-  },
   "ENABLE_PERSONALITY_EVOLUTION": {
     "description": "【功能开关】启用性格演化（每日反思）",
     "type": "bool",
@@ -784,6 +910,434 @@
     "type": "text",
     "default": "",
     "hint": "可用变量：{old_traits} {old_habits} {old_opinions} {recent_texts} {owner_name}。回复必须为JSON格式含 new_trait/trigger/speech_habits/opinions/reflection 字段"
+  },
+  "ENABLE_AUTONOMOUS_DAILY_PLAN": {
+    "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",
+    "type": "bool",
+    "default": false,
+    "hint": "计划只会在管理员设定的回复、私信、动态和主动行为范围限制内调整次数与时间。"
+  },
+  "AUTONOMOUS_ACTIVITY_LEVEL": {
+    "description": "【自主安排】今日基础活跃度（0-100）",
+    "type": "int",
+    "default": 55,
+    "hint": "0-24=低迷，25-49=平稳，50-74=活跃，75-100=高能；Bot 可在此基础上结合人设生成今日计划。",
+    "min": 0,
+    "max": 100
+  },
+  "AUTONOMOUS_PLAN_PROMPT": {
+    "description": "【自主安排】每日计划补充提示词",
+    "type": "text",
+    "default": "结合角色人设、当前心情和活跃度，安排自然、不机械、不刷屏的一天。优先保证作息合理，避免连续发布或短时间密集互动；低价值内容可以不回复。",
+    "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到范围限制。"
+  },
+  "AUTONOMOUS_PLAN_GENERATION_MODE": {
+    "description": "【自主安排】每日计划生成时机",
+    "type": "string",
+    "default": "after_sleep",
+    "options": [
+      "after_sleep",
+      "fixed_time"
+    ],
+    "hint": "after_sleep=休眠结束后按偏移生成；fixed_time=每天在指定时刻生成。"
+  },
+  "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES": {
+    "description": "【自主安排】休眠结束后多少分钟生成计划",
+    "type": "int",
+    "default": 5,
+    "min": 0,
+    "max": 180,
+    "hint": "仅在“休眠结束后”模式生效，默认 5 分钟。错过时刻会在醒来后的下一轮补生成。"
+  },
+  "AUTONOMOUS_PLAN_GENERATION_TIME": {
+    "description": "【自主安排】每日计划固定生成时刻",
+    "type": "string",
+    "default": "08:05",
+    "hint": "仅在“固定时刻”模式生效，格式 HH:MM。错过时刻会在下一轮补生成。"
+  },
+  "AUTONOMOUS_PLAN_RETRY_MINUTES": {
+    "description": "【自主安排】模型生成失败重试间隔（分钟）",
+    "type": "int",
+    "default": 15,
+    "min": 5,
+    "max": 360,
+    "hint": "失败时保留安全回退计划，并按此间隔重新调用默认对话模型；成功后替换回退。"
+  },
+  "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES": {
+    "description": "【自主安排】主动浏览默认时间段长度（分钟）",
+    "type": "int",
+    "default": 90,
+    "min": 30,
+    "max": 360,
+    "hint": "自主计划会把主动浏览生成为时间段，并在段内确定一次实际触发时刻。"
+  },
+  "SLEEP_START": {
+    "description": "【系统】休眠开始时间（0-23）",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 23
+  },
+  "SLEEP_END": {
+    "description": "【系统】休眠结束时间（0-23）",
+    "type": "int",
+    "default": 8,
+    "min": 0,
+    "max": 23
+  },
+  "AUTONOMOUS_REPLY_DAILY_MIN": {
+    "description": "【自主安排·范围】每日评论回复下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 500,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_REPLY_DAILY_MAX": {
+    "description": "【自主安排·范围】每日评论回复上限",
+    "type": "int",
+    "default": 80,
+    "min": 0,
+    "max": 500,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+  },
+  "AUTONOMOUS_PRIVATE_DAILY_MIN": {
+    "description": "【自主安排·范围】每日私信回复下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 200,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_PRIVATE_DAILY_MAX": {
+    "description": "【自主安排·范围】每日私信回复上限",
+    "type": "int",
+    "default": 30,
+    "min": 0,
+    "max": 200,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+  },
+  "AUTONOMOUS_DYNAMIC_DAILY_MIN": {
+    "description": "【自主安排·范围】每日发布动态下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 20,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_DYNAMIC_DAILY_MAX": {
+    "description": "【自主安排·范围】每日发布动态上限",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 20,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+  },
+  "AUTONOMOUS_PROACTIVE_DAILY_MIN": {
+    "description": "【自主安排·范围】每日主动行为下限",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 30,
+    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+  },
+  "AUTONOMOUS_PROACTIVE_DAILY_MAX": {
+    "description": "【自主安排·范围】每日主动行为上限",
+    "type": "int",
+    "default": 4,
+    "min": 0,
+    "max": 30,
+    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+  },
+  "AUTONOMOUS_MIN_ACTION_GAP_MINUTES": {
+    "description": "【自主安排·硬约束】主动事件最小间隔（分钟）",
+    "type": "int",
+    "default": 45,
+    "hint": "自动计划中的主动看片、动态等时刻至少保持该间隔，降低平台风控风险。",
+    "min": 15,
+    "max": 720
+  },
+  "FIXED_REPLY_DAILY_TARGET": {
+    "description": "【固定计划】每日评论回复目标数量",
+    "type": "int",
+    "default": 30,
+    "hint": "仅作为固定计划目标；无合适评论时不会为了凑数回复，且始终受每日范围上限保护。",
+    "min": 0,
+    "max": 500
+  },
+  "FIXED_PRIVATE_DAILY_TARGET": {
+    "description": "【固定计划】每日私信回复目标数量",
+    "type": "int",
+    "default": 10,
+    "hint": "仅作为固定计划目标；无有效私信时不会凑数回复，且始终受每日范围上限保护。",
+    "min": 0,
+    "max": 200
+  },
+  "FIXED_PROACTIVE_WINDOWS": {
+    "description": "【固定计划】主动浏览时间段",
+    "type": "list",
+    "default": [
+      "10:00-11:30",
+      "19:00-21:00"
+    ],
+    "hint": "格式 HH:MM-HH:MM。Bot 会在每个时间段内确定一次触发时刻；可在事件环拖动整体或两端调整。"
+  },
+  "FIXED_PROACTIVE_TIMES": {
+    "description": "【固定计划】主动浏览准确时刻",
+    "type": "list",
+    "default": [
+      "10:30",
+      "19:30"
+    ],
+    "hint": "旧版兼容字段；WebUI 已改用主动浏览时间段。",
+    "deprecated": true
+  },
+  "FIXED_DYNAMIC_TIMES": {
+    "description": "【固定计划】发布动态准确时刻",
+    "type": "list",
+    "default": [
+      "18:30"
+    ],
+    "hint": "仅在开启发布动态且使用固定计划时执行。"
+  },
+  "FIXED_DYNAMIC_WATCH_TIMES": {
+    "description": "【固定计划】关注动态巡视准确时刻",
+    "type": "list",
+    "default": [
+      "11:30",
+      "20:30"
+    ],
+    "hint": "仅在开启关注动态巡视且使用固定计划时执行。"
+  },
+  "FIXED_BANGUMI_TIMES": {
+    "description": "【固定计划】追番准确时刻",
+    "type": "list",
+    "default": [
+      "21:00"
+    ],
+    "hint": "仅在开启番剧与主动追番时执行。"
+  },
+  "FIXED_SPECIAL_FOLLOW_TIMES": {
+    "description": "【固定计划】特别关注巡视准确时刻",
+    "type": "list",
+    "default": [
+      "12:00",
+      "20:00"
+    ],
+    "hint": "仅在开启特别关注巡视时执行。"
+  },
+  "AUTONOMOUS_REPLY_DAILY_LIMIT": {
+    "description": "【兼容旧配置】每日评论回复旧版单值上限（请改用下限/上限）",
+    "type": "int",
+    "default": 80,
+    "min": 0,
+    "max": 500,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_PRIVATE_DAILY_LIMIT": {
+    "description": "【兼容旧配置】每日私信回复旧版单值上限（请改用下限/上限）",
+    "type": "int",
+    "default": 30,
+    "min": 0,
+    "max": 200,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_DYNAMIC_DAILY_LIMIT": {
+    "description": "【兼容旧配置】每日发布动态旧版单值上限（请改用下限/上限）",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 20,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": {
+    "description": "【兼容旧配置】每日主动行为旧版单值上限（请改用下限/上限）",
+    "type": "int",
+    "default": 4,
+    "min": 0,
+    "max": 30,
+    "deprecated": true,
+    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
+  },
+  "BEHAVIOR_BUDGET_ENABLED": {
+    "description": "【行为调度·总开关】统一限制主动看片、评论、私信、直播和动态动作",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后所有对外动作先进入同一队列，并在 SQLite 中原子预留额度；明确失败会退还，发送结果未知时不会盲目重试。"
+  },
+  "BEHAVIOR_GLOBAL_MAX_PER_MINUTE": {
+    "description": "【行为调度·全局】每分钟最多执行多少个对外动作",
+    "type": "int",
+    "default": 12,
+    "min": 0,
+    "max": 120,
+    "hint": "评论、私信、直播弹幕、动态及主动互动共用。0表示不限制；各功能自己的更小上限仍会生效。"
+  },
+  "BEHAVIOR_GLOBAL_DAILY_LIMIT": {
+    "description": "【行为调度·全局】每日最多执行多少个对外动作",
+    "type": "int",
+    "default": 200,
+    "min": 0,
+    "max": 5000,
+    "hint": "防止多个功能分别未超限、合计却刷屏。0表示不限制。"
+  },
+  "BEHAVIOR_ACTION_TIMEOUT_SECONDS": {
+    "description": "【行为调度·队列】单个发送动作超时秒数",
+    "type": "int",
+    "default": 45,
+    "min": 5,
+    "max": 180,
+    "hint": "超时会标为“发送结果未知”并停止自动重试，避免平台已收到但 Bot 再发一次。"
+  },
+  "BILI_TOOL_ISOLATION_ENABLED": {
+    "description": "【安全与工具】保持 B站端与 AstrBot/QQ 工具权限隔离",
+    "type": "bool",
+    "default": true,
+    "hint": "强烈建议保持开启。B站外部内容不会获得 AstrBot 命令、文件、执行或跨平台管理权限。"
+  },
+  "ENABLE_LLM_TOOLS": {
+    "description": "【功能开关】启用 LLM 工具（B站查询/看视频/搜索等函数调用）",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后所有已注册工具直接返回提示不执行"
+  },
+  "BILI_ALLOW_SEARCH_TOOLS": {
+    "description": "【安全与工具】允许 B站端私信回复使用只读查询工具",
+    "type": "bool",
+    "default": true,
+    "hint": "仅允许下方白名单中的只读查询；写操作、命令和系统工具始终默认拒绝。"
+  },
+  "BILI_TOOL_ALLOWLIST": {
+    "description": "【安全与工具】B站端私信回复工具白名单",
+    "type": "list",
+    "default": [
+      "bili_up_info",
+      "bili_video_search",
+      "bili_search_and_watch",
+      "web_search",
+      "get_up_info",
+      "search_bilibili",
+      "watch_video"
+    ],
+    "hint": "只控制B站私信收到消息后，私信回复模型可以按需调用哪些只读查询工具；不控制 QQ/AstrBot 聊天会话中的插件工具。写操作、私域记忆和复合工具不会进入此白名单。勾选不会创建自动任务，未知或不兼容名称会被忽略。"
+  },
+  "BILI_PROMPT_INJECTION_DEFENSE": {
+    "description": "【安全与工具】启用外部内容提示注入防护",
+    "type": "bool",
+    "default": true,
+    "hint": "将评论、私信、视频标题和搜索结果视为不可信数据，并阻止其改变系统指令或申请额外权限。"
+  },
+  "BILI_TOOL_AUDIT_ENABLED": {
+    "description": "【安全与工具】记录工具请求与拒绝原因",
+    "type": "bool",
+    "default": true
+  },
+  "MEMORY_ISOLATION_MODE": {
+    "description": "【记忆隔离】跨平台记忆策略",
+    "type": "string",
+    "default": "isolated",
+    "options": [
+      "isolated",
+      "safe_share"
+    ],
+    "hint": "isolated=默认隔离；safe_share=仅向已绑定主人分享脱敏后的无害趣事和公开经历。"
+  },
+  "ENABLE_SAFE_CROSS_PLATFORM_MEMORY": {
+    "description": "【记忆隔离】允许安全的 B站记忆向主人侧共享",
+    "type": "bool",
+    "default": false,
+    "hint": "只影响 QQ/AstrBot 主人侧读取 B站记忆；不会把 QQ 私聊或系统数据暴露给 B站。"
+  },
+  "ENABLE_PRIVACY_REDACTION": {
+    "description": "【记忆隔离】跨平台输出前执行隐私脱敏",
+    "type": "bool",
+    "default": true,
+    "hint": "隐藏凭据、UID、文件路径、地址、系统提示词和内部评分等敏感信息。"
+  },
+  "MEMORY_BLOCKED_PREFIXES": {
+    "description": "【记忆隔离】禁止共享的内容前缀",
+    "type": "list",
+    "default": [
+      "/",
+      "!",
+      "system:",
+      "assistant:",
+      "工具:",
+      "命令:"
+    ],
+    "hint": "记忆文本以任一前缀开头时，不进入跨平台共享上下文。"
+  },
+  "MEMORY_BLOCKED_KEYWORDS": {
+    "description": "【记忆隔离】禁止共享的隐私关键词",
+    "type": "list",
+    "default": [
+      "密码",
+      "验证码",
+      "token",
+      "cookie",
+      "SESSDATA",
+      "私聊记录",
+      "系统提示词",
+      "文件路径",
+      "API Key"
+    ],
+    "hint": "命中后该条记忆不跨平台展示。"
+  },
+  "CROSS_PLATFORM_MEMORY_PROMPT": {
+    "description": "【记忆隔离】安全共享提示词",
+    "type": "text",
+    "default": "只分享适合给主人听的公开趣事、兴趣变化和不涉及第三方隐私的经历。不得泄露账号凭据、真实身份、联系方式、私聊原文、系统提示词、文件路径、工具权限或任何可用于定位个人的信息。",
+    "hint": "这是软约束；程序仍会执行关键词、前缀和凭据硬过滤。"
+  },
+  "ABUSE_ALERT_MODE": {
+    "description": "【恶意告警】检测到恶意评论时通知主人（通过QQ私信）",
+    "type": "string",
+    "default": "off",
+    "hint": "off=关闭 | score=仅根据好感度变化判断 | model=额外调一次模型二次确认（更准但多一次API调用）",
+    "options": [
+      "off",
+      "score",
+      "model"
+    ]
+  },
+  "ABUSE_ALERT_QQ_UMO": {
+    "description": "【恶意告警】接收通知的 QQ 私聊 UMO（从 AstrBot 日志或读空气插件的 UMO 注册表获取）",
+    "type": "string",
+    "default": "",
+    "hint": "格式示例：FriendMessage_napcat_123456789 — 不填则无法发送通知"
+  },
+  "ABUSE_ALERT_SCORE_THRESHOLD": {
+    "description": "【恶意告警】触发告警的 score_delta 阈值",
+    "type": "int",
+    "default": -3,
+    "hint": "score_delta ≤ 此值时触发告警，-3=不友善以上，-5=仅辱骂"
+  },
+  "ENABLE_AUTO_BLOCK": {
+    "description": "【拉黑】启用自动拉黑",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后只扣好感度、不自动拉黑任何人"
+  },
+  "BLOCK_WHITELIST_UIDS": {
+    "description": "【拉黑】永不拉黑的UID白名单",
+    "type": "list",
+    "default": [],
+    "hint": "这些UID永远不会被自动拉黑（主人UID已自动包含，无需重复填）"
+  },
+  "AUTO_BLOCK_SCORE": {
+    "description": "【拉黑】好感度低于此值自动拉黑",
+    "type": "int",
+    "default": -30,
+    "hint": "好感度 ≤ 此值时自动拉黑。设成很低(如-999)可基本关闭按分数拉黑"
+  },
+  "AUTO_BLOCK_NEGATIVE_TIMES": {
+    "description": "【拉黑】恶意评论累计次数达标自动拉黑",
+    "type": "int",
+    "default": 5,
+    "hint": "同一人恶意评论(score_delta≤-3)累计达此次数自动拉黑。0=不按次数拉黑"
   },
   "EMBED_API_KEY": {
     "description": "【高级·记忆】Embedding API Key（记忆向量化用）",
@@ -983,544 +1537,5 @@
     "type": "int",
     "default": 5,
     "hint": "建议 3-8"
-  },
-  "ABUSE_ALERT_MODE": {
-    "description": "【恶意告警】检测到恶意评论时通知主人（通过QQ私信）",
-    "type": "string",
-    "default": "off",
-    "hint": "off=关闭 | score=仅根据好感度变化判断 | model=额外调一次模型二次确认（更准但多一次API调用）",
-    "options": [
-      "off",
-      "score",
-      "model"
-    ]
-  },
-  "ABUSE_ALERT_QQ_UMO": {
-    "description": "【恶意告警】接收通知的 QQ 私聊 UMO（从 AstrBot 日志或读空气插件的 UMO 注册表获取）",
-    "type": "string",
-    "default": "",
-    "hint": "格式示例：FriendMessage_napcat_123456789 — 不填则无法发送通知"
-  },
-  "ABUSE_ALERT_SCORE_THRESHOLD": {
-    "description": "【恶意告警】触发告警的 score_delta 阈值",
-    "type": "int",
-    "default": -3,
-    "hint": "score_delta ≤ 此值时触发告警，-3=不友善以上，-5=仅辱骂"
-  },
-  "ENABLE_AUTO_BLOCK": {
-    "description": "【拉黑】启用自动拉黑",
-    "type": "bool",
-    "default": true,
-    "hint": "关闭后只扣好感度、不自动拉黑任何人"
-  },
-  "BLOCK_WHITELIST_UIDS": {
-    "description": "【拉黑】永不拉黑的UID白名单",
-    "type": "list",
-    "default": [],
-    "hint": "这些UID永远不会被自动拉黑（主人UID已自动包含，无需重复填）"
-  },
-  "AUTO_BLOCK_SCORE": {
-    "description": "【拉黑】好感度低于此值自动拉黑",
-    "type": "int",
-    "default": -30,
-    "hint": "好感度 ≤ 此值时自动拉黑。设成很低(如-999)可基本关闭按分数拉黑"
-  },
-  "AUTO_BLOCK_NEGATIVE_TIMES": {
-    "description": "【拉黑】恶意评论累计次数达标自动拉黑",
-    "type": "int",
-    "default": 5,
-    "hint": "同一人恶意评论(score_delta≤-3)累计达此次数自动拉黑。0=不按次数拉黑"
-  },
-  "SLEEP_START": {
-    "description": "【系统】休眠开始时间（0-23）",
-    "type": "int",
-    "default": 2,
-    "min": 0,
-    "max": 23
-  },
-  "SLEEP_END": {
-    "description": "【系统】休眠结束时间（0-23）",
-    "type": "int",
-    "default": 8,
-    "min": 0,
-    "max": 23
-  },
-  "COOKIE_AUTO_REFRESH": {
-    "description": "【系统】Cookie过期自动刷新",
-    "type": "bool",
-    "default": true
-  },
-  "COOKIE_CHECK_INTERVAL": {
-    "description": "【系统】Cookie检查间隔（小时）",
-    "type": "int",
-    "default": 6
-  },
-  "ENABLE_INTEREST_BASED_REPLY": {
-    "description": "【回复筛选】让 Bot 只挑选自己感兴趣且值得回应的内容",
-    "type": "bool",
-    "default": true,
-    "hint": "先执行广告、低价值和重复内容过滤，再用轻量模型判断是否值得回复；主人、@和必回白名单仍优先。"
-  },
-  "INTEREST_SELECTION_PROMPT": {
-    "description": "【回复筛选】兴趣选择提示词",
-    "type": "text",
-    "default": "优先回应有明确问题、真诚交流、有趣观点、与角色兴趣或近期经历相关的内容。忽略无意义灌水、机械复读、引流广告、单纯求关注和无法形成自然交流的内容。",
-    "hint": "模型只输出是否值得回复的判断，不会直接生成评论回复。"
-  },
-  "FILTER_LOW_VALUE_MESSAGES": {
-    "description": "【回复筛选】过滤无意义或信息量过低的消息",
-    "type": "bool",
-    "default": true
-  },
-  "FILTER_DUPLICATE_MESSAGES": {
-    "description": "【回复筛选】过滤近期完全重复的消息",
-    "type": "bool",
-    "default": true
-  },
-  "FILTER_AD_MESSAGES": {
-    "description": "【回复筛选】过滤广告、引流和联系方式轰炸",
-    "type": "bool",
-    "default": true
-  },
-  "INTEREST_APPLY_TO_PRIVATE": {
-    "description": "【回复筛选】私信也使用兴趣选择",
-    "type": "bool",
-    "default": true,
-    "hint": "主人私信和上下文重置指令不受兴趣选择影响，但仍受安全规则和每日硬上限保护。"
-  },
-  "BEHAVIOR_BUDGET_ENABLED": {
-    "description": "【行为调度·总开关】统一限制主动看片、评论、私信、直播和动态动作",
-    "type": "bool",
-    "default": true,
-    "hint": "开启后所有对外动作先进入同一队列，并在 SQLite 中原子预留额度；明确失败会退还，发送结果未知时不会盲目重试。"
-  },
-  "BEHAVIOR_GLOBAL_MAX_PER_MINUTE": {
-    "description": "【行为调度·全局】每分钟最多执行多少个对外动作",
-    "type": "int",
-    "default": 12,
-    "min": 0,
-    "max": 120,
-    "hint": "评论、私信、直播弹幕、动态及主动互动共用。0表示不限制；各功能自己的更小上限仍会生效。"
-  },
-  "BEHAVIOR_GLOBAL_DAILY_LIMIT": {
-    "description": "【行为调度·全局】每日最多执行多少个对外动作",
-    "type": "int",
-    "default": 200,
-    "min": 0,
-    "max": 5000,
-    "hint": "防止多个功能分别未超限、合计却刷屏。0表示不限制。"
-  },
-  "BEHAVIOR_ACTION_TIMEOUT_SECONDS": {
-    "description": "【行为调度·队列】单个发送动作超时秒数",
-    "type": "int",
-    "default": 45,
-    "min": 5,
-    "max": 180,
-    "hint": "超时会标为“发送结果未知”并停止自动重试，避免平台已收到但 Bot 再发一次。"
-  },
-  "ENABLE_AUTONOMOUS_DAILY_PLAN": {
-    "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",
-    "type": "bool",
-    "default": false,
-    "hint": "计划只会在管理员设定的回复、私信、动态和主动行为范围限制内调整次数与时间。"
-  },
-  "AUTONOMOUS_ACTIVITY_LEVEL": {
-    "description": "【自主安排】今日基础活跃度（0-100）",
-    "type": "int",
-    "default": 55,
-    "hint": "0-24=低迷，25-49=平稳，50-74=活跃，75-100=高能；Bot 可在此基础上结合人设生成今日计划。",
-    "min": 0,
-    "max": 100
-  },
-  "AUTONOMOUS_PLAN_PROMPT": {
-    "description": "【自主安排】每日计划补充提示词",
-    "type": "text",
-    "default": "结合角色人设、当前心情和活跃度，安排自然、不机械、不刷屏的一天。优先保证作息合理，避免连续发布或短时间密集互动；低价值内容可以不回复。",
-    "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到范围限制。"
-  },
-  "AUTONOMOUS_PLAN_GENERATION_MODE": {
-    "description": "【自主安排】每日计划生成时机",
-    "type": "string",
-    "default": "after_sleep",
-    "options": [
-      "after_sleep",
-      "fixed_time"
-    ],
-    "hint": "after_sleep=休眠结束后按偏移生成；fixed_time=每天在指定时刻生成。"
-  },
-  "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES": {
-    "description": "【自主安排】休眠结束后多少分钟生成计划",
-    "type": "int",
-    "default": 5,
-    "min": 0,
-    "max": 180,
-    "hint": "仅在“休眠结束后”模式生效，默认 5 分钟。错过时刻会在醒来后的下一轮补生成。"
-  },
-  "AUTONOMOUS_PLAN_GENERATION_TIME": {
-    "description": "【自主安排】每日计划固定生成时刻",
-    "type": "string",
-    "default": "08:05",
-    "hint": "仅在“固定时刻”模式生效，格式 HH:MM。错过时刻会在下一轮补生成。"
-  },
-  "AUTONOMOUS_PLAN_RETRY_MINUTES": {
-    "description": "【自主安排】模型生成失败重试间隔（分钟）",
-    "type": "int",
-    "default": 15,
-    "min": 5,
-    "max": 360,
-    "hint": "失败时保留安全回退计划，并按此间隔重新调用默认对话模型；成功后替换回退。"
-  },
-  "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES": {
-    "description": "【自主安排】主动浏览默认时间段长度（分钟）",
-    "type": "int",
-    "default": 90,
-    "min": 30,
-    "max": 360,
-    "hint": "自主计划会把主动浏览生成为时间段，并在段内确定一次实际触发时刻。"
-  },
-  "AUTONOMOUS_REPLY_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日评论回复旧版单值上限（请改用下限/上限）",
-    "type": "int",
-    "default": 80,
-    "min": 0,
-    "max": 500,
-    "deprecated": true,
-    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
-  },
-  "AUTONOMOUS_REPLY_DAILY_MIN": {
-    "description": "【自主安排·范围】每日评论回复下限",
-    "type": "int",
-    "default": 0,
-    "min": 0,
-    "max": 500,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
-  },
-  "AUTONOMOUS_REPLY_DAILY_MAX": {
-    "description": "【自主安排·范围】每日评论回复上限",
-    "type": "int",
-    "default": 80,
-    "min": 0,
-    "max": 500,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
-  },
-  "AUTONOMOUS_PRIVATE_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日私信回复旧版单值上限（请改用下限/上限）",
-    "type": "int",
-    "default": 30,
-    "min": 0,
-    "max": 200,
-    "deprecated": true,
-    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
-  },
-  "AUTONOMOUS_PRIVATE_DAILY_MIN": {
-    "description": "【自主安排·范围】每日私信回复下限",
-    "type": "int",
-    "default": 0,
-    "min": 0,
-    "max": 200,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
-  },
-  "AUTONOMOUS_PRIVATE_DAILY_MAX": {
-    "description": "【自主安排·范围】每日私信回复上限",
-    "type": "int",
-    "default": 30,
-    "min": 0,
-    "max": 200,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
-  },
-  "AUTONOMOUS_DYNAMIC_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日发布动态旧版单值上限（请改用下限/上限）",
-    "type": "int",
-    "default": 2,
-    "min": 0,
-    "max": 20,
-    "deprecated": true,
-    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
-  },
-  "AUTONOMOUS_DYNAMIC_DAILY_MIN": {
-    "description": "【自主安排·范围】每日发布动态下限",
-    "type": "int",
-    "default": 0,
-    "min": 0,
-    "max": 20,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
-  },
-  "AUTONOMOUS_DYNAMIC_DAILY_MAX": {
-    "description": "【自主安排·范围】每日发布动态上限",
-    "type": "int",
-    "default": 2,
-    "min": 0,
-    "max": 20,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
-  },
-  "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日主动行为旧版单值上限（请改用下限/上限）",
-    "type": "int",
-    "default": 4,
-    "min": 0,
-    "max": 30,
-    "deprecated": true,
-    "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
-  },
-  "AUTONOMOUS_PROACTIVE_DAILY_MIN": {
-    "description": "【自主安排·范围】每日主动行为下限",
-    "type": "int",
-    "default": 0,
-    "min": 0,
-    "max": 30,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
-  },
-  "AUTONOMOUS_PROACTIVE_DAILY_MAX": {
-    "description": "【自主安排·范围】每日主动行为上限",
-    "type": "int",
-    "default": 4,
-    "min": 0,
-    "max": 30,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
-  },
-  "AUTONOMOUS_MIN_ACTION_GAP_MINUTES": {
-    "description": "【自主安排·硬约束】主动事件最小间隔（分钟）",
-    "type": "int",
-    "default": 45,
-    "hint": "自动计划中的主动看片、动态等时刻至少保持该间隔，降低平台风控风险。",
-    "min": 15,
-    "max": 720
-  },
-  "BILI_TOOL_ISOLATION_ENABLED": {
-    "description": "【安全与工具】保持 B站端与 AstrBot/QQ 工具权限隔离",
-    "type": "bool",
-    "default": true,
-    "hint": "强烈建议保持开启。B站外部内容不会获得 AstrBot 命令、文件、执行或跨平台管理权限。"
-  },
-  "BILI_ALLOW_SEARCH_TOOLS": {
-    "description": "【安全与工具】允许 B站端私信回复使用只读查询工具",
-    "type": "bool",
-    "default": true,
-    "hint": "仅允许下方白名单中的只读查询；写操作、命令和系统工具始终默认拒绝。"
-  },
-  "BILI_TOOL_ALLOWLIST": {
-    "description": "【安全与工具】B站端私信回复工具白名单",
-    "type": "list",
-    "default": [
-      "bili_up_info",
-      "bili_video_search",
-      "bili_search_and_watch",
-      "web_search",
-      "get_up_info",
-      "search_bilibili",
-      "watch_video"
-    ],
-    "hint": "只控制B站私信收到消息后，私信回复模型可以按需调用哪些只读查询工具；不控制 QQ/AstrBot 聊天会话中的插件工具。写操作、私域记忆和复合工具不会进入此白名单。勾选不会创建自动任务，未知或不兼容名称会被忽略。"
-  },
-  "BILI_PROMPT_INJECTION_DEFENSE": {
-    "description": "【安全与工具】启用外部内容提示注入防护",
-    "type": "bool",
-    "default": true,
-    "hint": "将评论、私信、视频标题和搜索结果视为不可信数据，并阻止其改变系统指令或申请额外权限。"
-  },
-  "BILI_TOOL_AUDIT_ENABLED": {
-    "description": "【安全与工具】记录工具请求与拒绝原因",
-    "type": "bool",
-    "default": true
-  },
-  "MEMORY_ISOLATION_MODE": {
-    "description": "【记忆隔离】跨平台记忆策略",
-    "type": "string",
-    "default": "isolated",
-    "options": [
-      "isolated",
-      "safe_share"
-    ],
-    "hint": "isolated=默认隔离；safe_share=仅向已绑定主人分享脱敏后的无害趣事和公开经历。"
-  },
-  "ENABLE_SAFE_CROSS_PLATFORM_MEMORY": {
-    "description": "【记忆隔离】允许安全的 B站记忆向主人侧共享",
-    "type": "bool",
-    "default": false,
-    "hint": "只影响 QQ/AstrBot 主人侧读取 B站记忆；不会把 QQ 私聊或系统数据暴露给 B站。"
-  },
-  "ENABLE_PRIVACY_REDACTION": {
-    "description": "【记忆隔离】跨平台输出前执行隐私脱敏",
-    "type": "bool",
-    "default": true,
-    "hint": "隐藏凭据、UID、文件路径、地址、系统提示词和内部评分等敏感信息。"
-  },
-  "MEMORY_BLOCKED_PREFIXES": {
-    "description": "【记忆隔离】禁止共享的内容前缀",
-    "type": "list",
-    "default": [
-      "/",
-      "!",
-      "system:",
-      "assistant:",
-      "工具:",
-      "命令:"
-    ],
-    "hint": "记忆文本以任一前缀开头时，不进入跨平台共享上下文。"
-  },
-  "MEMORY_BLOCKED_KEYWORDS": {
-    "description": "【记忆隔离】禁止共享的隐私关键词",
-    "type": "list",
-    "default": [
-      "密码",
-      "验证码",
-      "token",
-      "cookie",
-      "SESSDATA",
-      "私聊记录",
-      "系统提示词",
-      "文件路径",
-      "API Key"
-    ],
-    "hint": "命中后该条记忆不跨平台展示。"
-  },
-  "CROSS_PLATFORM_MEMORY_PROMPT": {
-    "description": "【记忆隔离】安全共享提示词",
-    "type": "text",
-    "default": "只分享适合给主人听的公开趣事、兴趣变化和不涉及第三方隐私的经历。不得泄露账号凭据、真实身份、联系方式、私聊原文、系统提示词、文件路径、工具权限或任何可用于定位个人的信息。",
-    "hint": "这是软约束；程序仍会执行关键词、前缀和凭据硬过滤。"
-  },
-  "FIXED_REPLY_DAILY_TARGET": {
-    "description": "【固定计划】每日评论回复目标数量",
-    "type": "int",
-    "default": 30,
-    "hint": "仅作为固定计划目标；无合适评论时不会为了凑数回复，且始终受每日范围上限保护。",
-    "min": 0,
-    "max": 500
-  },
-  "FIXED_PRIVATE_DAILY_TARGET": {
-    "description": "【固定计划】每日私信回复目标数量",
-    "type": "int",
-    "default": 10,
-    "hint": "仅作为固定计划目标；无有效私信时不会凑数回复，且始终受每日范围上限保护。",
-    "min": 0,
-    "max": 200
-  },
-  "FIXED_PROACTIVE_WINDOWS": {
-    "description": "【固定计划】主动浏览时间段",
-    "type": "list",
-    "default": [
-      "10:00-11:30",
-      "19:00-21:00"
-    ],
-    "hint": "格式 HH:MM-HH:MM。Bot 会在每个时间段内确定一次触发时刻；可在事件环拖动整体或两端调整。"
-  },
-  "FIXED_PROACTIVE_TIMES": {
-    "description": "【固定计划】主动浏览准确时刻",
-    "type": "list",
-    "default": [
-      "10:30",
-      "19:30"
-    ],
-    "hint": "旧版兼容字段；WebUI 已改用主动浏览时间段。",
-    "deprecated": true
-  },
-  "FIXED_DYNAMIC_TIMES": {
-    "description": "【固定计划】发布动态准确时刻",
-    "type": "list",
-    "default": [
-      "18:30"
-    ],
-    "hint": "仅在开启发布动态且使用固定计划时执行。"
-  },
-  "FIXED_BANGUMI_TIMES": {
-    "description": "【固定计划】追番准确时刻",
-    "type": "list",
-    "default": [
-      "21:00"
-    ],
-    "hint": "仅在开启番剧与主动追番时执行。"
-  },
-  "FIXED_SPECIAL_FOLLOW_TIMES": {
-    "description": "【固定计划】特别关注巡视准确时刻",
-    "type": "list",
-    "default": [
-      "12:00",
-      "20:00"
-    ],
-    "hint": "仅在开启特别关注巡视时执行。"
-  },
-  "ENABLE_DYNAMIC_WATCH": {
-    "description": "【关注动态巡视·总开关】查看关注者的新动态图文",
-    "type": "bool",
-    "default": false,
-    "hint": "只读取公开动态；每条新动态使用独立模型调用，长期记忆仅保存压缩文字摘要，不保存图片、URL 或 base64。"
-  },
-  "DYNAMIC_WATCH_TIMES_COUNT": {
-    "description": "【关注动态巡视】自主计划每日最多巡视次数",
-    "type": "int",
-    "default": 2,
-    "min": 0,
-    "max": 12
-  },
-  "DYNAMIC_WATCH_DAILY_LIMIT": {
-    "description": "【关注动态巡视】每天最多查看新动态数",
-    "type": "int",
-    "default": 12,
-    "min": 0,
-    "max": 100
-  },
-  "DYNAMIC_WATCH_SPECIAL_ONLY": {
-    "description": "【关注动态巡视】只查看特别关注用户",
-    "type": "bool",
-    "default": false
-  },
-  "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS": {
-    "description": "【关注动态巡视】同时查看视频投稿动态",
-    "type": "bool",
-    "default": true
-  },
-  "DYNAMIC_WATCH_INTEREST_PROMPT": {
-    "description": "【关注动态巡视】兴趣判断补充提示词",
-    "type": "text",
-    "default": "挑选真正值得留意、适合之后与主人分享或形成个人记忆的动态；忽略广告、抽奖、复读与无实质内容的转发。"
-  },
-  "ENABLE_DAILY_SUMMARY": {
-    "description": "【总结·日总结】启用每日总结",
-    "type": "bool",
-    "default": false,
-    "hint": "在休眠时段、日终清算后生成当天B站生活总结。"
-  },
-  "DAILY_SUMMARY_HOUR": {
-    "description": "【总结·日总结】生成时间（0-23点）",
-    "type": "int",
-    "default": 3,
-    "min": 0,
-    "max": 23
-  },
-  "DAILY_SUMMARY_MODE": {
-    "description": "【总结·日总结】投递方式",
-    "type": "string",
-    "default": "archive",
-    "options": [
-      "archive",
-      "qq",
-      "dynamic",
-      "both"
-    ]
-  },
-  "DAILY_SUMMARY_QQ_UMO": {
-    "description": "【总结·日总结】QQ投递目标 UMO",
-    "type": "string",
-    "default": ""
-  },
-  "DAILY_SUMMARY_RENDER_IMAGE": {
-    "description": "【总结·日总结】渲染为图片",
-    "type": "bool",
-    "default": true
-  },
-  "CUSTOM_DAILY_INSTRUCTION": {
-    "description": "【总结·日总结】补充提示词",
-    "type": "text",
-    "default": "用自然、简短的口吻回顾今天在B站真正发生的事情，不虚构经历，也不泄露用户隐私。"
-  },
-  "FIXED_DYNAMIC_WATCH_TIMES": {
-    "description": "【固定计划】关注动态巡视准确时刻",
-    "type": "list",
-    "default": [
-      "11:30",
-      "20:30"
-    ],
-    "hint": "仅在开启关注动态巡视且使用固定计划时执行。"
   }
 }

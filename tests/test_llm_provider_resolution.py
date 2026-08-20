@@ -81,6 +81,25 @@ class FakeContext:
         return FakeResponse()
 
 
+class FailingContext(FakeContext):
+    async def llm_generate(self, **kwargs):
+        self.calls.append(kwargs)
+        raise RuntimeError("provider unavailable")
+
+
+class BlockingContext(FakeContext):
+    def __init__(self, provider=None):
+        super().__init__(provider)
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def llm_generate(self, **kwargs):
+        self.calls.append(kwargs)
+        self.started.set()
+        await self.release.wait()
+        return FakeResponse()
+
+
 class FakeBot(LLMMixin):
     def __init__(self, config, context):
         self.config = config
@@ -108,6 +127,45 @@ def _check_llm_call_prefers_explicit_plugin_provider():
     asyncio.run(run())
 
 
+def _check_circuit_opens_without_multiplying_provider_requests():
+    async def run():
+        context = FailingContext(FakeProvider("default-chat"))
+        bot = FakeBot({
+            "LLM_PROVIDER_ID": "",
+            "LLM_CIRCUIT_FAILURE_THRESHOLD": 2,
+            "LLM_CIRCUIT_COOLDOWN_SECONDS": 300,
+        }, context)
+        assert await bot._llm_call("first") is None
+        assert await bot._llm_call("second") is None
+        assert await bot._llm_call("must be skipped") is None
+        assert len(context.calls) == 2
+
+    asyncio.run(run())
+
+
+def _check_half_open_allows_only_one_concurrent_probe():
+    async def run():
+        context = BlockingContext(FakeProvider("default-chat"))
+        bot = FakeBot({
+            "LLM_PROVIDER_ID": "",
+            "LLM_CIRCUIT_FAILURE_THRESHOLD": 2,
+            "LLM_CIRCUIT_COOLDOWN_SECONDS": 300,
+        }, context)
+        bot._llm_circuit_open_until = 1.0
+        first = asyncio.create_task(bot._llm_call("probe"))
+        await context.started.wait()
+        assert await bot._llm_call("concurrent probe") is None
+        context.release.set()
+        assert await first == "generated"
+        assert len(context.calls) == 1
+        assert bot._consecutive_llm_failures == 0
+        assert bot._llm_circuit_open_until == 0.0
+
+    asyncio.run(run())
+
+
 class LLMProviderResolutionTests(unittest.TestCase):
     test_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty = staticmethod(_check_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty)
     test_llm_call_prefers_explicit_plugin_provider = staticmethod(_check_llm_call_prefers_explicit_plugin_provider)
+    test_circuit_opens_without_multiplying_provider_requests = staticmethod(_check_circuit_opens_without_multiplying_provider_requests)
+    test_half_open_allows_only_one_concurrent_probe = staticmethod(_check_half_open_allows_only_one_concurrent_probe)

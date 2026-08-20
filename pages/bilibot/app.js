@@ -66,11 +66,11 @@ const PAGE_KEYS = {
     "ENABLE_SIMILAR_SKIP", "REPLY_SIMILARITY_PERCENT", "CUSTOM_REPLY_INSTRUCTION",
     "ENABLE_INTEREST_BASED_REPLY", "INTEREST_SELECTION_PROMPT", "FILTER_LOW_VALUE_MESSAGES",
     "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES", "INTEREST_APPLY_TO_PRIVATE",
-    "ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_AUTO_REPLY",
-    "PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", "PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT",
-    "BILI_PRIVATE_SHARE_TOOL_ENABLED", "BILI_PRIVATE_SHARE_COOLDOWN", "PRIVATE_MESSAGE_POLL_INTERVAL",
-    "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", "PRIVATE_MESSAGE_ACTIVE_WINDOW", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS",
-    "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION", "PRIVATE_MESSAGE_MAX_PER_POLL", "PRIVATE_MESSAGE_MAX_MESSAGE_AGE",
+    "ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS",
+    "PRIVATE_MESSAGE_AUTO_REPLY", "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION", "PRIVATE_MESSAGE_POLL_INTERVAL",
+    "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", "PRIVATE_MESSAGE_ACTIVE_WINDOW", "PRIVATE_MESSAGE_MAX_PER_POLL",
+    "PRIVATE_MESSAGE_MAX_MESSAGE_AGE", "PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", "PRIVATE_MESSAGE_BILI_SEARCH_ENABLED",
+    "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT", "BILI_PRIVATE_SHARE_TOOL_ENABLED", "BILI_PRIVATE_SHARE_COOLDOWN",
     "ENABLE_LIVE_DANMAKU_REPLY", "LIVE_DANMAKU_ROOM_ID", "LIVE_DANMAKU_POLL_INTERVAL",
     "LIVE_DANMAKU_REPLY_COOLDOWN", "LIVE_DANMAKU_MAX_PER_MINUTE", "LIVE_DANMAKU_REPLY_MAX_LENGTH",
     "CUSTOM_LIVE_DANMAKU_INSTRUCTION", "ENABLE_BILI_SHARE_PARSE", "BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED",
@@ -83,6 +83,7 @@ const PAGE_KEYS = {
     "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
     "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
     "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
+    "BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS",
     "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
     "PROACTIVE_COMMENT_COUNT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
@@ -166,6 +167,10 @@ const MOCK_FIELDS = {
   AUTONOMOUS_PROACTIVE_DAILY_MIN: ["【自主安排·范围】每日主动行为下限", "int", 0],
   AUTONOMOUS_PROACTIVE_DAILY_MAX: ["【自主安排·范围】每日主动行为上限", "int", 4],
   AUTONOMOUS_MIN_ACTION_GAP_MINUTES: ["【自主安排·硬约束】主动事件最小间隔（分钟）", "int", 45],
+  BEHAVIOR_BUDGET_ENABLED: ["【统一行为预算】启用全局频率与每日上限", "bool", true],
+  BEHAVIOR_GLOBAL_MAX_PER_MINUTE: ["【统一行为预算】每分钟最多执行动作数", "int", 8],
+  BEHAVIOR_GLOBAL_DAILY_LIMIT: ["【统一行为预算】每天最多执行动作数", "int", 200],
+  BEHAVIOR_ACTION_TIMEOUT_SECONDS: ["【统一行为预算】单个动作超时（秒）", "int", 45],
   SLEEP_START: ["【系统】休眠开始时间（0-23）", "int", 2],
   SLEEP_END: ["【系统】休眠结束时间（0-23）", "int", 8],
   ENABLE_PROACTIVE: ["【主动看片·总开关】启用主动看视频与互动", "bool", true],
@@ -248,6 +253,8 @@ const MOCK_FIELDS = {
   OWNER_NAME: ["【账号】主人名称", "string", "主人"],
   OWNER_BILI_NAME: ["【账号】主人的B站昵称", "string", "示例昵称"],
   LLM_PROVIDER_ID: ["【人设】用于回复与记忆压缩的 LLM", "string", "default"],
+  LLM_CIRCUIT_FAILURE_THRESHOLD: ["【模型可靠性】连续失败多少次后暂停调用", "int", 5],
+  LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 300],
   USE_ASTRBOT_PERSONA: ["【人设】使用 AstrBot 自带人设", "bool", true],
   CUSTOM_SYSTEM_PROMPT: ["【人设】自定义系统提示词", "text", "自然、克制、有自己的兴趣和判断。"],
   ENABLE_LLM_TOOLS: ["【功能开关】启用 LLM 工具", "bool", true],
@@ -770,7 +777,11 @@ function renderInteraction() {
     </div>
     ${renderConfigSection("兴趣选择与评论提示词", "兴趣提示词只负责判断是否值得回复；评论补充提示词负责决定怎么回复", ["INTEREST_SELECTION_PROMPT", "CUSTOM_REPLY_INSTRUCTION"], "star")}
     <div class="two-column">
-      ${renderConfigSection("B站私信", "只处理安全、有效且满足范围规则的新私信", ["ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_AUTO_REPLY", "PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", "PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS", "PRIVATE_MESSAGE_MAX_PER_POLL", "PRIVATE_MESSAGE_MAX_MESSAGE_AGE", "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION"], "user")}
+      ${renderConfigSection("B站私信回复", "先决定回复对象，再设置回复方式与人设补充", ["ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS", "PRIVATE_MESSAGE_AUTO_REPLY", "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION"], "user")}
+      ${renderConfigSection("B站私信轮询", "集中管理请求节奏、活跃窗口和单轮处理边界", ["PRIVATE_MESSAGE_POLL_INTERVAL", "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", "PRIVATE_MESSAGE_ACTIVE_WINDOW", "PRIVATE_MESSAGE_MAX_PER_POLL", "PRIVATE_MESSAGE_MAX_MESSAGE_AGE"], "clock")}
+    </div>
+    <div class="two-column">
+      ${renderConfigSection("B站私信视频与查询", "收到分享后可看视频、查 UP 主或公开视频，并控制再次分享的冷却", ["PRIVATE_MESSAGE_AUTO_WATCH_VIDEO", "PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT", "BILI_PRIVATE_SHARE_TOOL_ENABLED", "BILI_PRIVATE_SHARE_COOLDOWN"], "search")}
       ${renderConfigSection("直播间弹幕互动", "进入指定 UP 主直播间，监听公开弹幕并由 Bot 的B站账号参与互动；同时限制发送速度与长度，避免抢话和刷屏", ["ENABLE_LIVE_DANMAKU_REPLY", "LIVE_DANMAKU_ROOM_ID", "LIVE_DANMAKU_POLL_INTERVAL", "LIVE_DANMAKU_REPLY_COOLDOWN", "LIVE_DANMAKU_MAX_PER_MINUTE", "LIVE_DANMAKU_REPLY_MAX_LENGTH", "CUSTOM_LIVE_DANMAKU_INSTRUCTION"], "video")}
     </div>
     ${renderConfigSection("分享解析", "统一管理自动识别、手动触发和视频切片限制", ["ENABLE_BILI_SHARE_PARSE", "BILI_SHARE_PARSE_AUTO_TRIGGER_ENABLED", "BILI_SHARE_PARSE_MANUAL_TRIGGER_ENABLED", "BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED", "BILI_SHARE_PENDING_MAX_AGE", "BILI_SHARE_PARSE_SEND_VIDEO", "BILI_SHARE_PARSE_SEGMENT_SECONDS", "BILI_SHARE_PARSE_MAX_SEGMENTS", "BILI_SHARE_PARSE_MAX_VIDEO_MB", "BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT", "BILI_SHARE_PARSE_COOLDOWN"], "search")}`;
@@ -1135,6 +1146,7 @@ function renderAutonomy() {
       <aside class="schedule-side"><article class="card event-card">${sectionHead("今日事件", `${completedCount} 已完成 · ${upcomingCount} 待执行${overdueCount ? ` · ${overdueCount} 已错过` : ""}${invalidCount ? ` · ${invalidCount} 时间无效` : ""}`, "calendar")}${renderSelectedEvent(events)}${renderEventList(events)}${renderBeginnerGuide()}</article></aside>
     </section>
     ${renderPlanModeCard(plan, autonomous, events)}
+    ${renderConfigSection("全局行为预算与超时", "评论、私信、主动看片和直播共用最后一道总量保护；这里不负责重复重试", ["BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS"], "shield")}
     <section class="card section-card behavior-section">${sectionHead("主动行为评分", "管理员决定每个动作的最低内容评分；模型意愿不能绕过阈值", "controller")}${renderBehaviorMatrix()}</section>
     <section class="card capability-section">${sectionHead("主动能力总开关", "先决定是否允许这类行为，再进入独立子界面设置细节；关闭后不会生成对应日程", "controller")}${renderCapabilityCards()}</section>`;
 }
@@ -1224,7 +1236,7 @@ const BASIC_GROUP_ORDER = ["人设与模型", "性格演化", "Embedding 与记�
 
 function basicGroupFor(key, field) {
   const group = descriptionMeta(field).group;
-  if (/人设/.test(group) || ["LLM_PROVIDER_ID", "USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT"].includes(key)) return "人设与模型";
+  if (/人设|模型可靠性/.test(group) || ["LLM_PROVIDER_ID", "USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT", "LLM_CIRCUIT_FAILURE_THRESHOLD", "LLM_CIRCUIT_COOLDOWN_SECONDS"].includes(key)) return "人设与模型";
   if (/性格演化/.test(group) || key.startsWith("EVOLVE_")) return "性格演化";
   if (/高级·记忆/.test(group) || key.startsWith("EMBED_")) return "Embedding 与记忆";
   if (/视觉|视频分析/.test(group) || /VISION/.test(key)) return "视频与图片视觉";
