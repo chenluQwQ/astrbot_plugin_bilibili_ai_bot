@@ -614,7 +614,7 @@ function metricCard(label, value, foot, iconName, tone = "blue", progress = null
 }
 
 function sectionHead(title, subtitle = "", iconName = "settings", extra = "") {
-  return `<div class="section-head"><div class="section-title"><span class="section-icon">${icon(iconName)}</span><div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div></div>${extra}</div>`;
+  return `<div class="section-head"><div class="section-title">${iconName ? `<span class="section-icon">${icon(iconName)}</span>` : ""}<div><h2>${esc(title)}</h2>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div></div>${extra}</div>`;
 }
 
 function valueLabel(key) {
@@ -815,7 +815,7 @@ function renderInterestSnapshot() {
   }
   return `<div class="interest-snapshot">
     <div class="interest-snapshot-head">
-      <div><span>当前学习到的视频兴趣</span><strong>只展示观察结果，不会在这里直接改写偏好</strong></div>
+      <div><strong>只展示观察结果，不会在这里直接改写偏好</strong><span>当前学习到的视频兴趣</span></div>
       ${statusPill(sourceLabel, sourceTone)}
     </div>
     <div class="interest-stat-row">${parsed.stats.map((item) => `<span>${esc(item)}</span>`).join("")}</div>
@@ -825,20 +825,27 @@ function renderInterestSnapshot() {
 }
 
 function renderInterestConfigSection() {
-  const keys = ["INTEREST_SELECTION_PROMPT", "CUSTOM_REPLY_INSTRUCTION"].filter(hasKey);
+  const keys = ["INTEREST_APPLY_TO_PRIVATE", "INTEREST_SELECTION_PROMPT", "CUSTOM_REPLY_INSTRUCTION"].filter(hasKey);
   if (!keys.length) return "";
   return `<section class="card section-card interest-config-card">
-    ${sectionHead("兴趣选择与评论提示词", "上方状态用于选片参考；下方提示词分别决定是否值得回复、以及怎样自然回复", "star")}
-    ${renderInterestSnapshot()}
-    ${renderFields(keys)}
+    ${sectionHead("兴趣选择与评论提示词", "总开关、当前兴趣和回复提示词集中在这里", "")}
+    <div class="interest-config-layout">
+      <div class="interest-config-controls">
+        <div class="interest-selector-row">
+          <div><strong>不是每条消息都必须回复</strong><p>先过滤广告、复读和低价值内容，再按兴趣选择真正值得回应的评论和私信。</p></div>
+          ${hasKey("ENABLE_INTEREST_BASED_REPLY") ? renderControl("ENABLE_INTEREST_BASED_REPLY", state.schema.ENABLE_INTEREST_BASED_REPLY) : ""}
+        </div>
+        ${renderFields(keys)}
+      </div>
+      <div class="interest-config-observation">${renderInterestSnapshot()}</div>
+    </div>
   </section>`;
 }
 
 function renderInteraction() {
   return `${pageHead("INTERACTION", "回复与互动", "把值得回应的内容挑出来，再用明确的频率、冷却和硬上限保护账号。", statusPill(`${fmt(state.stats.filtered_today)} 条已过滤`, "green"))}
-    <section class="feature-banner interest-banner"><div class="feature-icon">${icon("star")}</div><div><span>兴趣选择器</span><h2>不是每条消息都必须回复</h2><p>广告、复读与低价值内容先被硬过滤，再由模型根据管理员提示词挑选真正值得回应的评论和私信。</p></div><div class="feature-control">${hasKey("ENABLE_INTEREST_BASED_REPLY") ? renderControl("ENABLE_INTEREST_BASED_REPLY", state.schema.ENABLE_INTEREST_BASED_REPLY) : ""}</div></section>
     <div class="two-column">
-      ${renderConfigSection("内容筛选", "先做确定性过滤，再执行兴趣判断", ["FILTER_LOW_VALUE_MESSAGES", "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES", "ENABLE_INTEREST_BASED_REPLY", "INTEREST_APPLY_TO_PRIVATE"], "shield")}
+      ${renderConfigSection("内容筛选", "先做确定性过滤，再执行兴趣判断", ["FILTER_LOW_VALUE_MESSAGES", "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES"], "shield")}
       ${renderConfigSection("回复边界", "概率保留为最后一道节奏控制", ["ENABLE_REPLY", "REPLY_PROBABILITY_PERCENT", "REPLY_COOLDOWN", "POLL_INTERVAL", "REPLY_ALWAYS_UIDS", "ENABLE_SIMILAR_SKIP", "REPLY_SIMILARITY_PERCENT"], "controller")}
     </div>
     ${renderInterestConfigSection()}
@@ -1297,14 +1304,24 @@ function renderAccount() {
     ${renderConfigSection("主人身份", "用于私信推荐、@主人和安全的跨平台记忆共享校验", ["OWNER_MID", "OWNER_NAME", "OWNER_BILI_NAME"], "heart")}`;
 }
 
-const BASIC_GROUP_ORDER = ["人设与模型", "性格演化", "Embedding 与记忆", "视频与图片视觉", "图片生成", "联网搜索", "总结", "Cookie 与系统", "高级接口"];
+const BASIC_GROUP_ORDER = ["人设与模型", "Embedding 与记忆", "视频分析", "图片识别", "联网搜索", "图片生成", "总结", "性格演化", "Cookie 与系统", "高级接口"];
+
+const BASIC_KEY_ORDER = {
+  "人设与模型": ["USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT", "LLM_PROVIDER_ID", "LLM_CIRCUIT_FAILURE_THRESHOLD", "LLM_CIRCUIT_COOLDOWN_SECONDS"],
+  "Embedding 与记忆": ["EMBED_API_KEY", "EMBED_API_BASE", "EMBED_MODEL", "EMBED_TIMEOUT_SECONDS"],
+  "视频分析": ["VIDEO_VISION_PROVIDER_ID", "VIDEO_VISION_API_KEY", "VIDEO_VISION_API_BASE", "VIDEO_VISION_MODEL", "VIDEO_VISION_FORMAT", "VIDEO_VISION_FPS"],
+  "图片识别": ["IMAGE_VISION_PROVIDER_ID", "IMAGE_VISION_API_KEY", "IMAGE_VISION_API_BASE", "IMAGE_VISION_MODEL"],
+  "联网搜索": ["ENABLE_WEB_SEARCH", "WEB_SEARCH_BACKEND", "WEB_SEARCH_API_KEY", "WEB_SEARCH_API_BASE", "WEB_SEARCH_MODEL", "WEB_SEARCH_JUDGE_PROVIDER_ID", "WEB_SEARCH_MAX_RESULTS"],
+  "图片生成": ["IMAGE_GEN_BACKEND", "IMAGE_GEN_API_KEY", "IMAGE_GEN_API_BASE", "IMAGE_GEN_MODEL", "IMAGE_GEN_WIDTH", "IMAGE_GEN_HEIGHT", "IMAGE_GEN_STEPS", "IMAGE_GEN_SCALE", "IMAGE_GEN_SAMPLER", "IMAGE_GEN_NEGATIVE_PROMPT"],
+};
 
 function basicGroupFor(key, field) {
   const group = descriptionMeta(field).group;
   if (/人设|模型可靠性/.test(group) || ["LLM_PROVIDER_ID", "USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT", "LLM_CIRCUIT_FAILURE_THRESHOLD", "LLM_CIRCUIT_COOLDOWN_SECONDS"].includes(key)) return "人设与模型";
   if (/性格演化/.test(group) || key.startsWith("EVOLVE_")) return "性格演化";
   if (/高级·记忆/.test(group) || key.startsWith("EMBED_")) return "Embedding 与记忆";
-  if (/视觉|视频分析/.test(group) || /VISION/.test(key)) return "视频与图片视觉";
+  if (key.startsWith("VIDEO_VISION_") || /视频分析/.test(group)) return "视频分析";
+  if (key.startsWith("IMAGE_VISION_")) return "图片识别";
   if (/图片生成/.test(group) || key.startsWith("IMAGE_GEN_")) return "图片生成";
   if (/联网搜索/.test(group) || key.startsWith("WEB_SEARCH_")) return "联网搜索";
   if (/总结/.test(group) || key.includes("DAILY") || key.includes("WEEKLY")) return "总结";
@@ -1340,6 +1357,17 @@ function renderBasics() {
     const group = basicGroupFor(key, field);
     if (group) groups[group].push(key);
   });
+  Object.entries(groups).forEach(([name, keys]) => {
+    const preferred = BASIC_KEY_ORDER[name] || [];
+    keys.sort((left, right) => {
+      const leftIndex = preferred.indexOf(left);
+      const rightIndex = preferred.indexOf(right);
+      if (leftIndex < 0 && rightIndex < 0) return 0;
+      if (leftIndex < 0) return 1;
+      if (rightIndex < 0) return -1;
+      return leftIndex - rightIndex;
+    });
+  });
   return `${pageHead("FOUNDATION", "基础设置", "这里只保留完成初始化后很少需要调整的人设、模型和高级能力；常用行为已拆到对应页面。")}
     ${renderCacheCard()}
     <section class="settings-search card"><span>${icon("search")}</span><input id="settings-search" type="search" value="${esc(state.settingsSearch)}" placeholder="搜索配置名称、说明或 KEY" aria-label="搜索基础设置" />${state.settingsSearch ? `<button data-action="clear-settings-search" type="button">清除</button>` : ""}</section>
@@ -1347,7 +1375,7 @@ function renderBasics() {
     <div class="accordion-list">${BASIC_GROUP_ORDER.map((name, index) => {
       const keys = groups[name];
       if (!keys.length) return "";
-      const iconName = { "人设与模型": "heart", "性格演化": "star", "Embedding 与记忆": "memory-card", "视频与图片视觉": "video", "图片生成": "sun", "联网搜索": "search", "总结": "calendar", "Cookie 与系统": "settings", "高级接口": "controller" }[name] || "settings";
+      const iconName = { "人设与模型": "heart", "性格演化": "star", "Embedding 与记忆": "memory-card", "视频分析": "video", "图片识别": "sun", "图片生成": "sun", "联网搜索": "search", "总结": "calendar", "Cookie 与系统": "settings", "高级接口": "controller" }[name] || "settings";
       const evolutionToggle = name === "性格演化" && hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<div class="settings-inline-toggle"><div><strong>旧版每日性格演化</strong><small>实验性功能，建议先关闭并积累几天真实反馈；已有数据会保留。</small></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</div>` : "";
       const evolutionKeys = name === "性格演化" ? keys.filter((key) => key !== "ENABLE_PERSONALITY_EVOLUTION") : keys;
       return `<details class="settings-group card" ${query || index < 2 ? "open" : ""}><summary><span class="section-icon">${icon(iconName)}</span><div><strong>${esc(name)}</strong><small>${evolutionKeys.length + (evolutionToggle ? 1 : 0)} 项配置</small></div>${icon("arrow-right")}</summary><div class="settings-group-body"><div class="settings-group-inner">${evolutionToggle}${renderFields(evolutionKeys)}</div></div></details>`;
