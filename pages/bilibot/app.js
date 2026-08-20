@@ -37,6 +37,7 @@ const state = {
   scheduleStats: {},
   memory: {},
   profiles: [],
+  interest: {},
   security: {},
   cache: {},
   availableTools: [],
@@ -310,6 +311,10 @@ function buildMock() {
     },
     scheduleStats: { total: previewEvents.length, completed: previewCompleted, remaining: previewEvents.length - previewCompleted, next: previewNext, minimum_gap_minutes: 45 },
     memory: { total: 1248, comment: 876, private: 192, self: 180, isolation_mode: "isolated", safe_share: false },
+    interest: {
+      report: "🎯 BiliBot 视频兴趣\n━━━━━━━━━━━━\n统计窗口：最近7天｜看过18个｜有效评分10个｜待评价8个\n\n【近期分区口味】\n  暂无带分区的有效评分\n\n【近期 UP 样本】\n  · 乔西说宇宙：1个，平均8.0/10，样本较少\n  · 史蒂芬周大反派：1个，平均7.0/10，样本较少\n\n【近期具体兴趣信号】\n  暂无；新版会从之后完成的视频评价中逐步积累\n\n【已沉淀偏好】\n  尚未形成；单次观看不会直接写成稳定兴趣\n\n【最近探索方向】\n  深渊生物×3、古典舞 剑舞、老建筑 修复、废墟探索、舞蹈、深海生物纪录片\n\n说明：近期口味是观察样本；同一信号反复出现才会进入近期偏好，连续跨周后才会成为稳定偏好。",
+      updated_at: "2026-08-21 02:20:00", source: "runtime", cached: false, stale: false, read_only: true,
+    },
     profiles: [
       { name: "夏日汽水", user_id: "184028", affection: 82, relationship: "亲密", impression: "经常讨论动画与配乐", tags: ["动画", "配乐"], facts_count: 8, video_refs_count: 12, last_interaction: "2026-08-14 15:31" },
       { name: "蓝莓酱不加糖", user_id: "902418", affection: 61, relationship: "熟悉", impression: "喜欢分享有趣的知识视频", tags: ["科普"], facts_count: 5, video_refs_count: 7, last_interaction: "2026-08-13 20:06" },
@@ -399,7 +404,7 @@ function unwrap(result) {
 async function apiGet(path, query = {}) {
   if (isPreview) {
     await sleep(70);
-    const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "profiles": mock.profiles, "security/stats": mock.security, "tools/available": mock.availableTools, "cache/stats": mock.cache };
+    const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "profiles": mock.profiles, "interest/status": mock.interest, "security/stats": mock.security, "tools/available": mock.availableTools, "cache/stats": mock.cache };
     if (path === "account/qr/generate") return { image: "", key: "preview", expires_in: 180 };
     if (path === "account/qr/poll") return { status: "waiting", message: "预览模式不连接真实账号" };
     return structuredClone(map[path] || {});
@@ -541,7 +546,16 @@ async function refreshPageData(page) {
   } else if (page === "account") {
     state.account = await apiGet("account/info") || {};
   } else if (page === "interaction") {
-    state.stats = await apiGet("stats") || {};
+    const [stats, interest] = await Promise.all([
+      apiGet("stats"),
+      apiGet("interest/status").catch((error) => ({
+        ...(state.interest || {}),
+        error: error.message || "兴趣状态暂时无法读取",
+        stale: true,
+      })),
+    ]);
+    state.stats = stats || {};
+    state.interest = interest || {};
   } else if (page === "basics") {
     state.cache = await apiGet("cache/stats") || {};
   }
@@ -767,6 +781,59 @@ function quotaRow(label, used, total, tone) {
   return `<div class="quota-row"><div><span>${esc(label)}</span><b>${fmt(used)} / ${fmt(total)}</b></div><div class="quota-track tone-${tone}"><i style="width:${percent}%"></i></div></div>`;
 }
 
+function parseInterestReport(report) {
+  const lines = String(report || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const statsLine = lines.find((line) => line.startsWith("统计窗口：")) || "";
+  const stats = statsLine.replace(/^统计窗口：/, "").split("｜").filter(Boolean);
+  const sections = [];
+  let current = null;
+  let note = "";
+  lines.forEach((line) => {
+    const heading = line.match(/^【(.+)】$/);
+    if (heading) {
+      current = { title: heading[1], items: [] };
+      sections.push(current);
+      return;
+    }
+    if (line.startsWith("说明：")) {
+      note = line;
+      current = null;
+      return;
+    }
+    if (current) current.items.push(line.replace(/^[·•-]\s*/, ""));
+  });
+  return { stats, sections, note };
+}
+
+function renderInterestSnapshot() {
+  const snapshot = state.interest || {};
+  const parsed = parseInterestReport(snapshot.report);
+  const sourceLabel = snapshot.stale ? "安全回退" : snapshot.cached ? "30 秒缓存" : "刚刚同步";
+  const sourceTone = snapshot.stale ? "orange" : snapshot.cached ? "violet" : "green";
+  if (!parsed.stats.length && !parsed.sections.length) {
+    return `<div class="interest-snapshot is-empty"><div>${icon("shield")}</div><strong>兴趣状态暂时无法读取</strong><p>${esc(snapshot.error || "回复与主动看片仍会按现有配置继续运行。")}</p></div>`;
+  }
+  return `<div class="interest-snapshot">
+    <div class="interest-snapshot-head">
+      <div><span>当前学习到的视频兴趣</span><strong>只展示观察结果，不会在这里直接改写偏好</strong></div>
+      ${statusPill(sourceLabel, sourceTone)}
+    </div>
+    <div class="interest-stat-row">${parsed.stats.map((item) => `<span>${esc(item)}</span>`).join("")}</div>
+    <div class="interest-insight-grid">${parsed.sections.map((section) => `<article><strong>${esc(section.title)}</strong><div>${section.items.length ? section.items.map((item) => `<p>${esc(item)}</p>`).join("") : `<p>暂无数据</p>`}</div></article>`).join("")}</div>
+    <div class="interest-snapshot-foot"><span>${icon("shield")}只读接口 · 内容已限长并转义 · 不含账号凭据</span><small>${esc(parsed.note || "重复出现的兴趣证据才会逐渐提高选片优先级。")}${snapshot.updated_at ? ` · 更新于 ${esc(snapshot.updated_at)}` : ""}</small></div>
+  </div>`;
+}
+
+function renderInterestConfigSection() {
+  const keys = ["INTEREST_SELECTION_PROMPT", "CUSTOM_REPLY_INSTRUCTION"].filter(hasKey);
+  if (!keys.length) return "";
+  return `<section class="card section-card interest-config-card">
+    ${sectionHead("兴趣选择与评论提示词", "上方状态用于选片参考；下方提示词分别决定是否值得回复、以及怎样自然回复", "star")}
+    ${renderInterestSnapshot()}
+    ${renderFields(keys)}
+  </section>`;
+}
+
 function renderInteraction() {
   return `${pageHead("INTERACTION", "回复与互动", "把值得回应的内容挑出来，再用明确的频率、冷却和硬上限保护账号。", statusPill(`${fmt(state.stats.filtered_today)} 条已过滤`, "green"))}
     <section class="feature-banner interest-banner"><div class="feature-icon">${icon("star")}</div><div><span>兴趣选择器</span><h2>不是每条消息都必须回复</h2><p>广告、复读与低价值内容先被硬过滤，再由模型根据管理员提示词挑选真正值得回应的评论和私信。</p></div><div class="feature-control">${hasKey("ENABLE_INTEREST_BASED_REPLY") ? renderControl("ENABLE_INTEREST_BASED_REPLY", state.schema.ENABLE_INTEREST_BASED_REPLY) : ""}</div></section>
@@ -774,7 +841,7 @@ function renderInteraction() {
       ${renderConfigSection("内容筛选", "先做确定性过滤，再执行兴趣判断", ["FILTER_LOW_VALUE_MESSAGES", "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES", "ENABLE_INTEREST_BASED_REPLY", "INTEREST_APPLY_TO_PRIVATE"], "shield")}
       ${renderConfigSection("回复边界", "概率保留为最后一道节奏控制", ["ENABLE_REPLY", "REPLY_PROBABILITY_PERCENT", "REPLY_COOLDOWN", "POLL_INTERVAL", "REPLY_ALWAYS_UIDS", "ENABLE_SIMILAR_SKIP", "REPLY_SIMILARITY_PERCENT"], "controller")}
     </div>
-    ${renderConfigSection("兴趣选择与评论提示词", "兴趣提示词只负责判断是否值得回复；评论补充提示词负责决定怎么回复", ["INTEREST_SELECTION_PROMPT", "CUSTOM_REPLY_INSTRUCTION"], "star")}
+    ${renderInterestConfigSection()}
     <div class="two-column">
       ${renderConfigSection("B站私信回复", "先决定回复对象，再设置回复方式与人设补充", ["ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS", "PRIVATE_MESSAGE_AUTO_REPLY", "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION"], "user")}
       ${renderConfigSection("B站私信轮询", "集中管理请求节奏、活跃窗口和单轮处理边界", ["PRIVATE_MESSAGE_POLL_INTERVAL", "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", "PRIVATE_MESSAGE_ACTIVE_WINDOW", "PRIVATE_MESSAGE_MAX_PER_POLL", "PRIVATE_MESSAGE_MAX_MESSAGE_AGE"], "clock")}

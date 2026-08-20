@@ -6,11 +6,13 @@ account credentials remain available only through the dedicated login routes.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import inspect
 import io
 import json
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -26,6 +28,7 @@ from .config import (
     DYNAMIC_LOG_FILE,
     DYNAMIC_SCHEDULE_FILE,
     DYNAMIC_WATCH_SCHEDULE_FILE,
+    PREFERENCE_STATE_FILE,
     PROACTIVE_LOG_FILE,
     REPLY_LOG_FILE,
     SCHEDULE_FILE,
@@ -73,6 +76,11 @@ AUTONOMOUS_MAX_COMPAT = {
 AUTONOMOUS_RANGE_PAIRS = ()  # 旧下限字段仅兼容读取，不再参与行为计划。
 Handler = Callable[[Any], Awaitable[Any]]
 
+WEB_INTEREST_CACHE_TTL_SECONDS = 30.0
+WEB_INTEREST_BREAKER_THRESHOLD = 3
+WEB_INTEREST_BREAKER_COOLDOWN_SECONDS = 60.0
+WEB_INTEREST_DB_TIMEOUT_SECONDS = 1.5
+
 
 def _response(data: Any = None, message: str | None = None):
     payload: dict[str, Any] = {"status": "ok"}
@@ -99,6 +107,7 @@ def register_webui(plugin_instance: Any, context: Context):
     routes: list[tuple[str, str, Handler, str]] = [
         ("stats", "GET", handle_get_stats, "BiliBot monitoring overview"),
         ("persona/state", "GET", handle_get_persona_state, "BiliBot persona state"),
+        ("interest/status", "GET", handle_get_interest_status, "BiliBot video interest status"),
         ("config/schema", "GET", handle_get_config_schema, "BiliBot configuration schema"),
         ("config", "GET", handle_get_config, "Read BiliBot configuration"),
         ("config", "POST", handle_save_config, "Save BiliBot configuration"),
@@ -170,6 +179,105 @@ def _load_json(plugin: Any, path: str, default: Any) -> Any:
         return value if value is not None else default
     except Exception:
         return default
+
+
+def _safe_display_text(value: Any, *, max_chars: int = 12000) -> str:
+    """Limit control-panel text without interpreting user-influenced content."""
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    return text[:max(1, int(max_chars))]
+
+
+def _interest_file_preferences(plugin: Any) -> list[dict[str, Any]]:
+    snapshot = _load_json(plugin, PREFERENCE_STATE_FILE, {})
+    current = snapshot.get("current", []) if isinstance(snapshot, dict) else []
+    if not isinstance(current, list):
+        return []
+    return [dict(item) for item in current[:20] if isinstance(item, dict)]
+
+
+def _format_web_interest_payload(
+    plugin: Any,
+    lifecycle_items: list[dict[str, Any]],
+    *,
+    source: str,
+    stale: bool = False,
+) -> dict[str, Any]:
+    formatter = getattr(plugin, "_format_interest_report", None)
+    report = formatter(lifecycle_items=lifecycle_items) if callable(formatter) else "视频兴趣状态暂不可用"
+    return {
+        "report": _safe_display_text(report),
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "source": source,
+        "cached": False,
+        "stale": bool(stale),
+        "read_only": True,
+    }
+
+
+async def _get_web_interest_payload(plugin: Any) -> dict[str, Any]:
+    """Read the interest report with a small cache and a gentle DB breaker.
+
+    This endpoint never invokes an LLM or an external API.  A broken/locked
+    SQLite runtime therefore cannot stall the control panel or cause request
+    amplification; the JSON lifecycle snapshot remains a read-only fallback.
+    """
+    now = time.monotonic()
+    cached = getattr(plugin, "_web_interest_cache", None)
+    if isinstance(cached, tuple) and len(cached) == 2:
+        cached_at, cached_payload = cached
+        if now - float(cached_at or 0) < WEB_INTEREST_CACHE_TTL_SECONDS:
+            result = dict(cached_payload)
+            result["cached"] = True
+            return result
+
+    open_until = float(getattr(plugin, "_web_interest_circuit_open_until", 0.0) or 0.0)
+    if open_until > now:
+        last_good = getattr(plugin, "_web_interest_last_good", None)
+        if isinstance(last_good, dict):
+            result = dict(last_good)
+            result.update({"cached": True, "stale": True, "source": "stale_cache"})
+            return result
+        payload = _format_web_interest_payload(
+            plugin,
+            _interest_file_preferences(plugin),
+            source="circuit_fallback",
+            stale=True,
+        )
+        plugin._web_interest_cache = (now, payload)
+        return payload
+
+    lifecycle_items: list[dict[str, Any]] = []
+    source = "local_fallback"
+    layered = getattr(plugin, "layered_runtime", None)
+    store = getattr(layered, "preferences", None)
+    try:
+        if store is not None and getattr(layered, "is_open", False):
+            lifecycle_items = await asyncio.wait_for(
+                store.current(limit=20), timeout=WEB_INTEREST_DB_TIMEOUT_SECONDS
+            )
+            source = "runtime"
+        else:
+            lifecycle_items = _interest_file_preferences(plugin)
+        plugin._web_interest_failures = 0
+        plugin._web_interest_circuit_open_until = 0.0
+    except Exception as exc:
+        failures = int(getattr(plugin, "_web_interest_failures", 0) or 0) + 1
+        plugin._web_interest_failures = failures
+        lifecycle_items = _interest_file_preferences(plugin)
+        if failures >= WEB_INTEREST_BREAKER_THRESHOLD:
+            plugin._web_interest_circuit_open_until = now + WEB_INTEREST_BREAKER_COOLDOWN_SECONDS
+            logger.warning(
+                "[BiliBot WebUI] 兴趣状态数据库连续读取失败，暂停读取60秒并使用本地副本"
+            )
+        else:
+            logger.debug(f"[BiliBot WebUI] 兴趣状态读取失败，使用本地副本: {exc}")
+
+    payload = _format_web_interest_payload(plugin, lifecycle_items, source=source)
+    plugin._web_interest_cache = (now, payload)
+    if source == "runtime":
+        plugin._web_interest_last_good = dict(payload)
+    return payload
 
 
 def _today_entries(items: Any, *fields: str) -> list[dict[str, Any]]:
@@ -377,6 +485,22 @@ async def handle_get_persona_state(plugin: Any):
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] persona state failed: {exc}")
         return _failure(str(exc), 500)
+
+
+async def handle_get_interest_status(plugin: Any):
+    """Return a bounded, read-only view of the Bot's learned video interests."""
+    try:
+        return _response(await _get_web_interest_payload(plugin))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] interest status failed: {exc}")
+        return _response({
+            "report": "视频兴趣状态暂时不可用，主动看片与回复功能不受影响。",
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "source": "safe_fallback",
+            "cached": False,
+            "stale": True,
+            "read_only": True,
+        })
 
 
 async def handle_memory_stats(plugin: Any):

@@ -116,6 +116,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus
 .status-pill.red { color: #c54e60; background: rgba(217,93,108,.10); }
 .status-pill.pink { color: #bf4b77; background: rgba(233,103,154,.10); }
 .status-pill.violet { color: #6755bd; background: rgba(129,109,232,.11); }
+.status-pill.orange { color: #a9682f; background: rgba(231,156,83,.13); }
 
 .health-hero { position: relative; min-height: 166px; margin-bottom: 16px; padding: 25px 28px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,.9); border-radius: 29px; box-shadow: var(--shadow-sm), inset 0 0 0 1px rgba(51,69,102,.07); }
 .health-hero::after { content: ""; position: absolute; width: 320px; height: 320px; right: -120px; top: -145px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.68), transparent 70%); }
@@ -187,6 +188,28 @@ button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus
 .feature-banner h2 { margin: 3px 0 4px; color: var(--text-strong); font-size: 22px; letter-spacing: -.035em; }
 .feature-banner p { max-width: 760px; margin: 0; color: var(--muted); font-size: 11px; }
 .feature-control { padding: 12px; border-radius: 16px; background: rgba(255,255,255,.48); }
+
+.interest-snapshot { margin: 0 0 8px; padding: 16px; border: 1px solid rgba(119,102,205,.12); border-radius: 18px; background: linear-gradient(135deg, rgba(247,243,255,.86), rgba(240,248,255,.78), rgba(240,250,247,.78)); }
+.interest-snapshot-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.interest-snapshot-head > div { min-width: 0; }
+.interest-snapshot-head span, .interest-snapshot-head strong { display: block; }
+.interest-snapshot-head > div > span { color: #7565bd; font-size: 9px; font-weight: 850; letter-spacing: .1em; }
+.interest-snapshot-head > div > strong { margin-top: 3px; color: var(--text-strong); font-size: 12px; }
+.interest-stat-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 7px; }
+.interest-stat-row span { padding: 6px 9px; border: 1px solid rgba(92,104,143,.09); border-radius: 10px; color: #56637b; background: rgba(255,255,255,.74); font-size: 9.5px; font-weight: 700; }
+.interest-insight-grid { margin-top: 11px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.interest-insight-grid article { min-width: 0; padding: 11px 12px; border: 1px solid rgba(79,96,135,.08); border-radius: 13px; background: rgba(255,255,255,.64); }
+.interest-insight-grid article > strong { display: block; margin-bottom: 6px; color: #4f5d78; font-size: 10px; }
+.interest-insight-grid article p { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.interest-snapshot-foot { margin-top: 10px; padding-top: 9px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-top: 1px solid rgba(72,89,124,.08); color: #7c879d; }
+.interest-snapshot-foot span { display: inline-flex; align-items: center; gap: 5px; flex: none; font-size: 8.5px; font-weight: 700; }
+.interest-snapshot-foot span .gicon { width: 12px; height: 12px; }
+.interest-snapshot-foot small { text-align: right; font-size: 8.5px; line-height: 1.5; }
+.interest-snapshot.is-empty { padding: 22px; text-align: center; }
+.interest-snapshot.is-empty > div { width: 36px; height: 36px; margin: 0 auto 7px; display: grid; place-items: center; border-radius: 12px; color: #8c78c9; background: rgba(129,109,232,.09); }
+.interest-snapshot.is-empty strong { display: block; font-size: 11px; }
+.interest-snapshot.is-empty p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
+.interest-config-card > .field-stack { margin-top: 4px; }
 
 .field-stack { display: grid; }
 .config-field { min-height: 67px; padding: 13px 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .82fr); align-items: center; gap: 18px; border-top: 1px solid var(--line); }
@@ -486,6 +509,9 @@ button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus
   .parameter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .config-field { grid-template-columns: 1fr; gap: 9px; }
   .config-field.is-switch { grid-template-columns: minmax(0,1fr) auto; }
+  .interest-insight-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .interest-snapshot-foot { display: grid; gap: 6px; }
+  .interest-snapshot-foot small { text-align: left; }
   .tool-grid { grid-template-columns: 1fr; }
   .profile-row { grid-template-columns: auto minmax(0,1fr); }
   .profile-meta { grid-column: 2; display: flex; align-items: center; gap: 5px; text-align: left; }
@@ -517,6 +543,9 @@ button:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus
   .parameter-grid { grid-template-columns: 1fr; }
   .config-field.is-tile { min-height: 105px; }
   .settings-summary { flex-wrap: wrap; gap: 7px 13px; }
+  .interest-snapshot { padding: 13px; }
+  .interest-snapshot-head { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .interest-insight-grid { grid-template-columns: 1fr; }
   .save-dock-inner { display: grid; grid-template-columns: 1fr auto auto; gap: 7px; border-radius: 17px; }
   .save-dock-copy span { display: none; }
   .save-dock .button { min-height: 42px; padding: 0 12px; }
