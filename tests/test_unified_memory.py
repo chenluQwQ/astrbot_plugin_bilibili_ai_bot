@@ -212,6 +212,175 @@ class UnifiedMemoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("直播印象", live)
         self.assertNotIn("私信里的秘密", live)
 
+    async def test_single_delete_invalidates_derived_summary_and_vector_rows(self):
+        target = {
+            "rpid": "live-raw-1",
+            "text": "用户在直播里说过一条稍后应被删除的话",
+            "time": "2026-08-20 20:00",
+            "source": "bilibili_live",
+            "scope": "bili_live",
+            "thread_id": "live:room-1:session-1",
+            "user_id": "42",
+            "memory_type": "live",
+            "embedding": [0.1, 0.2],
+        }
+        derived = {
+            "rpid": "compressed-live-42",
+            "text": "[记忆压缩] 包含那条稍后应被删除的话",
+            "time": "2026-08-20 20:05",
+            "source": "bilibili_live",
+            "scope": "bili_live",
+            "thread_id": "compressed:bili_live",
+            "user_id": "42",
+            "memory_type": "user_summary",
+            "summary_kind": "user",
+            "derived_from_rpids": ["live-raw-1"],
+            "embedding": [0.2, 0.3],
+        }
+        unrelated = {
+            "rpid": "live-keep-99",
+            "text": "另一位用户的独立直播记忆",
+            "time": "2026-08-20 20:06",
+            "source": "bilibili_live",
+            "scope": "bili_live",
+            "thread_id": "live:room-1:session-1",
+            "user_id": "99",
+            "memory_type": "live",
+            "embedding": [0.3, 0.4],
+        }
+        Path(self.config.USER_PROFILE_FILE).write_text(
+            json.dumps(
+                {
+                    "42": {
+                        "live": {
+                            "memory_refs": [
+                                "live-raw-1",
+                                "compressed-live-42",
+                                "keep-ref",
+                            ]
+                        }
+                    }
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        bot = self.bot([target, derived, unrelated])
+        await bot._initialize_unified_memory()
+        self.assertEqual(
+            await self.layers.db.fetch_value(
+                "SELECT COUNT(*) FROM memory_vectors", default=0
+            ),
+            3,
+        )
+
+        report = await bot._delete_memory_by_rpid("live-raw-1")
+
+        self.assertTrue(report["found"])
+        self.assertEqual(report["deleted_count"], 2)
+        self.assertEqual(report["invalidated_summary_count"], 1)
+        self.assertEqual(report["profile_memory_refs_removed"], 2)
+        self.assertEqual(
+            {item["rpid"] for item in bot._memory}, {"live-keep-99"}
+        )
+        self.assertEqual(
+            {item["rpid"] for item in await self.layers.memories.load_legacy()},
+            {"live-keep-99"},
+        )
+        self.assertEqual(
+            await self.layers.db.fetch_value(
+                "SELECT COUNT(*) FROM memory_vectors", default=0
+            ),
+            1,
+        )
+        backup = json.loads(
+            Path(self.config.MEMORY_FILE).read_text(encoding="utf-8")
+        )
+        self.assertEqual({item["rpid"] for item in backup}, {"live-keep-99"})
+        profiles = json.loads(
+            Path(self.config.USER_PROFILE_FILE).read_text(encoding="utf-8")
+        )
+        self.assertEqual(profiles["42"]["live"]["memory_refs"], ["keep-ref"])
+
+    async def test_single_delete_conservatively_invalidates_legacy_summary(self):
+        target = {
+            "rpid": "comment-raw-1",
+            "text": "旧评论原文",
+            "source": "bilibili",
+            "scope": "bili_comment",
+            "thread_id": "thread-1",
+            "oid": "100",
+            "user_id": "42",
+            "memory_type": "chat",
+        }
+        legacy_summary = {
+            "rpid": "thread_compressed_old",
+            "text": "[评论线总结] 旧评论原文的摘要",
+            "source": "bilibili",
+            "scope": "bili_comment",
+            "thread_id": "thread-1",
+            "oid": "100",
+            "user_id": "42",
+            "memory_type": "chat",
+        }
+        independent = {
+            "rpid": "comment-keep-2",
+            "text": "同一视频下另一条独立评论线",
+            "source": "bilibili",
+            "scope": "bili_comment",
+            "thread_id": "thread-2",
+            "oid": "200",
+            "user_id": "99",
+            "memory_type": "chat",
+        }
+        other_thread_summary = {
+            "rpid": "thread_compressed_other",
+            "text": "[评论线总结] 同一用户在其他评论线的独立摘要",
+            "source": "bilibili",
+            "scope": "bili_comment",
+            "thread_id": "thread-3",
+            "oid": "300",
+            "user_id": "42",
+            "memory_type": "chat",
+        }
+        bot = self.bot(
+            [target, legacy_summary, independent, other_thread_summary]
+        )
+        await bot._initialize_unified_memory()
+
+        report = await bot._delete_memory_by_rpid("comment-raw-1")
+
+        self.assertEqual(
+            set(report["removed_rpids"]),
+            {"comment-raw-1", "thread_compressed_old"},
+        )
+        self.assertEqual(
+            {item["rpid"] for item in bot._memory},
+            {"comment-keep-2", "thread_compressed_other"},
+        )
+
+    async def test_single_delete_missing_id_is_a_noop(self):
+        bot = self.bot(
+            [{"rpid": "keep", "text": "保留", "source": "bilibili"}]
+        )
+        await bot._initialize_unified_memory()
+
+        report = await bot._delete_memory_by_rpid("missing")
+
+        self.assertFalse(report["found"])
+        self.assertEqual({item["rpid"] for item in bot._memory}, {"keep"})
+
+    def test_derived_memory_id_is_stable_and_order_independent(self):
+        bot = self.bot([])
+        first = bot._derived_memory_id(
+            "compressed", [{"rpid": "a"}, {"rpid": "b"}]
+        )
+        second = bot._derived_memory_id(
+            "compressed", [{"rpid": "b"}, {"rpid": "a"}]
+        )
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("compressed_"))
+
 
 if __name__ == "__main__":
     unittest.main()

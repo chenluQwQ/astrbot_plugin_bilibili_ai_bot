@@ -16,6 +16,7 @@ from .config import (
     THREAD_COMPRESS_THRESHOLD,
     OID_COMPRESS_THRESHOLD, OID_KEEP_RECENT,
     USER_MEMORY_COMPRESS_THRESHOLD, USER_MEMORY_KEEP_RECENT,
+    USER_PROFILE_FILE,
 )
 
 
@@ -224,6 +225,169 @@ class MemoryMixin:
             self._mark_memory_sync_pending(exc)
             logger.warning(f"[BiliBot] 统一记忆快照同步失败，已保留 JSON 待同步: {exc}")
         self._save_json(MEMORY_FILE, self._memory_backup_records(self._memory))
+
+    @staticmethod
+    def _is_derived_memory(record):
+        """Return whether a memory is a generated summary of other memories."""
+        rpid = str(record.get("rpid") or "")
+        text = str(record.get("text") or "")
+        return bool(
+            record.get("derived_from_rpids")
+            or record.get("summary_kind")
+            or rpid.startswith(("oid_compressed_", "thread_compressed_", "compressed_"))
+            or text.startswith(("[评论区总结]", "[评论线总结]", "[记忆压缩]"))
+        )
+
+    @staticmethod
+    def _derived_memory_id(prefix, records):
+        """Build a collision-free, reproducible ID from the source memory IDs."""
+        source_ids = sorted(
+            {str(item.get("rpid") or "") for item in records if item.get("rpid")}
+        )
+        digest = hashlib.sha256(
+            json.dumps(source_ids, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()[:24]
+        return f"{prefix}_{digest}"
+
+    @staticmethod
+    def _legacy_summary_depends_on(summary, target):
+        """Conservatively infer dependencies for summaries created before provenance existed."""
+        if not MemoryMixin._is_derived_memory(summary):
+            return False
+        if summary.get("derived_from_rpids"):
+            return False
+
+        summary_thread = str(summary.get("thread_id") or "")
+        target_thread = str(target.get("thread_id") or "")
+        if summary_thread and target_thread and summary_thread == target_thread:
+            return True
+
+        summary_oid = str(summary.get("oid") or "")
+        target_oid = str(target.get("oid") or "")
+        if summary_oid and target_oid and summary_oid == target_oid:
+            return True
+
+        # 用户压缩总结没有可靠的评论线/视频归属；旧数据只能按用户和 scope
+        # 保守失效，防止删除的原文仍从旧摘要中被召回。评论线/评论区摘要
+        # 不走此兜底，否则会误删同一用户在别处的独立摘要。
+        summary_rpid = str(summary.get("rpid") or "")
+        summary_text = str(summary.get("text") or "")
+        is_user_summary = bool(
+            summary.get("summary_kind") == "user"
+            or summary_rpid.startswith("compressed_")
+            or summary_text.startswith("[记忆压缩]")
+        )
+        if not is_user_summary:
+            return False
+        summary_uid = str(summary.get("user_id") or "")
+        target_uid = str(target.get("user_id") or "")
+        if summary_uid not in {"", "self", "summary"} and summary_uid == target_uid:
+            summary_scope = str(summary.get("scope") or "")
+            target_scope = str(target.get("scope") or "")
+            return bool(summary_scope and summary_scope == target_scope)
+        return False
+
+    def _remove_profile_memory_refs(self, removed_rpids):
+        """Prune lightweight live-memory references after their memories are deleted."""
+        removed = {str(item) for item in removed_rpids if item}
+        if not removed:
+            return 0
+        profiles = self._load_json(USER_PROFILE_FILE, {})
+        if not isinstance(profiles, dict):
+            return 0
+        changed = 0
+        for profile in profiles.values():
+            if not isinstance(profile, dict):
+                continue
+            live = profile.get("live")
+            if not isinstance(live, dict):
+                continue
+            refs = live.get("memory_refs")
+            if not isinstance(refs, list):
+                continue
+            kept = [ref for ref in refs if str(ref) not in removed]
+            changed += len(refs) - len(kept)
+            if len(kept) != len(refs):
+                live["memory_refs"] = kept
+        if changed:
+            self._save_json(USER_PROFILE_FILE, profiles)
+        return changed
+
+    async def _delete_memory_by_rpid(self, rpid):
+        """Precisely delete one memory and invalidate summaries derived from it.
+
+        This is the storage primitive for future Web management. It deliberately
+        does not delete independent user-profile facts; clearing a profile has a
+        different meaning and will use a separate operation.
+        """
+        key = str(rpid or "").strip()
+        report = {
+            "requested_rpid": key,
+            "found": False,
+            "deleted_count": 0,
+            "invalidated_summary_count": 0,
+            "profile_memory_refs_removed": 0,
+            "removed_rpids": [],
+        }
+        if not key:
+            return report
+
+        lock = getattr(self, "_memory_write_lock", None)
+        if lock is None:
+            import asyncio
+            lock = self._memory_write_lock = asyncio.Lock()
+        async with lock:
+            by_id = {
+                str(item.get("rpid") or ""): item
+                for item in self._memory
+                if isinstance(item, dict) and item.get("rpid")
+            }
+            target = by_id.get(key)
+            if target is None:
+                return report
+
+            removed = {key}
+            targets = [target]
+            changed = True
+            while changed:
+                changed = False
+                for candidate_id, candidate in by_id.items():
+                    if candidate_id in removed or not self._is_derived_memory(candidate):
+                        continue
+                    raw_sources = candidate.get("derived_from_rpids", [])
+                    sources = {
+                        str(item)
+                        for item in raw_sources
+                        if item
+                    } if isinstance(raw_sources, (list, tuple, set)) else set()
+                    depends = bool(sources & removed)
+                    if not depends:
+                        depends = any(
+                            self._legacy_summary_depends_on(candidate, item)
+                            for item in targets
+                        )
+                    if depends:
+                        removed.add(candidate_id)
+                        targets.append(candidate)
+                        changed = True
+
+            self._memory = [
+                item for item in self._memory
+                if str(item.get("rpid") or "") not in removed
+            ]
+            await self._replace_memory_snapshot(assume_locked=True)
+            profile_refs_removed = self._remove_profile_memory_refs(removed)
+
+        report.update(
+            {
+                "found": True,
+                "deleted_count": len(removed),
+                "invalidated_summary_count": max(0, len(removed) - 1),
+                "profile_memory_refs_removed": profile_refs_removed,
+                "removed_rpids": sorted(removed),
+            }
+        )
+        return report
 
     @staticmethod
     def _memory_type_label(memory_type):
@@ -484,7 +648,7 @@ class MemoryMixin:
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
             emb = await self._get_embedding(summary)
             comp = {
-                "rpid": f"oid_compressed_{int(datetime.now().timestamp())}",
+                "rpid": self._derived_memory_id("oid_compressed", old),
                 "thread_id": f"oid_summary:{oid_str}",
                 "oid": oid_str,
                 "user_id": "summary",
@@ -492,6 +656,8 @@ class MemoryMixin:
                 "text": f"[评论区总结] {summary}",
                 "source": "bilibili",
                 "memory_type": "user_summary",
+                "summary_kind": "oid",
+                "derived_from_rpids": sorted({str(m["rpid"]) for m in old}),
                 "level": "long_term", "importance": 7, "promoted_at": now,
             }
             # 保留视频元数据（从被压缩的记录中提取）
@@ -540,13 +706,15 @@ class MemoryMixin:
             # 保留oid字段
             old_oid = old[0].get("oid", "")
             comp = {
-                "rpid": f"thread_compressed_{int(datetime.now().timestamp())}",
+                "rpid": self._derived_memory_id("thread_compressed", old),
                 "thread_id": str(thread_id),
                 "user_id": old[0].get("user_id", ""),
                 "time": now,
                 "text": f"[评论线总结] {summary}",
                 "source": "bilibili",
                 "memory_type": "chat",
+                "summary_kind": "thread",
+                "derived_from_rpids": sorted({str(m["rpid"]) for m in old}),
                 "level": "long_term", "importance": 6, "promoted_at": now,
             }
             if old_oid:
@@ -619,11 +787,13 @@ class MemoryMixin:
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
             emb = await self._get_embedding(result.get("summary", ""))
             comp = {
-                "rpid": f"compressed_{int(datetime.now().timestamp())}",
+                "rpid": self._derived_memory_id("compressed", old),
                 "thread_id": f"compressed:{memory_scope}", "user_id": str(user_id),
                 "time": now, "text": f"[记忆压缩] {result.get('summary', '')}",
                 "source": "bilibili", "memory_type": "user_summary",
                 "scope": str(memory_scope),
+                "summary_kind": "user",
+                "derived_from_rpids": sorted({str(m["rpid"]) for m in old}),
                 "level": "long_term", "importance": 7, "promoted_at": now,
             }
             # 保留元数据（用户可能在多个视频下互动，取最近的）
