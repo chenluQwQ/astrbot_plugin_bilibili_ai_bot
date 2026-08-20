@@ -157,7 +157,7 @@ class VideoMixin:
                     actual_bvid, analysis_info, source=memory_source
                 )
 
-                if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+                if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", True):
                     memory_text = (
                         f"[{now_str}] 视频摘要《{vi.get('title', '')}》"
                         f"(UP主:{vi.get('owner_name', '')}) 评分:{score}/10 "
@@ -879,7 +879,7 @@ UP主：{video_info.get('up_name', '未知')}
                 cached_summary = c.get("analysis") or c.get("summary") or "已看过该视频；完整分析缓存已清理。"
                 if (
                     not has_mem
-                    and self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False)
+                    and self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", True)
                     and c.get("memory_stage") != "faded"
                 ):
                     mem_time = c.get("time", datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -926,7 +926,7 @@ UP主：{video_info.get('up_name', '未知')}
             f"UP主:{vi['owner_name']} 分区:{vi['tname']} "
             f"简介:{vi.get('desc', '')[:120]} 内容概括:{analysis[:200]}"
         )
-        if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+        if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", True):
             await self._save_self_memory_record(
                 f"video:{bvid}", memory_text, memory_type="video",
                 extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"]},

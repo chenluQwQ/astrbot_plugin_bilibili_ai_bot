@@ -318,6 +318,75 @@ class FeedbackStore:
             reverse=True,
         )
 
+    @staticmethod
+    def _relevance_terms(value: Any) -> set[str]:
+        """Extract conservative topic terms without exposing raw feedback."""
+        text = re.sub(r"\s+", " ", str(value or "").casefold()).strip()
+        terms = {
+            token for token in re.findall(r"[a-z0-9][a-z0-9_.-]{2,}", text)
+        }
+        stop_terms = {
+            "这个", "那个", "一下", "有点", "感觉", "问题", "时候", "可以",
+            "还是", "回复", "用户", "内容", "应该", "不要", "需要",
+        }
+        for chunk in re.findall(r"[\u3400-\u9fff]+", text):
+            if len(chunk) >= 2:
+                terms.update(
+                    chunk[index:index + 2]
+                    for index in range(len(chunk) - 1)
+                    if chunk[index:index + 2] not in stop_terms
+                )
+        return terms
+
+    async def relevant(
+        self, query: str, *, days: int = 30, limit: int = 3
+    ) -> list[dict[str, Any]]:
+        """Return supported, scene-relevant reflection candidates only.
+
+        A single ordinary user's suggestion remains only a candidate: it is not
+        injected until the owner raised it, multiple actors agree, or accumulated
+        relationship weight is high enough. This is guidance, not personality
+        mutation.
+        """
+        query_terms = self._relevance_terms(query)
+        if not query_terms:
+            return []
+        ranked = []
+        for item in await self.aggregate(days=days):
+            if str(item.get("feedback_type") or "") not in {
+                "suggestion", "correction", "criticism",
+            }:
+                continue
+            if not (
+                int(item.get("owner_count", 0) or 0) >= 1
+                or int(item.get("distinct_actors", 0) or 0) >= 2
+                or float(item.get("weighted_score", 0) or 0) >= 2.5
+            ):
+                continue
+            candidate_text = " ".join([
+                str(item.get("topic") or ""),
+                *[str(value or "") for value in item.get("examples", [])],
+            ])
+            overlap = query_terms & self._relevance_terms(candidate_text)
+            if not overlap:
+                continue
+            ranked_item = dict(item)
+            ranked_item["relevance_score"] = round(
+                len(overlap) * 2.0
+                + min(5.0, float(item.get("weighted_score", 0) or 0))
+                + min(2.0, int(item.get("distinct_actors", 0) or 0) * 0.5),
+                2,
+            )
+            ranked.append(ranked_item)
+        ranked.sort(
+            key=lambda item: (
+                item["relevance_score"], item["owner_count"],
+                item["distinct_actors"], item["weighted_score"],
+            ),
+            reverse=True,
+        )
+        return ranked[:max(0, min(5, int(limit)))]
+
 
 class PreferenceStore:
     """把视频评价信号沉淀为候选、近期和稳定偏好。"""

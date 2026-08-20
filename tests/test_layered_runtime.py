@@ -455,6 +455,31 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(aggregate[0]["owner_count"], 1)
         self.assertEqual(aggregate[0]["weighted_score"], 4.0)
 
+    async def test_feedback_recall_requires_support_and_scene_relevance(self):
+        await self.layers.feedback.record_candidate(
+            event_key="comment:owner-mechanical", actor_id="42", actor_name="主人",
+            scope="bili_comment", feedback_type="correction", topic="机械回复",
+            next_time="先回应评论里的具体内容", relation_weight=3.0,
+            is_owner=True,
+        )
+        await self.layers.feedback.record_candidate(
+            event_key="comment:single-service", actor_id="99", actor_name="普通用户",
+            scope="bili_comment", feedback_type="suggestion", topic="客服腔",
+            next_time="少用服务式结尾", relation_weight=1.0,
+        )
+        await self.layers.feedback.record_candidate(
+            event_key="comment:owner-download", actor_id="42", actor_name="主人",
+            scope="bili_comment", feedback_type="correction", topic="视频下载失败",
+            next_time="更换下载格式", relation_weight=3.0, is_owner=True,
+        )
+
+        relevant = await self.layers.feedback.relevant(
+            "你这次回复太机械了，也有客服腔", days=30
+        )
+
+        self.assertEqual([item["topic"] for item in relevant], ["机械回复"])
+        self.assertGreater(relevant[0]["relevance_score"], 0)
+
     def test_stored_action_digest_uses_security_hash(self):
         key = StoredActionRequest(tool="post_dynamic", args={"text": "hi"}).digest_key()
         self.assertTrue(key.startswith("post_dynamic:none:"))

@@ -214,6 +214,35 @@ class WeeklySummaryMixin:
                 "review": self._weekly_excerpt(item.get("review") or item.get("comment"), 120),
             })
         valid_videos.sort(key=lambda item: item["score"], reverse=True)
+        high_score_videos = [item for item in valid_videos if item["score"] >= 8.0]
+
+        def _high_score_groups(field, limit=6):
+            grouped = {}
+            for item in high_score_videos:
+                label = str(item.get(field) or "").strip()
+                if not label:
+                    continue
+                bucket = grouped.setdefault(label, {"count": 0, "score_total": 0.0})
+                bucket["count"] += 1
+                bucket["score_total"] += float(item["score"])
+            return [
+                {
+                    "name": label,
+                    "count": values["count"],
+                    "average_score": round(
+                        values["score_total"] / values["count"], 1
+                    ),
+                }
+                for label, values in sorted(
+                    grouped.items(),
+                    key=lambda pair: (pair[1]["count"], pair[1]["score_total"]),
+                    reverse=True,
+                )[:limit]
+            ]
+
+        mood_distribution = Counter(
+            item["mood"] for item in valid_videos if item.get("mood")
+        )
 
         signal_groups = {}
         search_keywords = []
@@ -275,6 +304,12 @@ class WeeklySummaryMixin:
                 "live_events": len(live_events),
             },
             "video_highlights": valid_videos[:8],
+            "high_score_partitions": _high_score_groups("partition"),
+            "frequent_high_score_ups": _high_score_groups("up"),
+            "mood_distribution": [
+                {"mood": mood, "count": count}
+                for mood, count in mood_distribution.most_common(8)
+            ],
             "preference_evidence": evidence,
             "preference_state": preference_state,
             "search_keywords": search_keywords[:10],

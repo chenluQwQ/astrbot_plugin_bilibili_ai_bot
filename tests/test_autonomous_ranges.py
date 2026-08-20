@@ -461,6 +461,36 @@ def _check_concrete_preference_signals_feed_search_fallback():
 
 
 class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_video_long_term_memory_is_on_when_config_key_is_missing(self):
+        probe = VideoProbe({})
+
+        result = await probe._watch_video_and_save_memory("BV1234567890")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(probe.memory_writes), 1)
+
+    async def test_relevant_feedback_context_is_short_and_explicitly_non_persona(self):
+        class Feedback:
+            async def relevant(self, query, **_kwargs):
+                self.query = query
+                return [{
+                    "topic": "回复太机械",
+                    "examples": ["先回应对方说的具体内容"],
+                }]
+
+        feedback = Feedback()
+        probe = ReplyProbe({})
+        probe.layered_runtime = types.SimpleNamespace(
+            is_open=True, feedback=feedback
+        )
+
+        context = await probe._relevant_feedback_context("这次回复有点机械")
+
+        self.assertEqual(feedback.query, "这次回复有点机械")
+        self.assertIn("回复太机械", context)
+        self.assertIn("不是人格改写", context)
+        self.assertNotIn("actor_id", context)
+
     async def test_concurrent_daily_plan_requests_share_one_model_call(self):
         class FrozenDateTime(datetime):
             @classmethod

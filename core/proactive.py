@@ -1549,7 +1549,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 if recommended_by_comment:
                     channels.append("视频评论区@对方")
                 memory_text += f" | 觉得不错，已通过{'、'.join(channels)}分享给{on}"
-            if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+            if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", True):
                 await self._save_self_memory_record("proactive_watch", self._clip_media_text(memory_text, 520), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": evaluation.get("partition") or analysis_info.get("tname", ""), "score": score, "score_reason": score_reason, "mood": mood, "review": review, "preference_signals": preference_signals, "search_keywords": search_keywords})
             if bvid not in external_memory:
                 external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": self._clip_media_text(video_description, 220), "score": score, "score_reason": score_reason, "mood": mood, "review": self._clip_media_text(review, 120), "preference_signals": preference_signals, "search_keywords": search_keywords, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
@@ -1849,7 +1849,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 )
             if search_keywords:
                 memory_text += f" | 可继续搜索:{'、'.join(search_keywords[:5])}"
-            if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+            if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", True):
                 await self._save_self_memory_record(
                     "special_follow_watch", self._clip_media_text(memory_text, 520), memory_type="video",
                     extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": evaluation.get("partition") or analysis_info.get("tname", ""), "score": score, "score_reason": score_reason, "mood": mood, "review": review, "preference_signals": preference_signals, "search_keywords": search_keywords},
