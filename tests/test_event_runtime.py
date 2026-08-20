@@ -429,6 +429,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                     self.profile_updates = 0
                     self.memory_writes = 0
                     self.saved_paths = []
+                    self.relationship_records = 0
 
                 def _is_owner(self, _mid):
                     return False
@@ -438,6 +439,10 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
 
                 def _commit_milestone(self, *_args):
                     pass
+
+                def _record_relationship_interaction(self, *_args, **_kwargs):
+                    self.relationship_records += 1
+                    return {}
 
                 async def _send_bili_private_message(self, _mid, _text):
                     return False
@@ -485,6 +490,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bot.profile_updates, 0)
             self.assertEqual(bot.memory_writes, 0)
             self.assertEqual(bot.saved_paths, [])
+            self.assertEqual(bot.relationship_records, 0)
 
     async def test_successful_send_commits_side_effects(self):
         with tempfile.TemporaryDirectory() as data_dir:
@@ -498,6 +504,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                     self.profile_updates = 0
                     self.memory_writes = 0
                     self.saved_paths = []
+                    self.relationship_records = 0
 
                 def _is_owner(self, _mid):
                     return False
@@ -507,6 +514,10 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
 
                 def _commit_milestone(self, *_args):
                     pass
+
+                def _record_relationship_interaction(self, *_args, **_kwargs):
+                    self.relationship_records += 1
+                    return {}
 
                 async def _send_bili_private_message(self, _mid, _text):
                     return True
@@ -553,6 +564,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bot._affection["42"], 12)
             self.assertEqual(bot.profile_updates, 1)
             self.assertEqual(bot.memory_writes, 1)
+            self.assertEqual(bot.relationship_records, 1)
             self.assertIn(constants["AFFECTION_FILE"], bot.saved_paths)
             self.assertIn(constants["REPLY_LOG_FILE"], bot.saved_paths)
 
@@ -570,6 +582,7 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 self.profile_updates = 0
                 self.memory_writes = 0
                 self.saved_paths = []
+                self.relationship_records = 0
 
             async def _oid_to_bvid(self, _oid):
                 return ""
@@ -585,6 +598,10 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
 
             def _commit_milestone(self, *_args):
                 pass
+
+            def _record_relationship_interaction(self, *_args, **_kwargs):
+                self.relationship_records += 1
+                return {}
 
             async def _send_reply(self, *_args):
                 return send_ok
@@ -646,6 +663,7 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bot.profile_updates, 0)
             self.assertEqual(bot.memory_writes, 0)
             self.assertEqual(bot.saved_paths, [])
+            self.assertEqual(bot.relationship_records, 0)
 
     async def test_successful_comment_send_commits_scoped_side_effects(self):
         with tempfile.TemporaryDirectory() as data_dir:
@@ -671,6 +689,7 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bot._affection["42"], 12)
             self.assertEqual(bot.profile_updates, 1)
             self.assertEqual(bot.memory_writes, 1)
+            self.assertEqual(bot.relationship_records, 1)
             self.assertIn(constants["AFFECTION_FILE"], bot.saved_paths)
             self.assertIn(constants["REPLY_LOG_FILE"], bot.saved_paths)
 

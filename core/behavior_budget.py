@@ -32,7 +32,28 @@ class BehaviorBudget:
     def __init__(self, config_getter) -> None:
         self._get = config_getter
 
+    # WebUI 的自主安排面板用 *_DAILY_MIN/MAX 表示"每天在区间内自选目标"，
+    # MAX 即当天硬上限。旧的 *_DAILY_LIMIT 单值键保留兼容：优先读 MAX，
+    # 缺失或仍为默认值时回退到 LIMIT，避免两处配置各说一套。
+    _DAILY_MAX_ALIASES = {
+        "AUTONOMOUS_REPLY_DAILY_LIMIT": ("AUTONOMOUS_REPLY_DAILY_MAX", 80),
+        "AUTONOMOUS_PRIVATE_DAILY_LIMIT": ("AUTONOMOUS_PRIVATE_DAILY_MAX", 30),
+        "AUTONOMOUS_DYNAMIC_DAILY_LIMIT": ("AUTONOMOUS_DYNAMIC_DAILY_MAX", 2),
+        "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": ("AUTONOMOUS_PROACTIVE_DAILY_MAX", 4),
+    }
+
     def _int(self, key: str, default: int = 0) -> int:
+        alias = self._DAILY_MAX_ALIASES.get(key)
+        if alias:
+            max_key, schema_default = alias
+            max_value = self._raw_int(max_key, schema_default)
+            legacy_value = self._raw_int(key, default)
+            if max_value != schema_default or legacy_value == default:
+                return max_value
+            return legacy_value
+        return self._raw_int(key, default)
+
+    def _raw_int(self, key: str, default: int = 0) -> int:
         try:
             return max(0, int(self._get(key, default) or 0))
         except (TypeError, ValueError):

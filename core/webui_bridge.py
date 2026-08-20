@@ -37,6 +37,45 @@ from .config import (
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "_conf_schema.json"
 PROTECTED_CONFIG_KEYS = {"SESSDATA", "BILI_JCT", "DEDE_USER_ID", "REFRESH_TOKEN"}
+
+# Only these names are safe Bilibot-side read adapters.  The AstrBot registry
+# also contains write tools, private-memory tools, built-ins, other plugins and
+# MCP tools; those must never be presented as selectable Bilibili read tools.
+BILI_READONLY_ADAPTERS = {
+    "bili_up_info": ("UP 主信息", "读取公开 UP 主资料"),
+    "get_up_info": ("UP 主信息", "读取公开 UP 主资料"),
+    "bili_video_search": ("视频搜索", "查询公开 B站视频"),
+    "search_bilibili": ("视频搜索", "查询公开 B站视频"),
+    "bili_search_and_watch": ("搜索并观看", "搜索并分析公开视频，不执行互动写操作"),
+    "watch_video": ("观看视频", "读取并分析指定 BV 号的公开视频"),
+    "check_following_updates": ("关注更新查询", "B站端私信回复模型按需查看今天关注 UP 主的新动态与投稿"),
+    "check_following_live": ("关注开播查询", "B站端私信回复模型按需查看关注列表中当前正在直播的 UP 主"),
+    "get_bangumi_info": ("番剧详情", "按 season_id 读取番剧公开资料与最近剧集"),
+    "get_bangumi_trending": ("番剧排行", "只读查看 B站番剧或国创热度排行"),
+    "get_bangumi_timeline": ("新番时间表", "只读查看近期番剧更新日程"),
+    "get_bangumi_updates": ("追番更新", "只读查看账号当前在追番剧的更新概况"),
+    "web_search": ("联网搜索", "通过插件当前配置的只读搜索接口检索公开网页"),
+}
+BILI_WRITE_TOOLS = {
+    "bili_action", "bili_block_user", "bili_parse_video", "watch_and_share_video_private",
+}
+BILI_PRIVATE_TOOLS = {
+    "bili_recall", "recall_user", "recall_conversation", "recall_today", "recall_video",
+    "recall_dynamic", "recall_bangumi",
+}
+BILI_COMPOSITE_TOOLS = {"bili_bangumi", "bili_watch_videos"}
+AUTONOMOUS_MAX_COMPAT = {
+    "AUTONOMOUS_REPLY_DAILY_MAX": ("AUTONOMOUS_REPLY_DAILY_LIMIT", 80),
+    "AUTONOMOUS_PRIVATE_DAILY_MAX": ("AUTONOMOUS_PRIVATE_DAILY_LIMIT", 30),
+    "AUTONOMOUS_DYNAMIC_DAILY_MAX": ("AUTONOMOUS_DYNAMIC_DAILY_LIMIT", 2),
+    "AUTONOMOUS_PROACTIVE_DAILY_MAX": ("AUTONOMOUS_PROACTIVE_DAILY_LIMIT", 4),
+}
+AUTONOMOUS_RANGE_PAIRS = (
+    ("AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "评论回复"),
+    ("AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX", "私信回复"),
+    ("AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "动态发布"),
+    ("AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX", "主动行为"),
+)
 Handler = Callable[[Any], Awaitable[Any]]
 
 
@@ -80,6 +119,7 @@ def register_webui(plugin_instance: Any, context: Context):
         ("schedule/today", "GET", handle_get_schedule, "BiliBot daily schedule"),
         ("schedule/stats", "GET", handle_get_schedule_stats, "BiliBot scheduler statistics"),
         ("schedule/regenerate", "POST", handle_schedule_regenerate, "Regenerate today's schedule"),
+        ("schedule/override", "POST", handle_schedule_override, "Save edited today's schedule"),
         ("security/stats", "GET", handle_security_stats, "BiliBot security statistics"),
         ("tools/available", "GET", handle_available_tools, "Available AstrBot tools for BiliBot"),
     ]
@@ -102,10 +142,27 @@ def _load_schema(*, include_protected: bool = False) -> dict[str, dict[str, Any]
 
 def _config_value(plugin: Any, key: str, default: Any = None) -> Any:
     try:
-        return plugin.config.get(key, default)
+        if key == "ENABLE_OWNER_RECOMMEND" and str(plugin.config.get("RECOMMEND_OWNER_DELIVERY", "")).lower() == "off":
+            return False
+        value = plugin.config.get(key, default)
+        if key == "RECOMMEND_OWNER_DELIVERY" and str(value).lower() == "off":
+            return "private_message"
+        compat = AUTONOMOUS_MAX_COMPAT.get(key)
+        if compat:
+            legacy_key, schema_default = compat
+            legacy_value = plugin.config.get(legacy_key, None)
+            if legacy_value is not None and value == schema_default and legacy_value != schema_default:
+                return legacy_value
+        return value
     except Exception:
         data = getattr(plugin.config, "data", {})
-        return data.get(key, default) if isinstance(data, dict) else default
+        if isinstance(data, dict):
+            value = data.get(key, default)
+            compat = AUTONOMOUS_MAX_COMPAT.get(key)
+            if compat and value == compat[1] and data.get(compat[0]) not in (None, compat[1]):
+                return data[compat[0]]
+            return value
+        return default
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -170,23 +227,33 @@ def _coerce_config_value(key: str, field: dict[str, Any], value: Any) -> Any:
 
 def _schedule_events(plugin: Any, snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     definitions = tuple(item for item in (
-        ("proactive_times", "主动浏览", "proactive", "浏览视频、选择感兴趣的内容", bool(_config_value(plugin, "ENABLE_PROACTIVE", False))),
+        ("proactive_times", "主动浏览", "proactive", "在时间段内浏览视频并选择感兴趣的内容", bool(_config_value(plugin, "ENABLE_PROACTIVE", False))),
         ("dynamic_times", "发布动态", "dynamic", "根据今日状态发布一条动态", bool(_config_value(plugin, "ENABLE_DYNAMIC", False))),
         ("bangumi_times", "追番", "bangumi", "检查更新或观看番剧", bool(_config_value(plugin, "ENABLE_BANGUMI", False) and _config_value(plugin, "BANGUMI_PROACTIVE", False))),
         ("special_follow_times", "特别关注", "follow", "巡视特别关注用户的新内容", bool(_config_value(plugin, "SPECIAL_FOLLOW_ENABLED", False))),
         ("dynamic_watch_times", "查看关注动态", "dynamic_watch", "查看关注用户的新动态图文", bool(_config_value(plugin, "ENABLE_DYNAMIC_WATCH", False))),
     ) if item[4])
     events: list[dict[str, Any]] = []
+    proactive_windows = snapshot.get("proactive_windows", []) or []
     for key, label, kind, description, _enabled in definitions:
         triggered = set(snapshot.get(key.replace("_times", "_triggered"), []))
-        for value in snapshot.get(key, []) or []:
-            events.append({
+        values = snapshot.get(key, []) or []
+        for index, value in enumerate(values):
+            item = {
                 "time": str(value),
                 "label": label,
                 "kind": kind,
                 "description": description,
                 "triggered": str(value) in triggered,
-            })
+            }
+            if kind == "proactive" and index < len(proactive_windows):
+                window = proactive_windows[index] if isinstance(proactive_windows[index], dict) else {}
+                item.update({
+                    "start_time": str(window.get("start_time") or ""),
+                    "end_time": str(window.get("end_time") or ""),
+                    "trigger_policy": str(window.get("trigger_policy") or "once_in_window"),
+                })
+            events.append(item)
     plan = _load_json(plugin, AUTONOMOUS_PLAN_FILE, {})
     events.sort(key=lambda item: item["time"])
     return events, plan if isinstance(plan, dict) else {}
@@ -241,7 +308,7 @@ async def handle_get_stats(plugin: Any):
 
         proactive_max = int(_config_value(plugin, "PROACTIVE_DAILY_LIMIT", 0) or 0)
         if _config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False):
-            autonomous_limit = int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_LIMIT", proactive_max) or 0)
+            autonomous_limit = int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_MAX", proactive_max) or 0)
             if autonomous_limit > 0:
                 proactive_max = min([value for value in (proactive_max, autonomous_limit) if value > 0], default=autonomous_limit)
 
@@ -467,6 +534,112 @@ async def handle_schedule_regenerate(plugin: Any):
         return _failure(str(exc), 500)
 
 
+async def handle_schedule_override(plugin: Any):
+    """Persist a user's drag/resize edits without changing unrelated settings."""
+    try:
+        body = await request.json(default={})
+        events = body.get("events") if isinstance(body, dict) else None
+        if not isinstance(events, list):
+            return _failure("日程修改必须提供 events 数组")
+        now = datetime.now().strftime("%Y-%m-%d")
+        min_gap = max(15, int(_config_value(plugin, "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", 45)))
+        point_keys = {
+            "dynamic": "dynamic_times", "dynamic_watch": "dynamic_watch_times",
+            "bangumi": "bangumi_times", "follow": "special_follow_times",
+        }
+        normalized: dict[str, list[str]] = {key: [] for key in ("proactive_times", "dynamic_times", "dynamic_watch_times", "bangumi_times", "special_follow_times")}
+        windows: list[dict[str, str]] = []
+        all_minutes: list[int] = []
+        triggered_by_kind: dict[str, set[str]] = {kind: set() for kind in ("proactive", "dynamic", "dynamic_watch", "bangumi", "follow")}
+        for event in events:
+            if not isinstance(event, dict):
+                return _failure("事件格式无效")
+            kind = str(event.get("kind") or "")
+            time_value = str(event.get("time") or "")
+            parsed = plugin._parse_time_value(time_value) if hasattr(plugin, "_parse_time_value") else None
+            if parsed is None:
+                return _failure(f"无效时间：{time_value}")
+            minute = parsed[0] * 60 + parsed[1]
+            if kind == "proactive":
+                start_raw = str(event.get("start_time") or "")
+                end_raw = str(event.get("end_time") or "")
+                window = plugin._parse_window_value(f"{start_raw}-{end_raw}") if hasattr(plugin, "_parse_window_value") else None
+                if not window:
+                    return _failure("主动浏览必须提供有效的 start_time 与 end_time")
+                start_minute = window["start_minute"]
+                end_minute = window["end_minute"]
+                in_window = (start_minute <= minute <= end_minute) if start_minute < end_minute else (minute >= start_minute or minute <= end_minute)
+                if not in_window:
+                    return _failure("主动浏览的触发时刻必须位于时间段内")
+                # Every saved schedule event must stay awake. Check the trigger
+                # and each quarter-hour in the window so a drag cannot straddle
+                # the configured sleep interval.
+                duration = window["duration_minutes"]
+                if hasattr(plugin, "_is_awake_minute"):
+                    window_minutes = [(start_minute + offset) % 1440 for offset in range(0, duration + 1, 15)]
+                    if any(not plugin._is_awake_minute(value) for value in window_minutes):
+                        return _failure("主动浏览时间段不能进入休眠时间")
+                windows.append({"start_time": window["start_time"], "end_time": window["end_time"], "scheduled_time": time_value, "trigger_policy": "once_in_window"})
+                normalized["proactive_times"].append(time_value)
+            elif kind in point_keys:
+                if hasattr(plugin, "_is_awake_minute") and not plugin._is_awake_minute(minute):
+                    return _failure("事件时刻不能安排在休眠时间")
+                normalized[point_keys[kind]].append(time_value)
+            else:
+                return _failure(f"不支持修改的事件类型：{kind}")
+            if event.get("triggered") and kind in triggered_by_kind:
+                triggered_by_kind[kind].add(time_value)
+            all_minutes.append(minute)
+        if any(b - a < min_gap for a, b in zip(sorted(all_minutes), sorted(all_minutes)[1:])):
+            return _failure(f"相邻事件至少需要间隔 {min_gap} 分钟")
+
+        autonomous = bool(_config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False))
+        if autonomous:
+            plan = _load_json(plugin, AUTONOMOUS_PLAN_FILE, {})
+            if not isinstance(plan, dict) or plan.get("date") != now:
+                plan = {"date": now, "config_fingerprint": plugin._autonomous_config_fingerprint() if hasattr(plugin, "_autonomous_config_fingerprint") else ""}
+            plan.update({key: values for key, values in normalized.items() if key != "proactive_times"})
+            plan["proactive_times"] = normalized["proactive_times"]
+            plan["proactive_windows"] = windows
+            plan["source"] = plan.get("source") or "manual"
+            plan["edited_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            plugin._save_json(AUTONOMOUS_PLAN_FILE, plan)
+        else:
+            updates = {
+                "FIXED_PROACTIVE_WINDOWS": [f"{item['start_time']}-{item['end_time']}" for item in windows],
+                "FIXED_DYNAMIC_TIMES": normalized["dynamic_times"],
+                "FIXED_DYNAMIC_WATCH_TIMES": normalized["dynamic_watch_times"],
+                "FIXED_BANGUMI_TIMES": normalized["bangumi_times"],
+                "FIXED_SPECIAL_FOLLOW_TIMES": normalized["special_follow_times"],
+            }
+            for key, value in updates.items():
+                plugin.config[key] = value
+            plugin.config.save_config()
+
+        plugin._proactive_windows = windows
+        plugin._proactive_times = [plugin._parse_time_value(value) for value in normalized["proactive_times"] if plugin._parse_time_value(value)]
+        plugin._dynamic_times = [plugin._parse_time_value(value) for value in normalized["dynamic_times"] if plugin._parse_time_value(value)]
+        plugin._dynamic_watch_times = [plugin._parse_time_value(value) for value in normalized["dynamic_watch_times"] if plugin._parse_time_value(value)]
+        plugin._bangumi_times = [plugin._parse_time_value(value) for value in normalized["bangumi_times"] if plugin._parse_time_value(value)]
+        plugin._special_follow_times = [plugin._parse_time_value(value) for value in normalized["special_follow_times"] if plugin._parse_time_value(value)]
+        plugin._proactive_triggered = set(triggered_by_kind["proactive"])
+        plugin._dynamic_triggered = set(triggered_by_kind["dynamic"])
+        plugin._dynamic_watch_triggered = set(triggered_by_kind["dynamic_watch"])
+        plugin._bangumi_triggered = set(triggered_by_kind["bangumi"])
+        plugin._special_follow_triggered = set(triggered_by_kind["follow"])
+        plugin._save_schedule_state(plugin._proactive_times, plugin._proactive_triggered)
+        plugin._save_dynamic_schedule_state(plugin._dynamic_times, plugin._dynamic_triggered)
+        plugin._save_dynamic_watch_schedule_state(plugin._dynamic_watch_times, plugin._dynamic_watch_triggered)
+        plugin._save_bangumi_schedule_state(plugin._bangumi_times, plugin._bangumi_triggered, False)
+        plugin._save_special_follow_schedule_state(plugin._special_follow_times, plugin._special_follow_triggered)
+        snapshot = plugin._get_schedule_snapshot()
+        event_list, plan = _schedule_events(plugin, snapshot)
+        return _response({"date": now, "events": event_list, "autonomous_plan": plan}, "日程修改已保存")
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] schedule override failed: {exc}")
+        return _failure(str(exc), 500)
+
+
 async def handle_security_stats(plugin: Any):
     try:
         logs = _load_json(plugin, SECURITY_LOG_FILE, [])
@@ -515,24 +688,8 @@ def _tool_origin(plugin: Any, tool: Any) -> tuple[str, str]:
 
 
 async def handle_available_tools(plugin: Any):
-    """Expose the real AstrBot registry, while only enabling explicitly adapted read-only tools."""
+    """Expose the real registry with an explicit BiliBot security category."""
     try:
-        compatible = {
-            "bili_up_info": ("UP 主信息", "读取公开 UP 主资料"),
-            "get_up_info": ("UP 主信息", "读取公开 UP 主资料"),
-            "bili_video_search": ("视频搜索", "查询公开 B站视频"),
-            "search_bilibili": ("视频搜索", "查询公开 B站视频"),
-            "bili_search_and_watch": ("搜索并观看", "搜索并分析公开视频"),
-            "watch_video": ("观看视频", "读取并分析指定 BV 号的公开视频"),
-            "bili_parse_video": ("解析视频", "读取并分析指定 BV 号或公开视频链接"),
-            "check_following_updates": ("关注更新查询", "B站端私信回复模型按需查看今天关注 UP 主的新动态与投稿"),
-            "check_following_live": ("关注开播查询", "B站端私信回复模型按需查看关注列表中当前正在直播的 UP 主"),
-            "get_bangumi_info": ("番剧详情", "按 season_id 读取番剧公开资料与最近剧集"),
-            "get_bangumi_trending": ("番剧排行", "只读查看 B站番剧或国创热度排行"),
-            "get_bangumi_timeline": ("新番时间表", "只读查看近期番剧更新日程"),
-            "get_bangumi_updates": ("追番更新", "只读查看账号当前在追番剧的更新概况"),
-            "web_search": ("联网搜索", "通过插件当前配置的只读搜索接口检索公开网页"),
-        }
         manager = plugin.context.get_llm_tool_manager()
         registered = list(getattr(manager, "func_list", []) or [])
         try:
@@ -549,28 +706,46 @@ async def handle_available_tools(plugin: Any):
                 continue
             seen.add(name)
             origin, origin_name = _tool_origin(plugin, tool)
-            is_compatible = name in compatible
+            is_compatible = name in BILI_READONLY_ADAPTERS
             layered = getattr(plugin, "layered_runtime", None)
             spec = layered.tool_gate.get(name) if layered else None
+            if is_compatible:
+                category = "bilibot_read"
+                reason = "已提供 B站只读安全适配器"
+            elif name in BILI_WRITE_TOOLS:
+                category = "bilibot_write"
+                reason = "写操作工具，需要确认或能力票据，不属于只读白名单"
+            elif name in BILI_PRIVATE_TOOLS:
+                category = "bilibot_private"
+                reason = "私域记忆工具，需要会话 scope，不属于公开 B站只读适配器"
+            elif name in BILI_COMPOSITE_TOOLS:
+                category = "bilibot_composite"
+                reason = "复合工具可能包含观看、追番或主动行为，不作为只读工具开放"
+            else:
+                category = "other_registered"
+                reason = "来自 AstrBot、其他插件或 MCP，未提供 B站只读适配器"
             result.append({
                 "name": name,
-                "label": compatible.get(name, (name, ""))[0],
-                "description": str(getattr(tool, "description", "") or compatible.get(name, ("", "暂无说明"))[1]),
+                "label": BILI_READONLY_ADAPTERS.get(name, (name, ""))[0],
+                "description": str(getattr(tool, "description", "") or BILI_READONLY_ADAPTERS.get(name, ("", "暂无说明"))[1]),
                 "origin": origin,
                 "origin_name": origin_name,
                 "active": bool(getattr(tool, "active", True)),
                 "compatible": is_compatible,
-                "reason": "已提供 B站只读安全适配器" if is_compatible else "已注册，但尚未提供 B站只读适配器",
+                "category": category,
+                "reason": reason,
                 "security_tier": spec.tier.value if spec else "unclassified",
             })
-        for name, (label, description) in compatible.items():
+        for name, (label, description) in BILI_READONLY_ADAPTERS.items():
             if name not in seen:
                 result.append({
                     "name": name, "label": label, "description": description,
                     "origin": "bilibot", "origin_name": "B站端私信回复工具",
-                    "active": True, "compatible": True, "reason": "仅供B站私信回复模型按需调用",
+                    "active": False, "compatible": False, "category": "bilibot_read_missing",
+                    "reason": "已定义只读能力，但当前工具注册表没有可用的对应适配器",
+                    "security_tier": "unavailable",
                 })
-        result.sort(key=lambda item: (not item["compatible"], item["origin_name"], item["label"]))
+        result.sort(key=lambda item: (not item["compatible"], item["category"], item["origin_name"], item["label"]))
         return _response(result)
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] tools discovery failed: {exc}")
@@ -611,21 +786,30 @@ async def handle_save_config(plugin: Any):
                 updates[key] = _coerce_config_value(key, field, value)
             except (TypeError, ValueError) as exc:
                 return _failure(str(exc))
+        if updates.get("ENABLE_OWNER_RECOMMEND") is True and str(_config_value(plugin, "RECOMMEND_OWNER_DELIVERY", "private_message")).lower() == "off":
+            updates.setdefault("RECOMMEND_OWNER_DELIVERY", "private_message")
+        for min_key, max_key, label in AUTONOMOUS_RANGE_PAIRS:
+            minimum = updates.get(min_key, _config_value(plugin, min_key, 0))
+            maximum = updates.get(max_key, _config_value(plugin, max_key, 0))
+            if int(minimum or 0) > int(maximum or 0):
+                return _failure(f"{label}下限不能大于上限")
         if "BILI_TOOL_ALLOWLIST" in updates:
-            compatible_names = {
-                "bili_up_info", "get_up_info", "bili_video_search", "search_bilibili",
-                "bili_search_and_watch", "watch_video", "bili_parse_video",
-                "check_following_updates", "check_following_live", "get_bangumi_info",
-                "get_bangumi_trending", "get_bangumi_timeline", "get_bangumi_updates",
-                "web_search",
-            }
-            updates["BILI_TOOL_ALLOWLIST"] = [name for name in updates["BILI_TOOL_ALLOWLIST"] if name in compatible_names]
+            updates["BILI_TOOL_ALLOWLIST"] = [
+                name for name in updates["BILI_TOOL_ALLOWLIST"] if name in BILI_READONLY_ADAPTERS
+            ]
+        # Keep the deprecated scalar keys synchronized for older runtime code
+        # and existing installations while the WebUI uses the new range fields.
+        for max_key, (legacy_key, _default) in AUTONOMOUS_MAX_COMPAT.items():
+            if max_key in updates:
+                updates[legacy_key] = updates[max_key]
         for key, value in updates.items():
             plugin.config[key] = value
         if updates:
             plugin.config.save_config()
             schedule_config_keys = {
-                "ENABLE_AUTONOMOUS_DAILY_PLAN",
+                "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_PLAN_GENERATION_MODE",
+                "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME",
+                "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES",
                 "ENABLE_PROACTIVE", "PROACTIVE_TIMES_COUNT", "PROACTIVE_DAILY_LIMIT",
                 "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT",
                 "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
@@ -634,7 +818,7 @@ async def handle_save_config(plugin: Any):
                 "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE", "SPECIAL_FOLLOW_TIMES_COUNT",
                 "SPECIAL_FOLLOW_FIXED_TIMES", "SLEEP_START", "SLEEP_END",
                 "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET",
-                "FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES", "FIXED_BANGUMI_TIMES",
+                "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES", "FIXED_DYNAMIC_TIMES", "FIXED_BANGUMI_TIMES",
                 "FIXED_SPECIAL_FOLLOW_TIMES", "FIXED_DYNAMIC_WATCH_TIMES",
             }
             schedule_keys = {key for key in updates if key.startswith("AUTONOMOUS_") or key in schedule_config_keys}

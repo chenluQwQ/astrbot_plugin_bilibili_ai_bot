@@ -46,6 +46,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._memory_write_lock = asyncio.Lock()
         self._proactive_task = None
         self._bangumi_task = None
+        self._cross_platform_activity = {}
         self._last_cookie_check = 0
         self._login_qrcode_key = None
         self._first_poll = True
@@ -62,7 +63,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._web_search_client = None
         self._consecutive_llm_failures = 0
         self._llm_cooldown_until = 0
-        self._proactive_times, self._proactive_triggered = [], set()
+        self._proactive_windows, self._proactive_times, self._proactive_triggered = [], [], set()
         self._dynamic_task = None
         self._dynamic_times, self._dynamic_triggered = [], set()
         self._bangumi_times, self._bangumi_triggered, self._bangumi_update_checked = [], set(), False
@@ -1405,6 +1406,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         if not (self.config.get("WEEKLY_SUMMARY_QQ_UMO", "") or "").strip():
             self.config["WEEKLY_SUMMARY_QQ_UMO"] = umo
             saved.append("周总结")
+        if not (self.config.get("OWNER_QQ_UMO", "") or "").strip():
+            self.config["OWNER_QQ_UMO"] = umo
+            saved.append("主人跨端活动/分享")
         if saved:
             self.config.save_config()
             yield event.plain_result(f"当前 UMO：{umo}\n✅ 已自动填入：{'、'.join(saved)}的 QQ UMO 配置")
@@ -1444,6 +1448,23 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._save_json(BINDING_FILE, bindings)
         yield event.plain_result("✅ 已解除绑定")
 
+    def _set_cross_platform_activity(self, kind, stage, **details):
+        self._cross_platform_activity = {"kind": kind, "stage": stage, "started_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), **{key: str(value)[:160] for key, value in details.items() if value not in (None, "")}}
+
+    def _clear_cross_platform_activity(self, kind=None):
+        if not kind or self._cross_platform_activity.get("kind") == kind:
+            self._cross_platform_activity = {}
+
+    def _cross_platform_activity_context(self):
+        item = self._cross_platform_activity
+        if not item:
+            return ""
+        labels = {"proactive": "主动浏览", "bangumi": "追番", "dynamic": "发布动态", "dynamic_watch": "巡视关注动态"}
+        text = f"【当前活动】正在{labels.get(item.get('kind'), item.get('kind', '处理任务'))}：{item.get('stage', '进行中')}"
+        if item.get('title'): text += f"；内容：《{item['title']}》"
+        if item.get('episode'): text += f"；{item['episode']}"
+        return text + "。仅在用户询问当前活动或自然相关时提及；不得猜测未记录的进度。"
+
     @filter.on_llm_request()
     async def inject_bili_memory(self, event: AstrMessageEvent, req: ProviderRequest):
         """QQ对话自动注入B站侧记忆：永久记忆 + 语义检索相关记忆"""
@@ -1459,14 +1480,19 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             if qq_id not in bindings:
                 return
             bili_uid = str(bindings[qq_id])
-            # Cross-platform memory is isolated by default and can only be shared
-            # to the QQ identity bound to the configured owner B站 UID.
+            # Current activity is a short-lived fact and is separate from history
+            # sharing. It is available only to the QQ identity bound to OWNER_MID.
+            owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
+            if not owner_mid or bili_uid != owner_mid:
+                return
+            if self.config.get("ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS", True):
+                activity = self._cross_platform_activity_context()
+                if activity:
+                    self._inject_context_block_before_user(req, activity)
+            # Historical memory remains opt-in and separately isolated.
             if self.config.get("MEMORY_ISOLATION_MODE", "isolated") != "safe_share":
                 return
             if not self.config.get("ENABLE_SAFE_CROSS_PLATFORM_MEMORY", False):
-                return
-            owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
-            if not owner_mid or bili_uid != owner_mid:
                 return
 
             from .core.security.redact import contains_credentials, redact_outbound

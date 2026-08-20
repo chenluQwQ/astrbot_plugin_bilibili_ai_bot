@@ -38,8 +38,8 @@ class ReplyMixin:
         )
 
     def _daily_reply_limit_reached(self, channel="comment"):
-        hard_key = "AUTONOMOUS_PRIVATE_DAILY_LIMIT" if channel == "private" else "AUTONOMOUS_REPLY_DAILY_LIMIT"
-        limit = max(0, int(self.config.get(hard_key, 0) or 0))
+        limit_kind = "private" if channel == "private" else "reply"
+        limit = self._autonomous_limit_max(limit_kind) if hasattr(self, "_autonomous_limit_max") else max(0, int(self.config.get("AUTONOMOUS_PRIVATE_DAILY_LIMIT" if channel == "private" else "AUTONOMOUS_REPLY_DAILY_LIMIT", 0) or 0))
         if not self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
             fixed_key = "FIXED_PRIVATE_DAILY_TARGET" if channel == "private" else "FIXED_REPLY_DAILY_TARGET"
             fixed_target = max(0, int(self.config.get(fixed_key, limit) or 0))
@@ -512,6 +512,8 @@ class ReplyMixin:
             if affection_enabled:
                 self._affection[str(mid)] = ns
                 self._save_json(AFFECTION_FILE, self._affection)
+                # fork 功能：关系互动计数器只在动作确认成功后累加，避免重发时重复计数
+                self._record_relationship_interaction(mid, username, sd, "comment")
                 if milestone_hit:
                     self._commit_milestone(mid, milestone_hit[0], username)
                 ds = f"+{sd}" if sd >= 0 else str(sd)

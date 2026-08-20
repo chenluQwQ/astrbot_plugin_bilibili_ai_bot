@@ -286,7 +286,7 @@ B站动态的感觉：
         today = datetime.now().strftime("%Y-%m-%d")
         today_posts = [l for l in log if l.get("time", "").startswith(today)]
         max_daily = max(0, int(self.config.get("DYNAMIC_DAILY_COUNT", 1)))
-        autonomous_limit = max(0, int(self.config.get("AUTONOMOUS_DYNAMIC_DAILY_LIMIT", max_daily) or 0))
+        autonomous_limit = self._autonomous_limit_max("dynamic") if hasattr(self, "_autonomous_limit_max") else max(0, int(self.config.get("AUTONOMOUS_DYNAMIC_DAILY_LIMIT", max_daily) or 0))
         if autonomous_limit:
             max_daily = min(max_daily, autonomous_limit) if max_daily else autonomous_limit
         plan = self._autonomous_plan_for_today() if hasattr(self, "_autonomous_plan_for_today") else {}
