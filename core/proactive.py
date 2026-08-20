@@ -260,7 +260,9 @@ class ProactiveMixin:
             )
         return "\n".join(lines)
 
-    def _format_recent_preference_summary(self, watch_log=None, days=None):
+    def _format_recent_preference_summary(
+        self, watch_log=None, days=None, lifecycle_items=None
+    ):
         """Summarize concrete, evidence-bearing signals without promoting them yet."""
         from collections import defaultdict
 
@@ -280,7 +282,8 @@ class ProactiveMixin:
                     item = grouped[(signal_type, value)]
                     item[polarity] += strength
                     item["count"] += 1
-        lifecycle_items = self._lifecycle_preference_items()
+        if lifecycle_items is None:
+            lifecycle_items = self._lifecycle_preference_items()
         if not grouped and not lifecycle_items:
             return "- 暂无具体作品、人物、UP或主题信号，可以自由探索"
         ranked = sorted(
@@ -328,6 +331,164 @@ class ProactiveMixin:
         loader = getattr(self, "_load_json", None)
         lifecycle = loader(PREFERENCE_STATE_FILE, {}) if callable(loader) else {}
         return lifecycle.get("current", []) if isinstance(lifecycle, dict) else []
+
+    def _format_interest_report(self, watch_log=None, lifecycle_items=None):
+        """Render recent video taste separately from evidence-backed preferences."""
+        from collections import Counter, defaultdict
+
+        window_days = self._taste_window_days()
+        entries = self._recent_taste_entries(watch_log, days=window_days)
+        valid = []
+        for item in entries:
+            try:
+                score = float(item.get("score", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= score <= 10:
+                valid.append((item, score))
+
+        lines = ["🎯 BiliBot 视频兴趣", "━━━━━━━━━━━━"]
+        lines.append(
+            f"统计窗口：最近{window_days}天｜看过{len(entries)}个｜"
+            f"有效评分{len(valid)}个｜待评价{max(0, len(entries) - len(valid))}个"
+        )
+
+        lines.append("\n【近期分区口味】")
+        partition_stats = sorted(
+            self._get_recent_taste_stats(entries, days=window_days),
+            key=lambda item: (item["average"], item["count"]),
+            reverse=True,
+        )
+        if partition_stats:
+            for item in partition_stats[:6]:
+                average = float(item["average"])
+                tendency = (
+                    "偏喜欢"
+                    if average >= 7
+                    else "不太喜欢"
+                    if average <= 4
+                    else "感觉一般"
+                )
+                lines.append(
+                    f"  · {item['tname']}：{item['count']}个，"
+                    f"平均{average:.1f}/10（{tendency}）"
+                )
+        else:
+            lines.append("  暂无带分区的有效评分")
+
+        up_scores = defaultdict(list)
+        for item, score in valid:
+            name = re.sub(
+                r"\s+", " ", str(item.get("up_name") or item.get("owner_name") or "")
+            ).strip()
+            if name:
+                up_scores[name].append(score)
+        lines.append("\n【近期 UP 样本】")
+        if up_scores:
+            ranked_ups = sorted(
+                up_scores.items(),
+                key=lambda pair: (len(pair[1]), sum(pair[1]) / len(pair[1])),
+                reverse=True,
+            )
+            for name, scores in ranked_ups[:6]:
+                sample = "，样本较少" if len(scores) == 1 else ""
+                lines.append(
+                    f"  · {name}：{len(scores)}个，"
+                    f"平均{sum(scores) / len(scores):.1f}/10{sample}"
+                )
+        else:
+            lines.append("  暂无可判断的 UP 评分样本")
+
+        has_signals = any(
+            isinstance(item.get("preference_signals"), list)
+            and item.get("preference_signals")
+            for item in entries
+        )
+        lines.append("\n【近期具体兴趣信号】")
+        if has_signals:
+            recent_summary = self._format_recent_preference_summary(
+                entries, days=window_days, lifecycle_items=[]
+            )
+            lines.extend(
+                "  · " + line[2:] if line.startswith("- ") else "  " + line
+                for line in recent_summary.splitlines()
+            )
+        else:
+            lines.append("  暂无；新版会从之后完成的视频评价中逐步积累")
+
+        if lifecycle_items is None:
+            lifecycle_items = self._lifecycle_preference_items()
+        lifecycle_items = [
+            item
+            for item in (lifecycle_items or [])
+            if isinstance(item, dict) and str(item.get("value") or "").strip()
+        ]
+        type_labels = {
+            "up": "UP",
+            "partition": "分区",
+            "work": "作品",
+            "character": "人物",
+            "food": "食物",
+            "topic": "主题",
+            "theme": "主题",
+            "other": "其他",
+        }
+        polarity_labels = {
+            "like": "喜欢",
+            "curious": "好奇",
+            "dislike": "不喜欢",
+            "fatigue": "审美疲劳",
+        }
+        stage_labels = {"candidate": "候选", "recent": "近期", "stable": "稳定"}
+        lines.append("\n【已沉淀偏好】")
+        if lifecycle_items:
+            for item in lifecycle_items[:8]:
+                signal_type = str(item.get("signal_type") or "other")
+                stage = stage_labels.get(str(item.get("stage") or ""), "候选")
+                polarity = polarity_labels.get(
+                    str(item.get("polarity") or ""), "倾向不明"
+                )
+                evidence = int(item.get("evidence_count", 0) or 0)
+                active_weeks = int(item.get("active_weeks", 0) or 0)
+                week_note = f"，跨{active_weeks}周" if active_weeks else ""
+                lines.append(
+                    f"  · [{stage}{polarity}] "
+                    f"{type_labels.get(signal_type, signal_type)}："
+                    f"{str(item.get('value') or '').strip()[:60]}"
+                    f"（证据{evidence}次{week_note}）"
+                )
+        else:
+            lines.append("  尚未形成；单次观看不会直接写成稳定兴趣")
+
+        exploration = Counter()
+        for item in entries:
+            for keyword in item.get("search_keywords", []) or []:
+                keyword = re.sub(r"\s+", " ", str(keyword or "")).strip()[:40]
+                if keyword:
+                    exploration[keyword] += 1
+            if str(item.get("source") or "") == "search":
+                keyword = re.sub(
+                    r"\s+", " ", str(item.get("source_detail") or "")
+                ).strip()[:40]
+                if keyword and keyword.lower() not in {"search", "bilibili"}:
+                    exploration[keyword] += 1
+        lines.append("\n【最近探索方向】")
+        if exploration:
+            lines.append(
+                "  "
+                + "、".join(
+                    f"{keyword}×{count}" if count > 1 else keyword
+                    for keyword, count in exploration.most_common(6)
+                )
+            )
+        else:
+            lines.append("  暂无明确搜索词")
+
+        lines.append(
+            "\n说明：近期口味是观察样本；同一信号反复出现才会进入近期偏好，"
+            "连续跨周后才会成为稳定偏好。"
+        )
+        return "\n".join(lines)
 
     def _get_taste_tids(self, min_score=7, min_count=2):
         """从最近一周高分视频中提取偏好分区 tid 列表（按加权得分排序）。

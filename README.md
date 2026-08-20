@@ -272,6 +272,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`/bili拉黑 <UID>`|手动拉黑用户                 |
 |`/bili解黑 <UID>`|解除拉黑                   |
 |`/bili黑名单`     |查看黑名单                  |
+|`/bili兴趣`      |查看近期分区/UP口味、具体兴趣证据与已沉淀偏好|
 |`/bili性格`      |查看性格演化                 |
 |`/bili性格编辑`    |手动编辑性格                 |
 |`/bili性格删除`    |删除演化条目                 |

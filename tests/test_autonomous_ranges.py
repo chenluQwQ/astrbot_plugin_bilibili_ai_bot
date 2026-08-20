@@ -460,6 +460,72 @@ def _check_concrete_preference_signals_feed_search_fallback():
     assert "厌倦" in summary
 
 
+def _check_interest_report_separates_samples_and_persisted_preferences():
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    history = [
+        {
+            "time": now,
+            "score": 9,
+            "tname": "动画",
+            "up_name": "灯塔研究所",
+            "source": "search",
+            "source_detail": "守塔人解析",
+            "search_keywords": ["守塔人父子"],
+            "preference_signals": [
+                {
+                    "type": "character",
+                    "value": "守塔人父子",
+                    "polarity": "like",
+                    "strength": 0.9,
+                }
+            ],
+        },
+        {
+            "time": now,
+            "score": 8,
+            "tname": "动画",
+            "up_name": "灯塔研究所",
+            "source": "search",
+            "source_detail": "守塔人解析",
+            "preference_signals": [
+                {
+                    "type": "character",
+                    "value": "守塔人父子",
+                    "polarity": "like",
+                    "strength": 0.8,
+                }
+            ],
+        },
+        {
+            "time": now,
+            "score": 3,
+            "tname": "科技",
+            "up_name": "模板视频",
+        },
+        {"time": now, "score": 0, "up_name": "评价失败样本"},
+    ]
+    lifecycle = [
+        {
+            "signal_type": "character",
+            "value": "守塔人父子",
+            "polarity": "like",
+            "stage": "stable",
+            "evidence_count": 6,
+            "active_weeks": 3,
+        }
+    ]
+    probe = ProactiveProbe({"PROACTIVE_TASTE_WINDOW_DAYS": 7})
+
+    report = probe._format_interest_report(history, lifecycle_items=lifecycle)
+
+    assert "看过4个｜有效评分3个｜待评价1个" in report
+    assert "动画：2个，平均8.5/10（偏喜欢）" in report
+    assert "灯塔研究所：2个，平均8.5/10" in report
+    assert "守塔人父子（近期偏喜欢，证据2次）" in report
+    assert "[稳定喜欢] 人物：守塔人父子（证据6次，跨3周）" in report
+    assert "守塔人解析×2" in report
+
+
 class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_video_long_term_memory_is_on_when_config_key_is_missing(self):
         probe = VideoProbe({})
@@ -718,5 +784,6 @@ class AutonomousRangeTests(unittest.TestCase):
     test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
     test_video_cache_uses_detail_long_term_and_faded_stages = staticmethod(_check_video_cache_uses_detail_long_term_and_faded_stages)
     test_concrete_preference_signals_feed_search_fallback = staticmethod(_check_concrete_preference_signals_feed_search_fallback)
+    test_interest_report_separates_samples_and_persisted_preferences = staticmethod(_check_interest_report_separates_samples_and_persisted_preferences)
     test_proactive_comment_count_is_daily_and_action_based = staticmethod(_check_proactive_comment_count_is_daily_and_action_based)
     test_budget_separates_watch_rounds_videos_and_comments = staticmethod(_check_budget_separates_watch_rounds_videos_and_comments)
