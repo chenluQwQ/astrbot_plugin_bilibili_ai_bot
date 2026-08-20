@@ -525,8 +525,18 @@ UP主：{video_info.get('up_name', '未知')}
         formats = []
         for h in heights:
             formats.extend([
-                f"best[ext=mp4][vcodec!=none][acodec!=none][height<={h}]/best[height<={h}][vcodec!=none][acodec!=none]",
-                f"bestvideo[ext=mp4][height<={h}]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best[height<={h}]",
+                # 横屏视频的短边通常是 height，竖屏视频的短边则是 width。
+                # 两种方向都纳入同一档回退，避免 360x640 这类竖屏视频
+                # 因 height>360 被误判为“没有 360p 格式”。
+                f"best[ext=mp4][vcodec!=none][acodec!=none][height<={h}]/"
+                f"best[ext=mp4][vcodec!=none][acodec!=none][width<={h}]/"
+                f"best[height<={h}][vcodec!=none][acodec!=none]/"
+                f"best[width<={h}][vcodec!=none][acodec!=none]",
+                f"bestvideo[ext=mp4][height<={h}]+bestaudio[ext=m4a]/"
+                f"bestvideo[ext=mp4][width<={h}]+bestaudio[ext=m4a]/"
+                f"bestvideo[height<={h}]+bestaudio/"
+                f"bestvideo[width<={h}]+bestaudio/"
+                f"best[height<={h}]/best[width<={h}]",
             ])
         formats.extend([
             "bestvideo+bestaudio/best",
