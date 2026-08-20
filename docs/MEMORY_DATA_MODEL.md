@@ -14,6 +14,8 @@
 | 视频理解缓存 | `video_memory.json` | 部分可复用摘要会另写入 `memories` | 避免同一视频重复下载和分析；不是用户画像本体 |
 | 永久视频去重 | SQLite `seen_videos` | `seen_videos.json` 是无容量上限的恢复副本 | 只记录 BV 与轻量观看元数据，永久回答“是否看过”；不保存正文和向量 |
 | 互动反馈候选 | SQLite `feedback_candidates` | 无正文副本 | 只在回复发送成功后保存严格校验的短结论；供日报/周报聚合，不直接修改人格 |
+| 视频偏好证据与状态 | SQLite `preference_evidence` / `preferences` | `preference_state.json` 是轻量恢复与同步副本 | 具体信号幂等入库；按候选、近期、稳定三阶段增强、保留、减弱或删除，包含负向偏好与审美疲劳 |
+| 日报/周报结构化摘要 | SQLite `cycle_summaries` | `daily_summary.json` / `weekly_summary.json` 保持旧版兼容 | 自然语言报告与机器摘要分开保存；周报只组合每日结构化摘要，不重复灌入整周原始记录 |
 | 主动看片详情 | `external_memory.json` | `watch_log.json` 只记活动流水 | 保存主动看过的视频、感想和互动结果 |
 | UP 主关系 | `user_profiles.json` 的 `video_refs` | 视频记忆中的 `owner_mid/owner_name` 是检索元数据 | 只保存用户/UP 与视频的轻量关系，不复制视频总结 |
 | 番剧进度与印象 | `bangumi_memory.json` | `bangumi_watch_log.json` 是活动流水 | 按番剧保存追番状态、分集记录和偏好 |

@@ -35,6 +35,7 @@ PRIVATE_MESSAGE_STATE_FILE = os.path.join(DATA_DIR, "private_message_state.json"
 BANGUMI_MEMORY_FILE = os.path.join(DATA_DIR, "bangumi_memory.json")
 WEEKLY_SUMMARY_FILE = os.path.join(DATA_DIR, "weekly_summary.json")
 DAILY_SUMMARY_FILE = os.path.join(DATA_DIR, "daily_summary.json")
+PREFERENCE_STATE_FILE = os.path.join(DATA_DIR, "preference_state.json")
 BANGUMI_WATCH_LOG_FILE = os.path.join(DATA_DIR, "bangumi_watch_log.json")
 BANGUMI_SCHEDULE_FILE = os.path.join(DATA_DIR, "bangumi_schedule.json")
 PROACTIVE_TRIGGER_LOG_FILE = os.path.join(DATA_DIR, "proactive_trigger_log.json")

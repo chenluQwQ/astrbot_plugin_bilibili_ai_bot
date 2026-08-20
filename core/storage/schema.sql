@@ -151,6 +151,42 @@ CREATE TABLE IF NOT EXISTS feedback_candidates (
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_candidates (created_at);
 CREATE INDEX IF NOT EXISTS idx_feedback_topic ON feedback_candidates (feedback_type, topic);
 
+-- 视频评价提取出的可验证偏好证据。evidence_key 由观看记录与具体信号共同
+-- 生成，确保日报/周报重复汇总时不会把同一证据累计多次。
+CREATE TABLE IF NOT EXISTS preference_evidence (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    evidence_key   TEXT NOT NULL UNIQUE,
+    preference_key TEXT NOT NULL,
+    signal_type    TEXT NOT NULL,
+    value          TEXT NOT NULL,
+    polarity       TEXT NOT NULL,
+    strength       REAL NOT NULL DEFAULT 0,
+    source_ref     TEXT NOT NULL DEFAULT '',
+    occurred_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_preference_evidence_key
+    ON preference_evidence (preference_key, occurred_at);
+
+-- 从证据推导出的当前偏好状态。候选/近期/稳定只是生命周期状态，不会改写
+-- 核心人设；每周可增强、保留、减弱或删除。
+CREATE TABLE IF NOT EXISTS preferences (
+    preference_key TEXT PRIMARY KEY,
+    signal_type    TEXT NOT NULL,
+    value          TEXT NOT NULL,
+    polarity       TEXT NOT NULL,
+    stage          TEXT NOT NULL,
+    score          REAL NOT NULL DEFAULT 0,
+    evidence_count INTEGER NOT NULL DEFAULT 0,
+    active_weeks   INTEGER NOT NULL DEFAULT 0,
+    first_seen     REAL NOT NULL,
+    last_seen      REAL NOT NULL,
+    lifecycle_action TEXT NOT NULL DEFAULT 'retained',
+    updated_at     REAL NOT NULL,
+    expires_at     REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_preferences_stage
+    ON preferences (stage, score, last_seen);
+
 -- 用户群像：小体积结构化，增量更新（只改动变化字段，不重写全量摘要）。
 CREATE TABLE IF NOT EXISTS profiles (
     actor_id     TEXT PRIMARY KEY,

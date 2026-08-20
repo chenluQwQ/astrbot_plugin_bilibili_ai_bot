@@ -7,7 +7,10 @@
 from __future__ import annotations
 
 from array import array
+from datetime import datetime, timedelta, timezone
+import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -314,6 +317,249 @@ class FeedbackStore:
             key=lambda item: (item["weighted_score"], item["distinct_actors"]),
             reverse=True,
         )
+
+
+class PreferenceStore:
+    """把视频评价信号沉淀为候选、近期和稳定偏好。"""
+
+    SIGNAL_TYPES = {
+        "up", "partition", "work", "character", "food", "theme", "music",
+        "game", "technology", "activity", "location", "other",
+    }
+    POLARITIES = {"like", "dislike", "fatigue", "curious"}
+    _POLARITY_WEIGHT = {
+        "like": 1.0,
+        "curious": 0.6,
+        "dislike": 1.0,
+        "fatigue": 0.85,
+    }
+    _STAGE_RANK = {"candidate": 1, "recent": 2, "stable": 3}
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    @staticmethod
+    def _clean(value: Any, limit: int = 80) -> str:
+        return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
+
+    @classmethod
+    def _key(cls, signal_type: str, value: str) -> str:
+        return f"{signal_type}:{value.casefold()}"
+
+    async def record_video_signals(
+        self,
+        *,
+        source_ref: str,
+        signals: list[dict[str, Any]],
+        occurred_at: float | None = None,
+    ) -> int:
+        """幂等写入一次观看产生的具体偏好证据。"""
+        timestamp = float(occurred_at if occurred_at is not None else now())
+        source = self._clean(source_ref, 160)
+        prepared = []
+        for signal in signals[:5] if isinstance(signals, list) else []:
+            if not isinstance(signal, dict):
+                continue
+            signal_type = self._clean(signal.get("type") or "other", 24)
+            value = self._clean(signal.get("value"), 80)
+            polarity = self._clean(signal.get("polarity"), 16)
+            if signal_type not in self.SIGNAL_TYPES or not value or polarity not in self.POLARITIES:
+                continue
+            try:
+                strength = max(0.0, min(1.0, float(signal.get("strength", 0))))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if strength <= 0:
+                continue
+            preference_key = self._key(signal_type, value)
+            digest_input = f"{source}|{timestamp:.3f}|{preference_key}|{polarity}"
+            evidence_key = hashlib.sha256(digest_input.encode("utf-8")).hexdigest()
+            prepared.append((
+                evidence_key, preference_key, signal_type, value, polarity,
+                strength, source, timestamp,
+            ))
+        if not prepared:
+            return 0
+
+        def _insert(conn):
+            created = 0
+            for params in prepared:
+                cursor = conn.execute(
+                    "INSERT OR IGNORE INTO preference_evidence("
+                    "evidence_key,preference_key,signal_type,value,polarity,strength,"
+                    "source_ref,occurred_at) VALUES(?,?,?,?,?,?,?,?)",
+                    params,
+                )
+                created += int(cursor.rowcount == 1)
+            return created
+
+        return int(await self._db.run(_insert))
+
+    @staticmethod
+    def _week_starts(timestamps: list[float]) -> list:
+        starts = set()
+        for timestamp in timestamps:
+            day = datetime.fromtimestamp(timestamp, timezone.utc).date()
+            starts.add(day - timedelta(days=day.weekday()))
+        return sorted(starts)
+
+    @staticmethod
+    def _max_consecutive_weeks(starts: list) -> int:
+        best = run = 0
+        previous = None
+        for current in starts:
+            run = run + 1 if previous is not None and current - previous == timedelta(days=7) else 1
+            best = max(best, run)
+            previous = current
+        return best
+
+    async def refresh(self, *, at: float | None = None) -> dict[str, list[dict[str, Any]]]:
+        """重算生命周期；返回当前偏好和本轮变化，供周报使用。"""
+        timestamp = float(at if at is not None else now())
+        cutoff = timestamp - 180 * 86400
+
+        def _refresh(conn):
+            rows = conn.execute(
+                "SELECT * FROM preference_evidence WHERE occurred_at>=? "
+                "ORDER BY occurred_at", (cutoff,)
+            ).fetchall()
+            previous_rows = {
+                str(row["preference_key"]): dict(row)
+                for row in conn.execute("SELECT * FROM preferences").fetchall()
+            }
+            grouped: dict[str, list[Any]] = {}
+            for row in rows:
+                grouped.setdefault(str(row["preference_key"]), []).append(row)
+
+            current: list[dict[str, Any]] = []
+            changes: list[dict[str, Any]] = []
+            for preference_key in sorted(set(grouped) | set(previous_rows)):
+                evidence = grouped.get(preference_key, [])
+                old = previous_rows.get(preference_key)
+                if not evidence:
+                    if old:
+                        deleted = dict(old)
+                        deleted["lifecycle_action"] = "deleted"
+                        changes.append(deleted)
+                        conn.execute(
+                            "DELETE FROM preferences WHERE preference_key=?",
+                            (preference_key,),
+                        )
+                    continue
+
+                times = [float(row["occurred_at"]) for row in evidence]
+                first_seen, last_seen = min(times), max(times)
+                week_starts = self._week_starts(times)
+                consecutive = self._max_consecutive_weeks(week_starts)
+                recent_count = sum(value >= timestamp - 7 * 86400 for value in times)
+                age_days = max(0.0, (timestamp - last_seen) / 86400)
+                old_stage = str(old["stage"]) if old else ""
+
+                if age_days > 90:
+                    if old:
+                        deleted = dict(old)
+                        deleted["lifecycle_action"] = "deleted"
+                        changes.append(deleted)
+                    conn.execute(
+                        "DELETE FROM preferences WHERE preference_key=?",
+                        (preference_key,),
+                    )
+                    continue
+                if consecutive >= 3:
+                    stage = "stable"
+                elif recent_count >= 2:
+                    stage = "recent"
+                elif age_days <= 7:
+                    stage = "candidate"
+                elif old_stage == "stable" and age_days <= 90:
+                    stage = "stable"
+                elif old_stage == "recent" and age_days <= 21:
+                    stage = "recent"
+                else:
+                    if old:
+                        deleted = dict(old)
+                        deleted["lifecycle_action"] = "deleted"
+                        changes.append(deleted)
+                    conn.execute(
+                        "DELETE FROM preferences WHERE preference_key=?",
+                        (preference_key,),
+                    )
+                    continue
+
+                totals = {name: 0.0 for name in self.POLARITIES}
+                for row in evidence:
+                    totals[str(row["polarity"])] += float(row["strength"])
+                polarity = max(
+                    totals,
+                    key=lambda name: totals[name] * self._POLARITY_WEIGHT[name],
+                )
+                dominant = totals[polarity] * self._POLARITY_WEIGHT[polarity]
+                if stage == "stable":
+                    decay = max(0.1, 1.0 - age_days / 90.0)
+                    expires_at = last_seen + 90 * 86400
+                elif stage == "recent":
+                    decay = 1.0 if age_days <= 7 else max(0.1, 1.0 - (age_days - 7) / 14.0)
+                    expires_at = last_seen + 21 * 86400
+                else:
+                    decay = max(0.1, 1.0 - age_days / 7.0)
+                    expires_at = last_seen + 7 * 86400
+                score = round(min(1.0, dominant / max(1, len(evidence))) * decay, 3)
+
+                old_rank = self._STAGE_RANK.get(old_stage, 0)
+                new_rank = self._STAGE_RANK[stage]
+                old_count = int(old["evidence_count"]) if old else 0
+                if not old or new_rank > old_rank or len(evidence) > old_count:
+                    action = "enhanced"
+                elif age_days <= 7:
+                    action = "retained"
+                else:
+                    action = "weakened"
+
+                item = {
+                    "preference_key": preference_key,
+                    "signal_type": str(evidence[-1]["signal_type"]),
+                    "value": str(evidence[-1]["value"]),
+                    "polarity": polarity,
+                    "stage": stage,
+                    "score": score,
+                    "evidence_count": len(evidence),
+                    "active_weeks": len(week_starts),
+                    "first_seen": first_seen,
+                    "last_seen": last_seen,
+                    "lifecycle_action": action,
+                    "updated_at": timestamp,
+                    "expires_at": expires_at,
+                }
+                conn.execute(
+                    "INSERT INTO preferences(preference_key,signal_type,value,polarity,"
+                    "stage,score,evidence_count,active_weeks,first_seen,last_seen,"
+                    "lifecycle_action,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(preference_key) DO UPDATE SET signal_type=excluded.signal_type,"
+                    "value=excluded.value,polarity=excluded.polarity,stage=excluded.stage,"
+                    "score=excluded.score,evidence_count=excluded.evidence_count,"
+                    "active_weeks=excluded.active_weeks,first_seen=excluded.first_seen,"
+                    "last_seen=excluded.last_seen,lifecycle_action=excluded.lifecycle_action,"
+                    "updated_at=excluded.updated_at,expires_at=excluded.expires_at",
+                    tuple(item.values()),
+                )
+                current.append(item)
+                if action != "retained":
+                    changes.append(dict(item))
+            current.sort(
+                key=lambda item: (self._STAGE_RANK[item["stage"]], item["score"], item["last_seen"]),
+                reverse=True,
+            )
+            return {"current": current, "changes": changes}
+
+        return await self._db.run(_refresh)
+
+    async def current(self, *, limit: int = 30) -> list[dict[str, Any]]:
+        rows = await self._db.fetch_all(
+            "SELECT * FROM preferences ORDER BY "
+            "CASE stage WHEN 'stable' THEN 3 WHEN 'recent' THEN 2 ELSE 1 END DESC,"
+            "score DESC,last_seen DESC LIMIT ?", (max(1, int(limit)),)
+        )
+        return [dict(row) for row in rows]
 
 
 class MemoryStore:

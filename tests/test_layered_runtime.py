@@ -2,6 +2,7 @@ import asyncio
 import json
 import sqlite3
 import tempfile
+from datetime import datetime, timezone
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -213,6 +214,49 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot["open"])
         self.assertGreaterEqual(snapshot["tables"]["events"], 1)
         self.assertIn("energy", snapshot["persona"])
+
+    async def test_preference_lifecycle_is_idempotent_and_supports_decay(self):
+        at = datetime(2026, 8, 20, 12, tzinfo=timezone.utc).timestamp()
+
+        async def add(source, signal_type, value, polarity, strength, days_ago):
+            return await self.layers.preferences.record_video_signals(
+                source_ref=source,
+                occurred_at=at - days_ago * 86400,
+                signals=[{
+                    "type": signal_type,
+                    "value": value,
+                    "polarity": polarity,
+                    "strength": strength,
+                    "evidence": "测试证据",
+                }],
+            )
+
+        self.assertEqual(await add("BV-candidate", "theme", "灯塔", "curious", 0.7, 0), 1)
+        self.assertEqual(await add("BV-candidate", "theme", "灯塔", "curious", 0.7, 0), 0)
+        await add("BV-up-1", "up", "泛式", "like", 0.9, 1)
+        await add("BV-up-2", "up", "泛式", "like", 0.8, 3)
+        await add("BV-eva-1", "work", "EVA", "like", 0.8, 16)
+        await add("BV-eva-2", "work", "EVA", "like", 0.9, 9)
+        await add("BV-eva-3", "work", "EVA", "like", 1.0, 2)
+        await add("BV-food-1", "food", "白酒测评", "fatigue", 0.8, 1)
+        await add("BV-food-2", "food", "白酒测评", "fatigue", 0.9, 2)
+
+        refreshed = await self.layers.preferences.refresh(at=at)
+        by_value = {item["value"]: item for item in refreshed["current"]}
+        self.assertEqual(by_value["灯塔"]["stage"], "candidate")
+        self.assertEqual(by_value["泛式"]["stage"], "recent")
+        self.assertEqual(by_value["EVA"]["stage"], "stable")
+        self.assertEqual(by_value["白酒测评"]["polarity"], "fatigue")
+
+        decayed = await self.layers.preferences.refresh(at=at + 10 * 86400)
+        decayed_by_value = {item["value"]: item for item in decayed["current"]}
+        self.assertNotIn("灯塔", decayed_by_value)
+        self.assertEqual(decayed_by_value["泛式"]["lifecycle_action"], "weakened")
+        self.assertEqual(decayed_by_value["EVA"]["stage"], "stable")
+
+        expired = await self.layers.preferences.refresh(at=at + 110 * 86400)
+        self.assertEqual(expired["current"], [])
+        self.assertTrue(any(item["lifecycle_action"] == "deleted" for item in expired["changes"]))
 
     async def test_legacy_memory_roundtrip_separates_vector_and_metadata(self):
         record = {

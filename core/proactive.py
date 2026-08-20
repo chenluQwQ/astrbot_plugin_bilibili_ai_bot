@@ -9,7 +9,7 @@ from astrbot.api import logger
 from .config import (
     BILI_ZONES, COMMENTED_FILE, EXTERNAL_MEMORY_FILE, PROACTIVE_LOG_FILE,
     PROACTIVE_TRIGGER_LOG_FILE, VIDEO_MEMORY_FILE, WATCH_LOG_FILE,
-    DYNAMIC_WATCH_LOG_FILE,
+    DYNAMIC_WATCH_LOG_FILE, PREFERENCE_STATE_FILE,
 )
 from .runtime import ActionRequest, EventPriority
 from .video_evaluation import (
@@ -276,7 +276,8 @@ class ProactiveMixin:
                     item = grouped[(signal_type, value)]
                     item[polarity] += strength
                     item["count"] += 1
-        if not grouped:
+        lifecycle_items = self._lifecycle_preference_items()
+        if not grouped and not lifecycle_items:
             return "- 暂无具体作品、人物、UP或主题信号，可以自由探索"
         ranked = sorted(
             grouped.items(),
@@ -299,7 +300,30 @@ class ProactiveMixin:
             lines.append(
                 f"- {signal_type}:{value}（{tendency}，证据{stats['count']}次）"
             )
+        existing = {(key[0], key[1]) for key in grouped}
+        for item in lifecycle_items:
+            signal_type = str(item.get("signal_type") or "other")
+            value = re.sub(r"\s+", " ", str(item.get("value") or "")).strip()
+            if not value or (signal_type, value) in existing:
+                continue
+            tendency = {
+                "like": "喜欢", "curious": "好奇", "dislike": "不喜欢",
+                "fatigue": "审美疲劳",
+            }.get(str(item.get("polarity") or ""), "倾向不明")
+            stage = {"candidate": "候选", "recent": "近期", "stable": "稳定"}.get(
+                str(item.get("stage") or ""), "候选"
+            )
+            lines.append(
+                f"- {signal_type}:{value}（{stage}{tendency}，证据{int(item.get('evidence_count', 0) or 0)}次）"
+            )
+            if len(lines) >= 8:
+                break
         return "\n".join(lines)
+
+    def _lifecycle_preference_items(self):
+        loader = getattr(self, "_load_json", None)
+        lifecycle = loader(PREFERENCE_STATE_FILE, {}) if callable(loader) else {}
+        return lifecycle.get("current", []) if isinstance(lifecycle, dict) else []
 
     def _get_taste_tids(self, min_score=7, min_count=2):
         """从最近一周高分视频中提取偏好分区 tid 列表（按加权得分排序）。
@@ -327,6 +351,18 @@ class ProactiveMixin:
             reverse=True,
         )
         result = ranked[:10]
+        for item in self._lifecycle_preference_items():
+            if item.get("signal_type") != "partition":
+                continue
+            if item.get("polarity") not in {"like", "curious"}:
+                continue
+            if item.get("stage") not in {"recent", "stable"}:
+                continue
+            tid = tname_map.get(str(item.get("value") or "").strip())
+            if tid and tid not in result:
+                result.append(tid)
+            if len(result) >= 10:
+                break
         logger.info(
             f"[BiliBot] 🎯 口味偏好TID: {result}（最近{self._taste_window_days()}天）"
         )
@@ -384,6 +420,16 @@ class ProactiveMixin:
     def _fallback_proactive_search_queries(self, watch_log=None):
         """LLM 无法决定搜索词时，用近期高分分区和随机兜底分区继续搜索。"""
         keywords = []
+        for item in self._lifecycle_preference_items():
+            if item.get("polarity") not in {"like", "curious"}:
+                continue
+            if item.get("stage") not in {"recent", "stable"}:
+                continue
+            value = re.sub(r"\s+", " ", str(item.get("value") or "")).strip()
+            if value and value not in keywords:
+                keywords.append(value)
+            if len(keywords) >= 3:
+                break
         history = watch_log if isinstance(watch_log, list) else self._load_json(WATCH_LOG_FILE, [])
         recent_history = self._recent_taste_entries(history)
         for entry in reversed(recent_history[-80:]):
@@ -489,6 +535,10 @@ class ProactiveMixin:
         history_block = "\n".join(recent_lines) if recent_lines else "- 暂无观看记录，可以完全自由探索"
         taste_block = self._format_recent_taste_summary(history)
         preference_block = self._format_recent_preference_summary(history)
+        if hasattr(self, "_get_today_mood"):
+            today_mood, today_mood_reason = self._get_today_mood()
+        else:
+            today_mood, today_mood_reason = "平静", ""
         prompt = f"""{decision_prompt}
 
 【最近{self._taste_window_days()}天按评分归纳的分区口味（用于倾向，不是硬性限制）】
@@ -496,6 +546,9 @@ class ProactiveMixin:
 
 【近期具体兴趣与疲劳信号（只是倾向，仍需保留探索）】
 {preference_block}
+
+【当前情绪（可以影响这一次想看什么，不等于长期偏好）】
+- {today_mood}{f'：{today_mood_reason}' if today_mood_reason else ''}
 
 【近期观看记录（仅供参考，不是限制）】
 {history_block}

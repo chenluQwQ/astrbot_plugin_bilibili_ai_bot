@@ -34,6 +34,7 @@ def _load_weekly_module(temp_dir):
         "PROACTIVE_LOG_FILE",
         "WEEKLY_SUMMARY_FILE",
         "DAILY_SUMMARY_FILE",
+        "PREFERENCE_STATE_FILE",
     ):
         setattr(config, name, str(Path(temp_dir) / f"{name.lower()}.json"))
     config.TEMP_IMAGE_DIR = str(Path(temp_dir) / "images")
@@ -142,6 +143,50 @@ class WeeklySummaryTests(unittest.TestCase):
         self.assertIn("不能充当正文", bot.prompt)
         self.assertIn("疑似错配字幕", bot.prompt)
         self.assertNotIn("123456", bot.prompt)
+
+    def test_structured_daily_summary_keeps_video_signals_without_private_text(self):
+        data = self.bot._empty_activity_data()
+        data["videos"] = [{
+            "time": "2026-08-20 20:00",
+            "bvid": "BV-test",
+            "title": "灯塔短片",
+            "up_name": "某UP",
+            "tname": "动画",
+            "score": 8.6,
+            "score_reason": "雾号与构图很有余味",
+            "mood": "平静",
+            "review": "结尾没有解释完，反而更像梦。",
+            "preference_signals": [{
+                "type": "theme", "value": "灯塔", "polarity": "curious",
+                "strength": 0.8, "evidence": "结尾留下悬念",
+            }],
+            "search_keywords": ["灯塔动画短片"],
+        }]
+        data["chat_count"] = 1
+        data["chat_highlights"] = []
+        structured = self.bot._build_structured_activity_summary(
+            data,
+            period_key="2026-08-20",
+            preferences=[],
+            feedback=[],
+        )
+        encoded = str(structured)
+        self.assertEqual(structured["counts"]["videos"], 1)
+        self.assertEqual(structured["video_highlights"][0]["score"], 8.6)
+        self.assertEqual(structured["preference_evidence"][0]["value"], "灯塔")
+        self.assertIn("灯塔动画短片", structured["search_keywords"])
+        self.assertNotIn("user_id", encoded)
+
+    def test_private_chat_text_is_not_used_as_weekly_highlight(self):
+        now = self.module.datetime.now().strftime("%Y-%m-%d %H:%M")
+        self.bot._memory = [{
+            "memory_type": "chat", "time": now, "user_id": "42",
+            "source": "bilibili_private", "text": "这是一段私信原文",
+        }]
+        self.bot._load_json = lambda _path, default: default
+        data = self.bot._collect_weekly_data()
+        self.assertEqual(data["chat_count"], 1)
+        self.assertEqual(data["chat_highlights"], [])
 
 
 if __name__ == "__main__":
