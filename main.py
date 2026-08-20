@@ -1174,6 +1174,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         )
         yield event.plain_result("\n".join(lines))
 
+    @filter.permission_type(filter.PermissionType.ADMIN)
     @filter.command("bili兴趣")
     async def cmd_interest(self, event: AstrMessageEvent):
         """查看近期视频口味、具体兴趣证据和已沉淀偏好。"""
