@@ -442,6 +442,42 @@ class UnifiedMemoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("BV0000000000", seen)
         self.assertEqual(await self.layers.seen_videos.count(), 205)
 
+    async def test_video_experience_is_vectorized_and_recalled(self):
+        bot = self.bot([])
+
+        async def embedding(_text):
+            return [1.0, 0.0]
+
+        bot._get_embedding = embedding
+        bot._cosine_similarity = lambda left, right: sum(
+            a * b for a, b in zip(left, right)
+        )
+        await bot._save_self_memory_record(
+            "proactive_watch",
+            "Bot看了《守塔人》，喜欢克制的人物关系，想继续找人物解析。",
+            memory_type="video",
+            extra={
+                "bvid": "BV1VECTOR001",
+                "video_title": "守塔人",
+                "owner_mid": "100",
+                "owner_name": "测试UP",
+                "score": 8.6,
+                "score_reason": "喜欢克制叙事",
+                "preference_signals": [{
+                    "type": "work", "value": "守塔人", "polarity": "like",
+                    "strength": 0.8, "evidence": "人物关系",
+                }],
+                "search_keywords": ["守塔人 人物解析"],
+            },
+        )
+
+        self.assertEqual(bot._memory[0]["embedding"], [1.0, 0.0])
+        recalled = await bot._search_memories(
+            "守塔人角色关系", memory_types={"video"}, score_threshold=0.5
+        )
+        self.assertEqual(len(recalled), 1)
+        self.assertIn("守塔人", recalled[0])
+
 
 if __name__ == "__main__":
     unittest.main()

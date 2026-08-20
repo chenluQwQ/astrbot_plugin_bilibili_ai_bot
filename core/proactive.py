@@ -12,6 +12,10 @@ from .config import (
     DYNAMIC_WATCH_LOG_FILE,
 )
 from .runtime import ActionRequest, EventPriority
+from .video_evaluation import (
+    VIDEO_EVALUATION_SCHEMA_PROMPT, VideoEvaluationError,
+    parse_video_evaluation,
+)
 
 
 class ProactiveMixin:
@@ -252,6 +256,51 @@ class ProactiveMixin:
             )
         return "\n".join(lines)
 
+    def _format_recent_preference_summary(self, watch_log=None, days=None):
+        """Summarize concrete, evidence-bearing signals without promoting them yet."""
+        from collections import defaultdict
+
+        grouped = defaultdict(lambda: {"like": 0.0, "dislike": 0.0, "fatigue": 0.0, "curious": 0.0, "count": 0})
+        for entry in self._recent_taste_entries(watch_log, days=days):
+            for signal in entry.get("preference_signals", []) or []:
+                if not isinstance(signal, dict):
+                    continue
+                signal_type = str(signal.get("type") or "other")
+                value = re.sub(r"\s+", " ", str(signal.get("value") or "")).strip()
+                polarity = str(signal.get("polarity") or "")
+                try:
+                    strength = max(0.0, min(1.0, float(signal.get("strength", 0))))
+                except (TypeError, ValueError):
+                    continue
+                if value and polarity in {"like", "dislike", "fatigue", "curious"}:
+                    item = grouped[(signal_type, value)]
+                    item[polarity] += strength
+                    item["count"] += 1
+        if not grouped:
+            return "- 暂无具体作品、人物、UP或主题信号，可以自由探索"
+        ranked = sorted(
+            grouped.items(),
+            key=lambda pair: (
+                max(pair[1]["like"], pair[1]["curious"], pair[1]["dislike"] + pair[1]["fatigue"]),
+                pair[1]["count"],
+            ),
+            reverse=True,
+        )
+        lines = []
+        for (signal_type, value), stats in ranked[:8]:
+            positive = stats["like"] + stats["curious"] * 0.6
+            negative = stats["dislike"] + stats["fatigue"]
+            if negative > positive:
+                tendency = "近期有些厌倦/不喜欢"
+            elif stats["curious"] > stats["like"]:
+                tendency = "近期好奇"
+            else:
+                tendency = "近期偏喜欢"
+            lines.append(
+                f"- {signal_type}:{value}（{tendency}，证据{stats['count']}次）"
+            )
+        return "\n".join(lines)
+
     def _get_taste_tids(self, min_score=7, min_count=2):
         """从最近一周高分视频中提取偏好分区 tid 列表（按加权得分排序）。
 
@@ -345,6 +394,18 @@ class ProactiveMixin:
             tname = re.sub(r"\s+", " ", str(entry.get("tname", "") or "")).strip()
             if score >= 7 and tname and tname not in keywords:
                 keywords.append(tname)
+            if score >= 7:
+                concrete = list(entry.get("search_keywords", []) or [])
+                concrete.extend(
+                    str(signal.get("value") or "")
+                    for signal in (entry.get("preference_signals", []) or [])
+                    if isinstance(signal, dict)
+                    and signal.get("polarity") in {"like", "curious"}
+                )
+                for value in concrete:
+                    value = re.sub(r"\s+", " ", str(value or "")).strip()
+                    if value and value not in keywords:
+                        keywords.append(value)
             if len(keywords) >= 5:
                 break
 
@@ -410,6 +471,13 @@ class ProactiveMixin:
             detail = re.sub(r"\s+", " ", str(entry.get("source_detail", "") or "")).strip()
             suffix = f"；分区：{tname}" if tname else ""
             suffix += f"；当时搜索：{detail}" if detail and entry.get("source") == "search" else ""
+            signals = [
+                str(item.get("value") or "")
+                for item in (entry.get("preference_signals", []) or [])
+                if isinstance(item, dict) and item.get("value")
+            ]
+            if signals:
+                suffix += f"；具体信号：{'、'.join(signals[:3])}"
             recent_lines.append(f"- 《{title[:70]}》；评分：{score}{suffix}")
             if len(recent_lines) >= 8:
                 break
@@ -420,10 +488,14 @@ class ProactiveMixin:
         ).strip()
         history_block = "\n".join(recent_lines) if recent_lines else "- 暂无观看记录，可以完全自由探索"
         taste_block = self._format_recent_taste_summary(history)
+        preference_block = self._format_recent_preference_summary(history)
         prompt = f"""{decision_prompt}
 
 【最近{self._taste_window_days()}天按评分归纳的分区口味（用于倾向，不是硬性限制）】
 {taste_block}
+
+【近期具体兴趣与疲劳信号（只是倾向，仍需保留探索）】
+{preference_block}
 
 【近期观看记录（仅供参考，不是限制）】
 {history_block}
@@ -730,6 +802,10 @@ UP主：{video.get('up_name', '')}
     async def _evaluate_video(self, video_info, video_description):
         sp = await self._get_system_prompt()
         on = self.config.get("OWNER_NAME", "") or "主人"
+        watch_log = self._load_json(WATCH_LOG_FILE, [])
+        recent_taste = self._format_recent_taste_summary(watch_log)
+        recent_preferences = self._format_recent_preference_summary(watch_log)
+        today_mood, today_mood_reason = self._get_today_mood()
         owner_memory_context = await self._owner_recommendation_context(
             f"{video_info.get('title', '')} {video_info.get('desc', '')} {video_description[:500]}"
         )
@@ -744,8 +820,13 @@ UP主：{video.get('up_name', '')}
 - 视频内容：{video_description}
 {owner_context_block}
 
-以JSON格式回复你的真实观后感：
-{{"score": 1到10的整数评分, "comment": "评论区留言（15-30字）", "mood": "看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑 选一个）", "review": "详细一点的感想（50字以内）", "want_follow": true或false, "recommend_owner": true或false, "recommend_reason": "推荐理由（20字以内，不推荐则留空）"}}
+你当前的状态：{today_mood}（{today_mood_reason}）
+你最近按真实评分形成的分区倾向：
+{recent_taste}
+你最近的具体兴趣、好奇、厌恶或疲劳信号：
+{recent_preferences}
+
+根据你自己的人设和近期状态给出真实观后感，不按“客观质量”替所有人格打同一种分。
 
 评分说明：
 - 1-3：看不下去、内容很差或无聊到想退出
@@ -757,36 +838,27 @@ UP主：{video.get('up_name', '')}
 
         comment要求：像真人随手在评论区打的字，只回应一个具体细节；不要概括视频、客套、夸UP辛苦，也不要以“期待下一期”收尾。
 
-recommend_owner判断：只有你自己至少会打8分，而且能说出一个“为什么{on}可能正好会喜欢”的具体理由时才填true；仅仅觉得视频不错、热门或适合大多数人都填false。recommend_reason必须对应视频中的具体内容，不写“很好看”“很有意思”这种空话。
-
-直接输出JSON。"""
+recommend_owner判断：只有你自己至少会打8分，而且能说出一个“为什么{on}可能正好会喜欢”的具体理由时才填true；仅仅觉得视频不错、热门或适合大多数人都填false。recommend_reason必须对应视频中的具体内容，不写“很好看”“很有意思”这种空话。"""
         custom_proactive_inst = self.config.get("CUSTOM_PROACTIVE_INSTRUCTION", "")
         if custom_proactive_inst:
             prompt += f"\n\n【补充提示词】{custom_proactive_inst}"
+        prompt += "\n\n" + VIDEO_EVALUATION_SCHEMA_PROMPT
         text = None
         try:
-            text = await self._llm_call(prompt, system_prompt=sp, max_tokens=350)
+            text = await self._llm_call(prompt, system_prompt=sp, max_tokens=700)
             if not text:
                 return None
-            raw = text
-            text = self._repair_llm_json(text)
-            # 修复LLM返回的中文引号导致JSON解析失败
-            m = re.search(r'\{.*\}', text, re.DOTALL)
-            candidate = m.group() if m else text
             try:
-                return json.loads(candidate)
-            except Exception:
-                # 容错：去掉尾逗号、尝试 ast.literal_eval
-                fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
-                try:
-                    return json.loads(fixed)
-                except Exception:
-                    try:
-                        import ast
-                        return ast.literal_eval(fixed)
-                    except Exception:
-                        logger.warning(f"[BiliBot] 视频评价 JSON 解析失败，原始返回: {raw[:500]}")
-                        return None
+                evaluation = parse_video_evaluation(text)
+                if not evaluation.get("partition"):
+                    evaluation["partition"] = str(video_info.get("tname") or "")[:30]
+                return evaluation
+            except VideoEvaluationError as exc:
+                logger.warning(
+                    f"[BiliBot] 视频评价结构校验失败，放弃互动: {exc}; "
+                    f"output={str(text)[:120]}"
+                )
+                return None
         except Exception as e:
             logger.error(f"[BiliBot] 视频评价失败: {e} | raw={str(text)[:300]}")
             return None
@@ -1142,9 +1214,12 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 watch_count += 1
                 continue
             try:
-                score = int(float(str(evaluation.get("score", 5)).strip()))
+                score = round(max(1.0, min(10.0, float(evaluation.get("score", 5)))), 1)
             except (TypeError, ValueError):
-                score = 5
+                score = 5.0
+            score_reason = str(evaluation.get("score_reason") or "")
+            preference_signals = list(evaluation.get("preference_signals") or [])
+            search_keywords = list(evaluation.get("search_keywords") or [])
             comment = evaluation.get("comment", "")
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
@@ -1332,7 +1407,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     ).success:
                         actions.append("➕关注")
                         logger.info(f"[BiliBot] ➕ 关注了 {video.get('up_name', '')}")
-            log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "mood": mood, "comment": comment, "review": review, "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""), "source": video.get("_source", ""), "source_detail": video.get("_source_detail", ""), "manual": is_manual}
+            log_entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "score": score, "score_reason": score_reason, "mood": mood, "comment": comment, "review": review, "preference_signals": preference_signals, "search_keywords": search_keywords, "actions": actions, "pic": video.get("pic", ""), "tname": evaluation.get("partition") or analysis_info.get("tname", ""), "source": video.get("_source", ""), "source_detail": video.get("_source_detail", ""), "manual": is_manual}
             watch_log.append(log_entry)
             watch_log = self._append_json_list(WATCH_LOG_FILE, watch_log.pop(), cap=200)
             recommended_by_private_message = "✉️私信推荐给主人" in actions
@@ -1347,9 +1422,16 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 f"[{log_entry['time']}] Bot看了视频《{video.get('title', '')}》"
                 f"(UP主:{video.get('up_name', '')}) "
                 f"评分:{score}/10 心情:{mood} "
-                f"感想:{review[:80]} "
+                f"理由:{score_reason[:80]} 感想:{review[:80]} "
                 f"内容:{video_description[:120]}"
             )
+            if preference_signals:
+                memory_text += " | 兴趣信号:" + "、".join(
+                    f"{item.get('polarity')}:{item.get('value')}"
+                    for item in preference_signals[:5]
+                )
+            if search_keywords:
+                memory_text += f" | 可继续搜索:{'、'.join(search_keywords[:5])}"
             if recommended_owner:
                 channels = []
                 if recommended_by_private_message:
@@ -1360,9 +1442,9 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     channels.append("视频评论区@对方")
                 memory_text += f" | 觉得不错，已通过{'、'.join(channels)}分享给{on}"
             if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
-                await self._save_self_memory_record("proactive_watch", self._clip_media_text(memory_text, 320), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")})
+                await self._save_self_memory_record("proactive_watch", self._clip_media_text(memory_text, 520), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": evaluation.get("partition") or analysis_info.get("tname", ""), "score": score, "score_reason": score_reason, "mood": mood, "review": review, "preference_signals": preference_signals, "search_keywords": search_keywords})
             if bvid not in external_memory:
-                external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": self._clip_media_text(video_description, 220), "score": score, "mood": mood, "review": self._clip_media_text(review, 120), "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
+                external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": self._clip_media_text(video_description, 220), "score": score, "score_reason": score_reason, "mood": mood, "review": self._clip_media_text(review, 120), "preference_signals": preference_signals, "search_keywords": search_keywords, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
                 self._save_json(EXTERNAL_MEMORY_FILE, external_memory)
             # 写入与评论回复共用的视频分析缓存，避免同一视频被重复下载分析
             try:
@@ -1376,6 +1458,12 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                     "tname": analysis_info.get("tname", ""),
                     "analysis": video_description,
                     "summary": self._clip_media_text(video_description, 220),
+                    "score": score,
+                    "score_reason": score_reason,
+                    "mood": mood,
+                    "review": self._clip_media_text(review, 120),
+                    "preference_signals": preference_signals,
+                    "search_keywords": search_keywords,
                     "time": log_entry["time"],
                 }
                 self._save_json(VIDEO_MEMORY_FILE, vc)
@@ -1544,9 +1632,12 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 continue
 
             try:
-                score = int(float(str(evaluation.get("score", 5)).strip()))
+                score = round(max(1.0, min(10.0, float(evaluation.get("score", 5)))), 1)
             except (TypeError, ValueError):
-                score = 5
+                score = 5.0
+            score_reason = str(evaluation.get("score_reason") or "")
+            preference_signals = list(evaluation.get("preference_signals") or [])
+            search_keywords = list(evaluation.get("search_keywords") or [])
             comment = evaluation.get("comment", "")
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
@@ -1612,8 +1703,11 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid,
                 "title": video.get("title", ""), "up_name": video.get("up_name", ""),
                 "up_mid": str(video.get("up_mid", "")), "score": score,
+                "score_reason": score_reason,
                 "mood": mood, "comment": comment, "review": review,
-                "actions": actions, "pic": video.get("pic", ""), "tname": analysis_info.get("tname", ""),
+                "preference_signals": preference_signals,
+                "search_keywords": search_keywords,
+                "actions": actions, "pic": video.get("pic", ""), "tname": evaluation.get("partition") or analysis_info.get("tname", ""),
                 "source": "special_follow",
             }
             watch_log.append(log_entry)
@@ -1623,19 +1717,27 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 f"[{log_entry['time']}] 特别关注看了视频《{video.get('title', '')}》"
                 f"(UP主:{video.get('up_name', '')}) "
                 f"评分:{score}/10 心情:{mood} "
-                f"感想:{review[:80]} 内容:{video_description[:120]}"
+                f"理由:{score_reason[:80]} 感想:{review[:80]} 内容:{video_description[:120]}"
             )
+            if preference_signals:
+                memory_text += " | 兴趣信号:" + "、".join(
+                    f"{item.get('polarity')}:{item.get('value')}"
+                    for item in preference_signals[:5]
+                )
+            if search_keywords:
+                memory_text += f" | 可继续搜索:{'、'.join(search_keywords[:5])}"
             if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
                 await self._save_self_memory_record(
-                    "special_follow_watch", memory_text, memory_type="video",
-                    extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")},
+                    "special_follow_watch", self._clip_media_text(memory_text, 520), memory_type="video",
+                    extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": evaluation.get("partition") or analysis_info.get("tname", ""), "score": score, "score_reason": score_reason, "mood": mood, "review": review, "preference_signals": preference_signals, "search_keywords": search_keywords},
                 )
 
             if bvid not in external_memory:
                 external_memory[bvid] = {
                     "title": video.get("title", ""), "up_name": video.get("up_name", ""),
                     "up_mid": str(video.get("up_mid", "")), "description": self._clip_media_text(video_description, 220),
-                    "score": score, "mood": mood, "review": self._clip_media_text(review, 120),
+                    "score": score, "score_reason": score_reason, "mood": mood, "review": self._clip_media_text(review, 120),
+                    "preference_signals": preference_signals, "search_keywords": search_keywords,
                     "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": [],
                 }
                 self._save_json(EXTERNAL_MEMORY_FILE, external_memory)

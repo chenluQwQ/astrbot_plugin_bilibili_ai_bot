@@ -400,6 +400,27 @@ def _check_video_cache_uses_detail_long_term_and_faded_stages():
     assert not probe._compact_video_cache(cache)
 
 
+def _check_concrete_preference_signals_feed_search_fallback():
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    history = [{
+        "time": now, "score": 9, "tname": "动画",
+        "search_keywords": ["守塔人 人物解析"],
+        "preference_signals": [
+            {"type": "character", "value": "守塔人父子", "polarity": "like", "strength": 0.9},
+            {"type": "theme", "value": "流水线解说", "polarity": "fatigue", "strength": 0.8},
+        ],
+    }]
+    probe = ProactiveProbe({"PROACTIVE_TASTE_WINDOW_DAYS": 7})
+
+    fallback = probe._fallback_proactive_search_queries(history)
+    summary = probe._format_recent_preference_summary(history)
+
+    assert "守塔人 人物解析" in fallback
+    assert "守塔人父子" in fallback
+    assert "流水线解说" in summary
+    assert "厌倦" in summary
+
+
 class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_daily_plan_requests_share_one_model_call(self):
         class FrozenDateTime(datetime):
@@ -610,3 +631,4 @@ class AutonomousRangeTests(unittest.TestCase):
     test_config_schema_has_no_duplicate_keys = staticmethod(_check_config_schema_has_no_duplicate_keys)
     test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
     test_video_cache_uses_detail_long_term_and_faded_stages = staticmethod(_check_video_cache_uses_detail_long_term_and_faded_stages)
+    test_concrete_preference_signals_feed_search_fallback = staticmethod(_check_concrete_preference_signals_feed_search_fallback)

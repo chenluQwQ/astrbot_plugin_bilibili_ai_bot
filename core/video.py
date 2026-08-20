@@ -126,8 +126,11 @@ class VideoMixin:
                     analysis_info, video_description
                 )
                 score = (evaluation or {}).get("score", 5)
+                score_reason = str((evaluation or {}).get("score_reason", ""))
                 mood = (evaluation or {}).get("mood", "平静")
                 review = self._clip_media_text((evaluation or {}).get("review", ""), 320)
+                preference_signals = list((evaluation or {}).get("preference_signals", []) or [])
+                search_keywords = list((evaluation or {}).get("search_keywords", []) or [])
                 from_cache = False
 
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -141,8 +144,11 @@ class VideoMixin:
                     "analysis": video_description,
                     "summary": self._clip_media_text(video_description, 220),
                     "score": score,
+                    "score_reason": score_reason,
                     "mood": mood,
                     "review": review,
+                    "preference_signals": preference_signals,
+                    "search_keywords": search_keywords,
                     "time": now_str,
                     "source": memory_source,
                 }
@@ -154,11 +160,17 @@ class VideoMixin:
                 if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
                     memory_text = (
                         f"[{now_str}] 视频摘要《{vi.get('title', '')}》"
-                        f"(UP主:{vi.get('owner_name', '')}) 感想:{review[:80]} 内容:{video_description[:220]}"
+                        f"(UP主:{vi.get('owner_name', '')}) 评分:{score}/10 "
+                        f"理由:{score_reason[:80]} 感想:{review[:80]} 内容:{video_description[:220]}"
                     )
+                    if preference_signals:
+                        memory_text += " 兴趣信号:" + "、".join(
+                            f"{item.get('polarity')}:{item.get('value')}"
+                            for item in preference_signals[:5]
+                        )
                     await self._save_self_memory_record(
-                        f"{memory_source}:{actual_bvid}", memory_text, memory_type="video",
-                        extra={"bvid": actual_bvid, "owner_mid": str(vi.get("owner_mid", "")), "owner_name": vi.get("owner_name", ""), "video_title": vi.get("title", ""), "tname": vi.get("tname", "")},
+                        f"{memory_source}:{actual_bvid}", self._clip_media_text(memory_text, 520), memory_type="video",
+                        extra={"bvid": actual_bvid, "owner_mid": str(vi.get("owner_mid", "")), "owner_name": vi.get("owner_name", ""), "video_title": vi.get("title", ""), "tname": (evaluation or {}).get("partition") or vi.get("tname", ""), "score": score, "score_reason": score_reason, "mood": mood, "review": review, "preference_signals": preference_signals, "search_keywords": search_keywords},
                     )
                 logger.info(f"[BiliBot] ✅ 私信分享视频已看完并写入短期缓存：{actual_bvid}")
 

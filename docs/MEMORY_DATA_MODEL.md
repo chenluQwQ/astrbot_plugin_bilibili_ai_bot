@@ -54,6 +54,11 @@
 6. 只有主人在 B站私信中明确要求“重新看一次/重看”时，才允许绕过去重重新分析；
 7. `video_memory.json` 的详细内容采用同样阶段，避免完整分析永久堆积。
 
+新视频经历还会保存 `score`、`score_reason`、`mood`、`review`、
+`preference_signals` 和 `search_keywords`。喜好信号最多 5 个，按 UP、分区、作品、
+人物、食物、音乐、游戏、技术、活动、地点或具体主题分类，并带正向、负向、疲劳或
+好奇方向及视频内证据。它们首先只是一次观看证据，不会因为单条高分直接改写稳定喜好。
+
 默认时间可在视频记忆配置中调整，但淡忘时间不会早于完整内容保留时间。
 升级时会从 `watch_log.json`、`commented_videos.json`、`video_memory.json`、
 `external_memory.json` 和已有视频语义记忆幂等迁移 BV；旧文件不会被静默删除。
