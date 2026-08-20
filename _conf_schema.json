@@ -905,28 +905,52 @@
     "default": ""
   },
   "ENABLE_PERSONALITY_EVOLUTION": {
-    "description": "【实验性】启用旧版每日性格演化",
+    "description": "【实验性】启用每周近期状态演化",
     "type": "bool",
     "default": false,
-    "hint": "建议先关闭并积累数日真实反馈与日报；待每周可回滚演化上线后再低频启用。关闭不会删除已有记录。"
+    "hint": "默认关闭。至少积累3天真实活动后才可能运行；优先读取归档日报，也可从活动日志派生隐私过滤后的日结构。只替换有限长度的近期动态区块，不改核心人设，并保留回滚快照。"
+  },
+  "EVOLVE_MIN_DATA_DAYS": {
+    "description": "【性格演化】启用前最少真实日报天数",
+    "type": "int",
+    "default": 3,
+    "min": 3,
+    "max": 7,
+    "hint": "统计最近8天内的归档日报，或从活动日志派生的隐私过滤日结构；不足时即使打开演化开关也不会调用模型。"
+  },
+  "EVOLVE_WEEKDAY": {
+    "description": "【性格演化】每周执行日",
+    "type": "int",
+    "default": 6,
+    "min": 0,
+    "max": 6,
+    "hint": "0=周一，6=周日；每个ISO周最多尝试一次。"
   },
   "EVOLVE_HOUR": {
-    "description": "【性格演化】触发时间（0-23点）",
+    "description": "【性格演化】每周触发时刻（0-23点）",
     "type": "int",
     "default": 1,
-    "hint": "建议设在休眠时段，如凌晨1点"
+    "min": 0,
+    "max": 23,
+    "hint": "建议设在休眠时段，如凌晨1点。只在设定星期和小时内检查。"
   },
   "EVOLVE_MAX_RETRIES": {
-    "description": "【性格演化】失败后的最大重试次数",
+    "description": "【兼容字段】旧版演化重试次数（不再使用）",
     "type": "int",
-    "default": 2,
-    "hint": "默认失败 2 次后跳过当日演化"
+    "default": 1,
+    "hint": "新版每周流程失败后本周不重复请求，避免后台反复调用模型。该字段仅保留旧配置兼容。"
   },
   "EVOLVE_PROMPT": {
-    "description": "【性格演化】自定义性格演化提示词（留空用默认）",
+    "description": "【性格演化】每周整理补充提示词",
     "type": "text",
     "default": "",
-    "hint": "可用变量：{old_traits} {old_habits} {old_opinions} {recent_texts} {owner_name}。回复必须为JSON格式含 new_trait/trigger/speech_habits/opinions/reflection 字段"
+    "hint": "作为补充要求附加到内置提示词；不能覆盖证据门槛、核心人设保护、长度和严格JSON结构。"
+  },
+  "ENABLE_MEME_LEARNING": {
+    "description": "【实验性】允许每周学习少量近期梗",
+    "type": "bool",
+    "default": false,
+    "hint": "只有在演化开启、候选有至少2条可核验证据且联网查询成功时才会保留；总数最多2个，7到30天过期，只低频用于合适语境。"
   },
   "ENABLE_AUTONOMOUS_DAILY_PLAN": {
     "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",

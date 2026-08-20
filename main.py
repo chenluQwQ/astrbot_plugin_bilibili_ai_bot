@@ -1115,14 +1115,36 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     @filter.command("bili性格")
     async def cmd_personality(self, event: AstrMessageEvent):
         """查看性格演化记录。用法: /bili性格"""
-        evo = self._load_json(PERSONALITY_FILE, {})
-        if not evo:
-            yield event.plain_result("🌱 还没有性格演化记录")
-            return
+        evo = self._normalize_personality_state(
+            self._load_json(PERSONALITY_FILE, {})
+        )
+        readiness = await self._personality_evolution_readiness()
         lines = ["🌱 性格演化", "━━━━━━━━━━━━"]
+        lines.append(
+            f"模式：每周一次｜自动演化：{'开启' if self.config.get('ENABLE_PERSONALITY_EVOLUTION', False) else '关闭'}"
+        )
+        lines.append(
+            f"数据准备：{readiness['days']}/{readiness['minimum_days']} 天"
+            f"（{'已就绪' if readiness['ready'] else '继续积累'}）"
+        )
+        block = evo.get("dynamic_block", {})
+        block_lines = []
+        if block.get("recent_state"):
+            block_lines.append(f"  状态：{block['recent_state']}")
+        for label, key in (
+            ("喜好", "recent_preferences"),
+            ("感想", "recent_thoughts"),
+            ("反思", "recent_reflections"),
+        ):
+            values = block.get(key, [])
+            if values:
+                block_lines.append(f"  {label}：{'；'.join(values)}")
+        if block_lines:
+            lines.append("【近期动态区块】")
+            lines.extend(block_lines)
         traits = evo.get("evolved_traits", [])
         if traits:
-            lines.append("【成长变化】")
+            lines.append("【手动/旧版成长变化】")
             for i, t in enumerate(traits, 1):
                 lines.append(f"  {i}. [{t.get('time','')}] {t.get('change','')}")
                 if t.get("trigger"): lines.append(f"     ↳ 触发：{t['trigger']}")
@@ -1136,7 +1158,20 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             for i, o in enumerate(opinions, 1): lines.append(f"  {i}. {o}")
         ref = evo.get("last_reflection", "")
         if ref: lines.append(f"\n💭 最近反思：{ref}")
-        lines.append(f"\n📅 上次演化：{evo.get('last_evolve','未知')} | 版本：v{evo.get('version',0)}")
+        memes = [
+            item for item in evo.get("memes", [])
+            if self._meme_is_active(item, datetime.now().strftime("%Y-%m-%d"))
+        ]
+        if memes:
+            lines.append("【近期低频表达】")
+            for item in memes:
+                lines.append(
+                    f"  · {item.get('phrase', '')}（至 {item.get('expires_at', '')}）"
+                )
+        lines.append(
+            f"\n📅 上次演化：{evo.get('last_evolve') or '从未'} | "
+            f"版本：v{evo.get('version',0)} | 可回滚快照：{len(evo.get('history', []))}"
+        )
         yield event.plain_result("\n".join(lines))
 
     @filter.command("bili性格编辑")
@@ -1203,6 +1238,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         self._save_json(PERSONALITY_FILE, evo)
         desc = removed.get("change", removed) if isinstance(removed, dict) else removed
         yield event.plain_result(f"✅ 已删除：{desc}")
+
+    @filter.command("bili性格回滚")
+    async def cmd_personality_rollback(self, event: AstrMessageEvent):
+        """回滚最近一次自动演化动态区块；不影响核心人设和手动条目。"""
+        success, message = self._rollback_personality()
+        yield event.plain_result(("✅ " if success else "⚠️ ") + message)
 
     @filter.command("bili日志")
     async def cmd_daily_log(self, event: AstrMessageEvent):

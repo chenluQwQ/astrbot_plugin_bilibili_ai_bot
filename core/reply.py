@@ -273,7 +273,7 @@ class ReplyMixin:
             mood, mp = self._get_today_mood()
             fest = self._get_festival_prompt()
             fs = f"\n特殊日期：{fest}" if fest else ""
-            pp = self._get_personality_prompt()
+            pp = self._get_personality_prompt(clean_content)
             pps = f"\n{pp}" if pp else ""
             now = datetime.now().strftime("%Y-%m-%d %H:%M")
             comment_text = self._wrap_user_content(clean_content)
