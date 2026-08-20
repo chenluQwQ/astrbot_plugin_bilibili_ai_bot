@@ -269,29 +269,87 @@ class VideoMixin:
             logger.info("[BiliBot] 🔗 视觉+字幕+热评联合整合完成")
         return self._clip_media_text(result, 1600) if result else None
 
-    def _video_cache_ttl_seconds(self):
+    def _video_memory_windows_seconds(self):
         try:
-            return max(300, min(86400, int(self.config.get("VIDEO_CACHE_TTL_MINUTES", 30) or 30) * 60))
+            detail_days = max(
+                1,
+                min(60, int(self.config.get("VIDEO_MEMORY_DETAIL_DAYS", 15) or 15)),
+            )
         except (TypeError, ValueError):
-            return 1800
+            detail_days = 15
+        try:
+            fade_days = max(
+                30,
+                min(730, int(self.config.get("VIDEO_MEMORY_FADE_DAYS", 90) or 90)),
+            )
+        except (TypeError, ValueError):
+            fade_days = 90
+        fade_days = max(detail_days, fade_days)
+        return detail_days * 86400, fade_days * 86400
+
+    def _video_cache_ttl_seconds(self):
+        """Backward-compatible name for the detailed-memory window."""
+        return self._video_memory_windows_seconds()[0]
 
     def _compact_video_cache(self, cache):
-        """Expire detailed analyses while retaining a tiny no-rewatch index."""
+        """Apply detail → long-term → faded lifecycle to the no-rewatch index."""
         now = datetime.now()
+        detail_seconds, fade_seconds = self._video_memory_windows_seconds()
         changed = False
         for bvid, item in list(cache.items()):
             if not isinstance(item, dict):
                 cache.pop(bvid, None); changed = True; continue
             try:
                 created = datetime.strptime(str(item.get("time", "")), "%Y-%m-%d %H:%M")
-                expired = (now - created).total_seconds() > self._video_cache_ttl_seconds()
+                age_seconds = max(0.0, (now - created).total_seconds())
             except (TypeError, ValueError):
-                expired = True
-            if expired and item.get("analysis"):
-                item["summary"] = self._clip_media_text(item.get("analysis", ""), 220)
-                item.pop("analysis", None)
-                item.pop("review", None)
-                item["expired_at"] = now.strftime("%Y-%m-%d %H:%M")
+                age_seconds = fade_seconds + 1
+
+            if age_seconds >= fade_seconds:
+                trace = (
+                    item.get("summary")
+                    or item.get("analysis")
+                    or item.get("desc")
+                    or "曾经看过，具体内容已经淡忘。"
+                )
+                faded_summary = self._clip_media_text(trace, 120)
+                keep = {
+                    "bvid": str(item.get("bvid") or bvid),
+                    "title": str(item.get("title") or ""),
+                    "owner_name": str(item.get("owner_name") or ""),
+                    "owner_mid": str(item.get("owner_mid") or ""),
+                    "tname": str(item.get("tname") or ""),
+                    "summary": faded_summary,
+                    "time": str(item.get("time") or ""),
+                    "source": str(item.get("source") or ""),
+                    "memory_stage": "faded",
+                    "faded_at": str(
+                        item.get("faded_at") or now.strftime("%Y-%m-%d %H:%M")
+                    ),
+                }
+                if item != keep:
+                    cache[bvid] = keep
+                    changed = True
+                continue
+
+            if age_seconds >= detail_seconds:
+                trace = item.get("analysis") or item.get("summary") or item.get("desc") or ""
+                summary = self._clip_media_text(trace, 220)
+                if item.get("summary") != summary:
+                    item["summary"] = summary
+                    changed = True
+                for key in ("analysis", "review"):
+                    if key in item:
+                        item.pop(key, None)
+                        changed = True
+                if item.get("memory_stage") != "long_term":
+                    item["memory_stage"] = "long_term"
+                    changed = True
+                if "detail_expired_at" not in item:
+                    item["detail_expired_at"] = now.strftime("%Y-%m-%d %H:%M")
+                    changed = True
+            elif item.get("memory_stage") != "detail":
+                item["memory_stage"] = "detail"
                 changed = True
         return changed
 
@@ -775,7 +833,11 @@ UP主：{video_info.get('up_name', '未知')}
             else:
                 has_mem = any(m.get("bvid") == bvid or m.get("thread_id") == f"video:{bvid}" for m in self._memory)
                 cached_summary = c.get("analysis") or c.get("summary") or "已看过该视频；完整分析缓存已清理。"
-                if not has_mem and self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+                if (
+                    not has_mem
+                    and self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False)
+                    and c.get("memory_stage") != "faded"
+                ):
                     mem_time = c.get("time", datetime.now().strftime("%Y-%m-%d %H:%M"))
                     memory_text = (
                         f"[{mem_time}] 视频摘要：标题《{c.get('title', '')}》 "
@@ -783,7 +845,7 @@ UP主：{video_info.get('up_name', '未知')}
                     )
                     await self._save_self_memory_record(
                         f"video:{bvid}", memory_text, memory_type="video",
-                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c.get("title", "")},
+                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c.get("title", ""), "time": mem_time},
                     )
                 ctx = f"【当前视频】\n标题：{c.get('title', '')}\nUP主：{c.get('owner_name', '')}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{self._clip_media_text(cached_summary, 240)}"
                 tags = await self._get_video_tags(bvid)

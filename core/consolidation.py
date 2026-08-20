@@ -8,8 +8,9 @@
        非今天产生的 chat 记忆 → 直接晋升 recent, importance=7
        今天产生的：≤ DISCARD_THRESHOLD → 丢弃 / > DISCARD_THRESHOLD → 晋升 recent
      video / dynamic 类型不评估，直接晋升 recent
-  3. 时效升级：recent 超 14 天 → long_term
-  4. 老化标记：long_term 超 6 月 → aged: true
+  3. 视频记忆：15 天完整 → 低权重长期 → 约 3 月后仅留观看痕迹
+  4. 其他记忆时效升级：recent 超 14 天 → long_term
+  5. 其他长期记忆超 6 月 → aged: true
 """
 
 import json
@@ -77,7 +78,20 @@ class ConsolidationEngine:
         # 0. 迁移旧数据
         migrated = self._migrate_legacy_entries()
         if migrated:
-            lines.append(f"📦 迁移旧记忆 {migrated} 条（chat→recent/其他→long_term）")
+            lines.append(
+                f"📦 迁移旧记忆 {migrated} 条"
+                "（chat/video→recent，其他→long_term）"
+            )
+
+        # 视频使用独立生命周期，不套用普通记忆的 14/180 天规则。
+        video_lifecycle = self._apply_video_lifecycle()
+        if any(video_lifecycle.values()):
+            lines.append(
+                "🎞️ 视频记忆："
+                f"完整 {video_lifecycle['detail']} | "
+                f"转长期 {video_lifecycle['long_term']} | "
+                f"淡忘 {video_lifecycle['faded']}"
+            )
 
         # 1. 时效升级 recent → long_term
         promoted = self._promote_recent_to_longterm()
@@ -132,8 +146,9 @@ class ConsolidationEngine:
     def _migrate_legacy_entries(self) -> int:
         """将无有效 level 的旧记忆标记：
         - chat 类型 → recent, importance=7
-        - 非 chat 类型 → long_term, importance=8
-        首次运行时，也将所有 today/recent 记忆提升为 long_term, importance=7。
+        - video 类型 → recent, importance=6，随后按视频独立生命周期处理
+        - 其他类型 → long_term, importance=8
+        首次运行时，将非视频的 today/recent 记忆提升为 long_term, importance=7。
         额外：chat 类型有 level 但无有效 importance → recent, importance=7。"""
         count = 0
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -145,6 +160,7 @@ class ConsolidationEngine:
         for m in self.bot._memory:
             norm = self.bot._normalize_memory_entry(m)
             is_chat = norm.get("memory_type") == "chat"
+            is_video = norm.get("memory_type") == "video"
             level = m.get("level")  # 可能是 None / "" / 缺失
 
             if not level:
@@ -152,12 +168,15 @@ class ConsolidationEngine:
                 if is_chat:
                     m["level"] = "recent"
                     m["importance"] = 7
+                elif is_video:
+                    m["level"] = "recent"
+                    m["importance"] = 6
                 else:
                     m["level"] = "long_term"
                     m["importance"] = 8
                 m["promoted_at"] = m.get("time", now_str)
                 count += 1
-            elif not bootstrap_done and level in ("today", "recent"):
+            elif not bootstrap_done and not is_video and level in ("today", "recent"):
                 m["level"] = "long_term"
                 m["importance"] = max(m.get("importance", 5), 7)
                 m["promoted_at"] = now_str
@@ -177,6 +196,106 @@ class ConsolidationEngine:
         return count
 
     # ══════════════════════════════════════
+    #  视频独立生命周期
+    # ══════════════════════════════════════
+
+    @staticmethod
+    def _number(value, default):
+        try:
+            return float(value)
+        except (TypeError, ValueError, OverflowError):
+            return float(default)
+
+    def _video_faded_text(self, memory):
+        title = str(memory.get("video_title") or memory.get("title") or "未知视频")
+        owner = str(memory.get("owner_name") or memory.get("up_name") or "")
+        zone = str(memory.get("tname") or "")
+        trace = str(
+            memory.get("video_summary")
+            or memory.get("summary")
+            or memory.get("text")
+            or ""
+        ).strip()
+        trace = trace[:120].rstrip()
+        meta = "、".join(part for part in (f"UP主：{owner}" if owner else "", f"分区：{zone}" if zone else "") if part)
+        prefix = f"[看过·已淡忘] Bot看过视频《{title}》"
+        if meta:
+            prefix += f"（{meta}）"
+        return f"{prefix}。大概是：{trace}" if trace else prefix + "。"
+
+    def _apply_video_lifecycle(self) -> dict[str, int]:
+        """Keep details for 15 days, reduce recall, then retain only a trace."""
+        current = datetime.now().timestamp()
+        detail_days, fade_days = self.bot._video_memory_windows()
+        counts = {"detail": 0, "long_term": 0, "faded": 0}
+        for memory in self.bot._memory:
+            if not self.bot._match_memory_type(memory, {"video"}):
+                continue
+            created_at = self.bot._memory_timestamp(
+                memory.get("created_at") or memory.get("time")
+            )
+            detail_until = self._number(
+                memory.get("video_detail_until"), created_at + detail_days * 86400
+            )
+            fade_after = self._number(
+                memory.get("video_fade_after"), created_at + fade_days * 86400
+            )
+            fade_after = max(detail_until, fade_after)
+            memory["video_detail_until"] = detail_until
+            memory["video_fade_after"] = fade_after
+            previous = str(memory.get("video_memory_stage") or "")
+
+            if current >= fade_after:
+                memory["video_memory_stage"] = "faded"
+                memory["level"] = "long_term"
+                memory["aged"] = True
+                memory["importance"] = min(
+                    2, max(1, int(self._number(memory.get("importance"), 2)))
+                )
+                memory["value_score"] = min(
+                    0.10, self._number(memory.get("value_score"), 0.10)
+                )
+                memory["video_summary"] = str(
+                    memory.get("video_summary")
+                    or memory.get("summary")
+                    or memory.get("text")
+                    or ""
+                )[:120].rstrip()
+                faded_text = self._video_faded_text(memory)
+                if memory.get("text") != faded_text:
+                    memory["text"] = faded_text
+                memory.pop("embedding", None)
+                memory.pop("embedding_model", None)
+                if not memory.get("faded_at"):
+                    memory["faded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                if previous != "faded":
+                    counts["faded"] += 1
+                continue
+
+            if current >= detail_until:
+                memory["video_memory_stage"] = "long_term"
+                memory["level"] = "long_term"
+                memory.pop("aged", None)
+                memory["importance"] = min(
+                    4, max(1, int(self._number(memory.get("importance"), 4)))
+                )
+                memory["value_score"] = min(
+                    0.35, self._number(memory.get("value_score"), 0.35)
+                )
+                if previous != "long_term":
+                    memory["promoted_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    counts["long_term"] += 1
+                continue
+
+            memory["video_memory_stage"] = "detail"
+            memory.pop("aged", None)
+            if memory.get("level") not in {"today", "recent"}:
+                memory["level"] = "recent"
+            if previous != "detail":
+                counts["detail"] += 1
+        return counts
+
+    # ══════════════════════════════════════
     #  Step 1: recent → long_term
     # ══════════════════════════════════════
 
@@ -187,6 +306,8 @@ class ConsolidationEngine:
         count = 0
         for m in self.bot._memory:
             if m.get("level") != "recent":
+                continue
+            if self.bot._match_memory_type(m, {"video"}):
                 continue
             promoted_at = m.get("promoted_at", m.get("time", ""))
             try:
@@ -211,6 +332,8 @@ class ConsolidationEngine:
         count = 0
         for m in self.bot._memory:
             if m.get("level") != "long_term" or m.get("aged"):
+                continue
+            if self.bot._match_memory_type(m, {"video"}):
                 continue
             t = m.get("promoted_at", m.get("time", ""))
             try:

@@ -144,6 +144,7 @@ class VideoProbe(VideoMixin):
         self.cache = cache or {}
         self.analysis_calls = 0
         self.memory_writes = []
+        self._memory = []
 
     def _load_json(self, _path, default=None):
         return self.cache if isinstance(self.cache, dict) else default
@@ -218,7 +219,7 @@ def _check_owner_share_boolean_switch_overrides_delivery_mode():
     })
     assert enabled._owner_recommend_delivery() == "comment"
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def _check_proactive_window_parser_and_fixed_schedule_are_stable():
@@ -347,6 +348,41 @@ def _check_video_format_fallbacks_include_portrait_short_side():
     ]
 
 
+def _check_video_cache_uses_detail_long_term_and_faded_stages():
+    now = datetime.now()
+    cache = {}
+    for label, age_days in (("detail", 10), ("long", 20), ("faded", 100)):
+        cache[label] = {
+            "bvid": label,
+            "title": f"{label}视频",
+            "owner_name": "测试UP",
+            "owner_mid": "1",
+            "tname": "动画",
+            "desc": "简介",
+            "analysis": "完整分析内容" * 30,
+            "review": "详细感想",
+            "time": (now - timedelta(days=age_days)).strftime("%Y-%m-%d %H:%M"),
+        }
+    probe = VideoProbe(
+        {"VIDEO_MEMORY_DETAIL_DAYS": 15, "VIDEO_MEMORY_FADE_DAYS": 90},
+        cache=cache,
+    )
+
+    assert probe._compact_video_cache(cache)
+    assert cache["detail"]["memory_stage"] == "detail"
+    assert "analysis" in cache["detail"]
+    assert cache["long"]["memory_stage"] == "long_term"
+    assert "analysis" not in cache["long"]
+    assert "review" not in cache["long"]
+    assert cache["long"]["summary"]
+    assert cache["faded"]["memory_stage"] == "faded"
+    assert set(cache["faded"]) == {
+        "bvid", "title", "owner_name", "owner_mid", "tname", "summary",
+        "time", "source", "memory_stage", "faded_at",
+    }
+    assert not probe._compact_video_cache(cache)
+
+
 class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_daily_plan_requests_share_one_model_call(self):
         class FrozenDateTime(datetime):
@@ -471,7 +507,7 @@ class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_mismatched_summary_is_reanalyzed_and_not_memorized_when_disabled(self):
         probe = VideoProbe(
-            {"VIDEO_CACHE_TTL_MINUTES": 30, "ENABLE_VIDEO_LONG_TERM_MEMORY": False},
+            {"VIDEO_MEMORY_DETAIL_DAYS": 15, "ENABLE_VIDEO_LONG_TERM_MEMORY": False},
             cache={
                 "BV1234567890": {
                     "bvid": "BV1234567890",
@@ -488,11 +524,39 @@ class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_comment_video_context_respects_long_term_memory_switch(self):
         probe = VideoProbe(
-            {"VIDEO_CACHE_TTL_MINUTES": 30, "ENABLE_VIDEO_LONG_TERM_MEMORY": False}
+            {"VIDEO_MEMORY_DETAIL_DAYS": 15, "ENABLE_VIDEO_LONG_TERM_MEMORY": False}
         )
         context, cache_entry = await probe._get_video_context(123, 1)
         self.assertIn("测试视频", context)
         self.assertEqual(cache_entry["bvid"], "BV1234567890")
+        self.assertEqual(probe.memory_writes, [])
+
+    async def test_faded_video_cache_does_not_recreate_semantic_memory(self):
+        probe = VideoProbe(
+            {
+                "VIDEO_MEMORY_DETAIL_DAYS": 15,
+                "VIDEO_MEMORY_FADE_DAYS": 90,
+                "ENABLE_VIDEO_LONG_TERM_MEMORY": True,
+            },
+            cache={
+                "BV1234567890": {
+                    "bvid": "BV1234567890",
+                    "title": "很久以前的视频",
+                    "owner_name": "测试UP",
+                    "owner_mid": "1",
+                    "tname": "动画",
+                    "analysis": "已经应该淡忘的完整分析",
+                    "time": (
+                        datetime.now() - timedelta(days=100)
+                    ).strftime("%Y-%m-%d %H:%M"),
+                }
+            },
+        )
+
+        context, cache_entry = await probe._get_video_context(123, 1)
+
+        self.assertIn("很久以前的视频", context)
+        self.assertEqual(cache_entry["memory_stage"], "faded")
         self.assertEqual(probe.memory_writes, [])
 
 
@@ -511,3 +575,4 @@ class AutonomousRangeTests(unittest.TestCase):
     test_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist = staticmethod(_check_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist)
     test_config_schema_has_no_duplicate_keys = staticmethod(_check_config_schema_has_no_duplicate_keys)
     test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
+    test_video_cache_uses_detail_long_term_and_faded_stages = staticmethod(_check_video_cache_uses_detail_long_term_and_faded_stages)

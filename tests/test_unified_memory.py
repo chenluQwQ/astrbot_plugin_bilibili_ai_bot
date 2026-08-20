@@ -5,6 +5,7 @@ import sys
 import tempfile
 import types
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from core.layered_runtime import LayeredRuntime
@@ -380,6 +381,42 @@ class UnifiedMemoryTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(first, second)
         self.assertTrue(first.startswith("compressed_"))
+
+    def test_video_memory_recall_weight_decays_by_age(self):
+        bot = self.bot([])
+        bot.config = {
+            "VIDEO_MEMORY_DETAIL_DAYS": 15,
+            "VIDEO_MEMORY_FADE_DAYS": 90,
+        }
+        now = datetime.now()
+        detail = bot._prepare_memory_entry(
+            {
+                "rpid": "detail-video",
+                "text": "近期视频",
+                "memory_type": "video",
+                "time": (now - timedelta(days=10)).strftime("%Y-%m-%d %H:%M"),
+            }
+        )
+        long_term = bot._prepare_memory_entry(
+            {
+                "rpid": "long-video",
+                "text": "较早视频",
+                "memory_type": "video",
+                "time": (now - timedelta(days=20)).strftime("%Y-%m-%d %H:%M"),
+            }
+        )
+        faded = bot._prepare_memory_entry(
+            {
+                "rpid": "faded-video",
+                "text": "很久以前的视频",
+                "memory_type": "video",
+                "time": (now - timedelta(days=100)).strftime("%Y-%m-%d %H:%M"),
+            }
+        )
+
+        self.assertEqual(bot._memory_recall_weight(detail), 1.0)
+        self.assertEqual(bot._memory_recall_weight(long_term), 0.68)
+        self.assertEqual(bot._memory_recall_weight(faded), 0.20)
 
 
 if __name__ == "__main__":

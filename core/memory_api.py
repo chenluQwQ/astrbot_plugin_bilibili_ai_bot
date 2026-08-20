@@ -267,7 +267,12 @@ class BiliBotMemoryAPI:
                 ]
                 scored = sorted(
                     (
-                        (self.bot._cosine_similarity(query_embedding, item["embedding"]), item)
+                        (
+                            self.bot._cosine_similarity(
+                                query_embedding, item["embedding"]
+                            ) * self.bot._memory_recall_weight(item),
+                            item,
+                        )
                         for item in candidates
                     ),
                     key=lambda pair: pair[0],

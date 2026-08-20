@@ -55,6 +55,53 @@ class MemoryMixin:
                 continue
         return datetime.now().timestamp()
 
+    def _video_memory_windows(self):
+        config = getattr(self, "config", {}) or {}
+        try:
+            detail_days = max(1, min(60, int(config.get("VIDEO_MEMORY_DETAIL_DAYS", 15) or 15)))
+        except (TypeError, ValueError):
+            detail_days = 15
+        try:
+            fade_days = max(30, min(730, int(config.get("VIDEO_MEMORY_FADE_DAYS", 90) or 90)))
+        except (TypeError, ValueError):
+            fade_days = 90
+        return detail_days, max(detail_days, fade_days)
+
+    def _video_memory_stage_at(self, record, now_ts=None):
+        """Return detail/long_term/faded without mutating the memory."""
+        explicit = str(record.get("video_memory_stage") or "").strip()
+        if explicit == "faded":
+            return "faded"
+        created_at = self._memory_timestamp(
+            record.get("created_at") or record.get("time")
+        )
+        detail_days, fade_days = self._video_memory_windows()
+        current = float(now_ts if now_ts is not None else datetime.now().timestamp())
+        try:
+            detail_until = float(record.get("video_detail_until"))
+        except (TypeError, ValueError, OverflowError):
+            detail_until = created_at + detail_days * 86400
+        try:
+            fade_after = float(record.get("video_fade_after"))
+        except (TypeError, ValueError, OverflowError):
+            fade_after = created_at + fade_days * 86400
+        fade_after = max(detail_until, fade_after)
+        if current >= fade_after:
+            return "faded"
+        if current >= detail_until:
+            return "long_term"
+        return explicit if explicit in {"detail", "long_term"} else "detail"
+
+    def _memory_recall_weight(self, record):
+        """Reduce unsolicited recall of older video memories."""
+        if self._normalize_memory_entry(record).get("memory_type") != "video":
+            return 1.0
+        return {
+            "detail": 1.0,
+            "long_term": 0.68,
+            "faded": 0.20,
+        }.get(self._video_memory_stage_at(record), 1.0)
+
     def _prepare_memory_entry(self, record):
         rec = self._normalize_memory_entry(record)
         if not rec.get("rpid"):
@@ -102,6 +149,20 @@ class MemoryMixin:
                 platform = "qq" if scope.startswith("qq_") else "bili"
                 rec["actor_id"] = f"{platform}:{uid}"
         rec["created_at"] = self._memory_timestamp(rec.get("created_at") or rec.get("time"))
+        if memory_type == "video":
+            detail_days, fade_days = self._video_memory_windows()
+            rec.setdefault("video_detail_until", rec["created_at"] + detail_days * 86400)
+            rec.setdefault("video_fade_after", rec["created_at"] + fade_days * 86400)
+            rec.setdefault("video_memory_stage", self._video_memory_stage_at(rec))
+            trace = str(
+                rec.get("video_summary")
+                or rec.get("summary")
+                or rec.get("review")
+                or rec.get("text")
+                or ""
+            ).strip()
+            if trace:
+                rec.setdefault("video_summary", trace[:180].rstrip())
         promoted_at = rec.get("promoted_at")
         if promoted_at and not rec.get("promoted_at_ts"):
             rec["promoted_at_ts"] = self._memory_timestamp(promoted_at)
@@ -579,7 +640,14 @@ class MemoryMixin:
         qe = await self._get_embedding(query_text)
         if not qe:
             return []
-        scored = [(self._cosine_similarity(qe, m["embedding"]), m["text"]) for m in um]
+        scored = [
+            (
+                self._cosine_similarity(qe, m["embedding"])
+                * self._memory_recall_weight(m),
+                m["text"],
+            )
+            for m in um
+        ]
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [t for s, t in scored[:MAX_SEMANTIC_RESULTS] if s > 0.6]
 
@@ -601,7 +669,14 @@ class MemoryMixin:
         qe = await self._get_embedding(query_text)
         if not qe:
             return []
-        scored = [(self._cosine_similarity(qe, m["embedding"]), m) for m in cands]
+        scored = [
+            (
+                self._cosine_similarity(qe, m["embedding"])
+                * self._memory_recall_weight(m),
+                m,
+            )
+            for m in cands
+        ]
         scored.sort(key=lambda pair: pair[0], reverse=True)
         return [(s, m) for s, m in scored[:limit] if s > score_threshold]
 
@@ -941,7 +1016,14 @@ class MemoryMixin:
         qe = await self._get_embedding(query_text)
         if not qe:
             return []
-        scored = [(self._cosine_similarity(qe, m["embedding"]), m) for m in cands]
+        scored = [
+            (
+                self._cosine_similarity(qe, m["embedding"])
+                * self._memory_recall_weight(m),
+                m,
+            )
+            for m in cands
+        ]
         scored.sort(key=lambda pair: pair[0], reverse=True)
         # 取 top N，但最低要有基本的语义相关（0.5 以下基本是噪声）
         results = []

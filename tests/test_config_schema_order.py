@@ -67,6 +67,19 @@ class ConfigSchemaOrderTests(unittest.TestCase):
             "BILI_SHARE_PARSE_COOLDOWN",
         ])
 
+    def test_video_memory_switch_precedes_lifecycle_windows(self):
+        self.assert_contiguous([
+            "VIDEO_VISUAL_ANALYSIS_POLICY",
+            "ENABLE_VIDEO_LONG_TERM_MEMORY",
+            "VIDEO_MEMORY_DETAIL_DAYS",
+            "VIDEO_MEMORY_FADE_DAYS",
+            "VIDEO_SEGMENT_MINUTES",
+            "VIDEO_SEGMENT_MAX_COUNT",
+        ])
+        self.assertTrue(self.schema["ENABLE_VIDEO_LONG_TERM_MEMORY"]["default"])
+        self.assertEqual(self.schema["VIDEO_MEMORY_DETAIL_DAYS"]["default"], 15)
+        self.assertEqual(self.schema["VIDEO_MEMORY_FADE_DAYS"]["default"], 90)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -333,7 +333,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 
 从 v1.4.3 起，`bilibot.sqlite3` 是语义记忆主库，Embedding 单独保存在向量表；已有 `memory.json` 会在首次启动时自动导入，此后继续保留为兼容与故障恢复备份。请不要在插件运行时手工删除或替换这两个文件。
 
-视频分析缓存按 `VIDEO_CACHE_TTL_MINUTES` 保留完整分析内容，超时后压缩为短摘要并保留"看过"索引，避免重复观看同一视频的同时控制体积；关闭 `ENABLE_VIDEO_LONG_TERM_MEMORY` 可只保留短期缓存。清理只针对视频分析缓存，不会触及登录凭据、记忆、画像、好感度、日程和运行数据库。
+视频记忆默认按三个阶段保存：`VIDEO_MEMORY_DETAIL_DAYS`（默认 15 天）内保留较完整的分析与感想；之后转为低权重长期记忆；到 `VIDEO_MEMORY_FADE_DAYS`（默认 90 天）后移除详细内容与语义向量，仅保留“看过哪个视频、UP 主及大概内容”的痕迹。关闭 `ENABLE_VIDEO_LONG_TERM_MEMORY` 时只维护同样分层的免重复观看缓存索引。清理不会触及登录凭据、画像、好感度、日程和运行数据库。
 
 ## ⚠️ 风险提示
 

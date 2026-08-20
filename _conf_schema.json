@@ -433,19 +433,27 @@
     ],
     "hint": "when_text_insufficient=优先标题、简介、字幕、标签和热评；信息不足时才下载截帧/直读。always=每次都尝试视觉分析，成本较高。"
   },
-  "VIDEO_CACHE_TTL_MINUTES": {
-    "description": "【视频分析】完整视频分析缓存保留分钟数",
-    "type": "int",
-    "default": 30,
-    "min": 5,
-    "max": 1440,
-    "hint": "到期后删除完整分析，仅保留简短摘要索引供评论回复，避免重复观看和长期上下文占用。"
-  },
   "ENABLE_VIDEO_LONG_TERM_MEMORY": {
-    "description": "【视频分析】保留视频长期记忆",
+    "description": "【视频记忆】启用分层长期记忆",
     "type": "bool",
-    "default": false,
-    "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
+    "default": true,
+    "hint": "开启后写入可语义调取的视频记忆：15天内保留完整印象，之后降低召回权重，约3个月后只留看过与大概内容。关闭时仍保留视频分析缓存索引。"
+  },
+  "VIDEO_MEMORY_DETAIL_DAYS": {
+    "description": "【视频记忆】完整内容保留天数",
+    "type": "int",
+    "default": 15,
+    "min": 1,
+    "max": 60,
+    "hint": "默认15天。期间保留较完整的内容概括与感想；之后转为低权重长期记忆，减少检索和推荐干扰。"
+  },
+  "VIDEO_MEMORY_FADE_DAYS": {
+    "description": "【视频记忆】淡忘天数",
+    "type": "int",
+    "default": 90,
+    "min": 30,
+    "max": 730,
+    "hint": "默认90天。到期后移除详细内容和语义向量，只保留“看过哪个视频、UP主及大概内容”的痕迹。该值不会小于完整内容保留天数。"
   },
   "VIDEO_SEGMENT_MINUTES": {
     "description": "【视频分析】长视频自动切片长度（分钟/段）",
