@@ -298,7 +298,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         self._proactive_times, self._proactive_triggered = self._load_or_generate_schedule()
                     for ph, pm in self._proactive_times:
                         key = f"{ph}:{pm:02d}"
-                        if key not in self._proactive_triggered and (now_dt.hour > ph or (now_dt.hour == ph and now_dt.minute >= pm)):
+                        if key not in self._proactive_triggered and self._schedule_slot_due(now_dt, ph, pm):
                             if self._proactive_task is None or self._proactive_task.done():
                                 self._proactive_task = asyncio.create_task(self._run_proactive())
                                 self._proactive_triggered.add(key)
@@ -319,7 +319,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         self._dynamic_times, self._dynamic_triggered = self._load_or_generate_dynamic_schedule()
                     for dh, dm in self._dynamic_times:
                         key = f"{dh}:{dm:02d}"
-                        if key not in self._dynamic_triggered and (now_dt.hour > dh or (now_dt.hour == dh and now_dt.minute >= dm)):
+                        if key not in self._dynamic_triggered and self._schedule_slot_due(now_dt, dh, dm):
                             if self._dynamic_task is None or self._dynamic_task.done():
                                 self._dynamic_task = asyncio.create_task(self._run_dynamic())
                                 self._dynamic_triggered.add(key)
@@ -345,7 +345,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         if not self._bangumi_update_checked:
                             for bh, bm in self._bangumi_times:
                                 key = f"{bh}:{bm:02d}"
-                                if key not in self._bangumi_triggered and (now_dt.hour > bh or (now_dt.hour == bh and now_dt.minute >= bm)):
+                                if key not in self._bangumi_triggered and self._schedule_slot_due(now_dt, bh, bm):
                                     self._bangumi_update_checked = True
                                     self._bangumi_task = asyncio.create_task(self._check_bangumi_updates())
                                     self._bangumi_triggered.add(key)
@@ -358,7 +358,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         else:
                             for bh, bm in self._bangumi_times:
                                 key = f"{bh}:{bm:02d}"
-                                if key not in self._bangumi_triggered and (now_dt.hour > bh or (now_dt.hour == bh and now_dt.minute >= bm)):
+                                if key not in self._bangumi_triggered and self._schedule_slot_due(now_dt, bh, bm):
                                     self._bangumi_task = asyncio.create_task(self._run_bangumi())
                                     self._bangumi_triggered.add(key)
                                     self._save_bangumi_schedule_state(self._bangumi_times, self._bangumi_triggered, self._bangumi_update_checked)
@@ -372,7 +372,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                     now_dt = datetime.now()
                     for dh, dm in getattr(self, "_dynamic_watch_times", []):
                         key = f"{dh}:{dm:02d}"
-                        if key not in getattr(self, "_dynamic_watch_triggered", set()) and (now_dt.hour > dh or (now_dt.hour == dh and now_dt.minute >= dm)):
+                        if key not in getattr(self, "_dynamic_watch_triggered", set()) and self._schedule_slot_due(now_dt, dh, dm):
                             if self._dynamic_watch_task is None or self._dynamic_watch_task.done():
                                 self._dynamic_watch_task = asyncio.create_task(self._run_dynamic_watch())
                                 self._dynamic_watch_triggered.add(key)
@@ -395,7 +395,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         self._special_follow_times, self._special_follow_triggered = self._load_or_generate_special_follow_schedule()
                     for sh, sm in self._special_follow_times:
                         key = f"{sh}:{sm:02d}"
-                        if key not in self._special_follow_triggered and (now_dt.hour > sh or (now_dt.hour == sh and now_dt.minute >= sm)):
+                        if key not in self._special_follow_triggered and self._schedule_slot_due(now_dt, sh, sm):
                             if self._special_follow_task is None or self._special_follow_task.done():
                                 self._special_follow_task = asyncio.create_task(self._run_special_follow())
                                 self._special_follow_triggered.add(key)

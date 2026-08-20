@@ -77,8 +77,8 @@
   "LLM_CIRCUIT_COOLDOWN_SECONDS": {
     "description": "【模型可靠性】熔断冷却时间（秒）",
     "type": "int",
-    "default": 300,
-    "hint": "冷却结束后只放行一个探测请求；成功后恢复，失败则重新冷却。建议 60-1800 秒。"
+    "default": 120,
+    "hint": "冷却结束后只放行一个探测请求；成功后恢复，失败则重新冷却。建议 60-600 秒。"
   },
   "ENABLE_REPLY": {
     "description": "【功能开关】启用评论自动回复",
@@ -947,21 +947,21 @@
     "default": 5,
     "min": 0,
     "max": 180,
-    "hint": "仅在“休眠结束后”模式生效，默认 5 分钟。错过时刻会在醒来后的下一轮补生成。"
+    "hint": "仅在“休眠结束后”模式生效，默认 5 分钟；生成窗口为计划时刻后的 15 分钟，错过后当天不再自动补生成。"
   },
   "AUTONOMOUS_PLAN_GENERATION_TIME": {
     "description": "【自主安排】每日计划固定生成时刻",
     "type": "string",
     "default": "08:05",
-    "hint": "仅在“固定时刻”模式生效，格式 HH:MM。错过时刻会在下一轮补生成。"
+    "hint": "仅在“固定时刻”模式生效，格式 HH:MM；生成窗口为计划时刻后的 15 分钟，错过后当天不再自动补生成。"
   },
   "AUTONOMOUS_PLAN_RETRY_MINUTES": {
-    "description": "【自主安排】模型生成失败重试间隔（分钟）",
+    "description": "【自主安排】模型失败后唯一一次重试等待（分钟）",
     "type": "int",
     "default": 15,
     "min": 5,
     "max": 360,
-    "hint": "失败时保留安全回退计划，并按此间隔重新调用默认对话模型；成功后替换回退。"
+    "hint": "首次失败后等待这么久再尝试一次；重试再次失败或错过重试窗口，当天不再自动请求。手动重新生成不受影响。"
   },
   "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES": {
     "description": "【自主安排】主动浏览默认时间段长度（分钟）",

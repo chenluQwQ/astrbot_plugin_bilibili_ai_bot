@@ -1,4 +1,5 @@
 """定时任务调度：主动视频和动态发布的时间管理。"""
+import asyncio
 import hashlib
 import json
 import random
@@ -13,6 +14,10 @@ from .config import (
 
 class ScheduleMixin:
     """日程管理。"""
+
+    _SCHEDULE_TRIGGER_GRACE_MINUTES = 5
+    _PLAN_GENERATION_WINDOW_MINUTES = 15
+    _PLAN_RETRY_GRACE_MINUTES = 5
 
     _AUTONOMOUS_LIMITS = {
         "reply": ("AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_REPLY_DAILY_LIMIT", 80),
@@ -141,7 +146,15 @@ class ScheduleMixin:
             due_minute = parsed[0] * 60 + parsed[1]
         else:
             due_minute = (int(self.config.get("SLEEP_END", 8)) * 60 + max(0, int(self.config.get("AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", 5)))) % 1440
-        return now.hour * 60 + now.minute >= due_minute
+        elapsed = now.hour * 60 + now.minute - due_minute
+        return 0 <= elapsed <= self._PLAN_GENERATION_WINDOW_MINUTES
+
+    @classmethod
+    def _schedule_slot_due(cls, now, hour, minute):
+        """Only trigger near the configured slot; never replay stale events."""
+        scheduled = now.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+        elapsed = (now - scheduled).total_seconds()
+        return 0 <= elapsed < cls._SCHEDULE_TRIGGER_GRACE_MINUTES * 60
 
     def _autonomous_config_fingerprint(self):
         keys = (
@@ -273,6 +286,24 @@ class ScheduleMixin:
                 return {}
 
     async def _ensure_autonomous_daily_plan(self, force=False):
+        """Serialize plan generation so WebUI and the main loop cannot duplicate it."""
+        lock = getattr(self, "_autonomous_plan_lock", None)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._autonomous_plan_lock = lock
+        waited_for_inflight = lock.locked()
+        async with lock:
+            if waited_for_inflight:
+                cached = self._load_json(AUTONOMOUS_PLAN_FILE, {})
+                if (
+                    isinstance(cached, dict)
+                    and cached.get("date") == datetime.now().strftime("%Y-%m-%d")
+                    and cached.get("config_fingerprint") == self._autonomous_config_fingerprint()
+                ):
+                    return cached
+            return await self._ensure_autonomous_daily_plan_locked(force=force)
+
+    async def _ensure_autonomous_daily_plan_locked(self, force=False):
         """Generate one validated LLM plan per day and clamp it to admin limits."""
         if not self.config.get("ENABLE_AUTONOMOUS_DAILY_PLAN", False):
             return {}
@@ -282,16 +313,35 @@ class ScheduleMixin:
         cached_matches = isinstance(cached, dict) and cached.get("date") == today and cached.get("config_fingerprint") == fingerprint
         if not force and cached_matches and cached.get("generation_status") != "error":
             return cached
-        if not force and not self._autonomous_generation_due():
-            return cached if cached_matches else {}
+        previous_attempts = 0
+        retrying = False
         if not force and cached_matches and cached.get("generation_status") == "error":
+            previous_attempts = max(1, int(cached.get("model_attempts", 1) or 1))
+            if previous_attempts >= 2 or cached.get("retry_exhausted"):
+                return cached
             retry_minutes = max(5, int(self.config.get("AUTONOMOUS_PLAN_RETRY_MINUTES", 15)))
             try:
                 generated_at = datetime.strptime(str(cached.get("generated_at")), "%Y-%m-%d %H:%M:%S")
-                if datetime.now() - generated_at < timedelta(minutes=retry_minutes):
+                retry_at = generated_at + timedelta(minutes=retry_minutes)
+                retry_deadline = retry_at + timedelta(minutes=self._PLAN_RETRY_GRACE_MINUTES)
+                now = datetime.now()
+                if now < retry_at:
                     return cached
+                if now > retry_deadline:
+                    cached["retry_exhausted"] = True
+                    cached["model_error"] = (
+                        f"{str(cached.get('model_error') or '模型计划生成失败')}；"
+                        "已错过唯一一次重试窗口，今天不再自动请求"
+                    )[:240]
+                    self._save_json(AUTONOMOUS_PLAN_FILE, cached)
+                    return cached
+                retrying = True
             except (TypeError, ValueError):
-                pass
+                cached["retry_exhausted"] = True
+                self._save_json(AUTONOMOUS_PLAN_FILE, cached)
+                return cached
+        elif not force and not self._autonomous_generation_due():
+            return cached if cached_matches else {}
 
         activity = max(0, min(100, int(self.config.get("AUTONOMOUS_ACTIVITY_LEVEL", 55))))
         proactive_min, proactive_cap = self._autonomous_limit_range("proactive")
@@ -329,9 +379,15 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
         try:
             raw_plan = await self._llm_call(prompt, max_tokens=600)
             model_plan = self._extract_plan_json(raw_plan)
-            if not raw_plan or not model_plan:
+            if not raw_plan:
                 generation_status = "error"
-                model_error = "模型调用失败、未配置模型提供商，或模型未返回有效计划"
+                model_error = str(
+                    getattr(self, "_last_llm_error", "")
+                    or "模型没有返回计划内容"
+                )[:240]
+            elif not model_plan:
+                generation_status = "error"
+                model_error = "模型已返回内容，但没有按要求生成有效的 JSON 日程"
         except Exception as exc:
             generation_status = "error"
             model_error = f"模型调用失败：{exc}"[:240]
@@ -422,7 +478,13 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
             "generation_status": generation_status,
             "model_error": model_error,
             "source": "model" if generation_status == "success" else "fallback",
+            "model_attempts": previous_attempts + 1,
+            "retry_exhausted": bool(generation_status == "error" and retrying),
         }
+        if generation_status == "error" and retrying:
+            plan["model_error"] = (
+                f"{model_error or '模型计划生成失败'}；唯一一次重试仍失败，今天不再自动请求"
+            )[:240]
         self._save_json(AUTONOMOUS_PLAN_FILE, plan)
         # Replace runtime schedule state immediately so WebUI regeneration and the
         # current main-loop iteration both see the new plan.

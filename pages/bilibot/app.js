@@ -156,7 +156,7 @@ const MOCK_FIELDS = {
   AUTONOMOUS_PLAN_GENERATION_MODE: ["【自主安排】每日计划生成时机", "string", "after_sleep", ["after_sleep", "fixed_time"]],
   AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES: ["【自主安排】休眠结束后生成计划的偏移（分钟）", "int", 5],
   AUTONOMOUS_PLAN_GENERATION_TIME: ["【自主安排】每日计划固定生成时刻", "string", "08:05"],
-  AUTONOMOUS_PLAN_RETRY_MINUTES: ["【自主安排】模型失败重试间隔（分钟）", "int", 15],
+  AUTONOMOUS_PLAN_RETRY_MINUTES: ["【自主安排】模型失败后唯一一次重试等待（分钟）", "int", 15],
   AUTONOMOUS_PROACTIVE_WINDOW_MINUTES: ["【自主安排】主动浏览默认时间段长度（分钟）", "int", 90],
   AUTONOMOUS_REPLY_DAILY_MIN: ["【自主安排·范围】每日评论回复下限", "int", 0],
   AUTONOMOUS_REPLY_DAILY_MAX: ["【自主安排·范围】每日评论回复上限", "int", 80],
@@ -254,7 +254,7 @@ const MOCK_FIELDS = {
   OWNER_BILI_NAME: ["【账号】主人的B站昵称", "string", "示例昵称"],
   LLM_PROVIDER_ID: ["【人设】用于回复与记忆压缩的 LLM", "string", "default"],
   LLM_CIRCUIT_FAILURE_THRESHOLD: ["【模型可靠性】连续失败多少次后暂停调用", "int", 5],
-  LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 300],
+  LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 120],
   USE_ASTRBOT_PERSONA: ["【人设】使用 AstrBot 自带人设", "bool", true],
   CUSTOM_SYSTEM_PROMPT: ["【人设】自定义系统提示词", "text", "自然、克制、有自己的兴趣和判断。"],
   ENABLE_LLM_TOOLS: ["【功能开关】启用 LLM 工具", "bool", true],
@@ -891,7 +891,7 @@ function eventPhase(event, nowMinute = currentMinuteOfDay()) {
 function eventPhaseMeta(event) {
   const phase = eventPhase(event);
   if (phase === "done") return { phase, label: "已完成", detail: "已按计划执行" };
-  if (phase === "overdue") return { phase, label: "已错过", detail: "时段触发时刻已过，等待补执行或重新生成" };
+  if (phase === "overdue") return { phase, label: "已错过", detail: "触发窗口已过，今天不会补执行" };
   if (phase === "invalid") return { phase, label: "时间无效", detail: "请修正该事件的执行时刻后保存" };
   return { phase, label: "待执行", detail: "等待计划时刻" };
 }
@@ -977,7 +977,7 @@ function renderSelectedEvent(events) {
   if (!event) {
     const next = nextScheduleEvent(events);
     const style = EVENT_STYLES[next?.kind] || EVENT_STYLES.proactive;
-    return `<div id="selected-event" class="selected-event is-next" style="--a:${style.gradient[0]};--b:${style.gradient[1]}"><span class="selected-event-icon">${icon(next ? style.icon : "clock")}</span><div><span>${next ? "下一执行" : "今日进度"}</span><h3>${next?.time ? `${esc(next.time)} · ${esc(next.label || style.label)}` : "今日暂无后续事件"}</h3><p>${esc(next?.description || "过去未完成的事件会标记为已错过，可重新生成计划或等待补执行。")}</p></div></div>`;
+    return `<div id="selected-event" class="selected-event is-next" style="--a:${style.gradient[0]};--b:${style.gradient[1]}"><span class="selected-event-icon">${icon(next ? style.icon : "clock")}</span><div><span>${next ? "下一执行" : "今日进度"}</span><h3>${next?.time ? `${esc(next.time)} · ${esc(next.label || style.label)}` : "今日暂无后续事件"}</h3><p>${esc(next?.description || "过去未完成的事件会标记为已错过，不会在稍后补执行。")}</p></div></div>`;
   }
   const style = EVENT_STYLES[event.kind] || EVENT_STYLES.proactive;
   const meta = eventPhaseMeta(event);
@@ -1003,9 +1003,9 @@ function renderBehaviorMatrix() {
 
 function renderPlanStatus(plan, autonomous) {
   const failed = autonomous && plan.generation_status === "error";
-  const status = failed ? "模型调用失败，当前使用安全 fallback" : autonomous ? "模型计划已通过范围边界校验" : "管理员固定计划";
+  const status = failed ? "今日模型计划未生成，已使用安全计划" : autonomous ? "模型计划已通过范围边界校验" : "管理员固定计划";
   const detail = failed
-    ? `${plan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 请检查模型提供商和 AI 对话总开关。`
+    ? `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成；评论、私信等功能仍按各自开关运行。`
     : plan.rationale || (autonomous ? "保存修改后调用当前模型生成当天计划。" : "保存修改后按准确时刻刷新当天计划。");
   return `<div class="plan-status ${failed ? "has-error" : autonomous ? "is-model" : "is-fixed"}"><span>${icon(failed ? "lightning" : autonomous ? "star" : "clock")}</span><div><strong>${esc(status)}</strong><p>${esc(detail)}</p></div>${plan.generated_at ? `<small>${esc(plan.generated_at)}</small>` : ""}</div>`;
 }
@@ -1509,7 +1509,7 @@ async function handleAction(action, source = null) {
     renderCurrentPage();
     const plan = regenerated?.autonomous_plan;
     if (plan?.generation_status === "error") {
-      toast("计划已生成，但模型调用失败", `${plan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback。`, "error");
+      toast("已启用安全计划", `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成。`, "error");
     } else {
       toast("今日计划已更新", "新计划已经过睡眠区间、最小间隔与范围限制校验");
     }
@@ -1625,7 +1625,7 @@ async function saveDraft() {
     if (scheduleError) {
       toast("保存未完成", scheduleError.message || "日程修改未写入，请检查时间间隔", "error");
     } else if (regeneratedPlan?.generation_status === "error") {
-      toast("配置已保存，模型调用失败", `${regeneratedPlan.model_error || "未配置模型提供商，或 AI 对话总开关未开启。"} 已使用安全 fallback；系统会按重试间隔再次调用。`, "error");
+      toast("配置已保存，并启用安全计划", `${regeneratedPlan.model_error || "计划模型暂时没有返回有效内容。"} 系统会按重试间隔再次尝试。`, "error");
     } else if (refreshSchedule || scheduleNeedsSave) {
       toast("配置与今日计划已更新", `已保存 ${keys.length + (scheduleNeedsSave ? 1 : 0)} 项修改`);
     } else {
