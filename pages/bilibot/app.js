@@ -156,7 +156,7 @@ const MOCK_FIELDS = {
   AUTONOMOUS_PLAN_GENERATION_MODE: ["【自主安排】每日计划生成时机", "string", "after_sleep", ["after_sleep", "fixed_time"]],
   AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES: ["【自主安排】休眠结束后生成计划的偏移（分钟）", "int", 5],
   AUTONOMOUS_PLAN_GENERATION_TIME: ["【自主安排】每日计划固定生成时刻", "string", "08:05"],
-  AUTONOMOUS_PLAN_RETRY_MINUTES: ["【自主安排】模型失败重试间隔（分钟）", "int", 15],
+  AUTONOMOUS_PLAN_RETRY_MINUTES: ["【自主安排】模型失败后唯一一次重试等待（分钟）", "int", 15],
   AUTONOMOUS_PROACTIVE_WINDOW_MINUTES: ["【自主安排】主动浏览默认时间段长度（分钟）", "int", 90],
   AUTONOMOUS_REPLY_DAILY_MIN: ["【自主安排·范围】每日评论回复下限", "int", 0],
   AUTONOMOUS_REPLY_DAILY_MAX: ["【自主安排·范围】每日评论回复上限", "int", 80],
@@ -891,7 +891,7 @@ function eventPhase(event, nowMinute = currentMinuteOfDay()) {
 function eventPhaseMeta(event) {
   const phase = eventPhase(event);
   if (phase === "done") return { phase, label: "已完成", detail: "已按计划执行" };
-  if (phase === "overdue") return { phase, label: "已错过", detail: "时段触发时刻已过，等待补执行或重新生成" };
+  if (phase === "overdue") return { phase, label: "已错过", detail: "触发窗口已过，今天不会补执行" };
   if (phase === "invalid") return { phase, label: "时间无效", detail: "请修正该事件的执行时刻后保存" };
   return { phase, label: "待执行", detail: "等待计划时刻" };
 }
@@ -977,7 +977,7 @@ function renderSelectedEvent(events) {
   if (!event) {
     const next = nextScheduleEvent(events);
     const style = EVENT_STYLES[next?.kind] || EVENT_STYLES.proactive;
-    return `<div id="selected-event" class="selected-event is-next" style="--a:${style.gradient[0]};--b:${style.gradient[1]}"><span class="selected-event-icon">${icon(next ? style.icon : "clock")}</span><div><span>${next ? "下一执行" : "今日进度"}</span><h3>${next?.time ? `${esc(next.time)} · ${esc(next.label || style.label)}` : "今日暂无后续事件"}</h3><p>${esc(next?.description || "过去未完成的事件会标记为已错过，可重新生成计划或等待补执行。")}</p></div></div>`;
+    return `<div id="selected-event" class="selected-event is-next" style="--a:${style.gradient[0]};--b:${style.gradient[1]}"><span class="selected-event-icon">${icon(next ? style.icon : "clock")}</span><div><span>${next ? "下一执行" : "今日进度"}</span><h3>${next?.time ? `${esc(next.time)} · ${esc(next.label || style.label)}` : "今日暂无后续事件"}</h3><p>${esc(next?.description || "过去未完成的事件会标记为已错过，不会在稍后补执行。")}</p></div></div>`;
   }
   const style = EVENT_STYLES[event.kind] || EVENT_STYLES.proactive;
   const meta = eventPhaseMeta(event);

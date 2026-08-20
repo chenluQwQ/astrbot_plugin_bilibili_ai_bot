@@ -1,10 +1,12 @@
 """Tests for autonomous quota ranges and owner-share controls."""
 
 import sys
+import asyncio
 import tempfile
 import types
 import unittest
 import json
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -60,6 +62,70 @@ from core.video import VideoMixin
 class ScheduleProbe(ScheduleMixin):
     def __init__(self, config):
         self.config = config
+
+
+class FailingPlanProbe(ScheduleProbe):
+    def __init__(self):
+        super().__init__({
+            "ENABLE_AUTONOMOUS_DAILY_PLAN": True,
+            "AUTONOMOUS_PLAN_GENERATION_MODE": "fixed_time",
+            "AUTONOMOUS_PLAN_GENERATION_TIME": "08:05",
+            "AUTONOMOUS_PLAN_RETRY_MINUTES": 15,
+            "AUTONOMOUS_ACTIVITY_LEVEL": 50,
+            "AUTONOMOUS_PROACTIVE_DAILY_MIN": 0,
+            "AUTONOMOUS_PROACTIVE_DAILY_MAX": 0,
+            "AUTONOMOUS_DYNAMIC_DAILY_MIN": 0,
+            "AUTONOMOUS_DYNAMIC_DAILY_MAX": 0,
+            "AUTONOMOUS_REPLY_DAILY_MIN": 0,
+            "AUTONOMOUS_REPLY_DAILY_MAX": 0,
+            "AUTONOMOUS_PRIVATE_DAILY_MIN": 0,
+            "AUTONOMOUS_PRIVATE_DAILY_MAX": 0,
+            "ENABLE_PROACTIVE": False,
+            "ENABLE_DYNAMIC": False,
+            "ENABLE_BANGUMI": False,
+            "SPECIAL_FOLLOW_ENABLED": False,
+            "ENABLE_DYNAMIC_WATCH": False,
+            "ENABLE_REPLY": False,
+            "ENABLE_PRIVATE_MESSAGES": False,
+            "SLEEP_START": 2,
+            "SLEEP_END": 8,
+            "AUTONOMOUS_MIN_ACTION_GAP_MINUTES": 45,
+            "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES": 90,
+        })
+        self.saved = {}
+        self.llm_calls = 0
+
+    def _load_json(self, _path, default=None):
+        return self.saved or default
+
+    def _save_json(self, _path, value):
+        self.saved = value
+
+    def _get_today_mood(self):
+        return "平静", ""
+
+    async def _get_system_prompt(self):
+        return "测试人设"
+
+    async def _llm_call(self, _prompt, **_kwargs):
+        self.llm_calls += 1
+        self._last_llm_error = "测试模型不可用"
+        return None
+
+    def _save_schedule_state(self, *_args):
+        pass
+
+    def _save_dynamic_schedule_state(self, *_args):
+        pass
+
+    def _save_bangumi_schedule_state(self, *_args):
+        pass
+
+    def _save_special_follow_schedule_state(self, *_args):
+        pass
+
+    def _save_dynamic_watch_schedule_state(self, *_args):
+        pass
 
 
 class ProactiveProbe(ProactiveMixin):
@@ -186,6 +252,14 @@ def _check_autonomous_plan_generation_supports_after_sleep_and_fixed_time():
     })
     assert not fixed._autonomous_generation_due(datetime(2026, 8, 16, 0, 9))
     assert fixed._autonomous_generation_due(datetime(2026, 8, 16, 0, 10))
+    assert not fixed._autonomous_generation_due(datetime(2026, 8, 16, 0, 26))
+
+
+def _check_stale_schedule_slots_never_catch_up():
+    probe = ScheduleProbe({})
+    assert probe._schedule_slot_due(datetime(2026, 8, 20, 12, 3), 12, 0)
+    assert not probe._schedule_slot_due(datetime(2026, 8, 20, 12, 5), 12, 0)
+    assert not probe._schedule_slot_due(datetime(2026, 8, 20, 23, 3), 12, 0)
 
 
 def _budget_limits(config, kind):
@@ -274,6 +348,69 @@ def _check_video_format_fallbacks_include_portrait_short_side():
 
 
 class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_concurrent_daily_plan_requests_share_one_model_call(self):
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 8, 20, 8, 5, 0)
+
+        class SlowFailingPlanProbe(FailingPlanProbe):
+            async def _llm_call(self, _prompt, **_kwargs):
+                self.llm_calls += 1
+                await asyncio.sleep(0.02)
+                self._last_llm_error = "测试模型不可用"
+                return None
+
+        probe = SlowFailingPlanProbe()
+        with patch("core.schedule_mixin.datetime", FrozenDateTime):
+            first, second = await asyncio.gather(
+                probe._ensure_autonomous_daily_plan(),
+                probe._ensure_autonomous_daily_plan(),
+            )
+        self.assertEqual(probe.llm_calls, 1)
+        self.assertEqual(first, second)
+
+    async def test_failed_daily_plan_retries_only_once_at_retry_slot(self):
+        class FrozenDateTime(datetime):
+            current = datetime(2026, 8, 20, 8, 5, 0)
+
+            @classmethod
+            def now(cls, tz=None):
+                return cls.current
+
+        probe = FailingPlanProbe()
+        with patch("core.schedule_mixin.datetime", FrozenDateTime):
+            first = await probe._ensure_autonomous_daily_plan()
+            self.assertEqual(probe.llm_calls, 1)
+            self.assertEqual(first["model_attempts"], 1)
+            self.assertFalse(first["retry_exhausted"])
+
+            FrozenDateTime.current = datetime(2026, 8, 20, 8, 19, 0)
+            await probe._ensure_autonomous_daily_plan()
+            self.assertEqual(probe.llm_calls, 1)
+
+            FrozenDateTime.current = datetime(2026, 8, 20, 8, 20, 0)
+            second = await probe._ensure_autonomous_daily_plan()
+            self.assertEqual(probe.llm_calls, 2)
+            self.assertEqual(second["model_attempts"], 2)
+            self.assertTrue(second["retry_exhausted"])
+
+            FrozenDateTime.current = datetime(2026, 8, 20, 8, 21, 0)
+            await probe._ensure_autonomous_daily_plan()
+            self.assertEqual(probe.llm_calls, 2)
+
+    async def test_daily_plan_does_not_start_after_generation_window(self):
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 8, 20, 23, 3, 0)
+
+        probe = FailingPlanProbe()
+        with patch("core.schedule_mixin.datetime", FrozenDateTime):
+            plan = await probe._ensure_autonomous_daily_plan()
+        self.assertEqual(plan, {})
+        self.assertEqual(probe.llm_calls, 0)
+
     async def test_model_proactive_windows_generate_nonempty_schedule(self):
         class PlanProbe(ScheduleProbe):
             def __init__(self):
@@ -365,6 +502,7 @@ class AutonomousRangeTests(unittest.TestCase):
     test_owner_share_boolean_switch_overrides_delivery_mode = staticmethod(_check_owner_share_boolean_switch_overrides_delivery_mode)
     test_proactive_window_parser_and_fixed_schedule_are_stable = staticmethod(_check_proactive_window_parser_and_fixed_schedule_are_stable)
     test_autonomous_plan_generation_supports_after_sleep_and_fixed_time = staticmethod(_check_autonomous_plan_generation_supports_after_sleep_and_fixed_time)
+    test_stale_schedule_slots_never_catch_up = staticmethod(_check_stale_schedule_slots_never_catch_up)
     test_budget_reads_daily_max_when_only_range_is_configured = staticmethod(_check_budget_reads_daily_max_when_only_range_is_configured)
     test_budget_prefers_daily_max_over_legacy_limit = staticmethod(_check_budget_prefers_daily_max_over_legacy_limit)
     test_budget_falls_back_to_legacy_limit_for_upgraded_configs = staticmethod(_check_budget_falls_back_to_legacy_limit_for_upgraded_configs)
