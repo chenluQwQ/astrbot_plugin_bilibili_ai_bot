@@ -37,13 +37,13 @@ class ScheduleMixin:
         except (TypeError, ValueError):
             minimum = 0
         try:
-            maximum = int(maximum) if maximum is not None else int(legacy or default_max)
-        except (TypeError, ValueError):
-            maximum = int(legacy or default_max)
-        try:
-            legacy = int(legacy or default_max)
+            legacy = int(legacy) if legacy is not None else int(default_max)
         except (TypeError, ValueError):
             legacy = int(default_max)
+        try:
+            maximum = int(maximum) if maximum is not None else legacy
+        except (TypeError, ValueError):
+            maximum = legacy
         if maximum == int(default_max) and legacy != int(default_max):
             maximum = legacy
         maximum = max(minimum, maximum, 0)
@@ -358,7 +358,12 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
         }
 
         def target_for(key, minimum, maximum):
-            values = model_plan.get(key, [])
+            # The model protocol names proactive output ``proactive_windows``;
+            # the normalized plan keeps the legacy ``proactive_times`` field as
+            # well.  Count the field that the prompt actually asks the model to
+            # return, otherwise a valid window plan is silently reduced to zero.
+            source_key = "proactive_windows" if key == "proactive_times" else key
+            values = model_plan.get(source_key, [])
             soft_maximum = min(maximum, caps.get(key, maximum))
             if isinstance(values, list):
                 # The model may request fewer events, but it cannot bypass an

@@ -3,6 +3,7 @@
 import sys
 import tempfile
 import types
+import unittest
 from pathlib import Path
 
 
@@ -86,7 +87,7 @@ class FakeBot(LLMMixin):
         self.context = context
 
 
-def test_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty():
+def _check_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty():
     async def run():
         context = FakeContext(FakeProvider("default-chat"))
         bot = FakeBot({"LLM_PROVIDER_ID": ""}, context)
@@ -97,7 +98,7 @@ def test_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty():
     asyncio.run(run())
 
 
-def test_llm_call_prefers_explicit_plugin_provider():
+def _check_llm_call_prefers_explicit_plugin_provider():
     async def run():
         context = FakeContext(FakeProvider("default-chat"))
         bot = FakeBot({"LLM_PROVIDER_ID": "configured-chat"}, context)
@@ -105,3 +106,8 @@ def test_llm_call_prefers_explicit_plugin_provider():
         assert context.calls[0]["chat_provider_id"] == "configured-chat"
 
     asyncio.run(run())
+
+
+class LLMProviderResolutionTests(unittest.TestCase):
+    test_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty = staticmethod(_check_llm_call_uses_astrbot_default_provider_when_plugin_override_is_empty)
+    test_llm_call_prefers_explicit_plugin_provider = staticmethod(_check_llm_call_prefers_explicit_plugin_provider)

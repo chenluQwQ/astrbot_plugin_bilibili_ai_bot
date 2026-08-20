@@ -1302,7 +1302,15 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                                         "[BiliBot] 跳过评论区推荐：未配置 OWNER_BILI_NAME"
                                     )
                             if delivery in {"qq_private", "bili_private_and_qq", "all"}:
-                                if await self._send_owner_recommend_qq(rec_text, bvid):
+                                if (
+                                    await self._execute_proactive_action(
+                                        f"proactive_owner_qq:{bvid}",
+                                        "proactive_owner_recommend",
+                                        bvid,
+                                        lambda: self._send_owner_recommend_qq(rec_text, bvid),
+                                        metadata={"channel": "qq_private"},
+                                    )
+                                ).success:
                                     actions.append("💬QQ推荐给主人")
                                     sent_owner_recommend = True
                             if sent_owner_recommend:
@@ -1329,7 +1337,8 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 action in {"📢推荐给主人", "📢评论区推荐给主人"}
                 for action in actions
             )
-            recommended_owner = recommended_by_private_message or recommended_by_comment
+            recommended_by_qq = "💬QQ推荐给主人" in actions
+            recommended_owner = recommended_by_private_message or recommended_by_comment or recommended_by_qq
             on = self.config.get("OWNER_NAME", "") or "主人"
             memory_text = (
                 f"[{log_entry['time']}] Bot看了视频《{video.get('title', '')}》"
@@ -1339,12 +1348,14 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 f"内容:{video_description[:120]}"
             )
             if recommended_owner:
-                if recommended_by_private_message and recommended_by_comment:
-                    memory_text += f" | 觉得不错，通过B站私信分享给{on}，也在评论区@了对方"
-                elif recommended_by_private_message:
-                    memory_text += f" | 觉得不错，通过B站私信分享给{on}"
-                else:
-                    memory_text += f" | 觉得不错，在评论区@了{on}来看"
+                channels = []
+                if recommended_by_private_message:
+                    channels.append("B站私信")
+                if recommended_by_qq:
+                    channels.append("QQ私信")
+                if recommended_by_comment:
+                    channels.append("视频评论区@对方")
+                memory_text += f" | 觉得不错，已通过{'、'.join(channels)}分享给{on}"
             if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
                 await self._save_self_memory_record("proactive_watch", self._clip_media_text(memory_text, 320), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")})
             if bvid not in external_memory:
@@ -1610,10 +1621,11 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                 f"评分:{score}/10 心情:{mood} "
                 f"感想:{review[:80]} 内容:{video_description[:120]}"
             )
-            await self._save_self_memory_record(
-                "special_follow_watch", memory_text, memory_type="video",
-                extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")},
-            )
+            if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+                await self._save_self_memory_record(
+                    "special_follow_watch", memory_text, memory_type="video",
+                    extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": analysis_info.get("tname", "")},
+                )
 
             if bvid not in external_memory:
                 external_memory[bvid] = {

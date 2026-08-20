@@ -601,7 +601,7 @@ async def handle_schedule_override(plugin: Any):
             plan.update({key: values for key, values in normalized.items() if key != "proactive_times"})
             plan["proactive_times"] = normalized["proactive_times"]
             plan["proactive_windows"] = windows
-            plan["source"] = plan.get("source") or "manual"
+            plan["source"] = "manual"
             plan["edited_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             plugin._save_json(AUTONOMOUS_PLAN_FILE, plan)
         else:

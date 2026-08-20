@@ -547,12 +547,6 @@
     "default": false,
     "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
   },
-  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
-    "description": "【视频分析】保留视频长期记忆",
-    "type": "bool",
-    "default": false,
-    "hint": "默认关闭。完整分析只短期缓存；缓存到期后仅留简短索引，评论回复不会重新观看同一视频。"
-  },
   "VIDEO_SEGMENT_MINUTES": {
     "description": "【视频分析】长视频自动切片长度（分钟/段）",
     "type": "int",
