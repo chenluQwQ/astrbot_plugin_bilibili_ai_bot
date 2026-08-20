@@ -828,7 +828,7 @@ function renderInterestConfigSection() {
   const keys = ["INTEREST_APPLY_TO_PRIVATE", "INTEREST_SELECTION_PROMPT", "CUSTOM_REPLY_INSTRUCTION"].filter(hasKey);
   if (!keys.length) return "";
   return `<section class="card section-card interest-config-card">
-    ${sectionHead("兴趣选择与评论提示词", "总开关、当前兴趣和回复提示词集中在这里", "")}
+    ${sectionHead("兴趣选择与评论提示词", "总开关、当前兴趣和回复提示词集中在这里", "star")}
     <div class="interest-config-layout">
       <div class="interest-config-controls">
         <div class="interest-selector-row">
