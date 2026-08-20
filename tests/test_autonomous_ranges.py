@@ -263,6 +263,16 @@ def _check_config_schema_has_no_duplicate_keys():
     assert duplicates == []
 
 
+def _check_video_format_fallbacks_include_portrait_short_side():
+    formats = VideoProbe({})._format_fallbacks(480)
+    assert any("[width<=360]" in value for value in formats)
+    assert any("[width<=480]" in value for value in formats)
+    assert formats[-2:] == [
+        "bestvideo+bestaudio/best",
+        "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
+    ]
+
+
 class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_proactive_windows_generate_nonempty_schedule(self):
         class PlanProbe(ScheduleProbe):
@@ -362,3 +372,4 @@ class AutonomousRangeTests(unittest.TestCase):
     test_autonomous_range_preserves_explicit_legacy_zero = staticmethod(_check_autonomous_range_preserves_explicit_legacy_zero)
     test_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist = staticmethod(_check_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist)
     test_config_schema_has_no_duplicate_keys = staticmethod(_check_config_schema_has_no_duplicate_keys)
+    test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
