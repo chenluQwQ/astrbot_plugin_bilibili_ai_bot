@@ -1049,6 +1049,13 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             if milestone_hit:
                 self._commit_milestone(mid, milestone_hit[0], username)
 
+        commit_signals = getattr(self, "_commit_reply_signals", None)
+        if callable(commit_signals):
+            await commit_signals(
+                event_key=str(message["msg_key"]), actor_id=mid,
+                actor_name=username, scope="bili_dm", result=result,
+            )
+
         impression = result.get("impression", "")
         user_facts = result.get("user_facts", [])
         if impression or user_facts:

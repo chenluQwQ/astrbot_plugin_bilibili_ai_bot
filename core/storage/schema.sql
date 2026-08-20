@@ -129,6 +129,28 @@ CREATE TABLE IF NOT EXISTS seen_videos (
 );
 CREATE INDEX IF NOT EXISTS idx_seen_videos_last ON seen_videos (last_related_at);
 
+-- 对话反馈候选：只保存经过严格输出协议验证的短结论，并且必须在回复
+-- 确认发送成功后写入。候选不会直接修改人格，由日报/周报后续聚合。
+CREATE TABLE IF NOT EXISTS feedback_candidates (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_key        TEXT NOT NULL UNIQUE,
+    actor_id         TEXT NOT NULL DEFAULT '',
+    actor_name       TEXT NOT NULL DEFAULT '',
+    scope            TEXT NOT NULL,
+    feedback_type    TEXT NOT NULL,
+    topic            TEXT NOT NULL DEFAULT '',
+    event_summary    TEXT NOT NULL DEFAULT '',
+    possible_mistake TEXT NOT NULL DEFAULT '',
+    next_time        TEXT NOT NULL DEFAULT '',
+    confidence       REAL NOT NULL DEFAULT 0,
+    relation_weight  REAL NOT NULL DEFAULT 1,
+    is_owner         INTEGER NOT NULL DEFAULT 0,
+    status           TEXT NOT NULL DEFAULT 'candidate',
+    created_at       REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback_candidates (created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_topic ON feedback_candidates (feedback_type, topic);
+
 -- 用户群像：小体积结构化，增量更新（只改动变化字段，不重写全量摘要）。
 CREATE TABLE IF NOT EXISTS profiles (
     actor_id     TEXT PRIMARY KEY,

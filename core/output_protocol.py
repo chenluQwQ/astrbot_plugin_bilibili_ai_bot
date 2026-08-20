@@ -91,6 +91,8 @@ def _validate_signals(value: Any) -> dict[str, Any]:
         topic = _short_text(topic, "feedback_topic", 80, allow_empty=False)
     reflection = value.get("reflection_candidate")
     if reflection is not None:
+        if feedback not in {"suggestion", "correction", "criticism"}:
+            raise ReplyProtocolError("reflection_not_supported_for_feedback_type")
         if not isinstance(reflection, dict) or set(reflection) != REFLECTION_KEYS:
             raise ReplyProtocolError("reflection_candidate_schema_mismatch")
         reflection = {

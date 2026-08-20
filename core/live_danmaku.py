@@ -468,6 +468,13 @@ class LiveDanmakuMixin:
         else:
             new_score = old_score
 
+        commit_signals = getattr(self, "_commit_reply_signals", None)
+        if callable(commit_signals):
+            await commit_signals(
+                event_key=str(event["event_id"]), actor_id=uid,
+                actor_name=username, scope="bili_live", result=result,
+            )
+
         impression = str(result.get("impression", "") or "").strip()
         user_facts = result.get("user_facts", [])
         if not isinstance(user_facts, list):

@@ -145,6 +145,59 @@ class ReplyMixin:
             },
         )
 
+    async def _commit_reply_signals(
+        self, *, event_key, actor_id, actor_name, scope, result
+    ):
+        """Persist validated feedback only after the public reply was confirmed sent."""
+        if not result.get("_protocol_validated"):
+            return False
+        signals = result.get("signals")
+        if not isinstance(signals, dict):
+            return False
+        feedback_type = str(signals.get("feedback_type") or "none")
+        if feedback_type == "none":
+            return False
+        layered = getattr(self, "layered_runtime", None)
+        if layered is None or not layered.is_open:
+            return False
+        actor_id = str(actor_id or "")
+        owner = self._is_owner(actor_id)
+        if owner:
+            relation_weight = 3.0
+        else:
+            score = self._affection.get(actor_id, 0)
+            level = self._get_level(score, actor_id)
+            relation_weight = {
+                "special": 1.8, "close": 1.6, "friend": 1.25,
+            }.get(level, 1.0)
+        reflection = signals.get("reflection_candidate") or {}
+        try:
+            created = await layered.feedback.record_candidate(
+                event_key=f"{scope}:{event_key}",
+                actor_id=actor_id,
+                actor_name=actor_name,
+                scope=scope,
+                feedback_type=feedback_type,
+                topic=str(signals.get("feedback_topic") or ""),
+                event_summary=str(reflection.get("event") or ""),
+                possible_mistake=str(reflection.get("possible_mistake") or ""),
+                next_time=str(reflection.get("next_time") or ""),
+                confidence=float(signals.get("confidence", 0.0) or 0.0),
+                relation_weight=relation_weight,
+                is_owner=owner,
+            )
+            if created:
+                logger.info(
+                    f"[BiliBot] 🪞 记录反馈候选: {feedback_type} "
+                    f"topic={str(signals.get('feedback_topic') or '')[:40]} "
+                    f"weight={relation_weight}"
+                )
+            return created
+        except Exception as exc:
+            # 回复已成功发送，反馈落库失败不能反过来触发平台重发。
+            logger.warning(f"[BiliBot] 反馈候选写入失败，未影响已发送回复: {exc}")
+            return False
+
     async def _generate_reply(
         self,
         content,
@@ -500,6 +553,10 @@ class ReplyMixin:
                         self._log_security_event(
                             "negative", mid, username, content, f"{cs}→{ns}({ds})"
                         )
+            await self._commit_reply_signals(
+                event_key=str(rpid), actor_id=mid, actor_name=username,
+                scope="bili_comment", result=result,
+            )
             if imp or uf or video_encounter:
                 self._update_user_profile(
                     mid,

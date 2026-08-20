@@ -96,6 +96,24 @@ class ReplyOutputProtocolTests(unittest.TestCase):
             "涉及最新投稿时先核对发布日期",
         )
 
+    def test_teasing_is_not_allowed_to_smuggle_in_a_reflection(self):
+        payload = valid_payload()
+        payload["signals"] = {
+            **payload["signals"],
+            "interaction_type": "teasing",
+            "feedback_type": "teasing",
+            "reflection_candidate": None,
+        }
+        self.assertEqual(
+            self.parse(payload)["signals"]["interaction_type"], "teasing"
+        )
+        payload["signals"]["reflection_candidate"] = {
+            "event": "熟人开玩笑", "possible_mistake": "被调侃",
+            "next_time": "立刻改人格",
+        }
+        with self.assertRaises(ReplyProtocolError):
+            self.parse(payload)
+
 
 if __name__ == "__main__":
     unittest.main()

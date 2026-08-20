@@ -29,7 +29,8 @@ from .security import (
     scope_for_source,
 )
 from .storage import (
-    Database, MediaStore, MemoryStore, ProfileStore, SeenVideoStore, now,
+    Database, FeedbackStore, MediaStore, MemoryStore, ProfileStore,
+    SeenVideoStore, now,
 )
 
 
@@ -62,6 +63,7 @@ class LayeredRuntime:
         self.memories = MemoryStore(self.db)
         self.profiles = ProfileStore(self.db)
         self.seen_videos = SeenVideoStore(self.db)
+        self.feedback = FeedbackStore(self.db)
         self.media = MediaStore(self.db)
         self.persona = PersonaEngine(self.db, self._get)
         self.capabilities = CapabilityStore(self.db)

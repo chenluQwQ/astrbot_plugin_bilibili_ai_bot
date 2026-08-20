@@ -13,6 +13,7 @@
 | Bot 长期角色/自我记忆 | `permanent_memory.json` | 无 | 受信入口写入的自我认知；外部评论、私信和弹幕不得直接写入 |
 | 视频理解缓存 | `video_memory.json` | 部分可复用摘要会另写入 `memories` | 避免同一视频重复下载和分析；不是用户画像本体 |
 | 永久视频去重 | SQLite `seen_videos` | `seen_videos.json` 是无容量上限的恢复副本 | 只记录 BV 与轻量观看元数据，永久回答“是否看过”；不保存正文和向量 |
+| 互动反馈候选 | SQLite `feedback_candidates` | 无正文副本 | 只在回复发送成功后保存严格校验的短结论；供日报/周报聚合，不直接修改人格 |
 | 主动看片详情 | `external_memory.json` | `watch_log.json` 只记活动流水 | 保存主动看过的视频、感想和互动结果 |
 | UP 主关系 | `user_profiles.json` 的 `video_refs` | 视频记忆中的 `owner_mid/owner_name` 是检索元数据 | 只保存用户/UP 与视频的轻量关系，不复制视频总结 |
 | 番剧进度与印象 | `bangumi_memory.json` | `bangumi_watch_log.json` 是活动流水 | 按番剧保存追番状态、分集记录和偏好 |
@@ -36,6 +37,10 @@
 - 压缩摘要额外保存 `summary_kind` 与 `derived_from_rpids`，明确来源记忆。
 
 新压缩摘要的 ID 由来源 `rpid` 集合生成，不再依赖秒级时间戳，因此并发压缩不会碰撞。
+
+互动反馈候选使用平台事件键幂等去重。主人反馈权重为普通用户的 3 倍，熟悉用户略高；
+熟人调侃可以被标注为 `teasing`，但不得据此生成反思候选。候选只保存“发生了什么、
+哪里可能有问题、以后怎么做”的短结论，不保存模型思维链，也不会在写入时改变核心人设。
 
 ## 视频记忆的独立生命周期
 

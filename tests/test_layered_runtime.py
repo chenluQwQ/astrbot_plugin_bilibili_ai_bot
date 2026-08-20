@@ -384,6 +384,33 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["first_seen_at"], 100.0)
         self.assertEqual(row["last_related_at"], 200.0)
 
+    async def test_feedback_candidates_are_idempotent_and_relation_weighted(self):
+        owner = await self.layers.feedback.record_candidate(
+            event_key="bili_comment:owner-1", actor_id="42", actor_name="主人",
+            scope="bili_comment", feedback_type="suggestion", topic="回复太机械",
+            event_summary="主人建议说话自然一点",
+            possible_mistake="回复像客服模板", next_time="先回应具体内容",
+            confidence=0.95, relation_weight=3.0, is_owner=True,
+        )
+        duplicate = await self.layers.feedback.record_candidate(
+            event_key="bili_comment:owner-1", actor_id="42", actor_name="主人",
+            scope="bili_comment", feedback_type="suggestion", topic="回复太机械",
+            relation_weight=3.0, is_owner=True,
+        )
+        await self.layers.feedback.record_candidate(
+            event_key="bili_comment:user-1", actor_id="99", actor_name="群友",
+            scope="bili_comment", feedback_type="suggestion", topic="回复太机械",
+            next_time="少用服务式反问", confidence=0.8, relation_weight=1.0,
+        )
+
+        self.assertTrue(owner)
+        self.assertFalse(duplicate)
+        aggregate = await self.layers.feedback.aggregate(days=7)
+        self.assertEqual(aggregate[0]["count"], 2)
+        self.assertEqual(aggregate[0]["distinct_actors"], 2)
+        self.assertEqual(aggregate[0]["owner_count"], 1)
+        self.assertEqual(aggregate[0]["weighted_score"], 4.0)
+
     def test_stored_action_digest_uses_security_hash(self):
         key = StoredActionRequest(tool="post_dynamic", args={"text": "hi"}).digest_key()
         self.assertTrue(key.startswith("post_dynamic:none:"))

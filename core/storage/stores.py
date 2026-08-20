@@ -232,6 +232,90 @@ class SeenVideoStore:
         )
 
 
+class FeedbackStore:
+    """候选反馈仓库；不在这里直接改变人格或偏好。"""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    async def record_candidate(
+        self,
+        *,
+        event_key: str,
+        actor_id: str,
+        actor_name: str,
+        scope: str,
+        feedback_type: str,
+        topic: str = "",
+        event_summary: str = "",
+        possible_mistake: str = "",
+        next_time: str = "",
+        confidence: float = 0.0,
+        relation_weight: float = 1.0,
+        is_owner: bool = False,
+        created_at: float | None = None,
+    ) -> bool:
+        timestamp = float(created_at if created_at is not None else now())
+        params = (
+                str(event_key)[:180], str(actor_id)[:80], str(actor_name)[:80],
+                str(scope)[:40], str(feedback_type)[:30], str(topic)[:80],
+                str(event_summary)[:160], str(possible_mistake)[:160],
+                str(next_time)[:160], max(0.0, min(1.0, float(confidence))),
+                max(0.1, min(5.0, float(relation_weight))),
+                1 if is_owner else 0, "candidate", timestamp,
+            )
+
+        def _insert(conn):
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO feedback_candidates("
+                "event_key,actor_id,actor_name,scope,feedback_type,topic,event_summary,"
+                "possible_mistake,next_time,confidence,relation_weight,is_owner,status,created_at"
+                ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                params,
+            )
+            return cursor.rowcount == 1
+
+        return bool(await self._db.run(_insert))
+
+    async def recent(self, *, days: int = 7) -> list[dict[str, Any]]:
+        since = now() - max(1, int(days)) * 86400
+        rows = await self._db.fetch_all(
+            "SELECT * FROM feedback_candidates WHERE created_at>=? "
+            "ORDER BY created_at DESC", (since,)
+        )
+        return [dict(row) for row in rows]
+
+    async def aggregate(self, *, days: int = 7) -> list[dict[str, Any]]:
+        grouped: dict[tuple[str, str], dict[str, Any]] = {}
+        for row in await self.recent(days=days):
+            key = (str(row["feedback_type"]), str(row["topic"] or "未分类反馈"))
+            item = grouped.setdefault(
+                key,
+                {
+                    "feedback_type": key[0], "topic": key[1], "count": 0,
+                    "weighted_score": 0.0, "actors": set(), "owner_count": 0,
+                    "examples": [],
+                },
+            )
+            item["count"] += 1
+            item["weighted_score"] += float(row["relation_weight"])
+            item["actors"].add(str(row["actor_id"]))
+            item["owner_count"] += int(row["is_owner"])
+            example = str(row["next_time"] or row["possible_mistake"] or "")
+            if example and example not in item["examples"] and len(item["examples"]) < 3:
+                item["examples"].append(example)
+        result = []
+        for item in grouped.values():
+            item["distinct_actors"] = len(item.pop("actors"))
+            item["weighted_score"] = round(item["weighted_score"], 2)
+            result.append(item)
+        return sorted(
+            result,
+            key=lambda item: (item["weighted_score"], item["distinct_actors"]),
+            reverse=True,
+        )
+
+
 class MemoryStore:
     """记忆读写。"""
 
