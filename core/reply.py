@@ -564,7 +564,7 @@ class ReplyMixin:
         return success
 
     async def _poll_unified(self):
-        if time.time() < self._llm_cooldown_until:
+        if time.time() < self._reply_cooldown_until:
             return
         try:
             replied = set(self._load_json(REPLIED_FILE, []))
@@ -769,7 +769,7 @@ class ReplyMixin:
 
             # 回复冷却：防止短时间内重复回复
             cooldown = max(int(self.config.get("REPLY_COOLDOWN", 15)), 5)
-            self._llm_cooldown_until = time.time() + cooldown
+            self._reply_cooldown_until = time.time() + cooldown
 
             # 恶意告警：回复完成后异步检查
             try:
