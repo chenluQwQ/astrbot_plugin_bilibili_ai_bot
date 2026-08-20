@@ -642,7 +642,6 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             "search_bilibili": "video_search",
             "bili_search_and_watch": "search_and_watch",
             "watch_video": "watch_direct",
-            "bili_parse_video": "watch_direct",
         }
         if name in action_map:
             if not self.config.get("PRIVATE_MESSAGE_BILI_SEARCH_ENABLED", True):

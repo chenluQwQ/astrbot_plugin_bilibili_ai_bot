@@ -78,7 +78,7 @@ class ReplyMixin:
     def _allowed_bili_tool_names(self):
         supported = {
             "bili_up_info", "get_up_info", "bili_video_search", "search_bilibili",
-            "bili_search_and_watch", "watch_video", "bili_parse_video",
+            "bili_search_and_watch", "watch_video",
             "check_following_updates", "check_following_live", "get_bangumi_info",
             "get_bangumi_trending", "get_bangumi_timeline", "get_bangumi_updates",
             "web_search",
@@ -224,7 +224,6 @@ class ReplyMixin:
                         "search_bilibili": "- search_bilibili：按关键词搜索或推荐B站视频，只列候选",
                         "bili_search_and_watch": "- bili_search_and_watch：搜索一个相关视频并实际观看/分析",
                         "watch_video": "- watch_video：按 BV 号实际观看/分析指定视频",
-                        "bili_parse_video": "- bili_parse_video：解析 BV 号或公开视频链接并观看/分析",
                         "check_following_updates": "- check_following_updates：查看今天关注 UP 主的新动态与投稿，无需 query",
                         "check_following_live": "- check_following_live：查看关注列表中当前正在直播的人，无需 query",
                         "get_bangumi_info": "- get_bangumi_info：按 season_id 查看番剧详情，query 只写数字 season_id",
@@ -312,7 +311,7 @@ class ReplyMixin:
                 + (
                     '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容或查询前的短回应", '
                     '"impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"], '
-                    '"tool_request": {"name": "none|bili_up_info|get_up_info|bili_video_search|search_bilibili|bili_search_and_watch|watch_video|bili_parse_video|check_following_updates|check_following_live|get_bangumi_info|get_bangumi_trending|get_bangumi_timeline|get_bangumi_updates|web_search", "query": ""}}\n\n'
+                    '"tool_request": {"name": "none|bili_up_info|get_up_info|bili_video_search|search_bilibili|bili_search_and_watch|watch_video|check_following_updates|check_following_live|get_bangumi_info|get_bangumi_trending|get_bangumi_timeline|get_bangumi_updates|web_search", "query": ""}}\n\n'
                     if is_private and allow_tool_request and tool_request_prompt
                     else '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容", "impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"]}\n\n'
                 )
@@ -364,7 +363,7 @@ class ReplyMixin:
             allowed_tool_names = {
                 "none", "bili_up_info", "get_up_info", "bili_video_search",
                 "search_bilibili", "bili_search_and_watch", "watch_video",
-                "bili_parse_video", "check_following_updates", "check_following_live",
+                "check_following_updates", "check_following_live",
                 "get_bangumi_info", "get_bangumi_trending", "get_bangumi_timeline",
                 "get_bangumi_updates", "web_search",
             }

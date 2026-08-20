@@ -69,15 +69,20 @@ class VideoMixin:
             }
 
             video_cache = self._load_json(VIDEO_MEMORY_FILE, {})
-            if self._compact_video_cache(video_cache):
-                self._save_json(VIDEO_MEMORY_FILE, video_cache)
             cached = video_cache.get(actual_bvid, {})
-            cached_analysis = str(cached.get("analysis", "") or "").strip()
-            if self._analysis_has_subtitle_mismatch(cached_analysis):
+            cached_text = str(cached.get("analysis") or cached.get("summary") or "").strip()
+            removed_bad_cache = False
+            if self._analysis_has_subtitle_mismatch(cached_text):
                 logger.warning(
                     f"[BiliBot] 丢弃疑似字幕错配的旧视频缓存，重新分析: {actual_bvid}"
                 )
-                cached_analysis = ""
+                video_cache.pop(actual_bvid, None)
+                cached = {}
+                removed_bad_cache = True
+            if self._compact_video_cache(video_cache) or removed_bad_cache:
+                self._save_json(VIDEO_MEMORY_FILE, video_cache)
+            cached = video_cache.get(actual_bvid, {})
+            cached_analysis = str(cached.get("analysis", "") or "").strip()
             cached_summary = str(cached.get("summary", "") or "").strip()
             if cached_analysis or cached_summary:
                 video_description = self._clip_media_text(cached_analysis or cached_summary, 1600)
@@ -753,7 +758,7 @@ UP主：{video_info.get('up_name', '未知')}
             return "", None
         if bvid in vc:
             c = vc[bvid]
-            if self._analysis_has_subtitle_mismatch(c.get("analysis", "")):
+            if self._analysis_has_subtitle_mismatch(c.get("analysis") or c.get("summary", "")):
                 logger.warning(f"[BiliBot] 评论上下文丢弃字幕错配缓存: {bvid}")
                 vc.pop(bvid, None)
                 self._save_json(VIDEO_MEMORY_FILE, vc)
@@ -793,10 +798,11 @@ UP主：{video_info.get('up_name', '未知')}
             f"UP主:{vi['owner_name']} 分区:{vi['tname']} "
             f"简介:{vi.get('desc', '')[:120]} 内容概括:{analysis[:200]}"
         )
-        await self._save_self_memory_record(
-            f"video:{bvid}", memory_text, memory_type="video",
-            extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"]},
-        )
+        if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
+            await self._save_self_memory_record(
+                f"video:{bvid}", memory_text, memory_type="video",
+                extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"]},
+            )
         ctx = f"【当前视频】\n标题：{vi['title']}\nUP主：{vi['owner_name']}（UID:{vi['owner_mid']}）\n分区：{vi['tname']}\n简介：{vi.get('desc', '')[:150]}\n内容概括：{analysis}"
         tags = await self._get_video_tags(bvid)
         comments = await self._get_hot_comments(oid)
