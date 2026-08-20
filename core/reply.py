@@ -15,6 +15,9 @@ from .config import (
     VIDEO_MEMORY_FILE,
 )
 from .runtime import ActionRequest, EventState, InboundEvent
+from .output_protocol import (
+    ReplyProtocolError, parse_reply_envelope, reply_schema_instruction,
+)
 
 
 class ReplyMixin:
@@ -213,6 +216,7 @@ class ReplyMixin:
                     f"{str(reference_context)[:6000]}"
                 )
             tool_request_prompt = ""
+            schema_tool_names = []
             if is_private and allow_tool_request and not is_suspicious:
                 available_tools = []
                 allowed_tool_names = self._allowed_bili_tool_names()
@@ -232,8 +236,12 @@ class ReplyMixin:
                         "get_bangumi_updates": "- get_bangumi_updates：查看账号当前在追番剧的更新概况，无需 query",
                     }
                     available_tools.extend(tool_descriptions[name] for name in tool_descriptions if name in allowed_tool_names)
+                    schema_tool_names.extend(
+                        name for name in tool_descriptions if name in allowed_tool_names
+                    )
                 if self.config.get("ENABLE_WEB_SEARCH", False) and "web_search" in allowed_tool_names:
                     available_tools.append("- web_search：查询B站以外、必须依赖近期联网信息才能准确回答的事实")
+                    schema_tool_names.append("web_search")
                 if available_tools:
                     tool_request_prompt = (
                         "\n【可选后台能力】\n"
@@ -308,14 +316,9 @@ class ReplyMixin:
                 f"发送者：{str(username)[:30].replace(chr(10), ' ')}（uid:{mid}）{owner_mark}\n"
                 f"{target_name}内容：\n{comment_text}\n"
                 f"{'=' * 30}\n\n"
-                + (
-                    '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容或查询前的短回应", '
-                    '"impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"], '
-                    '"tool_request": {"name": "none|bili_up_info|get_up_info|bili_video_search|search_bilibili|bili_search_and_watch|watch_video|check_following_updates|check_following_live|get_bangumi_info|get_bangumi_trending|get_bangumi_timeline|get_bangumi_updates|web_search", "query": ""}}\n\n'
-                    if is_private and allow_tool_request and tool_request_prompt
-                    else '以JSON格式回复：\n{"score_delta": 数字, "reply": "回复内容", "impression": "一句话印象更新", "user_facts": ["从消息中了解到的个人信息"]}\n\n'
-                )
-                + "score_delta参考：真诚友善+2，正常交流+1，轻微冒犯-1，明确阴阳怪气-2，辱骂攻击-5。impression和user_facts只写这条消息能支持的内容，拿不准就留空。"
+                "score_delta参考：真诚友善+2，正常交流+1，轻微冒犯-1，"
+                "明确阴阳怪气-2，辱骂攻击-5。impression和user_facts只写"
+                "这条消息能支持的内容，拿不准就留空。"
             )
             custom_key = (
                 "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION"
@@ -329,67 +332,35 @@ class ReplyMixin:
             custom_reply_inst = self.config.get(custom_key, "")
             if custom_reply_inst:
                 prompt += f"\n\n【补充提示词】{custom_reply_inst}"
+            prompt += "\n\n" + reply_schema_instruction(tools=schema_tool_names)
             rt = await self._llm_call(prompt, system_prompt=sp)
             if not rt:
-                return None
-            rt = self._repair_llm_json(rt)
-            r = None
+                return {"decision": "error", "error": "model_unavailable"}
             try:
-                r = json.loads(rt)
-            except Exception:
-                pass
-            if r is None or not isinstance(r, dict):
-                rm = re.search(r'"reply"\s*:\s*"([^"]*)"', rt)
-                if rm:
-                    r = {"score_delta": 1, "reply": rm.group(1), "impression": "", "user_facts": [], "permanent_memory": ""}
-                    logger.warning(f"[BiliBot] JSON解析失败，使用正则提取的回复: {rm.group(1)[:30]}")
-                elif "{" in rt or '"' in rt:
-                    # 疑似残缺 JSON：绝不把原始输出（JSON 碎片等）公开发出。
-                    logger.warning(f"[BiliBot] JSON解析失败且疑似残缺JSON，放弃本条: {rt[:80]}")
-                    return None
-                else:
-                    # 模型直接返回了纯文本回复，保留有限兼容。
-                    r = {"score_delta": 1, "reply": rt[:50], "impression": "", "user_facts": [], "permanent_memory": ""}
-                    logger.warning(f"[BiliBot] JSON解析失败，按纯文本兜底: {rt[:30]}")
-            # LLM 可能返回 "score_delta": "+2" 这类字符串，统一转 int。
-            try:
-                r["score_delta"] = int(float(str(r.get("score_delta", 1)).strip()))
-            except (ValueError, TypeError):
-                r["score_delta"] = 1
-            if is_suspicious:
-                r["score_delta"] = min(r.get("score_delta", 0), -3)
-            tool_request = r.get("tool_request") if isinstance(r.get("tool_request"), dict) else {}
-            tool_name = str(tool_request.get("name") or "none").strip().lower()
-            allowed_tool_names = {
-                "none", "bili_up_info", "get_up_info", "bili_video_search",
-                "search_bilibili", "bili_search_and_watch", "watch_video",
-                "check_following_updates", "check_following_live",
-                "get_bangumi_info", "get_bangumi_trending", "get_bangumi_timeline",
-                "get_bangumi_updates", "web_search",
-            }
-            if (
-                not allow_tool_request
-                or is_suspicious
-                or tool_name not in allowed_tool_names
-            ):
-                tool_name = "none"
-            return {
-                "score_delta": r.get("score_delta", 1),
-                "reply": r.get("reply", ""),
-                "impression": r.get("impression", ""),
-                "user_facts": r.get("user_facts", []),
-                # 外部消息只能更新其来源域内的记忆与画像，不能请求写 SELF。
-                "permanent_memory": "",
-                "tool_request": {
-                    "name": tool_name,
-                    "query": str(tool_request.get("query") or "").strip()[:100],
-                },
-            }
+                result = parse_reply_envelope(
+                    rt,
+                    channel=channel,
+                    allowed_tools=set(schema_tool_names),
+                    allow_tool_request=bool(
+                        is_private and allow_tool_request and not is_suspicious
+                    ),
+                )
+            except ReplyProtocolError as exc:
+                logger.warning(
+                    f"[BiliBot] 回复结构校验失败，放弃发送: {exc}; "
+                    f"output={str(rt)[:80]}"
+                )
+                return {"decision": "error", "error": "invalid_model_output"}
+            if is_suspicious and result.get("decision") == "reply":
+                result["score_delta"] = min(result.get("score_delta", 0), -3)
+            return result
         except Exception as e:
             logger.error(f"[BiliBot] 回复生成失败: {e}\n{traceback.format_exc()}")
             return None
 
     async def _apply_reply_result(self, *, mid, username, content, oid, rpid, comment_type, thread_id, result):
+        if not result.get("_protocol_validated") or result.get("decision") != "reply":
+            return False
         cs = self._affection.get(str(mid), 0)
         ai_reply = result["reply"]
         sd = result.get("score_delta", 1)
@@ -751,10 +722,17 @@ class ReplyMixin:
                     logger.info(f"[BiliBot] 🖼️ 图片内容：{image_desc[:50]}...")
 
             result = await self._generate_reply(content, mid, username, thread_id, oid, comment_type, image_desc=image_desc)
-            if not result or not result.get("reply"):
-                logger.warning(f"[BiliBot] {username} 回复生成失败，已标记已读跳过")
+            decision = str((result or {}).get("decision") or "error")
+            if decision in {"ignore", "observe"}:
                 await self.event_runtime.transition(
-                    claim.event_key, EventState.FAILED, "reply_generation_failed"
+                    claim.event_key, EventState.IGNORED, f"model_{decision}"
+                )
+                return
+            if decision != "reply" or not result.get("reply"):
+                reason = str((result or {}).get("error") or "reply_generation_failed")
+                logger.warning(f"[BiliBot] {username} 回复未生成：{reason}")
+                await self.event_runtime.transition(
+                    claim.event_key, EventState.FAILED, reason
                 )
                 return
 

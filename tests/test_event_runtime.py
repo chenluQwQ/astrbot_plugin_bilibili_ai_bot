@@ -63,7 +63,7 @@ def load_private_message_module(data_dir):
 def load_reply_module(data_dir):
     package_name = "bilibot_comment_runtime_test"
     package = types.ModuleType(package_name)
-    package.__path__ = []
+    package.__path__ = [str(MODULE_PATH.parent)]
     sys.modules[package_name] = package
     sys.modules[f"{package_name}.runtime"] = runtime
 
@@ -477,6 +477,8 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                     "msg_key": "message-1",
                 },
                 {
+                    "decision": "reply",
+                    "_protocol_validated": True,
                     "reply": "hi",
                     "score_delta": 2,
                     "impression": "friendly",
@@ -552,6 +554,8 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                     "msg_key": "message-2",
                 },
                 {
+                    "decision": "reply",
+                    "_protocol_validated": True,
                     "reply": "hi",
                     "score_delta": 2,
                     "impression": "friendly",
@@ -651,6 +655,8 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 comment_type=1,
                 thread_id="thread-1",
                 result={
+                    "decision": "reply",
+                    "_protocol_validated": True,
                     "reply": "hi",
                     "score_delta": 2,
                     "impression": "friendly",
@@ -678,6 +684,8 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 comment_type=1,
                 thread_id="thread-1",
                 result={
+                    "decision": "reply",
+                    "_protocol_validated": True,
                     "reply": "hi",
                     "score_delta": 2,
                     "impression": "friendly",

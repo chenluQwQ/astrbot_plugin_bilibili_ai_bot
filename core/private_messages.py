@@ -992,6 +992,8 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         self._save_json(block_file, block_log)
 
     async def _apply_private_reply_result(self, message, result, thread_id=None):
+        if not result.get("_protocol_validated") or result.get("decision") != "reply":
+            return False
         mid = str(message["sender_uid"])
         username = message["username"]
         content = message["content"]
@@ -1406,12 +1408,19 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             reference_context=reference_context,
             allow_tool_request=allow_tool_request,
         )
-        if not result or not result.get("reply"):
-            logger.warning(f"[BiliBot] 私信回复生成失败，稍后重试：{username}({mid})")
+        decision = str((result or {}).get("decision") or "error")
+        if decision in {"ignore", "observe"}:
             await self.event_runtime.transition(
-                claim.event_key, EventState.FAILED, "reply_generation_failed"
+                claim.event_key, EventState.IGNORED, f"model_{decision}"
             )
-            return False
+            return True
+        if decision != "reply" or not result.get("reply"):
+            reason = str((result or {}).get("error") or "reply_generation_failed")
+            logger.warning(f"[BiliBot] 私信回复未生成：{username}({mid}) {reason}")
+            await self.event_runtime.transition(
+                claim.event_key, EventState.FAILED, reason
+            )
+            return reason == "invalid_model_output"
         tool_request = result.get("tool_request") or {}
         tool_name = str(tool_request.get("name") or "none").strip().lower()
         if tool_name != "none":
@@ -1448,7 +1457,14 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 reference_context=reference_context,
                 allow_tool_request=False,
             )
-            if not final_result or not final_result.get("reply"):
+            final_decision = str((final_result or {}).get("decision") or "error")
+            if final_decision in {"ignore", "observe"}:
+                await self.event_runtime.transition(
+                    claim.event_key, EventState.IGNORED,
+                    f"model_{final_decision}_after_tool",
+                )
+                return True
+            if final_decision != "reply" or not final_result.get("reply"):
                 logger.warning(
                     f"[BiliBot] 私信工具结果整合失败，已保留查询前回复：{username}({mid})"
                 )
