@@ -72,7 +72,7 @@ class PersonalityMixin:
         }
 
     async def _maybe_evolve_personality(self):
-        if not self.config.get("ENABLE_PERSONALITY_EVOLUTION", True):
+        if not self.config.get("ENABLE_PERSONALITY_EVOLUTION", False):
             return
         evo = self._load_json(PERSONALITY_FILE, {})
         today = datetime.now().strftime("%Y-%m-%d")

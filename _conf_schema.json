@@ -473,6 +473,14 @@
     "default": false,
     "hint": "关闭后，定时自动、/bili主动、聊天判断和 LLM 工具都不能触发看片。"
   },
+  "PROACTIVE_TIMES_COUNT": {
+    "description": "【主动看片·数量】每天最多安排几轮浏览",
+    "type": "int",
+    "default": 2,
+    "hint": "这是浏览轮次上限，不是必须完成的次数；每轮视频数和全天视频总数分别由相邻配置控制。",
+    "min": 0,
+    "max": 12
+  },
   "PROACTIVE_VIDEO_COUNT": {
     "description": "【主动看片·数量】每次计划观看几个视频",
     "type": "int",
@@ -488,14 +496,6 @@
     "min": 0,
     "max": 100
   },
-  "PROACTIVE_TIMES_COUNT": {
-    "description": "【主动看片·时间】每天生成几次定时触发",
-    "type": "int",
-    "default": 2,
-    "hint": "主动看片总开关开启后，按这里的次数生成每日随机触发时间。",
-    "min": 0,
-    "max": 12
-  },
   "PROACTIVE_COMMENT_COUNT": {
     "description": "【主动看片·数量】每个视频最多主动评论几条",
     "type": "int",
@@ -503,6 +503,14 @@
     "min": 0,
     "max": 1,
     "hint": "每个视频至多发布一条主动评论，0=不主动评论；评论区回复不计入此项。"
+  },
+  "PROACTIVE_COMMENT_DAILY_LIMIT": {
+    "description": "【主动看片·数量】每天最多主动评论几条",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 30,
+    "hint": "所有主动看片来源合计的硬上限；0=不主动评论。它不会要求 Bot 为了凑数发表评论。"
   },
   "PROACTIVE_FOLLOW_UIDS": {
     "description": "【主动看片·来源1】特别关注的UP主UID列表",
@@ -897,9 +905,10 @@
     "default": ""
   },
   "ENABLE_PERSONALITY_EVOLUTION": {
-    "description": "【功能开关】启用性格演化（每日反思）",
+    "description": "【实验性】启用旧版每日性格演化",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "建议先关闭并积累数日真实反馈与日报；待每周可回滚演化上线后再低频启用。关闭不会删除已有记录。"
   },
   "EVOLVE_HOUR": {
     "description": "【性格演化】触发时间（0-23点）",
@@ -923,7 +932,7 @@
     "description": "【自主安排】允许 Bot 根据人设与活跃度生成每日计划",
     "type": "bool",
     "default": false,
-    "hint": "计划只会在管理员设定的回复、私信、动态和主动行为范围限制内调整次数与时间。"
+    "hint": "计划只会在管理员设定的回复、私信、动态和主动行为安全上限内调整次数与时间；没有合适事件时可以不安排。"
   },
   "AUTONOMOUS_ACTIVITY_LEVEL": {
     "description": "【自主安排】今日基础活跃度（0-100）",
@@ -937,7 +946,7 @@
     "description": "【自主安排】每日计划补充提示词",
     "type": "text",
     "default": "结合角色人设、当前心情和活跃度，安排自然、不机械、不刷屏的一天。优先保证作息合理，避免连续发布或短时间密集互动；低价值内容可以不回复。",
-    "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到范围限制。"
+    "hint": "模型生成的次数和时刻会被程序校验、去重并钳制到安全上限；模型失败时当天不会自动补造事件。"
   },
   "AUTONOMOUS_PLAN_GENERATION_MODE": {
     "description": "【自主安排】每日计划生成时机",
@@ -994,68 +1003,72 @@
     "max": 23
   },
   "AUTONOMOUS_REPLY_DAILY_MIN": {
-    "description": "【自主安排·范围】每日评论回复下限",
+    "description": "【兼容旧配置】每日评论回复旧版下限（已停用）",
     "type": "int",
     "default": 0,
     "min": 0,
     "max": 500,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+    "hint": "保留旧配置兼容；评论只按真实消息回复，不会为了凑数执行。",
+    "deprecated": true
   },
   "AUTONOMOUS_REPLY_DAILY_MAX": {
-    "description": "【自主安排·范围】每日评论回复上限",
+    "description": "【自主安排·上限】每日评论回复最多几条",
     "type": "int",
     "default": 80,
     "min": 0,
     "max": 500,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+    "hint": "只限制真实收到评论后最多回复多少，不会要求 Bot 凑满。"
   },
   "AUTONOMOUS_PRIVATE_DAILY_MIN": {
-    "description": "【自主安排·范围】每日私信回复下限",
+    "description": "【兼容旧配置】每日私信回复旧版下限（已停用）",
     "type": "int",
     "default": 0,
     "min": 0,
     "max": 200,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+    "hint": "保留旧配置兼容；私信只按真实消息回复，不会为了凑数执行。",
+    "deprecated": true
   },
   "AUTONOMOUS_PRIVATE_DAILY_MAX": {
-    "description": "【自主安排·范围】每日私信回复上限",
+    "description": "【自主安排·上限】每日私信回复最多几条",
     "type": "int",
     "default": 30,
     "min": 0,
     "max": 200,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+    "hint": "只限制真实收到私信后最多回复多少，不会要求 Bot 凑满。"
   },
   "AUTONOMOUS_DYNAMIC_DAILY_MIN": {
-    "description": "【自主安排·范围】每日发布动态下限",
+    "description": "【兼容旧配置】每日发布动态旧版下限（已停用）",
     "type": "int",
     "default": 0,
     "min": 0,
     "max": 20,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+    "hint": "保留旧配置兼容；动态没有真实动机时可以不发。",
+    "deprecated": true
   },
   "AUTONOMOUS_DYNAMIC_DAILY_MAX": {
-    "description": "【自主安排·范围】每日发布动态上限",
+    "description": "【自主安排·上限】每日发布动态最多几条",
     "type": "int",
     "default": 2,
     "min": 0,
     "max": 20,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+    "hint": "只是硬上限；没有具体经历或情绪时可以一条也不发。"
   },
   "AUTONOMOUS_PROACTIVE_DAILY_MIN": {
-    "description": "【自主安排·范围】每日主动行为下限",
+    "description": "【兼容旧配置】每日主动浏览旧版下限（已停用）",
     "type": "int",
     "default": 0,
     "min": 0,
     "max": 30,
-    "hint": "计划会尽量达到该数量；设置为 0 表示不强制安排。"
+    "hint": "保留旧配置兼容；主动浏览轮次只受上限保护，不要求用完。",
+    "deprecated": true
   },
   "AUTONOMOUS_PROACTIVE_DAILY_MAX": {
-    "description": "【自主安排·范围】每日主动行为上限",
+    "description": "【自主安排·上限】每日主动浏览轮次最多几轮",
     "type": "int",
     "default": 4,
     "min": 0,
     "max": 30,
-    "hint": "模型生成的目标和实际执行都会受到此上限限制。"
+    "hint": "仅作为自主日程的第二道轮次硬上限；不与每轮视频数、全天视频数混用。"
   },
   "AUTONOMOUS_MIN_ACTION_GAP_MINUTES": {
     "description": "【自主安排·硬约束】主动事件最小间隔（分钟）",
@@ -1066,18 +1079,20 @@
     "max": 720
   },
   "FIXED_REPLY_DAILY_TARGET": {
-    "description": "【固定计划】每日评论回复目标数量",
+    "description": "【兼容旧配置】每日评论回复旧版目标（已停用）",
     "type": "int",
     "default": 30,
-    "hint": "仅作为固定计划目标；无合适评论时不会为了凑数回复，且始终受每日范围上限保护。",
+    "hint": "评论只按真实消息回复；请使用每日评论回复上限控制安全边界。",
+    "deprecated": true,
     "min": 0,
     "max": 500
   },
   "FIXED_PRIVATE_DAILY_TARGET": {
-    "description": "【固定计划】每日私信回复目标数量",
+    "description": "【兼容旧配置】每日私信回复旧版目标（已停用）",
     "type": "int",
     "default": 10,
-    "hint": "仅作为固定计划目标；无有效私信时不会凑数回复，且始终受每日范围上限保护。",
+    "hint": "私信只按真实消息回复；请使用每日私信回复上限控制安全边界。",
+    "deprecated": true,
     "min": 0,
     "max": 200
   },
@@ -1135,7 +1150,7 @@
     "hint": "仅在开启特别关注巡视时执行。"
   },
   "AUTONOMOUS_REPLY_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日评论回复旧版单值上限（请改用下限/上限）",
+    "description": "【兼容旧配置】每日评论回复旧版单值上限（请改用新上限）",
     "type": "int",
     "default": 80,
     "min": 0,
@@ -1144,7 +1159,7 @@
     "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
   },
   "AUTONOMOUS_PRIVATE_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日私信回复旧版单值上限（请改用下限/上限）",
+    "description": "【兼容旧配置】每日私信回复旧版单值上限（请改用新上限）",
     "type": "int",
     "default": 30,
     "min": 0,
@@ -1153,7 +1168,7 @@
     "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
   },
   "AUTONOMOUS_DYNAMIC_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日发布动态旧版单值上限（请改用下限/上限）",
+    "description": "【兼容旧配置】每日发布动态旧版单值上限（请改用新上限）",
     "type": "int",
     "default": 2,
     "min": 0,
@@ -1162,7 +1177,7 @@
     "hint": "保留用于兼容旧配置；WebUI 不再展示此字段。"
   },
   "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": {
-    "description": "【兼容旧配置】每日主动行为旧版单值上限（请改用下限/上限）",
+    "description": "【兼容旧配置】每日主动行为旧版单值上限（请改用新上限）",
     "type": "int",
     "default": 4,
     "min": 0,

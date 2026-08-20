@@ -33,8 +33,11 @@ def _prepare_package():
     config.WEB_SEARCH_CACHE_FILE = ""
     config.DEFAULT_DYNAMIC_TOPICS = []
     config.DYNAMIC_LOG_FILE = ""
+    config.DAILY_SUMMARY_FILE = ""
     config.PERMANENT_MEMORY_FILE = ""
     config.TEMP_IMAGE_DIR = ""
+    config.WATCH_LOG_FILE = ""
+    config.WEEKLY_SUMMARY_FILE = ""
     sys.modules[config.__name__] = config
 
     runtime = types.ModuleType(f"{package_name}.runtime")
@@ -157,6 +160,33 @@ class NovelAICompatibilityTests(unittest.TestCase):
         result = asyncio.run(bot._generate_image("test", human_initiated=True))
         self.assertEqual(result, "generated.png")
         self.assertEqual(bot.received[1:], ("token", "https://image.novelai.net", "nai-diffusion-4-5-full"))
+
+    def test_automatic_dynamic_can_explicitly_choose_silence(self):
+        module = self.module
+
+        class Bot(module.DynamicMixin):
+            def __init__(self):
+                self.config = {}
+                self.prompt = ""
+
+            def _load_json(self, _path, default=None):
+                return default
+
+            def _get_today_mood(self):
+                return "平静", ""
+
+            async def _get_system_prompt(self):
+                return "测试人设"
+
+            async def _llm_call(self, prompt, **_kwargs):
+                self.prompt = prompt
+                return '{"decision":"skip","text":"","need_image":false,"image_prompt":""}'
+
+        bot = Bot()
+        result = asyncio.run(bot._generate_dynamic_content(human_initiated=False))
+        self.assertEqual(result["decision"], "skip")
+        self.assertIn("定时时刻本身不是发布理由", bot.prompt)
+        self.assertIn("今天没有足够具体", bot.prompt)
 
 
 class ProviderConfigSchemaTests(unittest.TestCase):

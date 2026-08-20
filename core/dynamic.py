@@ -14,10 +14,13 @@ import aiohttp
 from datetime import datetime
 from astrbot.api import logger
 from .config import (
-    DEFAULT_DYNAMIC_TOPICS, DYNAMIC_LOG_FILE,
-    PERMANENT_MEMORY_FILE, TEMP_IMAGE_DIR,
+    DAILY_SUMMARY_FILE, DEFAULT_DYNAMIC_TOPICS, DYNAMIC_LOG_FILE,
+    PERMANENT_MEMORY_FILE, TEMP_IMAGE_DIR, WATCH_LOG_FILE, WEEKLY_SUMMARY_FILE,
 )
 from .runtime import ActionRequest, EventPriority
+from .content_protocol import (
+    ContentProtocolError, DYNAMIC_SCHEMA_PROMPT, parse_dynamic_content,
+)
 
 
 class DynamicMixin:
@@ -213,7 +216,54 @@ class DynamicMixin:
             logger.error(f"[BiliBot] 图片生成异常: {e}")
             return None
 
-    async def _generate_dynamic_content(self):
+    def _dynamic_grounding_context(self):
+        """Return concrete same-day reasons that may justify an automatic post."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        reasons = []
+        if hasattr(self, "_get_today_mood"):
+            mood, mood_reason = self._get_today_mood()
+            mood_reason = re.sub(r"\s+", " ", str(mood_reason or "")).strip()
+            if mood_reason:
+                reasons.append(f"当前情绪：{mood}；缘由：{mood_reason[:120]}")
+        watched = [
+            item for item in self._load_json(WATCH_LOG_FILE, [])
+            if isinstance(item, dict) and str(item.get("time") or "").startswith(today)
+        ]
+        def score_of(value):
+            try:
+                return float(value.get("score", 0) or 0)
+            except (TypeError, ValueError, OverflowError):
+                return 0.0
+
+        for item in sorted(watched, key=score_of, reverse=True)[:3]:
+            try:
+                score = float(item.get("score", 0) or 0)
+            except (TypeError, ValueError, OverflowError):
+                score = 0
+            if score < 8:
+                continue
+            title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()[:60]
+            review = re.sub(r"\s+", " ", str(item.get("review") or item.get("comment") or "")).strip()[:120]
+            if title and review and review not in {"评价失败", "没什么感觉", "未知"}:
+                reasons.append(f"今天很喜欢的视频《{title}》：{review}")
+        daily_records = self._load_json(DAILY_SUMMARY_FILE, [])
+        for record in reversed(daily_records if isinstance(daily_records, list) else []):
+            if str(record.get("date") or "") == today:
+                summary = re.sub(r"\s+", " ", str(record.get("summary") or "")).strip()
+                if summary and not summary.startswith("（今日无"):
+                    reasons.append(f"今日日记：{summary[:180]}")
+                break
+        week = datetime.now().strftime("%G-W%V")
+        weekly_records = self._load_json(WEEKLY_SUMMARY_FILE, [])
+        for record in reversed(weekly_records if isinstance(weekly_records, list) else []):
+            if str(record.get("week") or "") == week and str(record.get("time") or "").startswith(today):
+                summary = re.sub(r"\s+", " ", str(record.get("summary") or "")).strip()
+                if summary and not summary.startswith("（本周无"):
+                    reasons.append(f"今天的周回顾片段：{summary[:180]}")
+                break
+        return reasons[:6]
+
+    async def _generate_dynamic_content(self, human_initiated=False):
         perm = self._load_json(PERMANENT_MEMORY_FILE, [])
         perm_section = ""
         if perm:
@@ -236,13 +286,22 @@ class DynamicMixin:
             time_hint = "现在是晚上"
         custom_topics = self.config.get("DYNAMIC_TOPICS", [])
         topics = custom_topics if custom_topics and isinstance(custom_topics, list) else DEFAULT_DYNAMIC_TOPICS
+        if not topics:
+            topics = ["只在今天确实有具体事情想说时，挑一个片段随口记下"]
         topic = random.choice(topics)
         sp = await self._get_system_prompt()
-        prompt = f"""{sp}{perm_section}
+        grounding = self._dynamic_grounding_context()
+        grounding_text = "\n".join(f"- {item}" for item in grounding) or "- 今天没有足够具体的活动或情绪缘由"
+        prompt = f"""你准备判断现在是否值得发一条B站动态。当前时段是：{time_hint}。管理员给的方向：{topic}{perm_section}{history_section}
 
-你准备发一条B站动态。当前时段是：{time_hint}。主题方向：{topic}{history_section}
+今天可以作为依据的真实片段：
+{grounding_text}
+触发方式：{'管理员刚刚手动要求发动态' if human_initiated else '后台定时时刻到达'}
 
 B站动态的感觉：
+- 自动触发时，只有明显情绪、特别喜欢的视频、刚完成的周回顾或其他具体经历值得说，才选择post；定时时刻本身不是发布理由
+- 没有真实内容就选择skip，不使用泛泛话题、当前时间或“今天也要努力”等句子凑一条
+- 管理员手动触发时可以围绕给定方向创作，但仍不能伪造经历
 - 像本人忽然想起一个具体小事、感受或吐槽后随手发出来，不像在完成“发动态”任务
 - 一条只说一个中心，先让读者看得懂发生了什么或你在想什么；不要故作深沉、写成谜语或强行升华
 - 当前时段只是背景，确实和内容有关时再自然带到；不要为了“真实感”凭空声称自己在摸鱼、追番、出门或经历了某件事
@@ -250,24 +309,20 @@ B站动态的感觉：
 - 句式和长短可以变化，通常1到2句、15到80字；没有足够内容时宁可短，不凑到固定篇幅
 - 不要和最近发过的动态内容重复或相似
 
-请以JSON格式回复：
-{{"text": "动态文案（通常15-80字）", "need_image": true或false, "image_prompt": "如果need_image为true，写一段英文图片描述用于AI生图，否则留空"}}
-
-注意：默认不配图；只有内容里确实有一个适合呈现的具体画面、且图片能补充文字时才将need_image设为true。"""
+注意：默认不配图；只有内容里确实有一个适合呈现的具体画面、且图片能补充文字时才将need_image设为true。
+{DYNAMIC_SCHEMA_PROMPT}"""
         custom_dynamic_inst = self.config.get("CUSTOM_DYNAMIC_INSTRUCTION", "")
         if custom_dynamic_inst:
             prompt += f"\n\n【补充提示词】{custom_dynamic_inst}"
         try:
-            text = await self._llm_call(prompt, max_tokens=500)
+            text = await self._llm_call(prompt, system_prompt=sp, max_tokens=500)
             if not text:
                 return None
-            text = self._repair_llm_json(text)
             try:
-                return json.loads(text)
-            except json.JSONDecodeError:
-                pass
-            logger.warning(f"[BiliBot] 动态内容JSON解析失败: {text[:100]}")
-            return None
+                return parse_dynamic_content(text)
+            except ContentProtocolError as exc:
+                logger.warning(f"[BiliBot] 动态内容结构校验失败，本次不发: {exc}")
+                return None
         except Exception as e:
             logger.error(f"[BiliBot] 生成动态内容失败: {e}")
             return None
@@ -296,9 +351,12 @@ B站动态的感觉：
             logger.info(f"[BiliBot] 今天已发 {len(today_posts)} 条动态，跳过")
             return
         logger.info("[BiliBot] 🤔 正在想要发什么...")
-        content = await self._generate_dynamic_content()
+        content = await self._generate_dynamic_content(human_initiated=human_initiated)
         if not content:
             logger.error("[BiliBot] ❌ 生成动态内容失败")
+            return
+        if content.get("decision") != "post":
+            logger.info("[BiliBot] 今天没有足够具体的动态发布动机，本次跳过")
             return
         text = str(content.get("text", "") or "").strip()
         if not text:

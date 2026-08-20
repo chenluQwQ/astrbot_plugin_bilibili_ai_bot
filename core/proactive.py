@@ -16,6 +16,10 @@ from .video_evaluation import (
     VIDEO_EVALUATION_SCHEMA_PROMPT, VideoEvaluationError,
     parse_video_evaluation,
 )
+from .content_protocol import (
+    ContentProtocolError, PROACTIVE_COMMENT_SCHEMA_PROMPT,
+    RECOMMENDATION_SCHEMA_PROMPT, parse_proactive_comment, parse_recommendation,
+)
 
 
 class ProactiveMixin:
@@ -416,6 +420,28 @@ class ProactiveMixin:
             "pool": "pool",
             "explore": "pool",
         }.get(str(source or "").strip(), "")
+
+    @staticmethod
+    def _today_proactive_comment_count(watch_log, proactive_log=None):
+        today = datetime.now().strftime("%Y-%m-%d")
+        actions = set()
+        for item in proactive_log or []:
+            if not isinstance(item, dict):
+                continue
+            time_text = str(item.get("time") or "")
+            if not time_text.startswith(today):
+                continue
+            identity = str(item.get("bvid") or item.get("title") or item.get("type") or "unknown")
+            actions.add(f"{time_text}|{identity}")
+        for item in watch_log or []:
+            if not isinstance(item, dict) or "💬评论" not in (item.get("actions") or []):
+                continue
+            time_text = str(item.get("time") or "")
+            if not time_text.startswith(today):
+                continue
+            identity = str(item.get("bvid") or item.get("title") or "unknown")
+            actions.add(f"{time_text}|{identity}")
+        return len(actions)
 
     def _fallback_proactive_search_queries(self, watch_log=None):
         """LLM 无法决定搜索词时，用近期高分分区和随机兜底分区继续搜索。"""
@@ -936,13 +962,21 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
 - 不用“作为……”“整体来说”“不得不说”“让人不禁”这类书面转折，也不要说明自己正在评论
 - 不要为了像B站而硬塞“哈哈哈”“绷不住了”“泪目”或网络梗；内容确实支持时才用
 - 内容一般时可以写一个真实的小观察，也可以保持克制，不硬夸
+- 允许很短；没有真正想说的细节就保持沉默，不要为了完成任务硬评
 - 12-38字，通常一句，不堆感叹号
-- 直接输出评论内容，不加引号或前缀"""
+{PROACTIVE_COMMENT_SCHEMA_PROMPT}"""
         custom_proactive_inst = self.config.get("CUSTOM_PROACTIVE_INSTRUCTION", "")
         if custom_proactive_inst:
             prompt += f"\n\n【补充提示词】{custom_proactive_inst}"
-        result = await self._llm_call(prompt, system_prompt=sp, max_tokens=100)
-        return result or "这个细节还挺有意思"
+        result = await self._llm_call(prompt, system_prompt=sp, max_tokens=120)
+        if not result:
+            return None
+        try:
+            parsed = parse_proactive_comment(result)
+        except ContentProtocolError as exc:
+            logger.warning(f"[BiliBot] 主动评论结构校验失败，保持沉默: {exc}")
+            return None
+        return parsed["text"] if parsed["decision"] == "comment" else None
 
     def _owner_recommend_delivery(self):
         # The boolean switch is the page-level capability toggle.  Keep the
@@ -1072,7 +1106,9 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             logger.warning("[BiliBot] 当前环境不满足视频媒体分析条件，将回退为纯文本视频分析。")
         is_manual = max_watch is not None
         daily_watch = max_watch if is_manual else self.config.get("PROACTIVE_VIDEO_COUNT", 3)
-        daily_comment = max_comment if max_comment is not None else self.config.get("PROACTIVE_COMMENT_COUNT", 2)
+        per_video_comment = max(0, min(1, int(self.config.get("PROACTIVE_COMMENT_COUNT", 1) or 0)))
+        daily_comment_limit = max_comment if max_comment is not None else self.config.get("PROACTIVE_COMMENT_DAILY_LIMIT", 2)
+        daily_comment_limit = max(0, int(daily_comment_limit or 0))
         watch_log = self._load_json(WATCH_LOG_FILE, [])
         today_str = datetime.now().strftime("%Y-%m-%d")
         # 日限检查：所有来源（含手动/LLM触发）均计入总量
@@ -1092,7 +1128,10 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         if daily_limit > 0:
             remaining = daily_limit - len(today_watched)
             daily_watch = min(daily_watch, remaining)
-        logger.info(f"[BiliBot] 🎯 主动刷B站 | 目标：看 {daily_watch} 个视频，评论 {daily_comment} 条")
+        logger.info(
+            f"[BiliBot] 🎯 主动刷B站 | 本轮最多看 {daily_watch} 个视频 | "
+            f"主动评论全天上限 {daily_comment_limit} 条"
+        )
         external_memory = self._load_json(EXTERNAL_MEMORY_FILE, {})
         commented_videos = set(self._load_json(COMMENTED_FILE, []))
         watched_bvids = await self._seen_video_bvids()
@@ -1216,7 +1255,10 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         )
         logger.info(f"[BiliBot] 📋 共找到 {len(unique)} 个视频")
         watch_count = 0
-        comment_count = 0
+        comment_count = self._today_proactive_comment_count(
+            watch_log, self._load_json(PROACTIVE_LOG_FILE, [])
+        )
+        comments_before_run = comment_count
         prefilter_rejected = 0
         prefilter_max_rejects = max(0, int(self.config.get("PROACTIVE_LLM_PREFILTER_MAX_REJECTS", 3)))
         for video in unique:
@@ -1323,9 +1365,9 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                         ).success:
                             actions.append("⭐收藏")
                             logger.info("[BiliBot] ⭐ 收藏成功")
-                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
+                    if per_video_comment and score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment_limit and self.config.get("PROACTIVE_COMMENT", True):
                         proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
-                        if (
+                        if proactive_comment and (
                             await self._execute_proactive_action(
                                 f"proactive_comment:{bvid}",
                                 "proactive_comment",
@@ -1378,12 +1420,20 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
 - 不复述完整标题，不要堆感叹号、连续撒娇或以问题句催对方回应
 - 12-42字，通常一句，说完自然收住
 - 不要带@符号、不要带人名或称呼（系统会按发送方式处理）
-- 直接输出内容"""
+- 写不自然、兴趣依据牵强或这一刻并不想分享时，可以放弃
+{RECOMMENDATION_SCHEMA_PROMPT}"""
                             custom_rec_inst = self.config.get("CUSTOM_RECOMMEND_INSTRUCTION", "")
                             if custom_rec_inst:
                                 rec_prompt += f"\n【补充提示词】{custom_rec_inst}"
-                            rec_text = await self._llm_call(rec_prompt, system_prompt=await self._get_system_prompt(), max_tokens=60)
-                            rec_text = re.sub(r'@\S+\s*', '', rec_text or "这段挺有意思，顺手丢给你看看")
+                            rec_output = await self._llm_call(rec_prompt, system_prompt=await self._get_system_prompt(), max_tokens=100)
+                            try:
+                                rec_result = parse_recommendation(rec_output)
+                            except ContentProtocolError as exc:
+                                logger.warning(f"[BiliBot] 主人推荐结构校验失败，放弃分享: {exc}")
+                                rec_result = {"decision": "skip", "text": ""}
+                            if rec_result["decision"] != "share":
+                                raise ContentProtocolError("recommendation_skipped")
+                            rec_text = re.sub(r'@\S+\s*', '', rec_result["text"])
                             rec_text = re.sub(r'[\r\n]+', ' ', rec_text).strip(' "“”\'')[:48]
                             owner_name = (self.config.get("OWNER_NAME", "") or "").strip()
                             _name_patterns = ["主人", "亲爱的"] + ([re.escape(owner_name)] if owner_name else [])
@@ -1446,6 +1496,11 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                                     sent_owner_recommend = True
                             if sent_owner_recommend:
                                 owner_recommend_count += 1
+                        except ContentProtocolError as e:
+                            if str(e) == "recommendation_skipped":
+                                logger.info("[BiliBot] 本次主人推荐选择不发送")
+                            else:
+                                logger.warning(f"[BiliBot] 主人推荐内容无效: {e}")
                         except Exception as e:
                             logger.warning(f"[BiliBot] 生成或发送主人推荐失败: {e}")
             if not interaction_failed and score >= self._proactive_score_threshold("PROACTIVE_FOLLOW_MIN_SCORE", 9) and self.config.get("PROACTIVE_FOLLOW", True):
@@ -1529,7 +1584,10 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             wait = random.randint(30, 120)
             logger.info(f"[BiliBot] ⏳ 等待 {wait} 秒...")
             await asyncio.sleep(wait)
-        logger.info(f"[BiliBot] 🎉 刷B站完成！看了 {watch_count} 个视频，评论了 {comment_count} 条")
+        logger.info(
+            f"[BiliBot] 🎉 刷B站完成！看了 {watch_count} 个视频，"
+            f"本轮评论了 {max(0, comment_count - comments_before_run)} 条"
+        )
 
     # ── 特别关注定时巡视 ──
 
@@ -1629,8 +1687,11 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         logger.info(f"[BiliBot] ⭐ 特别关注巡视开始，共 {len(special_mids)} 个UP主")
 
         watch_count = 0
-        comment_count = 0
-        daily_comment = self.config.get("PROACTIVE_COMMENT_COUNT", 2)
+        comment_count = self._today_proactive_comment_count(
+            watch_log, self._load_json(PROACTIVE_LOG_FILE, [])
+        )
+        per_video_comment = max(0, min(1, int(self.config.get("PROACTIVE_COMMENT_COUNT", 1) or 0)))
+        daily_comment_limit = max(0, int(self.config.get("PROACTIVE_COMMENT_DAILY_LIMIT", 2) or 0))
 
         for mid in special_mids:
             video = await self._get_up_latest_video(mid)
@@ -1736,9 +1797,9 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             )
                         ).success:
                             actions.append("⭐收藏")
-                    if score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment and self.config.get("PROACTIVE_COMMENT", True):
+                    if per_video_comment and score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 7) and comment_count < daily_comment_limit and self.config.get("PROACTIVE_COMMENT", True):
                         proactive_comment = await self._generate_proactive_comment(analysis_info, video_description)
-                        if (
+                        if proactive_comment and (
                             await self._execute_proactive_action(
                                 f"special_follow_comment:{bvid}",
                                 "proactive_comment",
@@ -1751,6 +1812,15 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
                             commented_videos.add(bvid)
                             commented_videos |= set(self._load_json(COMMENTED_FILE, []))
                             self._save_json(COMMENTED_FILE, list(commented_videos))
+                            pl = self._load_json(PROACTIVE_LOG_FILE, [])
+                            pl.append({
+                                "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                "bvid": bvid,
+                                "title": video.get("title", ""),
+                                "comment": proactive_comment,
+                                "type": "special_follow",
+                            })
+                            self._save_json(PROACTIVE_LOG_FILE, pl[-100:])
 
             log_entry = {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid,

@@ -211,7 +211,7 @@ def _check_autonomous_range_honors_new_minimum_and_maximum():
         "AUTONOMOUS_PROACTIVE_DAILY_MAX": 5,
         "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": 4,
     })
-    assert probe._autonomous_limit_range("proactive") == (2, 5)
+    assert probe._autonomous_limit_range("proactive") == (0, 5)
 
 
 def _check_autonomous_range_migrates_custom_legacy_limit_when_new_max_is_default():
@@ -220,7 +220,33 @@ def _check_autonomous_range_migrates_custom_legacy_limit_when_new_max_is_default
         "AUTONOMOUS_REPLY_DAILY_MAX": 80,
         "AUTONOMOUS_REPLY_DAILY_LIMIT": 42,
     })
-    assert probe._autonomous_limit_range("reply") == (3, 42)
+    assert probe._autonomous_limit_range("reply") == (0, 42)
+
+
+def _check_proactive_comment_count_is_daily_and_action_based():
+    today = datetime.now().strftime("%Y-%m-%d")
+    history = [
+        {"time": f"{today} 10:00", "actions": ["💬评论"]},
+        {"time": f"{today} 11:00", "actions": ["👍点赞"]},
+        {"time": "2000-01-01 10:00", "actions": ["💬评论"]},
+    ]
+    proactive_log = [
+        # Same action as the watch log: it must not be counted twice.
+        {"time": f"{today} 10:00", "bvid": "BV1", "comment": "a"},
+        {"time": f"{today} 12:00", "type": "bangumi", "title": "第1话", "comment": "b"},
+    ]
+    history[0]["bvid"] = "BV1"
+    assert ProactiveProbe._today_proactive_comment_count(history, proactive_log) == 2
+
+
+def _check_budget_separates_watch_rounds_videos_and_comments():
+    watch_limits = _budget_limits({
+        "PROACTIVE_DAILY_LIMIT": 5,
+        "AUTONOMOUS_PROACTIVE_DAILY_MAX": 1,
+    }, "proactive_watch")
+    assert watch_limits["behavior:proactive_watch:day"] == 5
+    comment_limits = _budget_limits({"PROACTIVE_COMMENT_DAILY_LIMIT": 3}, "proactive_comment")
+    assert comment_limits["behavior:proactive_comment:day"] == 3
 
 
 def _check_owner_share_boolean_switch_overrides_delivery_mode():
@@ -243,6 +269,7 @@ def _check_proactive_window_parser_and_fixed_schedule_are_stable():
     probe = ScheduleProbe({
         "SLEEP_START": 2,
         "SLEEP_END": 8,
+        "PROACTIVE_TIMES_COUNT": 2,
         "FIXED_PROACTIVE_WINDOWS": ["10:00-11:30", "19:00-21:00"],
         "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES": 90,
     })
@@ -253,6 +280,18 @@ def _check_proactive_window_parser_and_fixed_schedule_are_stable():
     assert first == second
     assert [item["start_time"] for item in first] == ["10:00", "19:00"]
     assert all(item["scheduled_time"] for item in first)
+
+    capped = ScheduleProbe({
+        "ENABLE_PROACTIVE": True,
+        "SLEEP_START": 2,
+        "SLEEP_END": 8,
+        "PROACTIVE_TIMES_COUNT": 1,
+        "AUTONOMOUS_PROACTIVE_DAILY_MAX": 4,
+        "FIXED_PROACTIVE_WINDOWS": ["10:00-11:30", "19:00-21:00"],
+    })
+    capped._save_schedule_state = lambda *_args: None
+    times, _triggered = capped._generate_daily_schedule()
+    assert len(times) == 1
 
 
 def _check_autonomous_plan_generation_supports_after_sleep_and_fixed_time():
@@ -473,6 +512,21 @@ class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
             await probe._ensure_autonomous_daily_plan()
             self.assertEqual(probe.llm_calls, 2)
 
+    async def test_failed_plan_does_not_invent_proactive_or_dynamic_actions(self):
+        probe = FailingPlanProbe()
+        probe.config.update({
+            "ENABLE_PROACTIVE": True,
+            "PROACTIVE_DAILY_LIMIT": 6,
+            "AUTONOMOUS_PROACTIVE_DAILY_MAX": 4,
+            "ENABLE_DYNAMIC": True,
+            "DYNAMIC_TIMES_COUNT": 2,
+            "DYNAMIC_DAILY_COUNT": 2,
+            "AUTONOMOUS_DYNAMIC_DAILY_MAX": 2,
+        })
+        plan = await probe._ensure_autonomous_daily_plan(force=True)
+        self.assertEqual(plan["proactive_times"], [])
+        self.assertEqual(plan["dynamic_times"], [])
+
     async def test_daily_plan_does_not_start_after_generation_window(self):
         class FrozenDateTime(datetime):
             @classmethod
@@ -494,7 +548,9 @@ class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
                     "AUTONOMOUS_PROACTIVE_DAILY_MIN": 0,
                     "AUTONOMOUS_PROACTIVE_DAILY_MAX": 4,
                     "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": 4,
-                    "PROACTIVE_DAILY_LIMIT": 4,
+                    "PROACTIVE_TIMES_COUNT": 2,
+                    # The video ceiling must not reduce the number of rounds.
+                    "PROACTIVE_DAILY_LIMIT": 1,
                     "ENABLE_PROACTIVE": True,
                     "ENABLE_DYNAMIC": False,
                     "ENABLE_BANGUMI": False,
@@ -632,3 +688,5 @@ class AutonomousRangeTests(unittest.TestCase):
     test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
     test_video_cache_uses_detail_long_term_and_faded_stages = staticmethod(_check_video_cache_uses_detail_long_term_and_faded_stages)
     test_concrete_preference_signals_feed_search_fallback = staticmethod(_check_concrete_preference_signals_feed_search_fallback)
+    test_proactive_comment_count_is_daily_and_action_based = staticmethod(_check_proactive_comment_count_is_daily_and_action_based)
+    test_budget_separates_watch_rounds_videos_and_comments = staticmethod(_check_budget_separates_watch_rounds_videos_and_comments)

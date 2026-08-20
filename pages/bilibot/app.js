@@ -80,12 +80,12 @@ const PAGE_KEYS = {
   ],
   autonomy: [
     "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL", "AUTONOMOUS_PLAN_PROMPT", "AUTONOMOUS_PLAN_GENERATION_MODE", "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME", "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES",
-    "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
-    "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
+    "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MAX",
+    "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
     "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
     "BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS",
     "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
-    "PROACTIVE_COMMENT_COUNT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS",
+    "PROACTIVE_COMMENT_COUNT", "PROACTIVE_COMMENT_DAILY_LIMIT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
     "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE",
@@ -98,7 +98,7 @@ const PAGE_KEYS = {
     "DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION",
     "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
     "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT",
-    "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
+    "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
     "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES",
   ],
   memory: [
@@ -119,15 +119,15 @@ const PAGE_KEYS = {
 
 const SCHEDULE_REGEN_KEYS = new Set([
   "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL", "AUTONOMOUS_PLAN_PROMPT",
-  "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX",
-  "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
+  "AUTONOMOUS_REPLY_DAILY_MAX", "AUTONOMOUS_PRIVATE_DAILY_MAX",
+  "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MAX",
   "AUTONOMOUS_MIN_ACTION_GAP_MINUTES", "SLEEP_START", "SLEEP_END",
-  "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT",
+  "ENABLE_PROACTIVE", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_TIMES_COUNT",
   "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT",
   "ENABLE_BANGUMI", "BANGUMI_PROACTIVE", "BANGUMI_DAILY_LIMIT",
   "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE", "SPECIAL_FOLLOW_TIMES_COUNT", "SPECIAL_FOLLOW_FIXED_TIMES",
   "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
-  "FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
+  "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
   "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES",
 ]);
 
@@ -158,14 +158,14 @@ const MOCK_FIELDS = {
   AUTONOMOUS_PLAN_GENERATION_TIME: ["【自主安排】每日计划固定生成时刻", "string", "08:05"],
   AUTONOMOUS_PLAN_RETRY_MINUTES: ["【自主安排】模型失败后唯一一次重试等待（分钟）", "int", 15],
   AUTONOMOUS_PROACTIVE_WINDOW_MINUTES: ["【自主安排】主动浏览默认时间段长度（分钟）", "int", 90],
-  AUTONOMOUS_REPLY_DAILY_MIN: ["【自主安排·范围】每日评论回复下限", "int", 0],
-  AUTONOMOUS_REPLY_DAILY_MAX: ["【自主安排·范围】每日评论回复上限", "int", 80],
-  AUTONOMOUS_PRIVATE_DAILY_MIN: ["【自主安排·范围】每日私信回复下限", "int", 0],
-  AUTONOMOUS_PRIVATE_DAILY_MAX: ["【自主安排·范围】每日私信回复上限", "int", 30],
-  AUTONOMOUS_DYNAMIC_DAILY_MIN: ["【自主安排·范围】每日发布动态下限", "int", 0],
-  AUTONOMOUS_DYNAMIC_DAILY_MAX: ["【自主安排·范围】每日发布动态上限", "int", 2],
-  AUTONOMOUS_PROACTIVE_DAILY_MIN: ["【自主安排·范围】每日主动行为下限", "int", 0],
-  AUTONOMOUS_PROACTIVE_DAILY_MAX: ["【自主安排·范围】每日主动行为上限", "int", 4],
+  AUTONOMOUS_REPLY_DAILY_MIN: ["【兼容旧配置】每日评论回复旧版下限（已停用）", "int", 0],
+  AUTONOMOUS_REPLY_DAILY_MAX: ["【自主安排·上限】每日评论回复最多几条", "int", 80],
+  AUTONOMOUS_PRIVATE_DAILY_MIN: ["【兼容旧配置】每日私信回复旧版下限（已停用）", "int", 0],
+  AUTONOMOUS_PRIVATE_DAILY_MAX: ["【自主安排·上限】每日私信回复最多几条", "int", 30],
+  AUTONOMOUS_DYNAMIC_DAILY_MIN: ["【兼容旧配置】每日动态旧版下限（已停用）", "int", 0],
+  AUTONOMOUS_DYNAMIC_DAILY_MAX: ["【自主安排·上限】每日发布动态最多几条", "int", 2],
+  AUTONOMOUS_PROACTIVE_DAILY_MIN: ["【兼容旧配置】每日主动浏览旧版下限（已停用）", "int", 0],
+  AUTONOMOUS_PROACTIVE_DAILY_MAX: ["【自主安排·上限】每日主动浏览轮次最多几轮", "int", 4],
   AUTONOMOUS_MIN_ACTION_GAP_MINUTES: ["【自主安排·硬约束】主动事件最小间隔（分钟）", "int", 45],
   BEHAVIOR_BUDGET_ENABLED: ["【统一行为预算】启用全局频率与每日上限", "bool", true],
   BEHAVIOR_GLOBAL_MAX_PER_MINUTE: ["【统一行为预算】每分钟最多执行动作数", "int", 8],
@@ -178,6 +178,7 @@ const MOCK_FIELDS = {
   PROACTIVE_TIMES_COUNT: ["【主动看片·频率】每天触发几次主动浏览", "int", 2],
   PROACTIVE_VIDEO_COUNT: ["【主动看片·数量】每次计划观看几个视频", "int", 3],
   PROACTIVE_COMMENT_COUNT: ["【主动看片·互动】每个视频最多主动评论几条", "int", 1],
+  PROACTIVE_COMMENT_DAILY_LIMIT: ["【主动看片·互动】每天最多主动评论几条", "int", 2],
   PROACTIVE_FOLLOW_UIDS: ["【主动看片·来源】优先关注的 UP 主 UID", "list", ["184028", "902418"]],
   PROACTIVE_SEARCH_QUERY_PROMPT: ["【主动看片·搜索】搜索词生成提示词", "text", "结合今天的心情与长期兴趣，生成自然且不过度重复的搜索词。"],
   PROACTIVE_TASTE_WINDOW_DAYS: ["【主动看片·偏好】近期兴趣窗口（天）", "int", 14],
@@ -223,8 +224,8 @@ const MOCK_FIELDS = {
   DYNAMIC_WATCH_SPECIAL_ONLY: ["【关注动态巡视】只查看特别关注用户", "bool", false],
   DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS: ["【关注动态巡视】同时查看视频投稿动态", "bool", true],
   DYNAMIC_WATCH_INTEREST_PROMPT: ["【关注动态巡视】兴趣判断补充提示词", "text", "挑选真正值得留意、适合之后与主人分享或形成个人记忆的动态。"],
-  FIXED_REPLY_DAILY_TARGET: ["【固定计划】每日评论回复目标数量", "int", 30],
-  FIXED_PRIVATE_DAILY_TARGET: ["【固定计划】每日私信回复目标数量", "int", 10],
+  FIXED_REPLY_DAILY_TARGET: ["【兼容旧配置】每日评论回复旧版目标（已停用）", "int", 30],
+  FIXED_PRIVATE_DAILY_TARGET: ["【兼容旧配置】每日私信回复旧版目标（已停用）", "int", 10],
   FIXED_PROACTIVE_WINDOWS: ["【固定计划】主动浏览时间段", "list", ["10:00-11:30", "19:00-21:00"]],
   FIXED_PROACTIVE_TIMES: ["【固定计划·兼容】主动浏览准确时刻", "list", ["10:30", "19:30"]],
   FIXED_DYNAMIC_TIMES: ["【固定计划】发布动态准确时刻", "list", ["18:30"]],
@@ -258,7 +259,7 @@ const MOCK_FIELDS = {
   USE_ASTRBOT_PERSONA: ["【人设】使用 AstrBot 自带人设", "bool", true],
   CUSTOM_SYSTEM_PROMPT: ["【人设】自定义系统提示词", "text", "自然、克制、有自己的兴趣和判断。"],
   ENABLE_LLM_TOOLS: ["【功能开关】启用 LLM 工具", "bool", true],
-  ENABLE_PERSONALITY_EVOLUTION: ["【功能开关】启用性格演化", "bool", true],
+  ENABLE_PERSONALITY_EVOLUTION: ["【实验性】启用旧版每日性格演化", "bool", false],
   EVOLVE_HOUR: ["【性格演化】触发时间（0-23点）", "int", 1],
   EMBED_MODEL: ["【高级·记忆】Embedding 模型名称", "string", "text-embedding-3-small"],
   VIDEO_VISION_PROVIDER_ID: ["【高级·视觉】视频分析模型提供商", "string", "default"],
@@ -304,7 +305,7 @@ function buildMock() {
     account: { logged_in: true, configured: true, name: "BiliBot 测试账号", uid: "10001", level: 6, reply_count: 47, comment_reply_count: 38, private_reply_count: 9, affection_total: 318, memory_count: 1248, running: true },
     schedule: {
       date: "2026-08-14", sleep_start: 2, sleep_end: 8, activity_level: 62, autonomous_enabled: true,
-      autonomous_plan: { rationale: "今天保持适度活跃，在晚间安排较有参与感的互动。", generated_at: "2026-08-14 08:02:11", reply_target: 50, private_target: 18 },
+      autonomous_plan: { rationale: "今天保持适度活跃，在晚间安排较有参与感的互动。", generated_at: "2026-08-14 08:02:11", reply_cap: 80, private_cap: 30 },
       events: previewEvents,
     },
     scheduleStats: { total: previewEvents.length, completed: previewCompleted, remaining: previewEvents.length - previewCompleted, next: previewNext, minimum_gap_minutes: 45 },
@@ -342,15 +343,13 @@ function regenerateMockSchedule() {
   const now = new Date();
   const nowMinute = now.getHours() * 60 + now.getMinutes();
   const add = (time, label, kind, description, extra = {}) => events.push({ time, label, kind, description, triggered: minutesOf(time) < nowMinute, ...extra });
-  const proactiveMin = num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MIN, 0);
-  const proactiveMax = Math.min(num(cfg.PROACTIVE_DAILY_LIMIT, 5), num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MAX, 4));
+  const proactiveMax = Math.min(num(cfg.PROACTIVE_TIMES_COUNT, 2), num(cfg.AUTONOMOUS_PROACTIVE_DAILY_MAX, 4));
   const proactiveSoft = activity >= 85 ? 3 : activity >= 50 ? 2 : activity >= 20 ? 1 : 0;
-  const proactiveCount = cfg.ENABLE_PROACTIVE ? Math.min(proactiveMax, Math.max(proactiveMin, proactiveSoft)) : 0;
+  const proactiveCount = cfg.ENABLE_PROACTIVE ? Math.min(proactiveMax, proactiveSoft) : 0;
   [["10:20", "09:45", "11:15"], ["15:30", "14:45", "16:15"], ["20:15", "19:30", "21:00"]].slice(0, proactiveCount).forEach(([time, start_time, end_time]) => add(time, "主动浏览", "proactive", "浏览视频、选择感兴趣的内容", { start_time, end_time, trigger_policy: "once_in_window" }));
-  const dynamicMin = num(cfg.AUTONOMOUS_DYNAMIC_DAILY_MIN, 0);
   const dynamicMax = Math.min(num(cfg.DYNAMIC_DAILY_COUNT, 1), num(cfg.AUTONOMOUS_DYNAMIC_DAILY_MAX, 2));
   const dynamicSoft = activity >= 88 ? 2 : activity >= 40 ? 1 : 0;
-  const dynamicCount = cfg.ENABLE_DYNAMIC ? Math.min(dynamicMax, Math.max(dynamicMin, dynamicSoft)) : 0;
+  const dynamicCount = cfg.ENABLE_DYNAMIC ? Math.min(dynamicMax, dynamicSoft) : 0;
   ["16:30", "21:10"].slice(0, dynamicCount).forEach((time) => add(time, "发布动态", "dynamic", "根据今日状态发布一条动态"));
   if (cfg.ENABLE_BANGUMI && cfg.BANGUMI_PROACTIVE && activity >= 30) add("12:10", "追番", "bangumi", "检查更新或观看番剧");
   if (cfg.ENABLE_DYNAMIC_WATCH && activity >= 20) {
@@ -370,8 +369,8 @@ function regenerateMockSchedule() {
     autonomous_plan: {
       rationale: cfg.ENABLE_AUTONOMOUS_DAILY_PLAN ? `${activityLabel(activity)}状态下，根据真实开关与管理员边界生成今日节奏。` : "当前使用管理员固定计划。",
       generated_at: new Date().toLocaleString("zh-CN", { hour12: false }),
-      reply_target: cfg.ENABLE_REPLY ? Math.max(num(cfg.AUTONOMOUS_REPLY_DAILY_MIN, 0), Math.min(num(cfg.AUTONOMOUS_REPLY_DAILY_MAX, 80), Math.round(num(cfg.AUTONOMOUS_REPLY_DAILY_MIN, 0) + (num(cfg.AUTONOMOUS_REPLY_DAILY_MAX, 80) - num(cfg.AUTONOMOUS_REPLY_DAILY_MIN, 0)) * (0.15 + activity / 140)))) : 0,
-      private_target: cfg.ENABLE_PRIVATE_MESSAGES ? Math.max(num(cfg.AUTONOMOUS_PRIVATE_DAILY_MIN, 0), Math.min(num(cfg.AUTONOMOUS_PRIVATE_DAILY_MAX, 30), Math.round(num(cfg.AUTONOMOUS_PRIVATE_DAILY_MIN, 0) + (num(cfg.AUTONOMOUS_PRIVATE_DAILY_MAX, 30) - num(cfg.AUTONOMOUS_PRIVATE_DAILY_MIN, 0)) * (0.12 + activity / 150)))) : 0,
+      reply_cap: cfg.ENABLE_REPLY ? num(cfg.AUTONOMOUS_REPLY_DAILY_MAX, 80) : 0,
+      private_cap: cfg.ENABLE_PRIVATE_MESSAGES ? num(cfg.AUTONOMOUS_PRIVATE_DAILY_MAX, 30) : 0,
     },
     events,
   };
@@ -798,7 +797,7 @@ const EVENT_STYLES = {
 
 const AUTONOMY_CAPABILITIES = [
   { id: "plan-generation", title: "每日计划编排", icon: "calendar", toggle: "ENABLE_AUTONOMOUS_DAILY_PLAN", description: "决定由模型安排今天的事件，或切换到管理员固定计划。", keys: ["AUTONOMOUS_PLAN_GENERATION_MODE", "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME", "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES", "AUTONOMOUS_PLAN_PROMPT"] },
-  { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在主动浏览时间段内观看视频，并执行受评分阈值保护的互动。", keys: ["PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_COUNT", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS"] },
+  { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在主动浏览时间段内观看视频，并执行受评分阈值保护的互动。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_COUNT", "PROACTIVE_COMMENT_DAILY_LIMIT", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS"] },
   { id: "dynamic", title: "动态发布", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按今日计划生成并发布 B站动态；时间由固定计划或自主计划统一安排。", keys: ["DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION"] },
   { id: "dynamic-watch", title: "关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "查看关注用户的新动态图文与视频投稿，触发节奏由统一日程管理。", keys: ["DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
   { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "巡视特别关注用户；不在此处重复设置固定时刻或触发次数。", keys: [] },
@@ -1003,28 +1002,27 @@ function renderBehaviorMatrix() {
 
 function renderPlanStatus(plan, autonomous) {
   const failed = autonomous && plan.generation_status === "error";
-  const status = failed ? "今日模型计划未生成，已使用安全计划" : autonomous ? "模型计划已通过范围边界校验" : "管理员固定计划";
+  const status = failed ? "今日模型计划未生成，不新增自动事件" : autonomous ? "模型计划已通过安全上限校验" : "管理员固定计划";
   const detail = failed
     ? `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成；评论、私信等功能仍按各自开关运行。`
     : plan.rationale || (autonomous ? "保存修改后调用当前模型生成当天计划。" : "保存修改后按准确时刻刷新当天计划。");
   return `<div class="plan-status ${failed ? "has-error" : autonomous ? "is-model" : "is-fixed"}"><span>${icon(failed ? "lightning" : autonomous ? "star" : "clock")}</span><div><strong>${esc(status)}</strong><p>${esc(detail)}</p></div>${plan.generated_at ? `<small>${esc(plan.generated_at)}</small>` : ""}</div>`;
 }
 
-function renderAdminRangeRow(label, minKey, maxKey, unit) {
-  const minimum = num(currentValue(minKey), 0);
+function renderAdminCapRow(label, maxKey, unit) {
   const maximum = num(currentValue(maxKey), 0);
-  return `<div class="admin-range-row"><div class="admin-range-label"><strong>${esc(label)}</strong><small>${esc(unit)}</small></div><div class="admin-range-control"><div class="range-number"><button type="button" data-step-key="${minKey}" data-step-dir="-1" aria-label="减少${esc(label)}下限">−</button><input data-config-key="${minKey}" data-range-bound="min" type="number" min="0" max="${Math.max(maximum, 1)}" step="1" value="${minimum}" aria-label="${esc(label)}下限" /><button type="button" data-step-key="${minKey}" data-step-dir="1" aria-label="增加${esc(label)}下限">＋</button></div><span class="range-dash">—</span><div class="range-number"><button type="button" data-step-key="${maxKey}" data-step-dir="-1" aria-label="减少${esc(label)}上限">−</button><input data-config-key="${maxKey}" data-range-bound="max" type="number" min="${minimum}" max="999" step="1" value="${maximum}" aria-label="${esc(label)}上限" /><button type="button" data-step-key="${maxKey}" data-step-dir="1" aria-label="增加${esc(label)}上限">＋</button></div><span class="range-unit">${esc(unit)}</span></div></div>`;
+  return `<div class="admin-range-row"><div class="admin-range-label"><strong>${esc(label)}</strong><small>只限制最多执行多少${esc(unit)}</small></div><div class="admin-range-control"><div class="range-number"><button type="button" data-step-key="${maxKey}" data-step-dir="-1" aria-label="减少${esc(label)}上限">−</button><input data-config-key="${maxKey}" data-range-bound="max" type="number" min="0" max="999" step="1" value="${maximum}" aria-label="${esc(label)}上限" /><button type="button" data-step-key="${maxKey}" data-step-dir="1" aria-label="增加${esc(label)}上限">＋</button></div><span class="range-unit">${esc(unit)}</span></div></div>`;
 }
 
 function renderAdminRanges() {
   const rows = [
-    ["每日评论回复", "AUTONOMOUS_REPLY_DAILY_MIN", "AUTONOMOUS_REPLY_DAILY_MAX", "次"],
-    ["每日私信回复", "AUTONOMOUS_PRIVATE_DAILY_MIN", "AUTONOMOUS_PRIVATE_DAILY_MAX", "次"],
-    ["主动浏览轮次", "AUTONOMOUS_PROACTIVE_DAILY_MIN", "AUTONOMOUS_PROACTIVE_DAILY_MAX", "轮"],
-    ["每日发布动态", "AUTONOMOUS_DYNAMIC_DAILY_MIN", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "条"],
+    ["每日评论回复上限", "AUTONOMOUS_REPLY_DAILY_MAX", "次"],
+    ["每日私信回复上限", "AUTONOMOUS_PRIVATE_DAILY_MAX", "次"],
+    ["主动浏览轮次上限", "AUTONOMOUS_PROACTIVE_DAILY_MAX", "轮"],
+    ["每日发布动态上限", "AUTONOMOUS_DYNAMIC_DAILY_MAX", "条"],
   ];
-  const summary = rows.map(([label, minKey, maxKey, unit]) => `${label.replace("每日", "")} ${fmt(currentValue(minKey))}-${fmt(currentValue(maxKey))}${unit}`).join(" · ");
-  return `<details class="admin-range-details"><summary><span><strong>管理员范围限制</strong><small>${esc(summary)}</small></span><i>${icon("arrow-right")}</i></summary><div class="admin-range-list">${rows.map((row) => renderAdminRangeRow(...row)).join("")}<p class="admin-range-hint">下限不能大于上限；主动浏览的数量是时间段轮次，每轮视频数量与每日视频总数仍单独控制。</p></div></details>`;
+  const summary = rows.map(([label, maxKey, unit]) => `${label.replace("每日", "")} ${fmt(currentValue(maxKey))}${unit}`).join(" · ");
+  return `<details class="admin-range-details"><summary><span><strong>管理员安全上限</strong><small>${esc(summary)}</small></span><i>${icon("arrow-right")}</i></summary><div class="admin-range-list">${rows.map((row) => renderAdminCapRow(...row)).join("")}<p class="admin-range-hint">所有数字都只是安全上限，不是必须完成的目标。主动浏览轮次、每轮视频数、每日视频总数和主动评论上限分别控制。</p></div></details>`;
 }
 
 function renderAutonomousTemplate(plan, autonomous, events) {
@@ -1034,8 +1032,8 @@ function renderAutonomousTemplate(plan, autonomous, events) {
     <div class="plan-facts">
       <div><span>今日事件</span><strong>${events.length}</strong><small>只来自已启用能力</small></div>
       <div><span>下一事件</span><strong>${next?.time ? esc(next.time) : "—"}</strong><small>${esc(next?.label || "暂无待执行事件")}</small></div>
-      <div><span>评论 / 私信目标</span><strong>${fmt(plan.reply_target)} / ${fmt(plan.private_target)}</strong><small>模型目标仍受上下限保护</small></div>
-      <div><span>计划来源</span><strong>${plan.source === "fallback" ? "安全回退" : "当前模型"}</strong><small>仅保存时更新当天计划</small></div>
+      <div><span>评论 / 私信上限</span><strong>${fmt(plan.reply_cap ?? plan.reply_target)} / ${fmt(plan.private_cap ?? plan.private_target)}</strong><small>只在有真实消息时回复，不要求用完</small></div>
+      <div><span>计划来源</span><strong>${plan.generation_status === "error" ? "无新增事件" : "当前模型"}</strong><small>仅保存时更新当天计划</small></div>
     </div>
     ${renderConfigSection("自主计划提示词", "作为 B站每日安排的附加提示，不会替换 AstrBot 原人设", ["AUTONOMOUS_PLAN_PROMPT"], "star", "", "embedded-section")}
   </section>`;
@@ -1045,7 +1043,7 @@ function renderFixedTemplate(plan, autonomous) {
   const exactKeys = ["FIXED_PROACTIVE_WINDOWS", "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES"];
   return `<section class="plan-template fixed-template ${autonomous ? "" : "is-active"}" data-plan-template="fixed" aria-hidden="${autonomous}" ${autonomous ? "inert" : ""}>
     ${renderPlanStatus(plan, false)}
-    <div class="fixed-target-grid">${["FIXED_REPLY_DAILY_TARGET", "FIXED_PRIVATE_DAILY_TARGET", "SLEEP_START", "SLEEP_END", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES"].map((key) => renderField(key, { tile: true })).join("")}</div>
+    <div class="fixed-target-grid">${["SLEEP_START", "SLEEP_END", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES"].map((key) => renderField(key, { tile: true })).join("")}</div>
     <section class="embedded-section fixed-times-section">${sectionHead("准确执行时刻", "对应能力关闭时，该行时刻不会进入事件环；每个时间都可直接选择", "calendar")}<div class="fixed-times-grid">${exactKeys.map((key) => renderField(key, { tile: true })).join("")}</div></section>
   </section>`;
 }
@@ -1061,7 +1059,7 @@ function renderPlanModeCard(plan, autonomous, events) {
 function capabilitySummary(item) {
   if (!currentValue(item.toggle)) return "总开关已关闭，不会生成相关事件";
   if (item.id === "plan-generation") return currentValue("ENABLE_AUTONOMOUS_DAILY_PLAN") ? `每日计划：${currentValue("AUTONOMOUS_PLAN_GENERATION_MODE") === "fixed_time" ? currentValue("AUTONOMOUS_PLAN_GENERATION_TIME") : `休眠后 ${fmt(currentValue("AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES"))} 分钟`}` : "当前使用固定计划";
-  if (item.id === "proactive") return `时间段内最多 ${fmt(currentValue("PROACTIVE_DAILY_LIMIT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个视频`;
+  if (item.id === "proactive") return `每天最多 ${fmt(currentValue("PROACTIVE_TIMES_COUNT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个 · 全天视频上限 ${num(currentValue("PROACTIVE_DAILY_LIMIT"), 0) > 0 ? fmt(currentValue("PROACTIVE_DAILY_LIMIT")) : "不限"}`;
   if (item.id === "owner-share") return `最低 ${fmt(currentValue("RECOMMEND_OWNER_MIN_SCORE"))} 分 · 每天最多 ${fmt(currentValue("RECOMMEND_OWNER_DAILY_LIMIT"))} 次`;
   if (item.id === "dynamic") return "时间由统一日程管理";
   if (item.id === "dynamic-watch") return `每天最多 ${fmt(currentValue("DYNAMIC_WATCH_DAILY_LIMIT"))} 次 · 包含视频投稿 ${currentValue("DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS") ? "开启" : "关闭"}`;
@@ -1283,7 +1281,7 @@ function renderBasics() {
       const keys = groups[name];
       if (!keys.length) return "";
       const iconName = { "人设与模型": "heart", "性格演化": "star", "Embedding 与记忆": "memory-card", "视频与图片视觉": "video", "图片生成": "sun", "联网搜索": "search", "总结": "calendar", "Cookie 与系统": "settings", "高级接口": "controller" }[name] || "settings";
-      const evolutionToggle = name === "性格演化" && hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<div class="settings-inline-toggle"><div><strong>性格演化总开关</strong><small>关闭后下方性格演化设置不生效，已有数据会保留。</small></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</div>` : "";
+      const evolutionToggle = name === "性格演化" && hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<div class="settings-inline-toggle"><div><strong>旧版每日性格演化</strong><small>实验性功能，建议先关闭并积累几天真实反馈；已有数据会保留。</small></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</div>` : "";
       const evolutionKeys = name === "性格演化" ? keys.filter((key) => key !== "ENABLE_PERSONALITY_EVOLUTION") : keys;
       return `<details class="settings-group card" ${query || index < 2 ? "open" : ""}><summary><span class="section-icon">${icon(iconName)}</span><div><strong>${esc(name)}</strong><small>${evolutionKeys.length + (evolutionToggle ? 1 : 0)} 项配置</small></div>${icon("arrow-right")}</summary><div class="settings-group-body"><div class="settings-group-inner">${evolutionToggle}${renderFields(evolutionKeys)}</div></div></details>`;
     }).join("") || `<div class="card empty-search">${icon("search")}<strong>没有匹配的配置</strong><span>换一个关键词试试。</span></div>`}</div>`;
@@ -1501,7 +1499,7 @@ async function handleAction(action, source = null) {
   }
   if (action === "generate-qr") return generateQr();
   if (action === "regenerate-schedule") {
-    const ok = await confirmModal("重新生成今日计划", "这会清空今天尚未完成的日程并立即根据当前活跃度与范围限制重新生成。", "重新生成");
+    const ok = await confirmModal("重新生成今日计划", "这会清空今天尚未完成的日程并立即根据当前活跃度与安全上限重新生成。", "重新生成");
     if (!ok) return;
     const regenerated = await apiPost("schedule/regenerate", {});
     state.schedule = { ...state.schedule, ...(regenerated || {}) };
@@ -1509,9 +1507,9 @@ async function handleAction(action, source = null) {
     renderCurrentPage();
     const plan = regenerated?.autonomous_plan;
     if (plan?.generation_status === "error") {
-      toast("已启用安全计划", `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成。`, "error");
+      toast("今天不新增自动事件", `${plan.model_error || "计划模型暂时没有返回有效内容。"} 可稍后重新生成。`, "error");
     } else {
-      toast("今日计划已更新", "新计划已经过睡眠区间、最小间隔与范围限制校验");
+      toast("今日计划已更新", "新计划已经过睡眠区间、最小间隔与安全上限校验");
     }
     return;
   }

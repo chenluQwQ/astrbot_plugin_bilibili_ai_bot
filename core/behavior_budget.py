@@ -32,9 +32,9 @@ class BehaviorBudget:
     def __init__(self, config_getter) -> None:
         self._get = config_getter
 
-    # WebUI 的自主安排面板用 *_DAILY_MIN/MAX 表示"每天在区间内自选目标"，
-    # MAX 即当天硬上限。旧的 *_DAILY_LIMIT 单值键保留兼容：优先读 MAX，
-    # 缺失或仍为默认值时回退到 LIMIT，避免两处配置各说一套。
+    # WebUI 的 *_DAILY_MAX 是当天硬上限。旧的 *_DAILY_LIMIT
+    # 单值键保留兼容：优先读 MAX，缺失或仍为默认值时回退到
+    # LIMIT，避免升级后突然放大限额。
     _DAILY_MAX_ALIASES = {
         "AUTONOMOUS_REPLY_DAILY_LIMIT": ("AUTONOMOUS_REPLY_DAILY_MAX", 80),
         "AUTONOMOUS_PRIVATE_DAILY_LIMIT": ("AUTONOMOUS_PRIVATE_DAILY_MAX", 30),
@@ -108,12 +108,15 @@ class BehaviorBudget:
             if limit:
                 rules.append(("behavior:post_dynamic:day", day_key, limit))
         elif kind == "proactive_watch":
-            limit = self._effective_limit(
-                self._int("PROACTIVE_DAILY_LIMIT", 0),
-                self._int("AUTONOMOUS_PROACTIVE_DAILY_LIMIT", 4),
-            )
+            # One reservation equals one watched video. Browsing-round limits
+            # belong to the scheduler and must not be mixed into this bucket.
+            limit = self._int("PROACTIVE_DAILY_LIMIT", 0)
             if limit:
                 rules.append(("behavior:proactive_watch:day", day_key, limit))
+        elif kind == "proactive_comment":
+            limit = self._int("PROACTIVE_COMMENT_DAILY_LIMIT", 2)
+            if limit:
+                rules.append(("behavior:proactive_comment:day", day_key, limit))
         return rules
 
     def reserve_in_transaction(

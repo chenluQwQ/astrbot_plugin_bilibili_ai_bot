@@ -1,12 +1,15 @@
 """番剧/动漫相关：搜索、详情、排行、看番、评价、记忆。"""
 import re
-import json
 import random
 import asyncio
 import traceback
 from datetime import datetime
 from astrbot.api import logger
-from .config import BANGUMI_MEMORY_FILE, BANGUMI_WATCH_LOG_FILE, PROACTIVE_LOG_FILE
+from .config import (
+    BANGUMI_MEMORY_FILE, BANGUMI_WATCH_LOG_FILE, PROACTIVE_LOG_FILE,
+    WATCH_LOG_FILE,
+)
+from .content_protocol import ContentProtocolError, parse_bangumi_evaluation
 
 
 class BangumiMixin:
@@ -453,20 +456,11 @@ want_continue：是否值得继续追，烂番可以果断弃。
             text = await self._llm_call(prompt, system_prompt=sp, max_tokens=350)
             if not text:
                 return None
-            raw = text
-            text = self._repair_llm_json(text)
-            m = re.search(r'\{.*\}', text, re.DOTALL)
-            candidate = m.group() if m else text
             try:
-                return json.loads(candidate)
-            except json.JSONDecodeError:
-                # 去尾逗号后重试
-                fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
-                try:
-                    return json.loads(fixed)
-                except json.JSONDecodeError:
-                    logger.warning(f"[BiliBot] 番剧评价JSON解析失败: {raw[:300]}")
-                    return None
+                return parse_bangumi_evaluation(text)
+            except ContentProtocolError as exc:
+                logger.warning(f"[BiliBot] 番剧评价结构校验失败: {exc}")
+                return None
         except Exception as e:
             logger.error(f"[BiliBot] 番剧评价失败: {e} | raw={str(text)[:200]}")
             return None
@@ -678,14 +672,19 @@ want_continue：是否值得继续追，烂番可以果断弃。
                                 actions.append("⭐收藏")
                         except Exception:
                             pass
-                    if score >= 6 and self.config.get("BANGUMI_COMMENT", True):
-                        if not comment:
-                            try:
-                                sp = await self._get_system_prompt()
-                                prompt = f"你刚看完番剧《{season_info.get('title', '')}》第{ep_index}话。在评论区留一条话，像追番观众随手打的评论（不超过30字）。可以说对剧情的反应、吐槽、或者表达情绪。直接输出内容。"
-                                comment = await self._llm_call(prompt, system_prompt=sp, max_tokens=80) or "这集还行"
-                            except Exception:
-                                comment = "这集还行"
+                    daily_comment_limit = max(0, int(self.config.get("PROACTIVE_COMMENT_DAILY_LIMIT", 2) or 0))
+                    daily_comment_count = self._today_proactive_comment_count(
+                        self._load_json(WATCH_LOG_FILE, []),
+                        self._load_json(PROACTIVE_LOG_FILE, []),
+                    ) if hasattr(self, "_today_proactive_comment_count") else 0
+                    allow_per_video_comment = max(0, int(self.config.get("PROACTIVE_COMMENT_COUNT", 1) or 0)) > 0
+                    if (
+                        score >= 6
+                        and comment
+                        and allow_per_video_comment
+                        and daily_comment_limit > daily_comment_count
+                        and self.config.get("BANGUMI_COMMENT", True)
+                    ):
                         try:
                             if (
                                 await self._execute_proactive_action(

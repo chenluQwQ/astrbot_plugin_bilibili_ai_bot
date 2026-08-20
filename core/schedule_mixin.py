@@ -27,20 +27,17 @@ class ScheduleMixin:
     }
 
     def _autonomous_limit_range(self, kind):
-        """Return the configured (minimum, maximum) for an autonomous quota.
+        """Return ``(0, hard maximum)`` for an autonomous safety budget.
 
         The old ``*_DAILY_LIMIT`` keys remain readable for existing installs.
         If a user has customized an old key and the new max key is still at its
-        schema default, the old value is treated as the migrated maximum.
+        schema default, the old value is treated as the migrated maximum.  Old
+        lower-bound keys are deliberately ignored: no behaviour is performed to
+        fill a quota.
         """
         min_key, max_key, legacy_key, default_max = self._AUTONOMOUS_LIMITS[kind]
-        minimum = self.config.get(min_key, 0)
         maximum = self.config.get(max_key, None)
         legacy = self.config.get(legacy_key, default_max)
-        try:
-            minimum = max(0, int(minimum or 0))
-        except (TypeError, ValueError):
-            minimum = 0
         try:
             legacy = int(legacy) if legacy is not None else int(default_max)
         except (TypeError, ValueError):
@@ -51,8 +48,8 @@ class ScheduleMixin:
             maximum = legacy
         if maximum == int(default_max) and legacy != int(default_max):
             maximum = legacy
-        maximum = max(minimum, maximum, 0)
-        return minimum, maximum
+        maximum = max(maximum, 0)
+        return 0, maximum
 
     def _autonomous_limit_max(self, kind):
         return self._autonomous_limit_range(kind)[1]
@@ -346,10 +343,11 @@ class ScheduleMixin:
         activity = max(0, min(100, int(self.config.get("AUTONOMOUS_ACTIVITY_LEVEL", 55))))
         proactive_min, proactive_cap = self._autonomous_limit_range("proactive")
         dynamic_min, dynamic_cap = self._autonomous_limit_range("dynamic")
-        # 0 means no additional video-count cap. The autonomous action-range
-        # maximum remains the safety ceiling for the number of browsing windows.
-        configured_video_limit = max(0, int(self.config.get("PROACTIVE_DAILY_LIMIT", 0) or 0))
-        proactive_max = min(configured_video_limit, proactive_cap) if configured_video_limit else proactive_cap
+        # Browsing windows and watched-video counts are deliberately separate:
+        # PROACTIVE_TIMES_COUNT limits rounds, while PROACTIVE_DAILY_LIMIT is
+        # enforced inside the watcher as the all-day video ceiling.
+        configured_round_limit = max(0, int(self.config.get("PROACTIVE_TIMES_COUNT", 2) or 0))
+        proactive_max = min(configured_round_limit, proactive_cap)
         proactive_max = max(0, proactive_max) if self._schedule_feature_enabled("proactive") else 0
         dynamic_max = max(0, min(
             int(self.config.get("DYNAMIC_TIMES_COUNT", self.config.get("DYNAMIC_DAILY_COUNT", 1))),
@@ -368,7 +366,7 @@ class ScheduleMixin:
 当前心情：{mood}
 活跃度：{activity}/100（低时应明显减少事件，高时也不能刷屏）
 睡眠区间：{int(self.config.get('SLEEP_START', 2)):02d}:00 到 {int(self.config.get('SLEEP_END', 8)):02d}:00
-管理员范围：主动浏览 {proactive_min}-{proactive_max} 个时间段，发布动态 {dynamic_min}-{dynamic_max} 次；关注动态巡视最多 {dynamic_watch_max} 次，追番最多 {bangumi_max} 次，特别关注最多 {follow_max} 次。下限只在对应能力已启用且当天条件允许时尽量满足。
+管理员安全上限：主动浏览最多 {proactive_max} 个时间段，发布动态最多 {dynamic_max} 次；关注动态巡视最多 {dynamic_watch_max} 次，追番最多 {bangumi_max} 次，特别关注最多 {follow_max} 次。所有数量都是上限，不是KPI；没有真实动机时可以填空数组，不要为了凑数安排事件。
 相邻主动事件至少间隔 {max(15, int(self.config.get('AUTONOMOUS_MIN_ACTION_GAP_MINUTES', 45)))} 分钟。
 人设摘要：{str(persona)[:1200]}
 管理员补充：{str(self.config.get('AUTONOMOUS_PLAN_PROMPT', ''))[:800]}
@@ -391,10 +389,10 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
         except Exception as exc:
             generation_status = "error"
             model_error = f"模型调用失败：{exc}"[:240]
-            logger.warning(f"[BiliBot] 自主日程生成失败，使用安全回退：{exc}")
+            logger.warning(f"[BiliBot] 自主日程生成失败，今天不新增自动事件：{exc}")
 
-        # Model may choose fewer actions. If it returns no usable count, use an
-        # activity-scaled deterministic fallback rather than always filling max.
+        # Activity only narrows the safety ceiling. It never creates a minimum
+        # quota, and a failed model call produces no new autonomous events.
         factor = 0.15 + 0.85 * activity / 100
 
         def activity_cap(minimum, maximum):
@@ -422,13 +420,12 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
             values = model_plan.get(source_key, [])
             soft_maximum = min(maximum, caps.get(key, maximum))
             if isinstance(values, list):
-                # The model may request fewer events, but it cannot bypass an
-                # administrator-configured lower bound when the feature is on.
-                requested = max(minimum, len(values))
+                requested = len(values)
                 return min(soft_maximum, requested)
             return soft_maximum
         if not model_plan:
-            targets = dict(caps)
+            # 模型失败时不替它编造主动意图；当天安全地保持无新增计划。
+            targets = {key: 0 for key in caps}
         else:
             targets = {key: target_for(key, minimum, maximum) for key, minimum, maximum in (
                 ("proactive_times", proactive_min, proactive_max), ("dynamic_times", dynamic_min, dynamic_max),
@@ -463,21 +460,25 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
             normalized_times.append(self._minute_text(trigger))
         normalized["proactive_windows"] = proactive_windows
         normalized["proactive_times"] = normalized_times
-        reply_min, reply_max = self._autonomous_limit_range("reply")
-        private_min, private_max = self._autonomous_limit_range("private")
+        _reply_min, reply_max = self._autonomous_limit_range("reply")
+        _private_min, private_max = self._autonomous_limit_range("private")
         plan = {
             "date": today,
             "config_fingerprint": fingerprint,
             "activity_level": activity,
             "activity_label": "低迷" if activity < 25 else "平稳" if activity < 50 else "活跃" if activity < 75 else "高能",
             **normalized,
-            "reply_target": max(reply_min, min(reply_max, round(reply_min + (reply_max - reply_min) * factor))) if self.config.get("ENABLE_REPLY", True) else 0,
-            "private_target": max(private_min, min(private_max, round(private_min + (private_max - private_min) * factor))) if self.config.get("ENABLE_PRIVATE_MESSAGES", False) else 0,
-            "rationale": str(model_plan.get("rationale") or "根据今日活跃度生成，并受管理员范围与最小间隔保护。")[:240],
+            "reply_cap": reply_max if self.config.get("ENABLE_REPLY", True) else 0,
+            "private_cap": private_max if self.config.get("ENABLE_PRIVATE_MESSAGES", False) else 0,
+            "rationale": str(model_plan.get("rationale") or (
+                "根据今日活跃度生成，并受管理员安全上限与最小间隔保护。"
+                if generation_status == "success"
+                else "模型计划未生成，今天不新增自动事件。"
+            ))[:240],
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "generation_status": generation_status,
             "model_error": model_error,
-            "source": "model" if generation_status == "success" else "fallback",
+            "source": "model" if generation_status == "success" else "none",
             "model_attempts": previous_attempts + 1,
             "retry_exhausted": bool(generation_status == "error" and retrying),
         }
@@ -520,7 +521,9 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
             self._proactive_windows = list(plan.get("proactive_windows", [])) if plan else []
             self._save_schedule_state(planned, set())
             return planned, set()
-        windows = self._fixed_window_entries()
+        configured_round_limit = max(0, int(self.config.get("PROACTIVE_TIMES_COUNT", 2) or 0))
+        round_cap = min(configured_round_limit, self._autonomous_limit_max("proactive"))
+        windows = self._fixed_window_entries()[:round_cap]
         self._proactive_windows = [{key: item[key] for key in ("start_time", "end_time", "scheduled_time")} | {"trigger_policy": "once_in_window"} for item in windows]
         times = [self._parse_time_value(item["scheduled_time"]) for item in windows]
         times = [item for item in times if item is not None]
