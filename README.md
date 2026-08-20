@@ -333,7 +333,9 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 
 从 v1.4.3 起，`bilibot.sqlite3` 是语义记忆主库，Embedding 单独保存在向量表；已有 `memory.json` 会在首次启动时自动导入，此后继续保留为兼容与故障恢复备份。请不要在插件运行时手工删除或替换这两个文件。
 
-视频记忆默认按三个阶段保存：`VIDEO_MEMORY_DETAIL_DAYS`（默认 15 天）内保留较完整的分析与感想；之后转为低权重长期记忆；到 `VIDEO_MEMORY_FADE_DAYS`（默认 90 天）后移除详细内容与语义向量，仅保留“看过哪个视频、UP 主及大概内容”的痕迹。关闭 `ENABLE_VIDEO_LONG_TERM_MEMORY` 时只维护同样分层的免重复观看缓存索引。清理不会触及登录凭据、画像、好感度、日程和运行数据库。
+视频记忆默认按三个阶段保存：`VIDEO_MEMORY_DETAIL_DAYS`（默认 15 天）内保留较完整的分析与感想；之后转为低权重长期记忆；到 `VIDEO_MEMORY_FADE_DAYS`（默认 90 天）后压缩为“看过哪个视频、UP 主及大概内容”的短摘要，并以极低权重保留语义向量，只在高度相关时偶尔想起。独立的永久 BV 去重账本保存在 SQLite `seen_videos`，`seen_videos.json` 是恢复副本；它不会按 200 条活动流水上限或时间裁剪。关闭 `ENABLE_VIDEO_LONG_TERM_MEMORY` 时仍维护分层缓存和永久去重记录。清理不会触及登录凭据、画像、好感度、日程和运行数据库。
+
+自动看片、特别关注、评论区视频分析和私信看片都会写入永久 BV 账本。再次遇到同一 BV 时只复用已有记忆；细节已经淡忘时也不会自动重新下载。当前仅允许主人在 B站私信中明确说“重新看一次”或“重看”来触发重新分析。
 
 ## ⚠️ 风险提示
 

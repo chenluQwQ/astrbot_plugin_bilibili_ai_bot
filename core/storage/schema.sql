@@ -114,6 +114,21 @@ CREATE TABLE IF NOT EXISTS legacy_memory_map (
 );
 CREATE INDEX IF NOT EXISTS idx_legacy_memory_key ON legacy_memory_map (legacy_key);
 
+-- 永久视频去重账本。它只回答“是否看过”，不保存视频正文或向量；
+-- 详细内容可以淡忘，但此表不按容量或时间裁剪。
+CREATE TABLE IF NOT EXISTS seen_videos (
+    bvid            TEXT PRIMARY KEY,
+    first_seen_at   REAL NOT NULL,
+    last_related_at REAL NOT NULL,
+    watch_count     INTEGER NOT NULL DEFAULT 1,
+    title           TEXT NOT NULL DEFAULT '',
+    owner_mid       TEXT NOT NULL DEFAULT '',
+    owner_name      TEXT NOT NULL DEFAULT '',
+    tname           TEXT NOT NULL DEFAULT '',
+    last_source     TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_seen_videos_last ON seen_videos (last_related_at);
+
 -- 用户群像：小体积结构化，增量更新（只改动变化字段，不重写全量摘要）。
 CREATE TABLE IF NOT EXISTS profiles (
     actor_id     TEXT PRIMARY KEY,

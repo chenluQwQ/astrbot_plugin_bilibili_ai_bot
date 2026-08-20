@@ -970,9 +970,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
         logger.info(f"[BiliBot] 🎯 主动刷B站 | 目标：看 {daily_watch} 个视频，评论 {daily_comment} 条")
         external_memory = self._load_json(EXTERNAL_MEMORY_FILE, {})
         commented_videos = set(self._load_json(COMMENTED_FILE, []))
-        watched_bvids = set(commented_videos)
-        for entry in watch_log:
-            watched_bvids.add(entry.get("bvid", ""))
+        watched_bvids = await self._seen_video_bvids()
         min_pubdate_hot = int(datetime(datetime.now().year, 1, 1).timestamp())
         prefilter_extra = (
             max(0, int(self.config.get("PROACTIVE_LLM_PREFILTER_MAX_REJECTS", 3)))
@@ -1130,6 +1128,11 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
             }
             video_description = await self._analyze_video_with_vision(analysis_info)
             logger.info(f"[BiliBot] 📝 分析：{video_description[:60]}...")
+            # 分析完成即算“看过”；即使后续评价或互动失败，也不能在旧流水
+            # 超过 200 条后被再次当成新视频下载分析。
+            await self._mark_video_seen(
+                bvid, analysis_info, source=video.get("_source", "proactive")
+            )
             evaluation = await self._evaluate_video(analysis_info, video_description)
             if not evaluation:
                 logger.warning("[BiliBot] 评价失败，跳过互动")
@@ -1478,9 +1481,7 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
 
         watch_log = self._load_json(WATCH_LOG_FILE, [])
         today_str = datetime.now().strftime("%Y-%m-%d")
-        watched_bvids = set()
-        for entry in watch_log:
-            watched_bvids.add(entry.get("bvid", ""))
+        watched_bvids = await self._seen_video_bvids()
         commented_videos = set(self._load_json(COMMENTED_FILE, []))
         external_memory = self._load_json(EXTERNAL_MEMORY_FILE, {})
 
@@ -1523,6 +1524,9 @@ recommend_owner判断：只有你自己至少会打8分，而且能说出一个�
 
             video_description = await self._analyze_video_with_vision(analysis_info)
             logger.info(f"[BiliBot] ⭐ 分析：{video_description[:60]}...")
+            await self._mark_video_seen(
+                bvid, analysis_info, source="special_follow"
+            )
             evaluation = await self._evaluate_video(analysis_info, video_description)
 
             if not evaluation:

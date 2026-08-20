@@ -75,6 +75,163 @@ class ProfileFact:
     expires_at: float | None
 
 
+@dataclass
+class SeenVideo:
+    """永久轻量“看过”记录。"""
+
+    bvid: str
+    first_seen_at: float
+    last_related_at: float
+    watch_count: int
+    title: str
+    owner_mid: str
+    owner_name: str
+    tname: str
+    last_source: str
+
+
+class SeenVideoStore:
+    """永久 BV 去重账本；不按数量或时间裁剪。"""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    @staticmethod
+    def normalize_bvid(value: Any) -> str:
+        raw = str(value or "").strip()
+        if len(raw) < 4 or raw[:2].lower() != "bv":
+            return ""
+        return "BV" + raw[2:]
+
+    @staticmethod
+    def _number(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError, OverflowError):
+            return float(default)
+
+    @staticmethod
+    def _mark_sync(conn, record: dict[str, Any]) -> bool:
+        bvid = SeenVideoStore.normalize_bvid(record.get("bvid"))
+        if not bvid:
+            return False
+        seen_at = SeenVideoStore._number(record.get("seen_at"), now())
+        first_seen_at = SeenVideoStore._number(
+            record.get("first_seen_at"), seen_at
+        )
+        last_related_at = SeenVideoStore._number(
+            record.get("last_related_at"), seen_at
+        )
+        first_seen_at, last_related_at = (
+            min(first_seen_at, last_related_at),
+            max(first_seen_at, last_related_at),
+        )
+        increment = 1 if bool(record.get("increment", True)) else 0
+        row = conn.execute(
+            "SELECT * FROM seen_videos WHERE bvid=?", (bvid,)
+        ).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO seen_videos(bvid,first_seen_at,last_related_at,"
+                "watch_count,title,owner_mid,owner_name,tname,last_source) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    bvid,
+                    first_seen_at,
+                    last_related_at,
+                    max(1, increment),
+                    str(record.get("title") or ""),
+                    str(record.get("owner_mid") or ""),
+                    str(record.get("owner_name") or ""),
+                    str(record.get("tname") or ""),
+                    str(record.get("source") or ""),
+                ),
+            )
+            return True
+        conn.execute(
+            "UPDATE seen_videos SET first_seen_at=?,last_related_at=?,watch_count=?,"
+            "title=?,owner_mid=?,owner_name=?,tname=?,last_source=? WHERE bvid=?",
+            (
+                min(float(row["first_seen_at"]), first_seen_at),
+                max(float(row["last_related_at"]), last_related_at),
+                int(row["watch_count"]) + increment,
+                str(record.get("title") or row["title"] or ""),
+                str(record.get("owner_mid") or row["owner_mid"] or ""),
+                str(record.get("owner_name") or row["owner_name"] or ""),
+                str(record.get("tname") or row["tname"] or ""),
+                str(record.get("source") or row["last_source"] or ""),
+                bvid,
+            ),
+        )
+        return False
+
+    async def mark_seen(
+        self,
+        bvid: str,
+        *,
+        seen_at: float | None = None,
+        title: str = "",
+        owner_mid: str = "",
+        owner_name: str = "",
+        tname: str = "",
+        source: str = "",
+        increment: bool = True,
+    ) -> bool:
+        record = {
+            "bvid": bvid,
+            "seen_at": seen_at if seen_at is not None else now(),
+            "title": title,
+            "owner_mid": owner_mid,
+            "owner_name": owner_name,
+            "tname": tname,
+            "source": source,
+            "increment": increment,
+        }
+        return bool(await self._db.run(self._mark_sync, record))
+
+    async def import_many(self, records: list[dict[str, Any]]) -> int:
+        """幂等迁移旧来源，不把多份旧副本误算成重复观看。"""
+        prepared = [dict(record, increment=False) for record in records]
+
+        def _import(conn):
+            created = 0
+            for record in prepared:
+                created += int(self._mark_sync(conn, record))
+            return created
+
+        return int(await self._db.run(_import))
+
+    async def contains(self, bvid: str) -> bool:
+        key = self.normalize_bvid(bvid)
+        if not key:
+            return False
+        return bool(
+            await self._db.fetch_value(
+                "SELECT 1 FROM seen_videos WHERE bvid=?", (key,), default=0
+            )
+        )
+
+    async def get(self, bvid: str) -> dict[str, Any] | None:
+        key = self.normalize_bvid(bvid)
+        if not key:
+            return None
+        row = await self._db.fetch_one(
+            "SELECT * FROM seen_videos WHERE bvid=?", (key,)
+        )
+        return dict(row) if row is not None else None
+
+    async def all_bvids(self) -> set[str]:
+        rows = await self._db.fetch_all("SELECT bvid FROM seen_videos")
+        return {str(row["bvid"]) for row in rows}
+
+    async def count(self) -> int:
+        return int(
+            await self._db.fetch_value(
+                "SELECT COUNT(*) FROM seen_videos", default=0
+            ) or 0
+        )
+
+
 class MemoryStore:
     """记忆读写。"""
 

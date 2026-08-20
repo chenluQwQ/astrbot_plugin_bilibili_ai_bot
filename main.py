@@ -131,6 +131,13 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 logger.error(
                     f"[BiliBot] 统一记忆迁移失败，暂时继续使用 memory.json: {exc}"
                 )
+            try:
+                await self._initialize_seen_videos()
+            except Exception as exc:
+                # 去重账本失败不应把已经成功的语义记忆迁移标成失败。
+                logger.error(
+                    f"[BiliBot] 永久视频去重账本迁移失败，已保留旧记录兜底: {exc}"
+                )
         if not self._has_cookie():
             logger.warning("[BiliBot] Cookie未配置，后台任务未启动")
             return

@@ -17,6 +17,8 @@ from .config import (
     OID_COMPRESS_THRESHOLD, OID_KEEP_RECENT,
     USER_MEMORY_COMPRESS_THRESHOLD, USER_MEMORY_KEEP_RECENT,
     USER_PROFILE_FILE,
+    WATCH_LOG_FILE, COMMENTED_FILE, VIDEO_MEMORY_FILE, EXTERNAL_MEMORY_FILE,
+    SEEN_VIDEOS_FILE,
 )
 
 
@@ -99,7 +101,8 @@ class MemoryMixin:
         return {
             "detail": 1.0,
             "long_term": 0.68,
-            "faded": 0.20,
+            # 三个月后只在高度相关时偶尔浮现；永久 BV 去重由 seen_videos 独立负责。
+            "faded": 0.52,
         }.get(self._video_memory_stage_at(record), 1.0)
 
     def _prepare_memory_entry(self, record):
@@ -226,6 +229,180 @@ class MemoryMixin:
             f"[BiliBot] 统一记忆库已就绪: SQLite {len(self._memory)} 条；"
             "memory.json 保留为兼容备份"
         )
+        return True
+
+    def _legacy_seen_video_records(self):
+        """Collect all old, possibly capped sources for one-time permanent import."""
+        records = []
+
+        def add(bvid, item=None, source="legacy"):
+            data = item if isinstance(item, dict) else {}
+            key = str(bvid or data.get("bvid") or "").strip()
+            if len(key) < 4 or key[:2].lower() != "bv":
+                return
+            first_seen = self._memory_timestamp(
+                data.get("first_seen_at")
+                or data.get("time")
+                or data.get("watched_at")
+            )
+            last_related = self._memory_timestamp(
+                data.get("last_related_at")
+                or data.get("time")
+                or data.get("watched_at")
+            )
+            records.append(
+                {
+                    "bvid": "BV" + key[2:],
+                    "first_seen_at": min(first_seen, last_related),
+                    "last_related_at": max(first_seen, last_related),
+                    "title": data.get("title", ""),
+                    "owner_mid": data.get("owner_mid") or data.get("up_mid", ""),
+                    "owner_name": data.get("owner_name") or data.get("up_name", ""),
+                    "tname": data.get("tname", ""),
+                    "source": data.get("source") or source,
+                }
+            )
+
+        watch_log = self._load_json(WATCH_LOG_FILE, [])
+        for item in (watch_log if isinstance(watch_log, list) else []):
+            if isinstance(item, dict):
+                add(item.get("bvid"), item, "watch_log")
+        commented = self._load_json(COMMENTED_FILE, [])
+        for item in (
+            commented if isinstance(commented, (list, tuple, set)) else []
+        ):
+            if isinstance(item, dict):
+                add(item.get("bvid"), item, "commented")
+            else:
+                add(item, source="commented")
+        video_memory = self._load_json(VIDEO_MEMORY_FILE, {})
+        for bvid, item in (
+            video_memory.items() if isinstance(video_memory, dict) else []
+        ):
+            add(bvid, item, "video_memory")
+        external_memory = self._load_json(EXTERNAL_MEMORY_FILE, {})
+        for bvid, item in (
+            external_memory.items() if isinstance(external_memory, dict) else []
+        ):
+            add(bvid, item, "external_memory")
+        seen_backup = self._load_json(SEEN_VIDEOS_FILE, {})
+        for bvid, item in (
+            seen_backup.items() if isinstance(seen_backup, dict) else []
+        ):
+            add(bvid, item, "seen_backup")
+        for item in self._memory:
+            if self._match_memory_type(item, {"video"}):
+                add(item.get("bvid"), item, "semantic_memory")
+        return records
+
+    async def _initialize_seen_videos(self):
+        """Idempotently migrate every legacy BV source into the permanent ledger."""
+        layered = getattr(self, "layered_runtime", None)
+        if layered is None or not layered.is_open:
+            return 0
+        records = self._legacy_seen_video_records()
+        created = await layered.seen_videos.import_many(records)
+        total = await layered.seen_videos.count()
+        logger.info(
+            f"[BiliBot] 永久视频去重账本已就绪: {total} 条"
+            f"（本次迁移新增 {created} 条）"
+        )
+        return total
+
+    async def _seen_video_bvids(self):
+        """Return permanent seen BVs, with legacy sources as a safe fallback."""
+        result = {
+            str(item.get("bvid") or "")
+            for item in self._legacy_seen_video_records()
+            if item.get("bvid")
+        }
+        layered = getattr(self, "layered_runtime", None)
+        if layered is not None and layered.is_open:
+            try:
+                result.update(await layered.seen_videos.all_bvids())
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 读取永久视频去重账本失败，使用兼容记录: {exc}")
+        return result
+
+    async def _has_seen_video(self, bvid):
+        key = str(bvid or "").strip()
+        if not key:
+            return False
+        return ("BV" + key[2:] if key[:2].lower() == "bv" else key) in (
+            await self._seen_video_bvids()
+        )
+
+    async def _seen_video_record(self, bvid):
+        """Return the lightweight trace without pulling video content into the ledger."""
+        key = str(bvid or "").strip()
+        if len(key) < 4 or key[:2].lower() != "bv":
+            return None
+        key = "BV" + key[2:]
+        ledger = self._load_json(SEEN_VIDEOS_FILE, {})
+        if isinstance(ledger, dict) and isinstance(ledger.get(key), dict):
+            return dict(ledger[key])
+        layered = getattr(self, "layered_runtime", None)
+        if layered is not None and layered.is_open:
+            try:
+                return await layered.seen_videos.get(key)
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 读取视频观看痕迹失败: {exc}")
+        return None
+
+    async def _mark_video_seen(
+        self, bvid, info=None, source="watch", *, increment=True
+    ):
+        """Persist a watched BV before capped activity logs can forget it."""
+        data = info if isinstance(info, dict) else {}
+        key = str(bvid or data.get("bvid") or "").strip()
+        if len(key) < 4 or key[:2].lower() != "bv":
+            return False
+        key = "BV" + key[2:]
+        lock = getattr(self, "_seen_video_write_lock", None)
+        if lock is None:
+            import asyncio
+            lock = self._seen_video_write_lock = asyncio.Lock()
+        async with lock:
+            ledger = self._load_json(SEEN_VIDEOS_FILE, {})
+            if not isinstance(ledger, dict):
+                ledger = {}
+            previous = ledger.get(key) if isinstance(ledger.get(key), dict) else {}
+            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
+            previous_count = int(previous.get("watch_count", 0) or 0)
+            ledger[key] = {
+                "bvid": key,
+                "first_seen_at": previous.get("first_seen_at") or now_text,
+                "last_related_at": now_text,
+                "watch_count": max(1, previous_count + (1 if increment else 0)),
+                "title": data.get("title") or previous.get("title", ""),
+                "owner_mid": str(
+                    data.get("owner_mid") or data.get("up_mid")
+                    or previous.get("owner_mid", "")
+                ),
+                "owner_name": data.get("owner_name")
+                or data.get("up_name")
+                or previous.get("owner_name", ""),
+                "tname": data.get("tname") or previous.get("tname", ""),
+                "source": source or previous.get("source", ""),
+            }
+            self._save_json(SEEN_VIDEOS_FILE, ledger)
+            layered = getattr(self, "layered_runtime", None)
+            if layered is not None and layered.is_open:
+                try:
+                    await layered.seen_videos.mark_seen(
+                        key,
+                        seen_at=datetime.now().timestamp(),
+                        title=ledger[key]["title"],
+                        owner_mid=ledger[key]["owner_mid"],
+                        owner_name=ledger[key]["owner_name"],
+                        tname=ledger[key]["tname"],
+                        source=source,
+                        increment=increment,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"[BiliBot] 永久视频去重账本写入失败，已保留 JSON: {exc}"
+                    )
         return True
 
     async def _save_memory_entry(self, record):

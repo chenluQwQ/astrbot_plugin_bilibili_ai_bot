@@ -28,7 +28,9 @@ from .security import (
     Tier,
     scope_for_source,
 )
-from .storage import Database, MediaStore, MemoryStore, ProfileStore, now
+from .storage import (
+    Database, MediaStore, MemoryStore, ProfileStore, SeenVideoStore, now,
+)
 
 
 _WRITE_TOOLS = {
@@ -59,6 +61,7 @@ class LayeredRuntime:
         self.events = EventAdapter(self.db, self.identity)
         self.memories = MemoryStore(self.db)
         self.profiles = ProfileStore(self.db)
+        self.seen_videos = SeenVideoStore(self.db)
         self.media = MediaStore(self.db)
         self.persona = PersonaEngine(self.db, self._get)
         self.capabilities = CapabilityStore(self.db)

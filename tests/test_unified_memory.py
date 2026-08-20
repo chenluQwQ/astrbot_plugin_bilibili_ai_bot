@@ -48,6 +48,11 @@ def _load_memory_module(temp_dir):
     config.MOOD_FILE = str(Path(temp_dir) / "mood.json")
     config.SECURITY_LOG_FILE = str(Path(temp_dir) / "security.json")
     config.USER_PROFILE_FILE = str(Path(temp_dir) / "profiles.json")
+    config.WATCH_LOG_FILE = str(Path(temp_dir) / "watch_log.json")
+    config.COMMENTED_FILE = str(Path(temp_dir) / "commented_videos.json")
+    config.VIDEO_MEMORY_FILE = str(Path(temp_dir) / "video_memory.json")
+    config.EXTERNAL_MEMORY_FILE = str(Path(temp_dir) / "external_memory.json")
+    config.SEEN_VIDEOS_FILE = str(Path(temp_dir) / "seen_videos.json")
     sys.modules[config_name] = config
 
     module_name = f"{package_name}.memory"
@@ -416,7 +421,26 @@ class UnifiedMemoryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(bot._memory_recall_weight(detail), 1.0)
         self.assertEqual(bot._memory_recall_weight(long_term), 0.68)
-        self.assertEqual(bot._memory_recall_weight(faded), 0.20)
+        self.assertEqual(bot._memory_recall_weight(faded), 0.52)
+
+    async def test_seen_video_migration_survives_capped_activity_log(self):
+        entries = [
+            {
+                "bvid": f"BV{index:010d}",
+                "title": f"视频{index}",
+                "time": "2026-01-01 12:00",
+            }
+            for index in range(205)
+        ]
+        bot = self.bot([])
+        bot._save_json(self.config.WATCH_LOG_FILE, entries)
+
+        self.assertEqual(await bot._initialize_seen_videos(), 205)
+        bot._save_json(self.config.WATCH_LOG_FILE, entries[-200:])
+
+        seen = await bot._seen_video_bvids()
+        self.assertIn("BV0000000000", seen)
+        self.assertEqual(await self.layers.seen_videos.count(), 205)
 
 
 if __name__ == "__main__":

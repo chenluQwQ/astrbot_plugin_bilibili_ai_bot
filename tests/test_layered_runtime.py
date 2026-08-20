@@ -352,6 +352,38 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(running["detail"], "restart_during_send")
         self.assertEqual(counter, 0)
 
+    async def test_seen_video_ledger_is_uncapped_and_survives_restart(self):
+        for index in range(260):
+            await self.layers.seen_videos.mark_seen(
+                f"BV{index:010d}", title=f"视频{index}", source="test"
+            )
+        self.assertEqual(await self.layers.seen_videos.count(), 260)
+        self.assertTrue(await self.layers.seen_videos.contains("bv0000000000"))
+
+        database_path = Path(self.temp_dir.name) / "bilibot.sqlite3"
+        await self.layers.close()
+        self.layers = LayeredRuntime({}, database_path)
+        await self.layers.open()
+
+        self.assertEqual(await self.layers.seen_videos.count(), 260)
+        first = await self.layers.seen_videos.get("BV0000000000")
+        self.assertEqual(first["title"], "视频0")
+
+    async def test_seen_video_legacy_import_is_idempotent(self):
+        record = {
+            "bvid": "BV1TEST00000",
+            "first_seen_at": 100.0,
+            "last_related_at": 200.0,
+            "title": "旧视频",
+            "source": "legacy",
+        }
+        self.assertEqual(await self.layers.seen_videos.import_many([record]), 1)
+        self.assertEqual(await self.layers.seen_videos.import_many([record]), 0)
+        row = await self.layers.seen_videos.get(record["bvid"])
+        self.assertEqual(row["watch_count"], 1)
+        self.assertEqual(row["first_seen_at"], 100.0)
+        self.assertEqual(row["last_related_at"], 200.0)
+
     def test_stored_action_digest_uses_security_hash(self):
         key = StoredActionRequest(tool="post_dynamic", args={"text": "hi"}).digest_key()
         self.assertTrue(key.startswith("post_dynamic:none:"))

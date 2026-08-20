@@ -514,7 +514,9 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
         logger.info(f"[BiliBot] 🔎 私信执行 up_info：{query} -> {selected_mid}")
         return "\n".join(lines)
 
-    async def _execute_private_model_tool(self, tool_request):
+    async def _execute_private_model_tool(
+        self, tool_request, *, actor_id="", original_content=""
+    ):
         """Execute the single read-only tool selected by the private-message reply model."""
         request = tool_request if isinstance(tool_request, dict) else {}
         name = str(request.get("name") or "none").strip().lower()
@@ -664,10 +666,21 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
                 match = re.search(r"(?i)(BV[0-9A-Za-z]{10})", query)
                 if not match:
                     return "观看工具需要有效的 BV 号，未执行。"
-                result = await self._watch_video_and_save_memory(match.group(1), memory_source="private_tool")
+                force_rewatch = bool(
+                    self._is_owner(str(actor_id or ""))
+                    and re.search(
+                        r"(?:重新\s*看(?:一次|一遍|一下)?|重看)",
+                        str(original_content or ""),
+                    )
+                )
+                result = await self._watch_video_and_save_memory(
+                    match.group(1),
+                    memory_source="private_tool",
+                    force_rewatch=force_rewatch,
+                )
                 if result.get("ok"):
-                    return str(result.get("summary") or result.get("content") or "已完成视频读取。")
-                return str(result.get("error") or "视频读取失败，未生成回复依据。")
+                    return str(result.get("message") or "已完成视频读取。")
+                return str(result.get("message") or result.get("error") or "视频读取失败，未生成回复依据。")
             return await self._execute_private_bili_request(action, query)
 
         if name == "web_search":
@@ -1421,7 +1434,9 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
             else:
                 logger.warning(f"[BiliBot] 私信工具查询前回复发送失败：{mid}")
 
-            reference_context = await self._execute_private_model_tool(tool_request)
+            reference_context = await self._execute_private_model_tool(
+                tool_request, actor_id=mid, original_content=content
+            )
             final_result = await self._generate_reply(
                 content,
                 mid,

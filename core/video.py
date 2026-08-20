@@ -36,7 +36,9 @@ class VideoMixin:
         )
         return any(marker in text for marker in markers)
 
-    async def _watch_video_and_save_memory(self, video_id, memory_source="tool_watch"):
+    async def _watch_video_and_save_memory(
+        self, video_id, memory_source="tool_watch", *, force_rewatch=False
+    ):
         """完整分析一个 BV/av 视频并写入统一视频记忆，供工具和私信共用。"""
         raw_id = str(video_id or "").strip()
         if not raw_id:
@@ -84,14 +86,38 @@ class VideoMixin:
             cached = video_cache.get(actual_bvid, {})
             cached_analysis = str(cached.get("analysis", "") or "").strip()
             cached_summary = str(cached.get("summary", "") or "").strip()
-            if cached_analysis or cached_summary:
+            if (cached_analysis or cached_summary) and not force_rewatch:
                 video_description = self._clip_media_text(cached_analysis or cached_summary, 1600)
                 score = cached.get("score", 5)
                 mood = cached.get("mood", "平静")
                 review = self._clip_media_text(cached.get("review", "") or "完整分析已清理，仅保留简短摘要", 320)
                 from_cache = True
+                await self._mark_video_seen(
+                    actual_bvid, analysis_info, source=memory_source, increment=False
+                )
                 logger.info(f"[BiliBot] 📹 私信看片命中视频短期缓存/摘要索引：《{vi.get('title', '')}》")
             else:
+                seen_trace = await self._seen_video_record(actual_bvid)
+                if seen_trace and not force_rewatch:
+                    link = f"https://www.bilibili.com/video/{actual_bvid}"
+                    title = vi.get("title", "") or seen_trace.get("title", "")
+                    owner_name = vi.get("owner_name", "") or seen_trace.get("owner_name", "")
+                    message = (
+                        "[曾经看过这个视频]\n"
+                        f"标题：{title}\nUP主：{owner_name}\n链接：{link}\n"
+                        "详细内容已经淡忘了。为了避免把旧视频重新当成新视频分析，"
+                        "只有主人明确要求“重新看一次”时才会重看。"
+                    )
+                    share_info = dict(vi)
+                    share_info.update({"bvid": actual_bvid, "aid": oid, "oid": oid})
+                    return {
+                        "ok": True,
+                        "message": message,
+                        "video_info": share_info,
+                        "bvid": actual_bvid,
+                        "from_cache": True,
+                        "seen_only": True,
+                    }
                 logger.info(f"[BiliBot] 🎬 开始观看私信分享视频：《{vi.get('title', '')}》")
                 video_description = self._clip_media_text(
                     await self._analyze_video_with_vision(analysis_info), 1600
@@ -121,6 +147,9 @@ class VideoMixin:
                     "source": memory_source,
                 }
                 self._save_json(VIDEO_MEMORY_FILE, video_cache)
+                await self._mark_video_seen(
+                    actual_bvid, analysis_info, source=memory_source
+                )
 
                 if self.config.get("ENABLE_VIDEO_LONG_TERM_MEMORY", False):
                     memory_text = (
@@ -831,6 +860,9 @@ UP主：{video_info.get('up_name', '未知')}
                 vc.pop(bvid, None)
                 self._save_json(VIDEO_MEMORY_FILE, vc)
             else:
+                await self._mark_video_seen(
+                    bvid, c, source="comment_video_context", increment=False
+                )
                 has_mem = any(m.get("bvid") == bvid or m.get("thread_id") == f"video:{bvid}" for m in self._memory)
                 cached_summary = c.get("analysis") or c.get("summary") or "已看过该视频；完整分析缓存已清理。"
                 if (
@@ -858,6 +890,15 @@ UP主：{video_info.get('up_name', '未知')}
         vi = await self._get_video_info(oid)
         if not vi:
             return "", None
+        seen_trace = await self._seen_video_record(bvid)
+        if seen_trace:
+            ctx = (
+                f"【当前视频·曾经看过】\n标题：{vi['title']}\n"
+                f"UP主：{vi['owner_name']}（UID:{vi['owner_mid']}）\n"
+                f"分区：{vi['tname']}\n简介：{vi.get('desc', '')[:150]}\n"
+                "观看细节已经淡忘；本次不会自动重新下载分析。"
+            )
+            return ctx, seen_trace
         logger.info(f"[BiliBot] 📹 新视频，分析中：《{vi['title']}》by {vi['owner_name']}")
         analysis = self._clip_media_text(await self._analyze_video_with_vision(vi), 1600)
         logger.info(f"[BiliBot] 📹 分析结果：{analysis[:60]}...")
@@ -865,6 +906,9 @@ UP主：{video_info.get('up_name', '未知')}
         cache_entry = {"bvid": bvid, "title": vi["title"], "desc": vi.get("desc", "")[:200], "owner_name": vi["owner_name"], "owner_mid": str(vi["owner_mid"]), "tname": vi["tname"], "analysis": analysis, "summary": self._clip_media_text(analysis, 220), "time": analyzed_at}
         vc[bvid] = cache_entry
         self._save_json(VIDEO_MEMORY_FILE, vc)
+        await self._mark_video_seen(
+            bvid, cache_entry, source="comment_video_context"
+        )
         memory_text = (
             f"[{analyzed_at}] 视频分析记忆：标题《{vi['title']}》 "
             f"UP主:{vi['owner_name']} 分区:{vi['tname']} "

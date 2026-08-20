@@ -145,6 +145,7 @@ class VideoProbe(VideoMixin):
         self.analysis_calls = 0
         self.memory_writes = []
         self._memory = []
+        self.seen = {}
 
     def _load_json(self, _path, default=None):
         return self.cache if isinstance(self.cache, dict) else default
@@ -186,6 +187,22 @@ class VideoProbe(VideoMixin):
 
     async def _save_self_memory_record(self, *args, **kwargs):
         self.memory_writes.append((args, kwargs))
+
+    async def _seen_video_record(self, bvid):
+        return self.seen.get(bvid)
+
+    async def _mark_video_seen(self, bvid, info=None, source="watch", *, increment=True):
+        previous = self.seen.get(bvid, {})
+        self.seen[bvid] = {
+            **previous,
+            **(info or {}),
+            "bvid": bvid,
+            "source": source,
+            "watch_count": max(
+                1, int(previous.get("watch_count", 0)) + (1 if increment else 0)
+            ),
+        }
+        return True
 
 
 def _check_autonomous_range_honors_new_minimum_and_maximum():
@@ -558,6 +575,23 @@ class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("很久以前的视频", context)
         self.assertEqual(cache_entry["memory_stage"], "faded")
         self.assertEqual(probe.memory_writes, [])
+
+    async def test_seen_only_video_is_not_reanalyzed_without_force(self):
+        probe = VideoProbe({"ENABLE_VIDEO_LONG_TERM_MEMORY": True})
+        probe.seen["BV1234567890"] = {
+            "bvid": "BV1234567890", "title": "测试视频", "watch_count": 1
+        }
+
+        remembered = await probe._watch_video_and_save_memory("BV1234567890")
+        self.assertTrue(remembered["seen_only"])
+        self.assertEqual(probe.analysis_calls, 0)
+
+        rewatched = await probe._watch_video_and_save_memory(
+            "BV1234567890", force_rewatch=True
+        )
+        self.assertTrue(rewatched["ok"])
+        self.assertFalse(rewatched["from_cache"])
+        self.assertEqual(probe.analysis_calls, 1)
 
 
 class AutonomousRangeTests(unittest.TestCase):

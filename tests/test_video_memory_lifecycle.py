@@ -68,7 +68,7 @@ class _Bot:
 
 
 class VideoMemoryLifecycleTests(unittest.TestCase):
-    def test_video_memory_fades_to_nonsemantic_watch_trace(self):
+    def test_video_memory_fades_to_low_weight_semantic_trace(self):
         module = _load_consolidation_module()
         now = datetime.now()
         memories = [
@@ -119,8 +119,8 @@ class VideoMemoryLifecycleTests(unittest.TestCase):
         self.assertIn("embedding", memories[1])
         self.assertEqual(memories[2]["video_memory_stage"], "faded")
         self.assertTrue(memories[2]["aged"])
-        self.assertNotIn("embedding", memories[2])
-        self.assertNotIn("embedding_model", memories[2])
+        self.assertEqual(memories[2]["embedding"], [1.0, 0.0])
+        self.assertEqual(memories[2]["embedding_model"], "test")
         self.assertIn("[看过·已淡忘]", memories[2]["text"])
         self.assertIn("大概是", memories[2]["text"])
 

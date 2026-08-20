@@ -264,8 +264,8 @@ class ConsolidationEngine:
                 faded_text = self._video_faded_text(memory)
                 if memory.get("text") != faded_text:
                     memory["text"] = faded_text
-                memory.pop("embedding", None)
-                memory.pop("embedding_model", None)
+                # 保留短摘要对应的向量，但召回层会施加极低权重；这样只在
+                # 高度相关时偶尔想起，同时不会把旧视频频繁塞进推荐上下文。
                 if not memory.get("faded_at"):
                     memory["faded_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 if previous != "faded":
