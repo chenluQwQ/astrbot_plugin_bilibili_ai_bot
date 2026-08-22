@@ -634,7 +634,16 @@ body.creator-mode .ambient { display: none; }
 
 /* Dynamic extension entry: anchored to the brand, never inserted into host navigation. */
 .sidebar-brand { position: relative; padding-right: 48px; }
-.mode-entry-cluster { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.mode-entry-cluster { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; }
+.mode-entry-popout {
+  width: 22px; height: 22px; display: grid; place-items: center; padding: 0;
+  border: 1px solid rgba(108,92,231,.22); border-radius: 8px; cursor: pointer;
+  background: rgba(255,255,255,.9); color: #655bd4;
+  transition: transform .18s ease, border-color .18s ease;
+}
+.mode-entry-popout:hover { transform: translateY(-1px); border-color: rgba(108,92,231,.42); }
+.mode-entry-popout:focus-visible { outline: 3px solid rgba(108,92,231,.28); outline-offset: 2px; }
+.mode-entry-popout .gicon { width: 12px; height: 12px; }
 .mode-entry-button {
   position: relative; width: 44px; height: 44px; display: grid; place-items: center;
   border: 1px solid rgba(108, 92, 231, .18); border-radius: 14px; color: #4b4382;

@@ -271,6 +271,58 @@ def test_activity_and_signals_never_expose_credentials(tmp_path, monkeypatch):
     assert opportunities[0]["eligibility"] == "review_required"
 
 
+def test_signals_carry_the_judgement_a_browsing_pass_already_made(tmp_path, monkeypatch):
+    """A pass scored the video and wrote down what it thought; pass that on.
+
+    Sending only the summary made extensions re-watch to recover judgement this side
+    had produced and then thrown away, and `actions` is the part that matters most:
+    the score drives real interactions, and a coin or a favourite is a scarce
+    commitment.
+    """
+    import core.config as config
+
+    watch = tmp_path / "watch.json"
+    memory = tmp_path / "video_memory.json"
+    bangumi = tmp_path / "bangumi.json"
+    dynamic = tmp_path / "dynamic.json"
+    watch.write_text(json.dumps([{
+        "title": "十分钟讲透扩散模型", "bvid": "BV1", "time": "2026-08-20 10:30",
+        "score": 8, "mood": "震撼", "review": "比公式推导好懂", "tname": "科技",
+        "up_name": "某个UP", "up_mid": "123", "pic": "https://i0.hdslb.com/c.jpg",
+        "actions": ["👍点赞", "🪙投币", "⭐收藏"], "cookie": "secret",
+    }]), encoding="utf-8")
+    # video_memory is a dict keyed by bvid and holds the long analysis text.
+    memory.write_text(json.dumps({"BV1": {
+        "title": "十分钟讲透扩散模型", "bvid": "BV1",
+        "analysis": "用动画讲清了加噪和去噪两个方向，" * 6,
+    }}), encoding="utf-8")
+    bangumi.write_text("[]", encoding="utf-8")
+    dynamic.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "WATCH_LOG_FILE", watch)
+    monkeypatch.setattr(config, "VIDEO_MEMORY_FILE", memory)
+    monkeypatch.setattr(config, "BANGUMI_WATCH_LOG_FILE", bangumi)
+    monkeypatch.setattr(config, "DYNAMIC_LOG_FILE", dynamic)
+
+    creator = CreatorExtension()
+    _registry, dispatcher = make_dispatcher(Context([Metadata(creator)]))
+    asyncio.run(dispatcher.list_extensions())
+    signals = creator.host.list_creator_signals()
+
+    assert len(signals) == 1, "watch_log 和 video_memory 描述同一个视频，不该变成两条信号"
+    signal = signals[0]
+    assert signal["actions"] == ["👍点赞", "🪙投币", "⭐收藏"]
+    assert signal["score"] == 8.0
+    assert signal["mood"] == "震撼"
+    assert signal["review"] == "比公式推导好懂"
+    assert signal["tname"] == "科技"
+    assert signal["up_name"] == "某个UP"
+    assert signal["pic"].startswith("https://")
+    # The long analysis wins over the shorter review as the summary.
+    assert signal["summary"].startswith("用动画讲清了")
+    assert "cookie" not in signal
+
+
 def test_video_metrics_uses_public_sanitized_fields():
     creator = CreatorExtension()
     _registry, dispatcher = make_dispatcher(Context([Metadata(creator)]))

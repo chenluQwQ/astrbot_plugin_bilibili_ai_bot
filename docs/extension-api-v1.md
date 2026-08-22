@@ -42,6 +42,19 @@ health
 
 请求和响应均使用带 `request_id` 的数据字典信封。扩展不直接注册主插件 HTTP 路由。
 
+### 呈现方式 `presentation`
+
+可选，控制扩展在主界面里怎么露出：
+
+- `entry`：`brand` 在品牌区显示入口，`hidden` 不显示；
+- `entry_priority`：多个扩展时的排序；
+- `switch_label`、`return_label`：入口和返回按钮的文案；
+- `accent`、`surface`：沉浸模式配色；
+- `standalone`：默认允许。品牌区会多一个按钮，用 `?ext={extension_id}` 在新标签页
+  只加载这个扩展的工作区，便于和主界面并排对照检查。置 `false` 可关掉。
+
+单独模式下不渲染返回按钮：那个标签页没有加载过主插件页面，返回会落在空壳上。
+
 ## WebUI Bridge 路由
 
 以下 endpoint 挂载在 BiliBot WebUI Bridge 的插件前缀下：
@@ -88,6 +101,24 @@ actions.video.publish
 ```
 
 后续接入真实上传/发布时，应增加管理员显式授权、投稿预览、人工确认、速率限制和审计记录，而不是直接扩大默认权限。
+
+## `list_creator_signals` 返回什么
+
+一次浏览已经下载、分析、打分并写下观后感，这些判断随信号一起交给扩展，
+避免扩展为了拿到同样的结论再看一遍：
+
+```text
+title  summary  source  source_ref  tags  captured_at  heat_score
+score  mood  review  up_name  up_mid  tname  pic  actions
+```
+
+`actions` 是评分驱动的真实互动记录（`["👍点赞", "🪙投币", ...]`）。
+阈值在 `core/proactive.py`：6 分点赞、7 分评论、8 分投币和收藏、9 分关注。
+硬币每天有限、收藏是明确的“值得留下”，所以这个字段比 `score` 更能说明兴趣。
+
+`watch_log.json` 有评分和互动，`video_memory.json` 有最长的 `analysis`，
+两者描述同一个 bvid，因此按 `source_ref` 合并成一条：空值不覆盖有值，
+`summary` 取更长的那个。
 
 ## 兼容与维护
 

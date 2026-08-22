@@ -2,6 +2,10 @@ import { icon } from "./icons.js";
 
 const bridge = window.AstrBotPluginPage || null;
 const isPreview = location.search.includes("preview=1") || !bridge;
+// ?ext=<id> boots straight into one extension with no host shell behind it, so the
+// workspace can be opened in its own tab and inspected without the sidebar in the
+// way.  Empty unless asked for, which keeps the embedded path unchanged.
+const standaloneExtensionId = new URLSearchParams(location.search).get("ext") || "";
 const app = document.querySelector("#app");
 const content = document.querySelector("#content");
 const sidebar = document.querySelector("#sidebar");
@@ -22,6 +26,9 @@ const brandLogoUrl = pageAssetUrl("./assets/logo.png");
 
 const state = {
   currentPage: "overview",
+  // True when booted via ?ext=<id>: there is no host shell to go back to, so the
+  // return control is left out rather than rendered and dead.
+  standalone: false,
   schema: {},
   config: {},
   draft: {},
@@ -590,7 +597,10 @@ function renderModeEntry(extensions) {
   const first = extensions[0];
   const label = extensions.length === 1 ? (first.presentation?.switch_label || `进入 ${first.name || first.short_name || "扩展工作区"}`) : `切换工作模式（${extensions.length}）`;
   const attrs = extensions.length === 1 ? `data-enter-extension="${esc(first.id)}"` : "data-open-mode-picker";
-  return `<div class="mode-entry-cluster"><button class="mode-entry-button" ${attrs} type="button" aria-label="${esc(label)}" title="${esc(label)}"><span>${icon(first.navigation?.[0]?.icon || "star")}</span><i></i>${extensions.length > 1 ? `<b>${extensions.length}</b>` : ""}</button></div>`;
+  const popout = extensions.length === 1 && first.presentation?.standalone !== false
+    ? `<button class="mode-entry-popout" data-popout-extension="${esc(first.id)}" type="button" aria-label="在新标签页打开 ${esc(first.short_name || first.name || "扩展")}" title="在新标签页单独打开，便于对照检查">${icon("arrow-right")}</button>`
+    : "";
+  return `<div class="mode-entry-cluster"><button class="mode-entry-button" ${attrs} type="button" aria-label="${esc(label)}" title="${esc(label)}"><span>${icon(first.navigation?.[0]?.icon || "star")}</span><i></i>${extensions.length > 1 ? `<b>${extensions.length}</b>` : ""}</button>${popout}</div>`;
 }
 
 function openModePicker() {
@@ -614,7 +624,7 @@ function renderSidebar() {
     const nav = [...(extension.navigation || [])].sort((a, b) => num(a.order) - num(b.order));
     sidebar.className = "sidebar creator-sidebar";
     sidebar.setAttribute("aria-label", `${extension.name || extension.short_name || "扩展"} 导航`);
-    sidebar.innerHTML = `<div class="creator-brand-lockup"><button class="creator-return" data-leave-extension type="button" aria-label="${esc(extension.presentation?.return_label || "返回 BiliBot")}">${icon("arrow-left")}</button><div class="creator-brand-type"><span>BILIBOT /</span><strong>${esc(extension.short_name || extension.name || extension.id)}</strong><small>${esc(extension.presentation?.workspace_label || "EXTENSION WORKSPACE")}</small></div></div><div class="creator-live-signal"><i></i><span><b>HOST LINK</b>安全连接已建立</span><em>API 01</em></div><div class="creator-nav-label">WORKSPACE</div><nav class="creator-nav-list">${nav.map((item, index) => `<button class="creator-nav-item ${state.extensionPage === item.page ? "is-active" : ""}" data-extension-page="${esc(item.page)}" type="button" title="${esc(item.description || item.title)}" aria-current="${state.extensionPage === item.page ? "page" : "false"}"><span class="creator-nav-index">${String(index + 1).padStart(2, "0")}</span>${icon(item.icon || "star", "creator-nav-icon")}<span><b>${esc(item.title)}</b><small>${esc(item.description || "")}</small></span></button>`).join("")}</nav><div class="creator-sidebar-foot"><span>ISOLATED EXTENSION</span><p>不共享 Cookie · 不注入代码</p></div>`;
+    sidebar.innerHTML = `<div class="creator-brand-lockup">${state.standalone ? "" : `<button class="creator-return" data-leave-extension type="button" aria-label="${esc(extension.presentation?.return_label || "返回 BiliBot")}">${icon("arrow-left")}</button>`}<div class="creator-brand-type"><span>BILIBOT /</span><strong>${esc(extension.short_name || extension.name || extension.id)}</strong><small>${esc(extension.presentation?.workspace_label || "EXTENSION WORKSPACE")}</small></div></div><div class="creator-live-signal"><i></i><span><b>HOST LINK</b>安全连接已建立</span><em>API 01</em></div><div class="creator-nav-label">WORKSPACE</div><nav class="creator-nav-list">${nav.map((item, index) => `<button class="creator-nav-item ${state.extensionPage === item.page ? "is-active" : ""}" data-extension-page="${esc(item.page)}" type="button" title="${esc(item.description || item.title)}" aria-current="${state.extensionPage === item.page ? "page" : "false"}"><span class="creator-nav-index">${String(index + 1).padStart(2, "0")}</span>${icon(item.icon || "star", "creator-nav-icon")}<span><b>${esc(item.title)}</b><small>${esc(item.description || "")}</small></span></button>`).join("")}</nav><div class="creator-sidebar-foot"><span>ISOLATED EXTENSION</span><p>不共享 Cookie · 不注入代码</p></div>`;
     sidebar.querySelector("[data-leave-extension]")?.addEventListener("click", leaveExtension);
     sidebar.querySelectorAll("[data-extension-page]").forEach((button) => button.addEventListener("click", () => navigateExtension(button.dataset.extensionPage)));
     return;
@@ -628,6 +638,7 @@ function renderSidebar() {
   sidebar.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.page)));
   sidebar.querySelector("[data-enter-extension]")?.addEventListener("click", (event) => enterExtension(event.currentTarget.dataset.enterExtension));
   sidebar.querySelector("[data-open-mode-picker]")?.addEventListener("click", openModePicker);
+  sidebar.querySelector("[data-popout-extension]")?.addEventListener("click", (event) => openExtensionStandalone(event.currentTarget.dataset.popoutExtension));
 }
 
 function updateSaveDock() {
@@ -678,6 +689,11 @@ async function loadBase() {
   state.stats = stats || {};
   state.persona = persona || {};
   state.extensions = Array.isArray(extensions) ? extensions.filter((item) => item && item.enabled !== false) : [];
+  if (standaloneExtensionId && state.extensions.some((item) => item.id === standaloneExtensionId)) {
+    state.standalone = true;
+    await enterExtension(standaloneExtensionId);
+    return;
+  }
   await refreshPageData("overview");
   renderSidebar();
 }
@@ -764,6 +780,14 @@ function setVisualMode(mode) {
   if (mobileBrand) mobileBrand.textContent = extensionMode ? `BiliBot / ${extension?.short_name || extension?.name || "Extension"}` : "BiliBot";
 }
 
+function openExtensionStandalone(extensionId) {
+  if (!extensionId) return;
+  const url = new URL(location.href);
+  url.searchParams.set("ext", extensionId);
+  const opened = window.open(url.toString(), `bilibot-ext-${extensionId}`);
+  if (!opened) toast("无法打开新标签页", "浏览器拦截了弹出窗口，请允许后重试", "error");
+}
+
 async function enterExtension(extensionId) {
   const extension = state.extensions.find((item) => item.id === extensionId);
   if (!extension) return;
@@ -778,6 +802,9 @@ async function enterExtension(extensionId) {
 }
 
 function leaveExtension() {
+  // Standalone tabs never loaded the host pages, so dropping back would land on an
+  // empty shell.  Reached only if a keyboard shortcut or stale node fires it.
+  if (state.standalone) return;
   state.activeExtensionId = null;
   state.extensionSchema = null;
   setVisualMode("host");

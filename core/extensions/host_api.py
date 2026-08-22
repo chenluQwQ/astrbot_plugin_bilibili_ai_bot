@@ -111,9 +111,12 @@ class BiliBotExtensionHostAPI:
 
     def list_creator_signals(self, *, limit: int = 20) -> list[dict[str, Any]]:
         self._grant.require("memory.creator.read")
-        from core.config import BANGUMI_WATCH_LOG_FILE, DYNAMIC_LOG_FILE, WATCH_LOG_FILE
+        from core.config import BANGUMI_WATCH_LOG_FILE, DYNAMIC_LOG_FILE, VIDEO_MEMORY_FILE, WATCH_LOG_FILE
         rows: list[dict[str, Any]] = []
-        sources = ((WATCH_LOG_FILE, "watch", "bvid"), (BANGUMI_WATCH_LOG_FILE, "bangumi", "episode_id"), (DYNAMIC_LOG_FILE, "dynamic", "dynamic_id"))
+        # video_memory holds the long `analysis` text; watch_log holds the score and
+        # the interactions.  Both describe the same bvid, so they are merged below
+        # rather than surfaced as two signals for one video.
+        sources = ((WATCH_LOG_FILE, "watch", "bvid"), (VIDEO_MEMORY_FILE, "watch", "bvid"), (BANGUMI_WATCH_LOG_FILE, "bangumi", "episode_id"), (DYNAMIC_LOG_FILE, "dynamic", "dynamic_id"))
         for path, source, ref_key in sources:
             data = _read_json(path, [])
             if isinstance(data, dict): data = list(data.values())
@@ -121,9 +124,52 @@ class BiliBotExtensionHostAPI:
                 if not isinstance(item, dict): continue
                 title = str(item.get("title") or item.get("video_title") or item.get("season_title") or item.get("summary") or item.get("text") or "").strip()
                 if not title: continue
-                rows.append({"title": title[:240], "summary": str(item.get("summary") or item.get("review") or item.get("reason") or "")[:600], "source": f"bilibot-{source}", "source_ref": str(item.get(ref_key) or item.get("bvid") or item.get("id") or ""), "tags": [str(v)[:40] for v in list(item.get("tags") or [])[:12]], "heat_score": float(item.get("score") or 0), "captured_at": str(item.get("time") or item.get("created_at") or "")})
-        rows.sort(key=lambda item: item.get("captured_at", ""), reverse=True)
-        return rows[:max(1, min(int(limit or 20), 100))]
+                rows.append({
+                    "title": title[:240],
+                    "summary": str(item.get("summary") or item.get("analysis") or item.get("review") or item.get("reason") or "")[:600],
+                    "source": f"bilibot-{source}",
+                    "source_ref": str(item.get(ref_key) or item.get("bvid") or item.get("id") or ""),
+                    "tags": [str(v)[:40] for v in list(item.get("tags") or [])[:12]],
+                    "heat_score": float(item.get("score") or 0),
+                    "captured_at": str(item.get("time") or item.get("created_at") or ""),
+                    # A browsing pass already scored the video and wrote down what it
+                    # thought; passing only the summary made extensions re-watch to
+                    # recover judgement this side had produced and thrown away.
+                    "score": float(item.get("score") or 0),
+                    "mood": str(item.get("mood") or "")[:40],
+                    "review": str(item.get("review") or "")[:320],
+                    "up_name": str(item.get("up_name") or "")[:120],
+                    "up_mid": str(item.get("up_mid") or ""),
+                    "tname": str(item.get("tname") or "")[:80],
+                    "pic": str(item.get("pic") or "")[:400],
+                    # The score drives real interactions (点赞 6 / 评论 7 / 投币 8 /
+                    # 收藏 8 / 关注 9). Spending a coin or a favourite slot is a scarce
+                    # commitment, so this says more about interest than the score.
+                    "actions": [str(v)[:40] for v in list(item.get("actions") or [])[:12]],
+                })
+        merged: dict[str, dict[str, Any]] = {}
+        loose: list[dict[str, Any]] = []
+        for row in rows:
+            ref = row.get("source_ref") or ""
+            if not ref:
+                loose.append(row)
+                continue
+            current = merged.get(ref)
+            if current is None:
+                merged[ref] = row
+                continue
+            # Keep whichever field is actually populated: neither source has all of
+            # them, and an empty string must never overwrite real content.
+            for key, value in row.items():
+                if value in (None, "", [], 0.0) or key == "source_ref":
+                    continue
+                if current.get(key) in (None, "", [], 0.0):
+                    current[key] = value
+                elif key == "summary" and len(str(value)) > len(str(current[key])):
+                    current[key] = value
+        combined = list(merged.values()) + loose
+        combined.sort(key=lambda item: item.get("captured_at", ""), reverse=True)
+        return combined[:max(1, min(int(limit or 20), 100))]
 
     def list_creator_opportunities(self, *, limit: int = 20) -> list[dict[str, Any]]:
         self._grant.require("opportunities.read")
