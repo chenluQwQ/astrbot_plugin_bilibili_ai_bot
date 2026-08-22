@@ -31,6 +31,8 @@
     "memory.creator.read",
     "memory.creator.write",
     "activity.write",
+    "opportunities.read",
+    "analytics.video.read",
     "actions.video.upload",
     "actions.video.publish",
     "storage.extension.read",

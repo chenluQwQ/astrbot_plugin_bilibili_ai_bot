@@ -24,6 +24,14 @@ ALLOWED_COMPONENT_TYPES = frozenset({
     "creator-insights",
     "creator-host-status",
     "creator-connector-grid",
+    "creator-production-timeline",
+    "creator-signal-board",
+    "creator-asset-library",
+    "creator-workspace",
+    "creator-opportunity-board",
+    "creator-approval-center",
+    "creator-permission-matrix",
+    "creator-proposal-list",
 })
 
 
