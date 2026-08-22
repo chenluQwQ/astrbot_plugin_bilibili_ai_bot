@@ -432,6 +432,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
 
     async def terminate(self):
         await self._stop_bot()
+        extension_registry = getattr(self, "_bilibot_extension_registry", None)
+        if extension_registry is not None:
+            try:
+                await extension_registry.close()
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 扩展 Host 关闭异常: {exc}")
         try:
             await self.event_runtime.close()
         except Exception as exc:
