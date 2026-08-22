@@ -49,6 +49,13 @@ const state = {
   qrPollTimer: null,
   pageToken: 0,
   isSaving: false,
+  mode: "host",
+  hostPage: "overview",
+  extensions: [],
+  activeExtensionId: null,
+  extensionPage: "dashboard",
+  extensionSchema: null,
+  extensionLoading: false,
 };
 
 const NAV_ITEMS = [
@@ -341,6 +348,66 @@ function buildMock() {
 
 const mock = buildMock();
 
+function mockCreatorManifest() {
+  return {
+    type: "bilibot-extension", id: "creator", name: "AI 创作中心", short_name: "Creator",
+    description: "从内容感知、灵感、创作到投稿复盘的一体化 AI UP 主工作台", version: "0.2.0",
+    extension_api: 1, enabled: true,
+    presentation: { mode: "immersive", accent: "#d7ff45", surface: "#080b12", switch_label: "进入 Creator", return_label: "返回 BiliBot" },
+    navigation: [
+      ["dashboard", "house", "创作总览", "灵感、项目和今日创作脉搏"],
+      ["ideas", "lightning", "灵感雷达", "热点、观看记录与选题候选"],
+      ["projects", "video", "项目宇宙", "脚本、素材、进度和版本"],
+      ["studio", "controller", "创作工坊", "工作流、生成任务和预览"],
+      ["insights", "trophy", "数据回声", "投稿表现、复盘和风格规则"],
+      ["connections", "settings", "连接与能力", "Host、FFmpeg 与外部工具流"],
+    ].map(([page, iconName, title, description], index) => ({ page, icon: iconName, title, description, order: (index + 1) * 10 })),
+  };
+}
+
+const mockCreatorData = {
+  ideas: [
+    { id: "idea_01", title: "把深海探索热度变成 60 秒视觉短片", summary: "从未知感切入，用三段式叙事连接真实资料与生成画面。", source: "watching", format: "short", tags: ["深海", "科普", "短片"], trend_score: 86, channel_fit_score: 91, copyright_status: "review", status: "inbox" },
+    { id: "idea_02", title: "本周新番镜头语言观察", summary: "不是剧情复述，而是拆解三个让观众停留的镜头设计。", source: "bangumi", format: "essay", tags: ["番剧", "二创"], trend_score: 72, channel_fit_score: 84, copyright_status: "unknown", status: "inbox" },
+    { id: "idea_03", title: "旧建筑修复 ASMR 切片", summary: "保留材料声音与手部细节，减少旁白，建立舒缓风格实验。", source: "trend", format: "clip", tags: ["修复", "ASMR"], trend_score: 68, channel_fit_score: 77, copyright_status: "clear", status: "reviewing" },
+  ],
+  projects: [
+    { id: "project_01", title: "深海来信 / EP.01", description: "AI 影像与真实深海资料交叉的竖屏短片。", status: "producing", progress: 58, content_type: "short", tags: ["AI短片", "深海"], updated_at: "刚刚" },
+    { id: "project_02", title: "镜头为什么让人停下来", description: "本周番剧镜头语言二创分析。", status: "planning", progress: 18, content_type: "essay", tags: ["番剧", "镜头"], updated_at: "12 分钟前" },
+    { id: "project_03", title: "修复声音样本集", description: "为后续 ASMR 系列建立声音和画面模板。", status: "reviewing", progress: 76, content_type: "clip", tags: ["ASMR"], updated_at: "昨天" },
+  ],
+  runs: [
+    { id: "run_01", project_id: "project_01", workflow: "short-video-foundation", status: "running", progress: 58, current_step: "生成转场与字幕节奏" },
+    { id: "run_02", project_id: "project_03", workflow: "audio-cleanup", status: "succeeded", progress: 100, current_step: "已生成预览" },
+  ],
+  connectors: [
+    { id: "builtin.ffmpeg", name: "FFmpeg Core", kind: "builtin", enabled: true, configured: true, state: "ready", capabilities: ["media.trim", "media.concat", "media.subtitle_burn"] },
+    { id: "builtin.storyboard", name: "Story Engine", kind: "builtin", enabled: true, configured: true, state: "ready", capabilities: ["script.plan", "storyboard.plan"] },
+    { id: "external.workflow", name: "External Workflow", kind: "remote", enabled: false, configured: false, state: "disabled", capabilities: ["video.generate", "template.render"] },
+  ],
+};
+
+function mockCreatorPage(pageId = "dashboard") {
+  const d = mockCreatorData;
+  const intro = (number, title, description, action = null) => ({ type: "creator-page-intro", number, title, description, ...(action ? { action } : {}) });
+  const pages = {
+    dashboard: {
+      title: "让观看成为下一次创作", kicker: "BILIBOT / CREATOR MODE", components: [
+        { type: "creator-hero", eyebrow: "AUTONOMOUS CREATIVE SYSTEM · 0.2", title: "捕捉正在发生的，\n制作尚未出现的。", description: "BiliBot 负责观察世界，Creator 把观看、热点与记忆变成可执行的视频项目。", primary_action: { id: "create-idea", label: "记录一个想法" }, secondary_target: "studio", secondary_label: "打开创作工坊", signal: { label: "HOST SIGNAL", value: "CONNECTED", detail: "BiliBot 1.5.0 · 安全只读连接" }, metrics: [{ label: "IDEAS", value: d.ideas.length }, { label: "ACTIVE", value: 3 }, { label: "RUNS", value: d.runs.length }] },
+        { type: "creator-pipeline", items: [{ label: "感知", detail: "观看 / 热点", state: "active" }, { label: "思考", detail: "灵感 / 选题", state: "ready" }, { label: "制作", detail: "脚本 / 画面 / 剪辑", state: "working" }, { label: "发布", detail: "审核 / 投稿", state: "guarded" }, { label: "进化", detail: "数据 / 复盘 / 风格", state: "waiting" }] },
+        { type: "creator-idea-list", title: "灵感雷达", subtitle: "从观看与趋势中留下真正值得做的部分", items: d.ideas, empty: "暂无灵感", action: { id: "create-idea", label: "手动记录" } },
+        { type: "creator-project-grid", title: "正在形成", subtitle: "项目不是文件夹，而是一段可追踪的创作生命", items: d.projects, empty: "暂无项目", target: "projects" },
+      ],
+    },
+    ideas: { title: "把偶然看到的，变成有方向的", kicker: "SIGNAL / IDEA RADAR", components: [intro("01", "灵感雷达", "汇集主动观看、热门、番剧、关注更新与人工记录。先保留证据，再决定要不要创作。", { id: "create-idea", label: "记录灵感" }), { type: "creator-idea-board", items: d.ideas, empty: "暂无灵感" }] },
+    projects: { title: "创作不是一次生成，而是一连串决定", kicker: "PROJECT CONSTELLATION", components: [intro("02", "项目宇宙", "让脚本、素材、工作流、版本、投稿和复盘围绕同一个项目持续演进。", { id: "create-project", label: "新建项目" }), { type: "creator-project-grid", items: d.projects, empty: "还没有项目", expanded: true }] },
+    studio: { title: "让工具成为乐器，而不是新的孤岛", kicker: "CREATIVE WORKBENCH", components: [intro("03", "创作工坊", "FFmpeg 负责确定性加工，外部生成服务通过统一 Connector 加入；Creator 始终保存项目状态。"), { type: "creator-studio", projects: d.projects, runs: d.runs, connectors: d.connectors, stages: [{ label: "脚本", capability: "script.plan", state: "ready" }, { label: "分镜", capability: "storyboard.plan", state: "ready" }, { label: "生成", capability: "video.generate", state: "external" }, { label: "剪辑", capability: "media.trim", state: "ready" }, { label: "包装", capability: "media.subtitle_burn", state: "ready" }, { label: "审核", capability: "submission.validate", state: "guarded" }] }] },
+    insights: { title: "让每一次发布都留下可验证的认知", kicker: "METRICS / RETROSPECTIVE", components: [intro("04", "数据回声", "计划在发布后 1h、6h、24h、72h、7d 保存快照，对照历史基线形成复盘，而不是追逐单一播放量。"), { type: "creator-insights", submissions: [], schedule: ["1H", "6H", "24H", "72H", "7D"], rules: [], empty: "完成首次发布后，这里会出现指标时间线、评论主题和待验证风格规则。" }] },
+    connections: { title: "连接能力，但不交出边界", kicker: "HOST / CONNECTOR MATRIX", components: [intro("05", "连接与能力", "所有 Host 和外部工具都来自管理员配置。Creator 不读取主插件 Cookie，也不让外部工具直接执行 B 站写操作。", { id: "refresh-host", label: "刷新连接" }), { type: "creator-host-status", host: { bound: true, status: "online", host_version: "1.5.0", extension_api: 1, services: { "bilibili.account": [1], "memory.creator": [1] }, granted_permissions: ["account.identity.read", "memory.creator.read", "storage.extension.read", "storage.extension.write"], account: { logged_in: true, uid: "10001", name: "" } } }, { type: "creator-connector-grid", items: d.connectors }] },
+  };
+  return { schema: "bilibot-schema-v1", page: pageId, ...(pages[pageId] || pages.dashboard) };
+}
+
 function regenerateMockSchedule() {
   const cfg = mock.config;
   const activity = clamp(num(cfg.AUTONOMOUS_ACTIVITY_LEVEL, 55), 0, 100);
@@ -407,6 +474,8 @@ async function apiGet(path, query = {}) {
     const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "profiles": mock.profiles, "interest/status": mock.interest, "security/stats": mock.security, "tools/available": mock.availableTools, "cache/stats": mock.cache };
     if (path === "account/qr/generate") return { image: "", key: "preview", expires_in: 180 };
     if (path === "account/qr/poll") return { status: "waiting", message: "预览模式不连接真实账号" };
+    if (path === "extensions") return [mockCreatorManifest()];
+    if (path === "extensions/page") return { request_id: "preview-page", ok: true, data: { page: mockCreatorPage(query.page_id || "dashboard") }, error: null };
     return structuredClone(map[path] || {});
   }
   return unwrap(await bridge.apiGet(path, query));
@@ -430,6 +499,29 @@ async function apiPost(path, body = {}) {
       Object.entries(mock.cache.buckets || {}).forEach(([key, item]) => { if (deep || key !== "qr") item.bytes = 0; });
       mock.cache.total_bytes = Object.values(mock.cache.buckets || {}).reduce((sum, item) => sum + num(item.bytes), 0);
       return { mode: deep ? "deep" : "normal", removed_bytes: removedBytes, total_bytes: mock.cache.total_bytes };
+    }
+    if (path === "extensions/refresh") return [mockCreatorManifest()];
+    if (path === "extensions/action") {
+      const action = body.action_id;
+      const payload = body.payload || {};
+      let data = { accepted: true };
+      if (action === "create-idea") {
+        const idea = { id: `idea_${Date.now()}`, title: payload.title || "新灵感", summary: payload.angle || payload.summary || "等待补充创作角度", source: "manual", format: payload.format || "short", tags: String(payload.tags || "").split(",").map((item) => item.trim()).filter(Boolean), trend_score: 0, channel_fit_score: 0, copyright_status: "unknown", status: "inbox" };
+        mockCreatorData.ideas.unshift(idea); data = { idea };
+      } else if (action === "create-project") {
+        const project = { id: `project_${Date.now()}`, title: payload.title || "新项目", description: payload.description || "", status: "planning", progress: 8, content_type: payload.content_type || "short", tags: String(payload.tags || "").split(",").map((item) => item.trim()).filter(Boolean), updated_at: "刚刚" };
+        mockCreatorData.projects.unshift(project); data = { project };
+      } else if (action === "promote-idea") {
+        const idea = mockCreatorData.ideas.find((item) => item.id === payload.idea_id);
+        const project = { id: `project_${Date.now()}`, title: idea?.title || "灵感项目", description: idea?.summary || "", status: "planning", progress: 8, content_type: idea?.format || "short", tags: idea?.tags || [], updated_at: "刚刚" };
+        mockCreatorData.projects.unshift(project); data = { project };
+      } else if (action === "run-workflow") {
+        const run = { id: `run_${Date.now()}`, project_id: payload.project_id, workflow: payload.workflow || "short-video-foundation", status: "queued", progress: 0, current_step: "等待执行" };
+        mockCreatorData.runs.unshift(run); data = { run };
+      } else if (action === "request-upload" || action === "request-publish") {
+        return { request_id: "preview-action", ok: false, data: {}, error: { code: "permission_denied", message: "Extension API v1 默认不授予上传与发布权限" } };
+      }
+      return { request_id: "preview-action", ok: true, data, error: null };
     }
     return { saved: Object.keys(body) };
   }
@@ -457,14 +549,44 @@ function toast(title, message = "", type = "success") {
   setTimeout(() => node.remove(), 4200);
 }
 
+function activeExtension() {
+  return state.extensions.find((item) => item.id === state.activeExtensionId) || null;
+}
+
 function renderSidebar() {
+  if (state.mode === "extension" && activeExtension()) {
+    const extension = activeExtension();
+    const nav = [...(extension.navigation || [])].sort((a, b) => num(a.order) - num(b.order));
+    sidebar.className = "sidebar creator-sidebar";
+    sidebar.setAttribute("aria-label", `${extension.name || "Creator"} 导航`);
+    sidebar.innerHTML = `
+      <div class="creator-brand-lockup">
+        <button class="creator-return" data-leave-extension type="button" aria-label="${esc(extension.presentation?.return_label || "返回 BiliBot")}">${icon("arrow-left")}</button>
+        <div class="creator-brand-type"><span>BILIBOT /</span><strong>${esc(extension.short_name || extension.name || "CREATOR")}</strong><small>CREATIVE OPERATING SYSTEM</small></div>
+      </div>
+      <div class="creator-live-signal"><i></i><span><b>HOST LINK</b>安全连接已建立</span><em>API 01</em></div>
+      <div class="creator-nav-label">WORKSPACE</div>
+      <nav class="creator-nav-list">${nav.map((item, index) => `
+        <button class="creator-nav-item ${state.extensionPage === item.page ? "is-active" : ""}" data-extension-page="${esc(item.page)}" type="button" title="${esc(item.description || item.title)}" aria-current="${state.extensionPage === item.page ? "page" : "false"}">
+          <span class="creator-nav-index">0${index + 1}</span>${icon(item.icon || "star", "creator-nav-icon")}<span><b>${esc(item.title)}</b><small>${esc(item.description || "")}</small></span>
+        </button>`).join("")}</nav>
+      <div class="creator-sidebar-foot"><span>ISOLATED EXTENSION</span><p>不共享 Cookie · 不注入代码</p></div>`;
+    sidebar.querySelector("[data-leave-extension]")?.addEventListener("click", leaveExtension);
+    sidebar.querySelectorAll("[data-extension-page]").forEach((button) => button.addEventListener("click", () => navigateExtension(button.dataset.extensionPage)));
+    return;
+  }
+
+  sidebar.className = "sidebar";
+  sidebar.setAttribute("aria-label", "BiliBot 主导航");
   const running = state.stats.running !== false;
   const accountReady = state.stats.account_connected || state.account?.logged_in;
+  const creator = state.extensions.find((item) => item.enabled !== false);
   sidebar.innerHTML = `
     <div class="sidebar-brand">
       <div class="brand-mark"><img src="${esc(brandLogoUrl)}" alt="BiliBot" /></div>
       <div class="brand-copy"><strong>BiliBot</strong><span>控制中心</span></div>
     </div>
+    ${creator ? `<button class="creator-mode-switch" data-enter-extension="${esc(creator.id)}" type="button" aria-label="${esc(creator.presentation?.switch_label || `进入 ${creator.name}`)}"><span class="creator-switch-mark">${icon("star")}</span><span><b>${esc(creator.presentation?.switch_label || "进入 Creator")}</b><small>独立创作工作台</small></span>${icon("arrow-right")}</button>` : ""}
     <div class="sidebar-state" aria-label="服务状态">
       <span class="status-dot ${running ? "is-online" : ""}"></span>
       <div><strong>${running ? "服务运行中" : "服务未运行"}</strong><span>${accountReady ? "账号链路已配置" : "等待连接账号"}</span></div>
@@ -475,9 +597,15 @@ function renderSidebar() {
         ${icon(iconName, "nav-icon")}<span>${esc(label)}</span>${id === "basics" && state.dirtyKeys.size ? `<b class="nav-badge">${state.dirtyKeys.size}</b>` : ""}
       </button>`).join("")}</nav>`;
   sidebar.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.page)));
+  sidebar.querySelector("[data-enter-extension]")?.addEventListener("click", () => enterExtension(creator.id));
 }
 
 function updateSaveDock() {
+  if (state.mode === "extension") {
+    saveDock.classList.remove("is-visible");
+    saveDock.innerHTML = "";
+    return;
+  }
   const pendingChanges = state.dirtyKeys.size + (state.scheduleDirty ? 1 : 0);
   if (!pendingChanges && !state.isSaving) {
     saveDock.classList.remove("is-visible");
@@ -510,12 +638,16 @@ function openMobileNav() {
 
 async function loadBase() {
   if (!isPreview && bridge?.ready) await bridge.ready();
-  const [schema, config, stats, persona] = await Promise.all([apiGet("config/schema"), apiGet("config"), apiGet("stats"), apiGet("persona/state")]);
+  const [schema, config, stats, persona, extensions] = await Promise.all([
+    apiGet("config/schema"), apiGet("config"), apiGet("stats"), apiGet("persona/state"),
+    apiGet("extensions").catch(() => []),
+  ]);
   state.schema = schema || {};
   state.config = config || {};
   state.draft = structuredClone(state.config);
   state.stats = stats || {};
   state.persona = persona || {};
+  state.extensions = Array.isArray(extensions) ? extensions.filter((item) => item && item.enabled !== false) : [];
   await refreshPageData("overview");
   renderSidebar();
 }
@@ -590,9 +722,90 @@ async function navigate(page) {
   }
 }
 
+function setVisualMode(mode) {
+  const creator = mode === "extension";
+  state.mode = creator ? "extension" : "host";
+  app.classList.toggle("creator-mode", creator);
+  document.body.classList.toggle("creator-mode", creator);
+  document.documentElement.dataset.theme = creator ? "creator" : "light";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", creator ? "#080b12" : "#f6f8fc");
+  const mobileBrand = document.querySelector(".mobile-brand span");
+  if (mobileBrand) mobileBrand.textContent = creator ? "BiliBot / Creator" : "BiliBot";
+}
+
+async function enterExtension(extensionId) {
+  const extension = state.extensions.find((item) => item.id === extensionId);
+  if (!extension) return;
+  state.hostPage = state.currentPage;
+  state.activeExtensionId = extensionId;
+  state.extensionPage = extension.navigation?.[0]?.page || "dashboard";
+  setVisualMode("extension");
+  updateSaveDock();
+  renderSidebar();
+  closeMobileNav();
+  await loadExtensionPage(extensionId, state.extensionPage, true);
+}
+
+function leaveExtension() {
+  state.activeExtensionId = null;
+  state.extensionSchema = null;
+  setVisualMode("host");
+  state.currentPage = state.hostPage || state.currentPage || "overview";
+  renderSidebar();
+  renderCurrentPage();
+  updateSaveDock();
+  closeMobileNav();
+}
+
+async function navigateExtension(pageId) {
+  const extension = activeExtension();
+  if (!extension || !extension.navigation?.some((item) => item.page === pageId)) return;
+  if (pageId === state.extensionPage && state.extensionSchema && !content.querySelector(".error-state")) return;
+  state.extensionPage = pageId;
+  renderSidebar();
+  closeMobileNav();
+  await loadExtensionPage(extension.id, pageId);
+}
+
+async function loadExtensionPage(extensionId, pageId, entering = false) {
+  const token = ++state.pageToken;
+  state.extensionLoading = true;
+  content.setAttribute("aria-busy", "true");
+  content.classList.add("page-exit");
+  if (entering) content.innerHTML = `<section class="creator-loading"><span>CREATOR MODE</span><strong>正在建立创作工作台</strong><i></i></section>`;
+  try {
+    const [response] = await Promise.all([apiGet("extensions/page", { extension_id: extensionId, page_id: pageId }), sleep(entering ? 260 : 120)]);
+    if (token !== state.pageToken || state.mode !== "extension") return;
+    if (!response?.ok) throw new Error(response?.error?.message || "扩展页面返回失败");
+    state.extensionSchema = response.data?.page || null;
+    content.innerHTML = renderExtensionPage(state.extensionSchema);
+    content.classList.remove("page-exit");
+    content.classList.add("page-enter");
+    bindCreatorContent();
+    requestAnimationFrame(() => requestAnimationFrame(() => content.classList.remove("page-enter")));
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    requestAnimationFrame(() => content.focus({ preventScroll: true }));
+  } catch (error) {
+    if (token !== state.pageToken) return;
+    content.innerHTML = renderCreatorError(error.message || "扩展页面暂时不可用");
+    content.classList.remove("page-exit");
+    bindCreatorContent();
+  } finally {
+    if (token === state.pageToken) {
+      state.extensionLoading = false;
+      content.removeAttribute("aria-busy");
+    }
+  }
+}
+
 function renderCurrentPage() {
-  content.innerHTML = renderPage(state.currentPage);
-  bindContent();
+  if (state.mode === "extension") {
+    content.innerHTML = state.extensionSchema ? renderExtensionPage(state.extensionSchema) : renderCreatorError("Creator 页面尚未加载");
+    bindCreatorContent();
+  } else {
+    content.innerHTML = renderPage(state.currentPage);
+    bindContent();
+  }
   requestAnimationFrame(() => content.focus({ preventScroll: true }));
 }
 
@@ -710,6 +923,207 @@ function renderConfigSection(title, subtitle, keys, iconName = "settings", extra
 
 function renderErrorState(title, message) {
   return `<section class="card error-state">${icon("shield")}<h2>${esc(title)}</h2><p>${esc(message)}</p>${button("重新读取", "refresh", "refresh", "primary")}</section>`;
+}
+
+const CREATOR_STATUS = {
+  planning: ["规划中", "planning"], producing: ["制作中", "working"], reviewing: ["审核中", "review"],
+  ready: ["待投稿", "ready"], awaiting_approval: ["待批准", "guarded"], published: ["已发布", "done"],
+  running: ["运行中", "working"], queued: ["排队中", "planning"], succeeded: ["已完成", "done"],
+  failed: ["失败", "danger"], inbox: ["候选", "planning"], converted_to_project: ["已推进", "done"],
+};
+
+const CREATOR_CONNECTOR_STATUS = {
+  ready: ["可用", "done"], disabled: ["关闭", "neutral"], external: ["外部", "working"],
+  guarded: ["受保护", "guarded"], waiting: ["等待", "neutral"],
+};
+
+function creatorStatus(value, context = "content") {
+  const source = context === "connector" ? CREATOR_CONNECTOR_STATUS : CREATOR_STATUS;
+  const [label, tone] = source[value] || [String(value || "未知"), "neutral"];
+  return `<span class="creator-status tone-${esc(tone)}"><i></i>${esc(label)}</span>`;
+}
+
+function creatorTags(tags = []) {
+  return `<div class="creator-tags">${(Array.isArray(tags) ? tags : []).slice(0, 5).map((tag) => `<span>${esc(tag)}</span>`).join("")}</div>`;
+}
+
+function creatorAction(action, label, iconName = "arrow-right", style = "") {
+  if (!action?.id) return "";
+  return `<button class="creator-action ${style}" data-extension-action="${esc(action.id)}" type="button">${esc(label || action.label || action.id)}${icon(iconName)}</button>`;
+}
+
+function renderCreatorHero(component) {
+  const metrics = component.metrics || [];
+  return `<section class="creator-hero">
+    <div class="creator-hero-copy">
+      <span class="creator-overline">${esc(component.eyebrow || "CREATOR MODE")}</span>
+      <h1>${esc(component.title || "Creator").replace(/\n/g, "<br>")}</h1>
+      <p>${esc(component.description || "")}</p>
+      <div class="creator-hero-actions">${creatorAction(component.primary_action, component.primary_action?.label, "arrow-right", "is-primary")}${component.secondary_target ? `<button class="creator-action is-ghost" data-extension-target="${esc(component.secondary_target)}" type="button">${esc(component.secondary_label || "继续")}${icon("arrow-right")}</button>` : ""}</div>
+      <div class="creator-metric-strip">${metrics.map((item) => `<div><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong></div>`).join("")}</div>
+    </div>
+    <div class="creator-visual" aria-hidden="true">
+      <div class="creator-orbit orbit-a"><i></i><span>OBSERVE</span></div>
+      <div class="creator-orbit orbit-b"><i></i><span>CREATE</span></div>
+      <div class="creator-orbit orbit-c"><i></i><span>EVOLVE</span></div>
+      <div class="creator-core"><span>AI</span><strong>∞</strong><small>CREATIVE LOOP</small></div>
+      <div class="creator-signal-card"><span>${esc(component.signal?.label || "HOST SIGNAL")}</span><strong>${esc(component.signal?.value || "WAITING")}</strong><small>${esc(component.signal?.detail || "等待 Host")}</small></div>
+    </div>
+  </section>`;
+}
+
+function renderCreatorPipeline(component) {
+  const steps = component.items || component.steps || [];
+  return `<section class="creator-pipeline" aria-label="创作闭环">${steps.map((item, index) => `<article class="is-${esc(item.state || "waiting")}"><span>${String(item.index || index + 1).padStart(2, "0")}</span><div><strong>${esc(item.label)}</strong><small>${esc(item.detail)}</small></div>${index < steps.length - 1 ? `<i>${icon("arrow-right")}</i>` : ""}</article>`).join("")}</section>`;
+}
+
+function renderCreatorIdeas(component, board = false) {
+  const items = component.items || [];
+  return `<section class="creator-section ${board ? "creator-idea-board" : "creator-idea-list"}">
+    ${component.title ? `<header class="creator-section-head"><div><span>LIVE SIGNALS</span><h2>${esc(component.title)}</h2><p>${esc(component.subtitle || "")}</p></div>${creatorAction(component.action, component.action?.label, "arrow-right")}</header>` : ""}
+    <div class="creator-idea-grid">${items.length ? items.map((item, index) => `<article class="creator-idea-card" style="--delay:${index * 55}ms">
+      <div class="creator-card-top"><span class="creator-card-index">${String(index + 1).padStart(2, "0")}</span>${creatorStatus(item.status)}</div>
+      <span class="creator-source">${esc(String(item.source || "manual").toUpperCase())} / ${esc(String(item.format || "short").toUpperCase())}</span>
+      <h3>${esc(item.title)}</h3><p>${esc(item.summary || "等待补充创作角度")}</p>
+      <div class="creator-score-row"><span>趋势 <b>${num(item.trend_score)}</b></span><span>频道匹配 <b>${num(item.channel_fit_score)}</b></span><span>版权 <b>${esc(item.copyright_status || "unknown")}</b></span></div>
+      ${creatorTags(item.tags)}
+      <button class="creator-inline-action" data-extension-action="promote-idea" data-idea-id="${esc(item.id)}" type="button">推进为项目${icon("arrow-right")}</button>
+    </article>`).join("") : `<div class="creator-empty">${icon("lightning")}<strong>${esc(component.empty || "暂无灵感")}</strong><button data-extension-action="create-idea" type="button">记录第一条灵感</button></div>`}</div>
+  </section>`;
+}
+
+function renderCreatorProjects(component) {
+  const items = component.items || [];
+  return `<section class="creator-section creator-projects">
+    ${component.title ? `<header class="creator-section-head"><div><span>PROJECT PULSE</span><h2>${esc(component.title)}</h2><p>${esc(component.subtitle || "")}</p></div>${component.target ? `<button class="creator-action" data-extension-target="${esc(component.target)}" type="button">查看全部${icon("arrow-right")}</button>` : ""}</header>` : ""}
+    <div class="creator-project-grid">${items.length ? items.map((item, index) => `<article class="creator-project-card ${component.expanded ? "is-expanded" : ""}" style="--delay:${index * 60}ms">
+      <div class="creator-project-head"><span>${esc(String(item.content_type || "short").toUpperCase())}</span>${creatorStatus(item.status)}</div>
+      <h3>${esc(item.title)}</h3><p>${esc(item.description || "等待补充创作说明")}</p>${creatorTags(item.tags)}
+      <div class="creator-progress"><div><span>CREATIVE PROGRESS</span><b>${clamp(num(item.progress), 0, 100)}%</b></div><i><em style="width:${clamp(num(item.progress), 0, 100)}%"></em></i></div>
+      <footer><small>${esc(item.updated_at || "")}</small><button data-extension-action="run-workflow" data-project-id="${esc(item.id)}" type="button" aria-label="为 ${esc(item.title)} 运行工作流">${icon("play")}</button></footer>
+    </article>`).join("") : `<div class="creator-empty">${icon("video")}<strong>${esc(component.empty || "暂无项目")}</strong><button data-extension-action="create-project" type="button">创建项目</button></div>`}</div>
+  </section>`;
+}
+
+function renderCreatorIntro(component) {
+  return `<header class="creator-page-intro"><span class="creator-page-number">${esc(component.number || "00")}</span><div><span>CREATOR WORKSPACE</span><h1>${esc(component.title)}</h1><p>${esc(component.description || "")}</p></div>${creatorAction(component.action, component.action?.label, "arrow-right", "is-primary")}</header>`;
+}
+
+function renderCreatorStudio(component) {
+  const projects = component.projects || [];
+  const runs = component.runs || [];
+  return `<section class="creator-studio">
+    <div class="creator-studio-map"><span class="creator-map-label">PIPELINE / CAPABILITY MAP</span><div>${(component.stages || []).map((stage, index) => `<article class="is-${esc(stage.state || "waiting")}"><span>0${index + 1}</span><strong>${esc(stage.label)}</strong><small>${esc(stage.capability)}</small></article>`).join("")}</div></div>
+    <div class="creator-studio-columns"><section><header><span>PROJECT INPUT</span><h2>选择创作载体</h2></header>${projects.map((item) => `<button class="creator-studio-project" data-extension-action="run-workflow" data-project-id="${esc(item.id)}" type="button"><span>${icon("video")}</span><div><strong>${esc(item.title)}</strong><small>${esc(item.content_type)} · ${num(item.progress)}%</small></div>${icon("play")}</button>`).join("") || `<p class="creator-empty-line">先创建一个项目</p>`}</section>
+    <section><header><span>WORKFLOW RUNS</span><h2>正在发生</h2></header>${runs.map((run) => `<article class="creator-run"><div><span>${esc(run.workflow || "workflow")}</span>${creatorStatus(run.status)}</div><strong>${esc(run.current_step || "等待执行")}</strong><i><em style="width:${clamp(num(run.progress), 0, 100)}%"></em></i></article>`).join("") || `<p class="creator-empty-line">暂无运行任务</p>`}</section></div>
+  </section>`;
+}
+
+function renderCreatorInsights(component) {
+  const schedule = component.schedule || [];
+  return `<section class="creator-insights"><div class="creator-echo-visual" aria-hidden="true"><div class="echo-rings"></div><span>FEEDBACK</span><strong>→</strong><em>STYLE</em></div><div class="creator-insights-copy"><span>POST-PUBLISH LEARNING LOOP</span><h2>数据不是终点，<br>是下一次创作的材料。</h2><p>${esc(component.empty || "等待数据")}</p><div class="creator-snapshot-schedule">${schedule.map((item, index) => `<span class="${index === 0 ? "is-active" : ""}">${esc(item)}</span>`).join("")}</div><div class="creator-rule-placeholder"><b>STYLE RULES</b><span>当样本足够时，这里只保存可验证、可撤销的风格假设。</span></div></div></section>`;
+}
+
+function renderCreatorHost(component) {
+  const host = component.host || {};
+  const permissions = host.granted_permissions || [];
+  return `<section class="creator-host-matrix"><div class="creator-host-primary"><span class="creator-host-pulse ${host.bound ? "is-online" : ""}"><i></i></span><div><span>BILIBOT HOST</span><h2>${host.bound ? "已安全连接" : "等待连接"}</h2><p>Host ${esc(host.host_version || "—")} · Extension API ${esc(host.extension_api || "—")}</p></div><strong>${host.bound ? "ONLINE" : "OFFLINE"}</strong></div><div class="creator-host-facts"><article><span>ACCOUNT</span><b>${host.account?.logged_in ? "CONNECTED" : "NOT CONNECTED"}</b><small>仅共享 UID 与登录状态，不共享 Cookie</small></article><article><span>SERVICES</span><b>${Object.keys(host.services || {}).length}</b><small>${esc(Object.keys(host.services || {}).join(" · ") || "暂无能力")}</small></article><article><span>GRANTS</span><b>${permissions.length}</b><small>${esc(permissions.join(" · ") || "无")}</small></article></div></section>`;
+}
+
+function renderCreatorConnectors(component) {
+  return `<section class="creator-section"><header class="creator-section-head"><div><span>TOOL ORCHESTRATION</span><h2>连接器矩阵</h2><p>外部工具只接收明确的任务输入，发布能力始终留在 Host 边界内。</p></div></header><div class="creator-connector-grid">${(component.items || []).map((item) => `<article class="creator-connector-card ${item.enabled ? "is-ready" : "is-disabled"}"><div><span>${item.kind === "builtin" ? "LOCAL" : "REMOTE"}</span>${creatorStatus(item.state, "connector")}</div><h3>${esc(item.name)}</h3><p>${item.configured ? "能力已配置，可由工作流显式调用。" : "等待管理员在 Creator 插件外部配置中接入。"}</p>${creatorTags(item.capabilities)}<footer><b>${item.enabled ? "AVAILABLE" : "DISABLED"}</b><span>${esc(item.id)}</span></footer></article>`).join("")}</div></section>`;
+}
+
+function renderExtensionComponent(component) {
+  const renderers = {
+    "creator-hero": renderCreatorHero,
+    "creator-pipeline": renderCreatorPipeline,
+    "creator-idea-list": (item) => renderCreatorIdeas(item, false),
+    "creator-idea-board": (item) => renderCreatorIdeas(item, true),
+    "creator-project-grid": renderCreatorProjects,
+    "creator-page-intro": renderCreatorIntro,
+    "creator-studio": renderCreatorStudio,
+    "creator-insights": renderCreatorInsights,
+    "creator-host-status": renderCreatorHost,
+    "creator-connector-grid": renderCreatorConnectors,
+  };
+  const renderer = renderers[component?.type];
+  return renderer ? renderer(component) : `<section class="creator-unknown">${icon("shield")}<strong>不支持的安全组件</strong><span>${esc(component?.type || "unknown")}</span></section>`;
+}
+
+function renderExtensionPage(schema) {
+  if (!schema || schema.schema !== "bilibot-schema-v1" || !Array.isArray(schema.components)) return renderCreatorError("扩展返回了不兼容的 Page Schema");
+  return `<div class="creator-stage"><div class="creator-grid-noise" aria-hidden="true"></div><header class="creator-stage-head"><span>${esc(schema.kicker || "BILIBOT / CREATOR")}</span><div><i></i><b>LIVE WORKSPACE</b></div></header>${schema.components.map(renderExtensionComponent).join("")}<footer class="creator-stage-footer"><span>BILIBOT EXTENSION API 01</span><p>Creator 仅通过安全数据 Schema 与 Host 能力接口运行</p></footer></div>`;
+}
+
+function renderCreatorError(message) {
+  return `<div class="creator-stage"><section class="creator-error error-state">${icon("shield")}<span>EXTENSION ISOLATED</span><h2>Creator 暂时没有响应</h2><p>${esc(message)}</p><div><button class="creator-action is-primary" data-extension-retry type="button">重新连接${icon("refresh")}</button><button class="creator-action is-ghost" data-leave-extension type="button">返回 BiliBot${icon("arrow-left")}</button></div></section></div>`;
+}
+
+function openCreatorModal(actionId, source = null) {
+  if (actionId === "refresh-host") return runCreatorAction(actionId, {});
+  if (actionId === "promote-idea") return runCreatorAction(actionId, { idea_id: source?.dataset.ideaId || "" });
+  const projectId = source?.dataset.projectId || "";
+  const components = Array.isArray(state.extensionSchema?.components) ? state.extensionSchema.components : [];
+  const projectComponent = components.find((item) => item?.type === "creator-project-grid")
+    || components.find((item) => item?.type === "creator-studio");
+  const connectorComponent = components.find((item) => item?.type === "creator-connector-grid")
+    || components.find((item) => item?.type === "creator-studio");
+  const projects = projectComponent?.items || projectComponent?.projects || (isPreview ? mockCreatorData.projects : []);
+  const connectors = connectorComponent?.items || connectorComponent?.connectors || (isPreview ? mockCreatorData.connectors : []);
+  const projectOptions = projects.length
+    ? projects.map((item) => `<option value="${esc(item.id)}" ${item.id === projectId ? "selected" : ""}>${esc(item.title)}</option>`).join("")
+    : '<option value="" disabled selected>请先创建项目</option>';
+  const availableConnectors = connectors.filter((item) => item.enabled !== false);
+  const connectorOptions = availableConnectors.length
+    ? availableConnectors.map((item) => `<option value="${esc(item.id)}">${esc(item.name || item.id)}</option>`).join("")
+    : '<option value="builtin.ffmpeg">FFmpeg Core</option>';
+  const configs = {
+    "create-idea": { title: "记录一个想法", subtitle: "先留下足够清晰的创作方向，不急着生成。", fields: `<label>标题<input name="title" required maxlength="120" placeholder="例如：把今天看到的热点做成 60 秒观点短片" /></label><label>创作角度<textarea name="angle" rows="3" placeholder="为什么值得做？准备从哪里切入？"></textarea></label><div class="creator-form-row"><label>形式<select name="format"><option value="short">短视频</option><option value="essay">观点视频</option><option value="clip">切片</option></select></label><label>标签<input name="tags" placeholder="AI, 热点, 二创" /></label></div>` },
+    "create-project": { title: "创建创作项目", subtitle: "项目会独立保存脚本、素材、工作流与投稿状态。", fields: `<label>项目名称<input name="title" required maxlength="120" placeholder="项目名称" /></label><label>创作说明<textarea name="description" rows="3" placeholder="这支视频要完成什么？"></textarea></label><div class="creator-form-row"><label>内容类型<select name="content_type"><option value="short">竖屏短片</option><option value="essay">观点视频</option><option value="clip">切片</option></select></label><label>标签<input name="tags" placeholder="系列, 风格" /></label></div>` },
+    "run-workflow": { title: "启动创作工作流", subtitle: "当前为任务骨架；实际生成器由插件外部配置决定。", fields: `<label>项目<select name="project_id" required>${projectOptions}</select></label><label>工作流<select name="workflow"><option value="short-video-foundation">短视频基础工作流</option><option value="storyboard-first">分镜优先工作流</option><option value="clip-remix">切片与二创工作流</option></select></label><label>执行器<select name="connector_id">${connectorOptions}</select></label>` },
+  };
+  const config = configs[actionId];
+  if (!config) return toast("动作尚未开放", actionId, "error");
+  modalRoot.innerHTML = `<div class="modal-backdrop creator-modal-backdrop" data-modal-backdrop><form class="creator-modal" role="dialog" aria-modal="true" aria-labelledby="creator-modal-title"><header><span>CREATOR ACTION</span><button type="button" data-creator-close aria-label="关闭">×</button></header><h2 id="creator-modal-title">${esc(config.title)}</h2><p>${esc(config.subtitle)}</p><div class="creator-form">${config.fields}</div><footer><button class="creator-action is-ghost" data-creator-close type="button">取消</button><button class="creator-action is-primary" type="submit">确认并继续${icon("arrow-right")}</button></footer></form></div>`;
+  const form = modalRoot.querySelector("form");
+  const returnFocus = document.activeElement;
+  const close = () => {
+    modalRoot.innerHTML = "";
+    document.removeEventListener("keydown", handleEscape);
+    if (returnFocus instanceof HTMLElement && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
+  };
+  const handleEscape = (event) => { if (event.key === "Escape") close(); };
+  document.addEventListener("keydown", handleEscape);
+  modalRoot.querySelectorAll("[data-creator-close]").forEach((button) => button.addEventListener("click", close));
+  modalRoot.querySelector("[data-modal-backdrop]")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    close();
+    await runCreatorAction(actionId, payload);
+  });
+  form?.querySelector("input, select, textarea")?.focus();
+}
+
+async function runCreatorAction(actionId, payload) {
+  const extension = activeExtension();
+  if (!extension) return;
+  try {
+    const response = await apiPost("extensions/action", { extension_id: extension.id, action_id: actionId, payload });
+    if (!response?.ok) throw new Error(response?.error?.message || "Creator 动作执行失败");
+    toast("Creator 已更新", ({ "create-idea": "灵感已进入雷达", "promote-idea": "灵感已推进为项目", "create-project": "项目已创建", "run-workflow": "工作流已加入队列", "refresh-host": "Host 状态已刷新" }[actionId] || "动作已完成"));
+    await loadExtensionPage(extension.id, state.extensionPage);
+  } catch (error) {
+    toast("Creator 动作未执行", error.message || "请检查扩展配置", "error");
+  }
+}
+
+function bindCreatorContent() {
+  content.querySelectorAll("[data-extension-target]").forEach((node) => node.addEventListener("click", () => navigateExtension(node.dataset.extensionTarget)));
+  content.querySelectorAll("[data-extension-action]").forEach((node) => node.addEventListener("click", () => openCreatorModal(node.dataset.extensionAction, node)));
+  content.querySelector("[data-extension-retry]")?.addEventListener("click", () => activeExtension() && loadExtensionPage(activeExtension().id, state.extensionPage));
+  content.querySelector("[data-leave-extension]")?.addEventListener("click", leaveExtension);
 }
 
 function renderPage(page) {
@@ -1656,6 +2070,11 @@ async function refreshAndRender(page, message) {
 
 async function refreshCurrent() {
   try {
+    if (state.mode === "extension") {
+      const extension = activeExtension();
+      if (extension) await loadExtensionPage(extension.id, state.extensionPage);
+      return;
+    }
     await refreshPageData(state.currentPage);
     renderSidebar();
     renderCurrentPage();
@@ -1904,6 +2323,11 @@ function init() {
   if (mobileMenu) mobileMenu.innerHTML = icon("menu");
   mobileMenu?.addEventListener("click", openMobileNav);
   document.querySelector("#sidebar-scrim")?.addEventListener("click", closeMobileNav);
+  window.addEventListener("pointermove", (event) => {
+    if (state.mode !== "extension" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    app.style.setProperty("--creator-pointer-x", `${event.clientX}px`);
+    app.style.setProperty("--creator-pointer-y", `${event.clientY}px`);
+  }, { passive: true });
   window.addEventListener("beforeunload", (event) => {
     if (state.dirtyKeys.size || state.scheduleDirty) {
       event.preventDefault();
