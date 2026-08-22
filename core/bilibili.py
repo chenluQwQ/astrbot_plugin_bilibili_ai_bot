@@ -805,6 +805,11 @@ class BilibiliAPIMixin:
     async def get_following_updates(self, limit=20):
         """获取关注列表的最新动态流（今日更新）"""
         try:
+            try:
+                limit = int(limit)
+            except (TypeError, ValueError):
+                limit = 20
+            limit = max(1, min(50, limit))
             d, _ = await self._http_get(
                 "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all",
                 params={
@@ -823,9 +828,19 @@ class BilibiliAPIMixin:
                 author = modules.get("module_author") or {}
                 dynamic = modules.get("module_dynamic") or {}
                 # 时间戳
-                pub_ts = author.get("pub_ts", 0)
+                raw_pub_ts = author.get("pub_ts", 0)
+                try:
+                    pub_ts = int(float(str(raw_pub_ts).strip())) if raw_pub_ts else 0
+                    if pub_ts > 10_000_000_000:  # 兼容毫秒时间戳
+                        pub_ts //= 1000
+                except (TypeError, ValueError, OverflowError):
+                    pub_ts = 0
                 if pub_ts:
-                    pub_date = datetime.fromtimestamp(pub_ts).strftime("%Y-%m-%d")
+                    try:
+                        pub_date = datetime.fromtimestamp(pub_ts).strftime("%Y-%m-%d")
+                    except (OSError, OverflowError, ValueError):
+                        logger.debug(f"[BiliBot] 已忽略异常动态时间戳: {raw_pub_ts!r}")
+                        pub_date = today
                     if pub_date != today:
                         continue  # 只要今天的
                 pub_time = author.get("pub_time", "")
