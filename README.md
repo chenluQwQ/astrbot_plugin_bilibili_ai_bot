@@ -125,6 +125,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 
 安装完成后在终端直接执行 `ffmpeg -version`、`ffprobe -version` 能正常返回版本号即可。
 
+周报/日报图片无需另装中文字体。插件会优先使用系统里的微软雅黑、Noto CJK、思源黑体或文泉驿，并自带一份 Noto Sans SC 作为 Linux 兜底。只有想替换字体样式时，才需要在 `SUMMARY_CJK_FONT_PATH` 中填写 `.ttf` / `.otf` / `.ttc` 文件的绝对路径；所有字体都不可用时会自动退回文字总结，不会发送满是方框的图片。
+
 > 💡 `yt-dlp` 已经作为 Python 包写在 `requirements.txt` 里，`pip install` 时会自动安装并注册命令，**不需要单独装**。
 
 ### 3. AstrBot 运行环境

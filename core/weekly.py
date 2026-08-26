@@ -485,7 +485,32 @@ class WeeklySummaryMixin:
         ]
         weekly_structured["daily_summaries"] = daily_structures
         self._last_weekly_structured_summary = weekly_structured
-        data_text = self._format_daily_structures(daily_structures)
+
+        # 给模型的材料分成「整周证据」和「精简时间线」。只塞每日摘要容易让
+        # 模型逐日复述；整周信号负责取舍，时间线只用于确认事情确实发生过。
+        weekly_evidence = {
+            key: value for key, value in weekly_structured.items()
+            if key != "daily_summaries"
+        }
+        timeline_keys = (
+            "period", "video_highlights", "bangumi_highlights",
+            "dynamic_highlights", "comment_highlights",
+            "conversation_highlights", "live_highlights",
+        )
+        daily_timeline = [
+            {
+                key: item.get(key)
+                for key in timeline_keys
+                if item.get(key)
+            }
+            for item in daily_structures
+            if isinstance(item, dict)
+        ]
+        data_text = json.dumps(
+            {"weekly_evidence": weekly_evidence, "daily_timeline": daily_timeline},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
         week_start = (datetime.now() - timedelta(days=7)).strftime("%m.%d")
         week_end = datetime.now().strftime("%m.%d")
 
@@ -509,30 +534,31 @@ class WeeklySummaryMixin:
         if live_count:
             stats_line += f" · 直播{live_count}场"
 
-        section_templates = []
-        if v_count:
-            section_templates.append("📺 视频\n（选1-3个有具体依据的片段，写清为什么记得；50-110字）")
-        if b_count:
-            section_templates.append("🎬 追番\n（只写有明确感想或变化的番剧；30-80字）")
-        if live_count:
-            section_templates.append("🎙️ 直播\n（选一个现场话题、回应或气氛；30-80字）")
-        if chat_count:
-            section_templates.append("💬 评论区\n（只写记录里看得见的交流内容；没有话题细节就省略本节）")
-        if d_count:
-            section_templates.append("📢 动态\n（选一件值得记的内容或念头；30-80字）")
-        section_templates.append("✍️ 碎碎念\n（从整周记录得出一个真实的小观察，30-60字）")
+        section_templates = [
+            "📌 本周切片\n（必写。挑2-3个能看见画面的具体瞬间，把发生了什么、我的反应和它为什么留下来连成一小段；70-130字）",
+            "🎢 意外与反差\n（可选。只有记录里存在预期落差、喜欢与失望、好奇与疲劳等证据时才写；35-80字）",
+        ]
+        if chat_count or live_count:
+            section_templates.append(
+                "💬 有回声的瞬间\n（可选。只写公开评论或直播中确有内容的一次来回；没有原话或话题依据就省略；35-80字）"
+            )
+        if v_count or b_count:
+            section_templates.append(
+                "🧭 兴趣坐标\n（写本周反复出现的口味线索，或一个仍在试探的方向；单次样本只能叫探索，不能写成稳定偏好；35-80字）"
+            )
         section_template = "\n\n".join(section_templates)
 
-        prompt = f"""请把下面的每日结构化摘要写成一页自然的B站周记。它是角色回看自己这一周后留下的几笔，不是工作汇报、流水账、影评合集或获奖感言。摘要已经去掉无关原始流水，请不要反推或编造被省略的内容。
+        prompt = f"""请把下面的结构化证据写成一页有记忆点的B站周记。它像翻完收藏夹后留下的几张拍立得：有具体场景、有自己的判断，也允许失望、困惑和没看懂；不是工作汇报、分类流水账、影评合集或获奖感言。证据已经去掉无关原始流水，请不要反推或编造被省略的内容。
 
-这周的每日结构化摘要：
+这周的整周证据与精简时间线：
 {data_text}
 
 写之前先默默做取舍，不要输出分析过程：
-1. 找出2-4个最有具体信息的片段：明确的视频/番剧、真实感想、一次有内容的交流或一条动态。
+1. 找出2-4个最有具体信息的片段。每个入选片段必须有至少一个具体锚点：标题、UP、场景、真实话题或明确动作。
 2. “评分、次数、看了多少”只用于判断取舍，不能充当正文；顶部统计栏已经负责报数。
 3. “评价失败、未知、无可靠感想、没什么特别的感觉”和疑似错配字幕都不是内容依据，直接忽略。
 4. 如果某一类只有数量、没有具体内容，就不写那一节；尤其不要根据互动次数猜测关系或话题。
+5. 优先选择能形成反差、转折或连续兴趣线索的材料；不要把互不相干的标题用逗号串成片单。
 
 请严格按照以下格式输出，只保留确实有内容的板块：
 
@@ -543,15 +569,16 @@ class WeeklySummaryMixin:
 {section_template}
 
 要求：
-- 每个板块标题行保持原样（📺 视频、🎬 追番 等），内容紧跟其后
+- 每个板块标题行保持原样（📌 本周切片、🎢 意外与反差 等），内容紧跟其后；除“本周切片”外，没有证据的板块直接省略
 - 第一人称，保留当前人设的观察角度，但不要靠口癖、撒娇或连续比喻硬演人设
-- 先写“发生了什么具体片段”，再写一句自己的反应；允许喜欢、失望、困惑或平淡，但必须有记录依据
+- 用“具体锚点 → 当时反应 → 为什么留下来”的微叙事；至少有一句鲜明但有依据的个人判断，不能全篇中性概括
+- 可以把视频、追番、动态、评论或直播写进同一个片段，不要按插件功能逐栏报到
 - 句子自然长短交替，每节一小段；不要使用“在……方面”“值得一提的是”“总的来说”这类报告连接词
 - 禁止“本周收获满满、感谢大家陪伴、未来继续努力、每一次互动都很珍贵”这类模板化总结腔
-- 禁止把顶部统计数字换一种说法逐项复述，也不要写“没什么大事”“没什么感觉”来凑栏目
+- 禁止把顶部统计数字换一种说法逐项复述，也不要写“没什么大事”“没什么感觉”“看了不少”来凑栏目
 - 不编造记录中没有的感受、观众关系、直播事故或剧情；资料不足就少写
 - 不泄露 UID、账号凭据、私信原文或第三方隐私；不要频繁称呼主人
-- 正文总字数180-360字（不含标题和顶部统计行），任何单节不超过110字
+- 正文总字数160-320字（不含标题和顶部统计行），宁可少而具体，不要为了够字数灌水
 - 直接输出，不要加额外的标题或前缀"""
 
         custom_inst = str(self.config.get("CUSTOM_WEEKLY_INSTRUCTION", "") or "").strip()
@@ -565,35 +592,122 @@ class WeeklySummaryMixin:
 
     # ── 图片渲染 ──
 
-    def _find_weekly_font(self, bold=False):
-        """寻找可渲染中文的字体，找不到则退回 Pillow 默认字体。"""
+    @staticmethod
+    def _weekly_font_has_chinese(path):
+        """验证字体是否真的包含中文字形，避免把缺字方框误当作可用字体。"""
         try:
             from PIL import ImageFont
+            font = ImageFont.truetype(path, size=28)
+            glyphs = []
+            for char in "中文周报视频":
+                mask = font.getmask(char)
+                if not mask.getbbox():
+                    return False
+                glyphs.append((mask.size, bytes(mask)))
+            # 缺字时多个中文字符通常都会映射到同一枚 tofu 方框。
+            return len(set(glyphs)) >= 3
         except Exception:
-            return None
-        candidates = [
-            r"C:\Windows\Fonts\msyhbd.ttc" if bold else r"C:\Windows\Fonts\msyh.ttc",
-            r"C:\Windows\Fonts\simhei.ttf",
-            r"C:\Windows\Fonts\simsun.ttc",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
+            return False
+
+    def _find_weekly_font(self, bold=False):
+        """寻找并验证可渲染中文的字体；没有字体时返回 None。"""
+        config = getattr(self, "config", {}) or {}
+        configured = str(config.get("SUMMARY_CJK_FONT_PATH", "") or "").strip()
+        if configured:
+            configured = os.path.abspath(os.path.expanduser(os.path.expandvars(configured)))
+        cache_key = (configured, bool(bold))
+        cache = getattr(self, "_weekly_font_path_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._weekly_font_path_cache = cache
+        if cache_key in cache:
+            return cache[cache_key]
+
+        candidates = []
+
+        def _add(path):
+            if path and path not in candidates:
+                candidates.append(path)
+
+        _add(configured)
+        if bold:
+            _add(r"C:\Windows\Fonts\msyhbd.ttc")
+            _add("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc")
+            _add("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf")
+            _add("/usr/share/fonts/opentype/source-han-sans/SourceHanSansSC-Bold.otf")
+        _add(r"C:\Windows\Fonts\msyh.ttc")
+        _add(r"C:\Windows\Fonts\simhei.ttf")
+        _add(r"C:\Windows\Fonts\simsun.ttc")
+        _add("/System/Library/Fonts/PingFang.ttc")
+        _add("/System/Library/Fonts/STHeiti Medium.ttc")
+        _add("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+        _add("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf")
+        _add("/usr/share/fonts/opentype/source-han-sans/SourceHanSansSC-Regular.otf")
+        _add("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc")
+        _add("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc")
+        _add("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc")
+        _add("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
+        _add("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf")
+        # 不同 Linux 发行版的字体目录并不统一，最后做一次有边界的名称查找。
+        font_roots = (
+            "/usr/share/fonts", "/usr/local/share/fonts",
+            os.path.expanduser("~/.fonts"), os.path.expanduser("~/.local/share/fonts"),
+        )
+        name_markers = (
+            "notosanscjk", "sourcehansans", "wqy", "droidsansfallback",
+            "sarasa", "unifont",
+        )
+        discovered = []
+        for root in font_roots:
+            if not os.path.isdir(root):
+                continue
+            try:
+                for directory, _dirs, files in os.walk(root):
+                    for filename in files:
+                        lower = filename.lower()
+                        if lower.endswith((".ttf", ".otf", ".ttc")) and any(
+                            marker in lower for marker in name_markers
+                        ):
+                            discovered.append(os.path.join(directory, filename))
+            except OSError:
+                continue
+        for path in sorted(discovered, key=lambda item: ("bold" not in item.lower(), item.lower())):
+            _add(path)
+
+        # 插件自带的 OFL 字体放在所有系统候选之后，只作为最终兜底。
+        bundled_font = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "assets", "fonts", "NotoSansSC-VF.otf",
+        )
+        _add(bundled_font)
+
         for path in candidates:
-            if path and os.path.exists(path):
+            if os.path.isfile(path) and self._weekly_font_has_chinese(path):
+                cache[cache_key] = path
                 return path
+        cache[cache_key] = None
         return None
 
     def _load_weekly_font(self, size, bold=False):
         from PIL import ImageFont
         font_path = self._find_weekly_font(bold=bold)
         if font_path:
-            return ImageFont.truetype(font_path, size=size)
-        return ImageFont.load_default()
+            font = ImageFont.truetype(font_path, size=size)
+            # 内置字体是可变字体，默认轴是 Thin；显式切到 Regular/Bold 才与
+            # 原模板的层级一致。静态字体不支持该方法时直接忽略。
+            try:
+                font.set_variation_by_name("Bold" if bold else "Regular")
+            except Exception:
+                pass
+            return font
+        raise RuntimeError(
+            "未找到可渲染中文的字体；Linux 请安装 Noto Sans CJK，"
+            "或在 SUMMARY_CJK_FONT_PATH 中填写中文字体文件路径"
+        )
 
     @staticmethod
     def _strip_weekly_emoji(text):
-        return re.sub(r"^[\s📅📺🎬🎙🎤💬📢✍️📝✨⭐🌙·|]+", "", text or "").strip()
+        return re.sub(r"^[\s📅📺🎬🎙🎤💬📢✍️📝✨⭐🌙📌🎢🧭🔀·|]+", "", text or "").strip()
 
     # 中文字体没有彩色 emoji 字形，画出来是豆腐块，渲染前全部去掉
     _WEEKLY_EMOJI_RE = re.compile(
@@ -653,7 +767,10 @@ class WeeklySummaryMixin:
         return value.rstrip() + suffix
 
     # LLM 不带 emoji 前缀时，靠这些标题词兜底识别板块
-    _WEEKLY_KNOWN_TITLES = ("视频", "追番", "直播", "评论区", "动态", "碎碎念", "本周摘要", "总结")
+    _WEEKLY_KNOWN_TITLES = (
+        "本周切片", "意外与反差", "有回声的瞬间", "兴趣坐标", "留给下周",
+        "视频", "追番", "直播", "评论区", "动态", "碎碎念", "本周摘要", "总结",
+    )
 
     def _parse_weekly_sections(self, summary):
         sections = []
@@ -674,7 +791,7 @@ class WeeklySummaryMixin:
             # 板块标题：emoji 前缀 / markdown 标题 / 单独一行的已知标题词
             bare = (md_clean or clean).rstrip("：:").replace("**", "").strip()
             is_header = (
-                any(line.startswith(p) for p in ("📺", "🎬", "🎙", "🎤", "💬", "📢", "✍"))
+                any(line.startswith(p) for p in ("📌", "🎢", "🧭", "🔀", "📺", "🎬", "🎙", "🎤", "💬", "📢", "✍"))
                 or (md and bare)
                 or bare in self._WEEKLY_KNOWN_TITLES
             )
