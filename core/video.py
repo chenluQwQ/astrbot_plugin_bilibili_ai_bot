@@ -644,6 +644,7 @@ UP主：{video_info.get('up_name', '未知')}
         return formats
     _VIDEO_FILE_EXTS = {".mp4", ".mkv", ".webm", ".mov"}
     _AUDIO_FILE_EXTS = {".m4a", ".mp3", ".aac", ".opus", ".flac", ".wav"}
+    _VIDEO_DOWNLOAD_FORMAT_TIMEOUT = 120
 
     def _pick_downloaded_video_file(self, bvid):
         if not os.path.isdir(TEMP_VIDEO_DIR):
@@ -694,9 +695,15 @@ UP主：{video_info.get('up_name', '未知')}
 
         last_err = ""
         try:
-            for fmt in self._format_fallbacks(max_height):
+            formats = self._format_fallbacks(max_height)
+            total_formats = len(formats)
+            for format_index, fmt in enumerate(formats, start=1):
                 # 清理上一轮可能残留的部分文件
                 self._cleanup_partial_downloads(bvid)
+                logger.info(
+                    f"[BiliBot] 开始下载({bvid})，格式 {format_index}/{total_formats}，"
+                    f"单次最多等待 {self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT} 秒"
+                )
                 code, _, stderr = await self._run_process(
                     "yt-dlp", "-o", output_template,
                     "--format", fmt,
@@ -706,7 +713,7 @@ UP主：{video_info.get('up_name', '未知')}
                     "--add-header", "Referer: https://www.bilibili.com",
                     "--limit-rate", "2M",
                     f"https://www.bilibili.com/video/{bvid}",
-                    timeout=600,
+                    timeout=self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT,
                 )
                 if code == 0:
                     fp = self._pick_downloaded_video_file(bvid)
@@ -714,10 +721,15 @@ UP主：{video_info.get('up_name', '未知')}
                         logger.info(f"[BiliBot] 视频下载成功({bvid})，格式: {fmt}，文件: {os.path.basename(fp)}")
                         return fp
                     last_err = "yt-dlp 成功退出，但没有产出可发送的视频文件（可能只下载到音频）"
-                    logger.info(f"[BiliBot] {last_err}({bvid})，尝试下一个格式")
+                    next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
+                    logger.info(f"[BiliBot] {last_err}({bvid})，{next_step}")
                     continue
                 last_err = stderr[:200] if stderr else "unknown error"
-                logger.info(f"[BiliBot] 格式 {fmt} 下载失败({bvid})，尝试下一个: {last_err[:80]}")
+                next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
+                logger.info(
+                    f"[BiliBot] 格式 {format_index}/{total_formats} 下载失败({bvid})，"
+                    f"{next_step}: {last_err[:80]}"
+                )
         finally:
             try:
                 os.remove(cookie_file)
