@@ -5,6 +5,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,6 +85,8 @@ class WeeklySummaryTests(unittest.TestCase):
         self.assertEqual([title for title, _body in sections], ["视频", "直播", "碎碎念"])
 
     def test_long_report_renders_without_exceeding_canvas_limit(self):
+        if not self.bot._find_weekly_font():
+            self.skipTest("系统未安装可渲染中文的字体")
         body = "这是用于检查自动换行和极端长文本裁切的内容。" * 80
         sections = "\n\n".join(
             f"{heading}\n{body}"
@@ -101,6 +104,8 @@ class WeeklySummaryTests(unittest.TestCase):
             self.assertLess(image.height, 4000)
 
     def test_daily_render_uses_daily_filename(self):
+        if not self.bot._find_weekly_font():
+            self.skipTest("系统未安装可渲染中文的字体")
         path = self.bot._render_weekly_summary_image("今天看了一段轻松的动画，记住了结尾那句台词。", report_kind="daily")
         self.assertIsNotNone(path)
         self.assertTrue(Path(path).name.startswith("daily_summary_"))
@@ -140,9 +145,52 @@ class WeeklySummaryTests(unittest.TestCase):
         result = asyncio.run(bot._generate_weekly_summary())
         self.assertIsNotNone(result)
         self.assertIn("找出2-4个最有具体信息的片段", bot.prompt)
+        self.assertIn("具体锚点", bot.prompt)
+        self.assertIn("📌 本周切片", bot.prompt)
+        self.assertIn("🎢 意外与反差", bot.prompt)
+        self.assertIn("不能全篇中性概括", bot.prompt)
         self.assertIn("不能充当正文", bot.prompt)
         self.assertIn("疑似错配字幕", bot.prompt)
         self.assertNotIn("123456", bot.prompt)
+
+    def test_new_editorial_headings_are_parsed(self):
+        summary = """📅 周报 | 08.16 ~ 08.23
+━━━━━━━━━━━━
+视频3个 · 互动1次
+
+📌 本周切片
+灯塔结尾的雾号，比解释剧情更让人记得住。
+
+🎢 意外与反差
+本来想看科普，最后却被旧建筑的空镜留下了。
+
+🧭 兴趣坐标
+还不能算稳定偏好，但废墟与老建筑值得继续找。"""
+        stats, sections = self.bot._parse_weekly_sections(summary)
+        self.assertEqual(stats, "视频3个 · 互动1次")
+        self.assertEqual(
+            [title for title, _body in sections],
+            ["本周切片", "意外与反差", "兴趣坐标"],
+        )
+
+    def test_missing_cjk_font_falls_back_to_text_delivery(self):
+        with mock.patch.object(self.bot, "_find_weekly_font", return_value=None):
+            path = self.bot._render_weekly_summary_image("📌 本周切片\n这里应该显示中文。")
+        self.assertIsNone(path)
+
+    def test_bundled_cjk_font_is_a_valid_fallback(self):
+        bundled = ROOT / "assets" / "fonts" / "NotoSansSC-VF.otf"
+        self.assertTrue(bundled.is_file())
+        self.assertTrue(self.bot._weekly_font_has_chinese(str(bundled)))
+
+        self.bot.config = {}
+        with mock.patch.object(
+            self.bot,
+            "_weekly_font_has_chinese",
+            side_effect=lambda path: Path(path) == bundled,
+        ):
+            selected = self.bot._find_weekly_font()
+        self.assertEqual(Path(selected), bundled)
 
     def test_structured_daily_summary_keeps_video_signals_without_private_text(self):
         data = self.bot._empty_activity_data()

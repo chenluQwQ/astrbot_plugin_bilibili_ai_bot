@@ -899,6 +899,12 @@
     "default": true,
     "hint": "开启后周总结会额外渲染为 PNG 图片；QQ私信和B站动态会优先发送图片，失败时自动退回纯文本。"
   },
+  "SUMMARY_CJK_FONT_PATH": {
+    "description": "【总结·图片渲染】自定义中文字体路径（可选）",
+    "type": "string",
+    "default": "",
+    "hint": "通常无需填写：插件会优先使用系统中文字体，并自带 Noto Sans SC 作为 Linux 兜底。只有想替换字体样式时，才需要填写 .ttf/.otf/.ttc 的绝对路径。"
+  },
   "CUSTOM_WEEKLY_INSTRUCTION": {
     "description": "【周总结】周总结的补充提示词",
     "type": "text",
