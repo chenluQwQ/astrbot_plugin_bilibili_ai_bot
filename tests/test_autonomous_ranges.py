@@ -404,6 +404,28 @@ def _check_video_format_fallbacks_include_portrait_short_side():
     ]
 
 
+def _check_video_download_uses_short_timeout_for_each_format():
+    probe = VideoProbe({})
+    observed_timeouts = []
+    observed_formats = []
+
+    async def fake_run_process(*args, **kwargs):
+        format_pos = args.index("--format")
+        observed_formats.append(args[format_pos + 1])
+        observed_timeouts.append(kwargs.get("timeout"))
+        return 1, "", "test failure"
+
+    probe._run_process = fake_run_process
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with patch("core.video.TEMP_VIDEO_DIR", temp_dir):
+            result = asyncio.run(probe._download_video("BV1TEST12345", max_height=360))
+
+    expected_formats = probe._format_fallbacks(360)
+    assert result is None
+    assert observed_formats == expected_formats
+    assert observed_timeouts == [120] * len(expected_formats)
+
+
 def _check_video_cache_uses_detail_long_term_and_faded_stages():
     now = datetime.now()
     cache = {}
@@ -782,6 +804,7 @@ class AutonomousRangeTests(unittest.TestCase):
     test_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist = staticmethod(_check_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist)
     test_config_schema_has_no_duplicate_keys = staticmethod(_check_config_schema_has_no_duplicate_keys)
     test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
+    test_video_download_uses_short_timeout_for_each_format = staticmethod(_check_video_download_uses_short_timeout_for_each_format)
     test_video_cache_uses_detail_long_term_and_faded_stages = staticmethod(_check_video_cache_uses_detail_long_term_and_faded_stages)
     test_concrete_preference_signals_feed_search_fallback = staticmethod(_check_concrete_preference_signals_feed_search_fallback)
     test_interest_report_separates_samples_and_persisted_preferences = staticmethod(_check_interest_report_separates_samples_and_persisted_preferences)
