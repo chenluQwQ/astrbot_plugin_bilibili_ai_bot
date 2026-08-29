@@ -23,9 +23,31 @@ from .output_protocol import (
 class ReplyMixin:
     """回复生成与评论区轮询。"""
 
+    _AD_PATTERNS = (
+        r"(?:加|\+)(?:微|v|vx|q|qq)",
+        r"(?:微信|vx|qq)[:：]?\s*[a-z0-9_-]{4,}",
+        r"(?:代刷|代充|返利|兼职|引流|推广|低价|免费领取|进群|私聊我|联系我)",
+        r"(?:https?://|www\.|t\.me/)",
+        r"[群裙]\s*[:：]?\s*\d{5,}",
+    )
+    _INVALID_AD_PATTERNS_LOGGED = set()
+
     @staticmethod
     def _normalized_interaction_text(content):
         return re.sub(r"[\W_]+", "", str(content or "").lower(), flags=re.UNICODE)
+
+    @classmethod
+    def _matches_ad_pattern(cls, text):
+        """匹配广告规则；单条规则损坏时跳过，避免拖垮整个轮询。"""
+        for pattern in cls._AD_PATTERNS:
+            try:
+                if re.search(pattern, text, re.I):
+                    return True
+            except re.error as exc:
+                if pattern not in cls._INVALID_AD_PATTERNS_LOGGED:
+                    cls._INVALID_AD_PATTERNS_LOGGED.add(pattern)
+                    logger.error(f"[BiliBot] 已跳过无效广告过滤规则 {pattern!r}: {exc}")
+        return False
 
     def _today_reply_count(self, channel="comment"):
         today = datetime.now().strftime("%Y-%m-%d")
@@ -57,12 +79,7 @@ class ReplyMixin:
             if re.fullmatch(r"(.)\1{3,}", compact):
                 return "repeated_character_spam"
         if self.config.get("FILTER_AD_MESSAGES", True):
-            ad_patterns = (
-                r"(?:加|+)(?:微|v|vx|q|qq)", r"(?:微信|vx|qq)[:：]?\s*[a-z0-9_-]{4,}",
-                r"(?:代刷|代充|返利|兼职|引流|推广|低价|免费领取|进群|私聊我|联系我)",
-                r"(?:https?://|www\.|t\.me/)", r"[群裙]\s*[:：]?\s*\d{5,}",
-            )
-            if any(re.search(pattern, text, re.I) for pattern in ad_patterns):
+            if self._matches_ad_pattern(text):
                 return "advertisement_or_contact_spam"
         if self.config.get("FILTER_DUPLICATE_MESSAGES", True):
             logs = self._load_json(REPLY_LOG_FILE, [])
