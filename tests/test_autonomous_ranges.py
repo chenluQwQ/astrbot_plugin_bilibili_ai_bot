@@ -394,6 +394,27 @@ def _check_config_schema_has_no_duplicate_keys():
     assert duplicates == []
 
 
+def _check_interaction_ad_filter_handles_plus_and_invalid_patterns():
+    probe = ReplyProbe({
+        "FILTER_LOW_VALUE_MESSAGES": False,
+        "FILTER_AD_MESSAGES": True,
+        "FILTER_DUPLICATE_MESSAGES": False,
+    })
+    assert probe._interaction_filter_reason("+vx abc123", "comment") == "advertisement_or_contact_spam"
+
+    probe_type = type(probe)
+    original_patterns = probe_type._AD_PATTERNS
+    original_logged = probe_type._INVALID_AD_PATTERNS_LOGGED
+    try:
+        probe_type._AD_PATTERNS = (r"(?:加|+)(?:微|vx)", r"https?://")
+        probe_type._INVALID_AD_PATTERNS_LOGGED = set()
+        assert probe._interaction_filter_reason("普通交流内容", "comment") is None
+        assert probe._interaction_filter_reason("https://example.com", "comment") == "advertisement_or_contact_spam"
+    finally:
+        probe_type._AD_PATTERNS = original_patterns
+        probe_type._INVALID_AD_PATTERNS_LOGGED = original_logged
+
+
 def _check_video_format_fallbacks_include_portrait_short_side():
     formats = VideoProbe({})._format_fallbacks(480)
     assert any("[width<=360]" in value for value in formats)
@@ -803,6 +824,7 @@ class AutonomousRangeTests(unittest.TestCase):
     test_autonomous_range_preserves_explicit_legacy_zero = staticmethod(_check_autonomous_range_preserves_explicit_legacy_zero)
     test_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist = staticmethod(_check_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist)
     test_config_schema_has_no_duplicate_keys = staticmethod(_check_config_schema_has_no_duplicate_keys)
+    test_interaction_ad_filter_handles_plus_and_invalid_patterns = staticmethod(_check_interaction_ad_filter_handles_plus_and_invalid_patterns)
     test_video_format_fallbacks_include_portrait_short_side = staticmethod(_check_video_format_fallbacks_include_portrait_short_side)
     test_video_download_uses_short_timeout_for_each_format = staticmethod(_check_video_download_uses_short_timeout_for_each_format)
     test_video_cache_uses_detail_long_term_and_faded_stages = staticmethod(_check_video_cache_uses_detail_long_term_and_faded_stages)
