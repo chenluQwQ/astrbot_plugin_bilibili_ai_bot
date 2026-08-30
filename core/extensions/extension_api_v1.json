@@ -1,0 +1,52 @@
+{
+  "extension_api": 1,
+  "renderer": "bilibot-schema-v1",
+  "extension_type": "bilibot-extension",
+  "request_envelope": [
+    "request_id",
+    "operation",
+    "payload",
+    "actor"
+  ],
+  "response_envelope": [
+    "request_id",
+    "ok",
+    "data",
+    "error"
+  ],
+  "manifest_required": [
+    "type",
+    "id",
+    "name",
+    "version",
+    "extension_api",
+    "host_requires",
+    "navigation",
+    "pages",
+    "actions",
+    "permissions"
+  ],
+  "permissions": [
+    "account.identity.read",
+    "memory.creator.read",
+    "memory.creator.write",
+    "activity.write",
+    "opportunities.read",
+    "analytics.video.read",
+    "actions.video.upload",
+    "actions.video.publish",
+    "storage.extension.read",
+    "storage.extension.write"
+  ],
+  "operations": [
+    "page:{page_id}",
+    "action:{action_id}",
+    "health"
+  ],
+  "host_routes": [
+    "GET extensions",
+    "GET extensions/page?extension_id={extension_id}&page_id={page_id}",
+    "POST extensions/action",
+    "POST extensions/refresh"
+  ]
+}
