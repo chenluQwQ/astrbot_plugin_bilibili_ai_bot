@@ -5,7 +5,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
 class _Logger:
@@ -110,6 +110,32 @@ class WebInterestTests(unittest.IsolatedAsyncioTestCase):
         result = webui_bridge._safe_display_text(value, max_chars=12)
         self.assertNotIn("\x00", result)
         self.assertLessEqual(len(result), 12)
+
+
+class WebProxyConfigTests(unittest.IsolatedAsyncioTestCase):
+    async def test_proxy_is_validated_before_any_config_is_written(self):
+        class Config(dict):
+            def save_config(self):
+                self.saved = True
+
+        config = Config(PROXY_URL="")
+        plugin = types.SimpleNamespace(config=config)
+        for value in ("http://user:secret@host/subscribe", "socks4://host:1080"):
+            body = {"OWNER_NAME": "must not change", "PROXY_URL": value}
+            with patch.object(webui_bridge, "request", types.SimpleNamespace(json=AsyncMock(return_value=body))):
+                response = await webui_bridge.handle_save_config(plugin)
+            self.assertEqual(response["status"], "error")
+            self.assertNotIn("secret", response["message"])
+            self.assertNotIn("OWNER_NAME", config)
+            self.assertFalse(getattr(config, "saved", False))
+
+        body = {"PROXY_URL": "socks5h://localhost:1080/"}
+        with patch.object(webui_bridge, "request", types.SimpleNamespace(json=AsyncMock(return_value=body))):
+            response = await webui_bridge.handle_save_config(plugin)
+        self.assertEqual(response["status"], "ok")
+        self.assertEqual(config["PROXY_URL"], "socks5://localhost:1080")
+        self.assertIn("重载", response["message"])
+        self.assertTrue(config.saved)
 
 
 if __name__ == "__main__":

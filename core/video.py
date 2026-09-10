@@ -6,6 +6,7 @@ import re
 import shutil
 from datetime import datetime
 from astrbot.api import logger
+from .network import download_proxy_args, redact_proxy_error
 from .config import VIDEO_MEMORY_FILE, TEMP_VIDEO_DIR
 
 
@@ -670,6 +671,7 @@ UP主：{video_info.get('up_name', '未知')}
         return candidates[0][2]
 
     async def _download_video(self, bvid, max_height=480):
+        proxy_args = download_proxy_args(self.config)
         output_template = os.path.join(TEMP_VIDEO_DIR, f"{bvid}.%(ext)s")
         # 生成 Netscape 格式 cookie 文件，兼容新版 yt-dlp
         cookie_file = os.path.join(TEMP_VIDEO_DIR, f"{bvid}_cookies.txt")
@@ -712,6 +714,7 @@ UP主：{video_info.get('up_name', '未知')}
                     "--cookies", cookie_file,
                     "--add-header", "Referer: https://www.bilibili.com",
                     "--limit-rate", "2M",
+                    *proxy_args,
                     f"https://www.bilibili.com/video/{bvid}",
                     timeout=self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT,
                 )
@@ -724,7 +727,7 @@ UP主：{video_info.get('up_name', '未知')}
                     next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
                     logger.info(f"[BiliBot] {last_err}({bvid})，{next_step}")
                     continue
-                last_err = stderr[:200] if stderr else "unknown error"
+                last_err = redact_proxy_error(stderr, self.config)[:200] if stderr else "unknown error"
                 next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
                 logger.info(
                     f"[BiliBot] 格式 {format_index}/{total_formats} 下载失败({bvid})，"

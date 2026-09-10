@@ -6,7 +6,7 @@ import tempfile
 import types
 import unittest
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from pathlib import Path
 
 
@@ -426,11 +426,12 @@ def _check_video_format_fallbacks_include_portrait_short_side():
 
 
 def _check_video_download_uses_short_timeout_for_each_format():
-    probe = VideoProbe({})
+    probe = VideoProbe({"PROXY_URL": "http://127.0.0.1:7890"})
     observed_timeouts = []
     observed_formats = []
 
     async def fake_run_process(*args, **kwargs):
+        assert args[args.index("--proxy") + 1] == "http://127.0.0.1:7890"
         format_pos = args.index("--format")
         observed_formats.append(args[format_pos + 1])
         observed_timeouts.append(kwargs.get("timeout"))
@@ -808,6 +809,88 @@ class AsyncRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(rewatched["ok"])
         self.assertFalse(rewatched["from_cache"])
         self.assertEqual(probe.analysis_calls, 1)
+
+
+class ProactiveDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_search_uses_all_directions_and_interleaves_without_seen_videos(self):
+        probe = ProactiveProbe({})
+        calls = []
+
+        async def search(query, ps):
+            calls.append(query)
+            return [{"bvid": "seen"}, {"bvid": "shared"}] + [
+                {"bvid": f"{query}-{i}", "title": query} for i in range(ps)
+            ]
+
+        probe.search_bilibili_videos = search
+        with patch("core.proactive.asyncio.sleep", new=AsyncMock()):
+            result = await probe._get_proactive_search_videos(
+                ["one", "two", "three"], 6, watched_bvids={"seen"},
+            )
+        self.assertEqual(calls, ["one", "two", "three"])
+        self.assertEqual([v["_search_keyword"] for v in result[:3]], calls)
+        self.assertEqual(len(result), 6)
+        self.assertEqual(len({v["bvid"] for v in result}), 6)
+        self.assertNotIn("seen", {v["bvid"] for v in result})
+
+    async def test_failed_direction_does_not_discard_other_search_results(self):
+        probe = ProactiveProbe({})
+        probe.search_bilibili_videos = AsyncMock(side_effect=[
+            RuntimeError("offline"), [{"bvid": "valid"}], [],
+        ])
+        with patch("core.proactive.asyncio.sleep", new=AsyncMock()):
+            result = await probe._get_proactive_search_videos(["one", "two", "three"], 3)
+        self.assertEqual([v["bvid"] for v in result], ["valid"])
+        self.assertEqual(probe.search_bilibili_videos.await_count, 3)
+
+    async def test_exploration_survives_prefilter_and_full_persona_is_not_used_for_search(self):
+        probe = ProactiveProbe({"ENABLE_PROACTIVE_LLM_PREFILTER": True})
+        probe._load_json = lambda _path, default: default
+        probe._get_system_prompt = AsyncMock(return_value="只喜欢深海的角色")
+        probe._llm_call = AsyncMock(return_value='["数学悖论", "冷门语言学"]')
+        queries = await probe._decide_proactive_search_queries([])
+        self.assertEqual(len(queries), 3)
+        probe._get_system_prompt.assert_not_awaited()
+        self.assertEqual(probe._llm_call.await_count, 1)
+        allow, _ = await probe._should_watch_video_before_download(
+            {"_exploration": True, "title": "陌生题材"}, [], 0, 3,
+        )
+        self.assertTrue(allow)
+        self.assertEqual(probe._llm_call.await_count, 1)
+
+    async def test_share_uses_personal_score_and_keeps_delivery_limits(self):
+        probe = ProactiveProbe({
+            "RECOMMEND_OWNER_MIN_SCORE": 8, "RECOMMEND_OWNER_DAILY_LIMIT": 1,
+        })
+        evaluation = {"recommend_owner": True, "recommend_reason": "这段玩法让我笑了半天"}
+        self.assertTrue(probe._can_recommend_owner(evaluation, 9, 0))
+        self.assertFalse(probe._can_recommend_owner(evaluation, 9, 1))
+        probe.config["ENABLE_OWNER_RECOMMEND"] = False
+        self.assertFalse(probe._can_recommend_owner(evaluation, 10, 0))
+        probe.config["ENABLE_OWNER_RECOMMEND"] = True
+        for score in (0, 6, 7, True, "9", float("nan"), float("inf")):
+            self.assertFalse(probe._can_recommend_owner(evaluation, score, 0))
+        self.assertFalse(probe._can_recommend_owner(dict(evaluation, recommend_owner=False), 10, 0))
+        self.assertFalse(probe._can_recommend_owner(dict(evaluation, recommend_reason=""), 10, 0))
+
+    async def test_self_enjoyment_can_share_without_owner_interest_evidence(self):
+        probe = ProactiveProbe({})
+        probe._get_system_prompt = AsyncMock(return_value="测试人设")
+        probe._load_json = lambda _path, default: default
+        probe._get_today_mood = lambda: ("平静", "")
+        probe._owner_recommendation_context = AsyncMock(return_value="")
+        probe._llm_call = AsyncMock(return_value=json.dumps({
+            "score": 9, "score_reason": "实拍机关很巧妙", "comment": "", "mood": "震撼",
+            "review": "没想到是用这种机关拍的", "want_follow": False,
+            "recommend_owner": True,
+            "recommend_reason": "实拍机关的做法让我很想分享", "partition": "影视",
+            "preference_signals": [], "search_keywords": [],
+        }, ensure_ascii=False))
+        result = await probe._evaluate_video({"title": "实拍幕后"}, "机关演示")
+        self.assertEqual(result["score"], 9)
+        self.assertTrue(result["recommend_owner"])
+        self.assertEqual(result["recommend_reason"], "实拍机关的做法让我很想分享")
+        self.assertTrue(probe._can_recommend_owner(result, result["score"], 0))
 
 
 class AutonomousRangeTests(unittest.TestCase):

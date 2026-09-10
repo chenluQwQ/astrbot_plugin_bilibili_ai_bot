@@ -181,7 +181,7 @@ const MOCK_FIELDS = {
   PROACTIVE_COMMENT_COUNT: ["【主动看片·互动】每个视频最多主动评论几条", "int", 1],
   PROACTIVE_COMMENT_DAILY_LIMIT: ["【主动看片·互动】每天最多主动评论几条", "int", 2],
   PROACTIVE_FOLLOW_UIDS: ["【主动看片·来源】优先关注的 UP 主 UID", "list", ["184028", "902418"]],
-  PROACTIVE_SEARCH_QUERY_PROMPT: ["【主动看片·搜索】搜索词生成提示词", "text", "结合今天的心情与长期兴趣，生成自然且不过度重复的搜索词。"],
+  PROACTIVE_SEARCH_QUERY_PROMPT: ["【主动看片·搜索】搜索词生成提示词", "text", "延续真实喜欢的主题，偶尔试试不同内容，不要只换同义词重复搜索。"],
   PROACTIVE_TASTE_WINDOW_DAYS: ["【主动看片·偏好】近期兴趣窗口（天）", "int", 14],
   PROACTIVE_VIDEO_POOLS: ["【主动看片·来源】备用视频池", "list", ["BV1xx411c7mD", "BV1ab4y1Z7Qm"]],
   ENABLE_PROACTIVE_LLM_PREFILTER: ["【主动看片·筛选】启用模型预筛选", "bool", true],
@@ -189,7 +189,7 @@ const MOCK_FIELDS = {
   CUSTOM_PROACTIVE_INSTRUCTION: ["【主动行为】主动评论补充提示词", "text", "只在确实有内容可说时评论，保持自然。"],
   ENABLE_OWNER_RECOMMEND: ["【给主人分享】启用给主人分享", "bool", true],
   RECOMMEND_OWNER_DELIVERY: ["【给主人分享】分享方式", "string", "private_message", ["private_message", "comment", "both"]],
-  RECOMMEND_OWNER_MIN_SCORE: ["【给主人分享】最低内容评分", "int", 8],
+  RECOMMEND_OWNER_MIN_SCORE: ["【给主人分享】最低个人喜好评分", "int", 8],
   RECOMMEND_OWNER_DAILY_LIMIT: ["【给主人分享】每日最多分享次数", "int", 2],
   CUSTOM_RECOMMEND_INSTRUCTION: ["【给主人分享】分享补充提示词", "text", "说明为什么觉得主人会喜欢，不要只发链接。"],
   PROACTIVE_LIKE: ["【主动行为】允许主动点赞", "bool", true],
@@ -251,6 +251,7 @@ const MOCK_FIELDS = {
   PRIVATE_MESSAGE_AUTO_BLOCK: ["【B站私信·安全】危险私信自动拉黑", "bool", true],
   ABUSE_ALERT_MODE: ["【恶意告警】检测到恶意评论时通知主人", "string", "log", ["off", "log", "qq"]],
   ENABLE_AUTO_BLOCK: ["【拉黑】启用自动拉黑", "bool", true],
+  PROXY_URL: ["【网络代理】插件自定义代理地址（可选）", "string", ""],
   OWNER_MID: ["【账号】主人的B站UID", "string", "12345678"],
   OWNER_NAME: ["【账号】主人名称", "string", "主人"],
   OWNER_BILI_NAME: ["【账号】主人的B站昵称", "string", "示例昵称"],
@@ -625,7 +626,7 @@ function valueLabel(key) {
 }
 
 function isSensitive(key) {
-  return /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|COOKIE|SESSDATA|JCT)/i.test(key);
+  return key === "PROXY_URL" || /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|COOKIE|SESSDATA|JCT)/i.test(key);
 }
 
 function renderTimeList(key, value, label) {
@@ -1134,7 +1135,7 @@ function capabilitySummary(item) {
   if (!currentValue(item.toggle)) return "总开关已关闭，不会生成相关事件";
   if (item.id === "plan-generation") return currentValue("ENABLE_AUTONOMOUS_DAILY_PLAN") ? `每日计划：${currentValue("AUTONOMOUS_PLAN_GENERATION_MODE") === "fixed_time" ? currentValue("AUTONOMOUS_PLAN_GENERATION_TIME") : `休眠后 ${fmt(currentValue("AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES"))} 分钟`}` : "当前使用固定计划";
   if (item.id === "proactive") return `每天最多 ${fmt(currentValue("PROACTIVE_TIMES_COUNT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个 · 全天视频上限 ${num(currentValue("PROACTIVE_DAILY_LIMIT"), 0) > 0 ? fmt(currentValue("PROACTIVE_DAILY_LIMIT")) : "不限"}`;
-  if (item.id === "owner-share") return `最低 ${fmt(currentValue("RECOMMEND_OWNER_MIN_SCORE"))} 分 · 每天最多 ${fmt(currentValue("RECOMMEND_OWNER_DAILY_LIMIT"))} 次`;
+  if (item.id === "owner-share") return `个人喜好 ≥ ${fmt(currentValue("RECOMMEND_OWNER_MIN_SCORE"))} 分 · 每天最多 ${fmt(currentValue("RECOMMEND_OWNER_DAILY_LIMIT"))} 次`;
   if (item.id === "dynamic") return "时间由统一日程管理";
   if (item.id === "dynamic-watch") return `每天最多 ${fmt(currentValue("DYNAMIC_WATCH_DAILY_LIMIT"))} 次 · 包含视频投稿 ${currentValue("DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS") ? "开启" : "关闭"}`;
   if (item.id === "special-follow") return "日程统一由自主安排或固定计划管理";
@@ -1304,9 +1305,10 @@ function renderAccount() {
     ${renderConfigSection("主人身份", "用于私信推荐、@主人和安全的跨平台记忆共享校验", ["OWNER_MID", "OWNER_NAME", "OWNER_BILI_NAME"], "heart")}`;
 }
 
-const BASIC_GROUP_ORDER = ["人设与模型", "Embedding 与记忆", "视频分析", "图片识别", "联网搜索", "图片生成", "总结", "性格演化", "Cookie 与系统", "高级接口"];
+const BASIC_GROUP_ORDER = ["网络代理", "人设与模型", "Embedding 与记忆", "视频分析", "图片识别", "联网搜索", "图片生成", "总结", "性格演化", "Cookie 与系统", "高级接口"];
 
 const BASIC_KEY_ORDER = {
+  "网络代理": ["PROXY_URL"],
   "人设与模型": ["USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT", "LLM_PROVIDER_ID", "LLM_CIRCUIT_FAILURE_THRESHOLD", "LLM_CIRCUIT_COOLDOWN_SECONDS"],
   "Embedding 与记忆": ["EMBED_API_KEY", "EMBED_API_BASE", "EMBED_MODEL", "EMBED_TIMEOUT_SECONDS"],
   "视频分析": ["VIDEO_VISION_PROVIDER_ID", "VIDEO_VISION_API_KEY", "VIDEO_VISION_API_BASE", "VIDEO_VISION_MODEL", "VIDEO_VISION_FORMAT", "VIDEO_VISION_FPS"],
@@ -1317,6 +1319,7 @@ const BASIC_KEY_ORDER = {
 
 function basicGroupFor(key, field) {
   const group = descriptionMeta(field).group;
+  if (key === "PROXY_URL") return "网络代理";
   if (/人设|模型可靠性/.test(group) || ["LLM_PROVIDER_ID", "USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT", "LLM_CIRCUIT_FAILURE_THRESHOLD", "LLM_CIRCUIT_COOLDOWN_SECONDS"].includes(key)) return "人设与模型";
   if (/性格演化/.test(group) || key.startsWith("EVOLVE_")) return "性格演化";
   if (/高级·记忆/.test(group) || key.startsWith("EMBED_")) return "Embedding 与记忆";
@@ -1722,7 +1725,7 @@ async function saveDraft() {
     } else if (refreshSchedule || scheduleNeedsSave) {
       toast("配置与今日计划已更新", `已保存 ${keys.length + (scheduleNeedsSave ? 1 : 0)} 项修改`);
     } else {
-      toast("配置已保存", `已写入 ${keys.length} 项设置`);
+      toast("配置已保存", keys.includes("PROXY_URL") ? "请重载插件，使所有网络连接应用新的代理设置。" : `已写入 ${keys.length} 项设置`);
     }
   } catch (error) {
     state.isSaving = false;

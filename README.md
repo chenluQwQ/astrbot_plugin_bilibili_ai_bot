@@ -67,6 +67,11 @@ Bot 可在聊天中通过自然语言触发以下能力，工具结果回到 LLM
 
 ### 🛠️ 运维与安全
 
+- **插件自定义代理** — 在 Web「基础设置 → 网络代理」填写 `PROXY_URL`，例如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`（支持 `socks5h://` 别名和 URL 账号密码）。填代理服务地址，不是订阅链接；仅使用你信任的代理。留空保持原网络行为，保存后重载插件使所有连接生效。
+  - 覆盖本插件的 B站登录/评论/私信/直播请求、图片与视频下载、独立搜索/生图/视觉/Embedding API；不修改系统环境变量，也不修改 AstrBot 模型供应商或其他插件的代理。
+  - 代理失败沿用原有超时、重试与冷却，不额外增加请求，也不会悄悄改为直连。只有填了代理才强制使用该出口。
+  - Docker 中的 `127.0.0.1` 指容器自身；代理在宿主机时请使用容器能访问的宿主机地址。SOCKS5 依赖随插件 requirements 安装；手动覆盖文件的安装需同步更新依赖。
+
 - **Web 管理面板** — 浏览器管理记忆、好感度、动态日志等（正在维护，暂时去除该功能）
 - **LLM 熔断保护** — 单次调用不叠加重试；全局连续 5 次失败后默认冷却 2 分钟，恢复时仅放行一次探测，避免重复申请
 - **基础防注入** — 对可疑 prompt 注入内容做检测、记录和安全包裹
@@ -219,13 +224,13 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`BILI_SHARE_PARSE_SEND_VIDEO` |可选|解析后尝试发送原视频/切片，失败则只发解析卡和链接                                  |
 |`ENABLE_PROACTIVE`           |可选|启用主动看视频                                                              |
 |`PROACTIVE_FOLLOW_UIDS`      |可选|特别关注 UID，优先进入关注来源；普通关注的今日更新随后补充|
-|`PROACTIVE_SEARCH_QUERY_PROMPT`|可选|Bot 决定本轮B站搜索词的提示词；会收到近期视频及按评分归纳的分区口味|
+|`PROACTIVE_SEARCH_QUERY_PROMPT`|可选|根据真实观看选择题材；保留熟悉的兴趣，给少见题材留一个候选方向，偶尔优先探索，不强制换口味|
 |`PROACTIVE_TASTE_WINDOW_DAYS`|可选|分区评分口味统计窗口，默认最近 7 天|
 |`PROACTIVE_VIDEO_POOLS`      |可选|视频池/地址池，可填中文：热门 / 推荐 / 排行榜:游戏 / 最新:单机游戏；兼容旧写法|
 |`ENABLE_PROACTIVE_LLM_PREFILTER`|可选|让 LLM 筛选搜索/视频池候选（`/bili开关 筛选`）|
 |`PROACTIVE_LLM_PREFILTER_MAX_REJECTS`|可选|标题筛选每轮最多拒绝几个视频，默认 3，达到上限后放行|
 |`RECOMMEND_OWNER_DELIVERY`   |可选|推荐发送方式：`private_message`（B站私信文字+链接）/ `comment` / `both` / `off`|
-|`RECOMMEND_OWNER_MIN_SCORE`  |可选|推荐给主人所需最低评分，默认 8|
+|`RECOMMEND_OWNER_MIN_SCORE`  |可选|Bot 自己的观后评分达到此值且想分享时才推荐，默认 8；不要求与主人的爱好相同|
 |`RECOMMEND_OWNER_DAILY_LIMIT`|可选|每天最多推荐次数，默认 1；`0` 表示不限制|
 |`ENABLE_DYNAMIC`             |可选|启用自动发动态                                                              |
 |`DYNAMIC_TIMES_COUNT`        |可选|每天触发几次动态发布                                                           |

@@ -7,6 +7,7 @@ import threading
 import time
 import asyncio
 import aiohttp
+from .network import plugin_http_session
 from astrbot.api import logger
 from .config import DATA_DIR, TEMP_IMAGE_DIR, TEMP_VIDEO_DIR, USER_AGENT
 try:
@@ -137,7 +138,7 @@ class UtilsMixin:
         last_err = None
         for i in range(retries + 1):
             try:
-                async with aiohttp.ClientSession() as s:
+                async with plugin_http_session(self.config) as s:
                     async with s.get(
                         url,
                         headers=headers or self._headers(),
@@ -162,7 +163,7 @@ class UtilsMixin:
         last_err = None
         for i in range(retries + 1):
             try:
-                async with aiohttp.ClientSession() as s:
+                async with plugin_http_session(self.config) as s:
                     async with s.post(
                         url,
                         headers=headers or self._headers(),
@@ -182,7 +183,7 @@ class UtilsMixin:
         last_err = None
         for i in range(retries + 1):
             try:
-                async with aiohttp.ClientSession() as s:
+                async with plugin_http_session(self.config) as s:
                     async with s.get(
                         url,
                         headers=headers or self._headers(),

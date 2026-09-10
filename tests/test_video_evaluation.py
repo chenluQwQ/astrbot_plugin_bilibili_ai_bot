@@ -63,6 +63,20 @@ class VideoEvaluationSchemaTests(unittest.TestCase):
         with self.assertRaises(VideoEvaluationError):
             self.parse(payload(recommend_owner=True, recommend_reason=""))
 
+    def test_self_enjoyment_is_enough_to_express_a_share_intent(self):
+        result = self.parse(payload(
+            score=9,
+            recommend_owner=True, recommend_reason="实拍机关的做法让我很想分享",
+        ))
+        self.assertEqual(result["score"], 9)
+        self.assertTrue(result["recommend_owner"])
+        self.assertEqual(result["recommend_reason"], "实拍机关的做法让我很想分享")
+
+    def test_personal_score_rejects_non_numeric_and_non_finite_values(self):
+        for score in (True, "9", -1, 11, float("nan"), float("inf")):
+            with self.subTest(score=score), self.assertRaises(VideoEvaluationError):
+                self.parse(payload(score=score))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 
@@ -51,7 +52,7 @@ def parse_video_evaluation(raw: str) -> dict[str, Any]:
     if isinstance(score, bool) or not isinstance(score, (int, float)):
         raise VideoEvaluationError("score_must_be_number")
     score = round(float(score), 1)
-    if not 1.0 <= score <= 10.0:
+    if not math.isfinite(score) or not 1.0 <= score <= 10.0:
         raise VideoEvaluationError("score_out_of_range")
     score_reason = _text(value.get("score_reason"), "score_reason", 120, empty=False)
     comment = _text(value.get("comment"), "comment", 80)
@@ -123,4 +124,5 @@ def parse_video_evaluation(raw: str) -> dict[str, Any]:
 
 VIDEO_EVALUATION_SCHEMA_PROMPT = """只输出一个完整JSON对象，不要Markdown、解释或额外字段：
 {"score":7.0,"score_reason":"评分理由","comment":"评论区短句或空字符串","mood":"开心|平静|无聊|感动|好笑|震撼|困惑","review":"个人感想","want_follow":false,"recommend_owner":false,"recommend_reason":"","partition":"实际分区","preference_signals":[{"type":"up|partition|work|character|food|theme|music|game|technology|activity|location|other","value":"具体对象","polarity":"like|dislike|fatigue|curious","strength":0.0,"evidence":"本视频中的具体依据"}],"search_keywords":["以后真能拿去B站搜索的具体词"]}
-最多5个喜好信号和5个搜索词，宁缺毋滥。不要只写“动漫”“游戏”这种过宽词；优先作品、人物、作者、菜名、歌手、技术、活动或具体主题。一次高分只代表本次信号，不要声称已形成永久喜好。"""
+score是自己的观感；recommend_owner表示自己是否真想分享这次发现，不要求与主人的爱好相同。推荐理由写具体看点，不把自己的喜欢说成对方的喜欢。
+最多5个喜好信号和5个搜索词，宁缺毋滥。不要只写“动漫”“游戏”这种过宽词；优先作品、人物、作者、菜名、歌手、技术、活动或具体主题。一次高分只代表本次信号，不要声称已形成永久喜好。喜好信号只记录本次具体感受，不照抄人设或把主人的爱好写成自己的。"""

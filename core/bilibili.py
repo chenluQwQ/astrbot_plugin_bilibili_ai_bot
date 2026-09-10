@@ -5,6 +5,7 @@ import time
 import hashlib
 import uuid
 import aiohttp
+from .network import plugin_http_session
 from functools import reduce
 from astrbot.api import logger
 from .config import (
@@ -134,7 +135,7 @@ class BilibiliAPIMixin:
             m = re.search(r'<div\s+id="1-name"\s*>([^<]+)</div>', html)
             if not m:
                 return False, "无法提取 refresh_csrf"
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.post(
                     BILI_COOKIE_REFRESH_URL,
                     headers=self._headers(),
@@ -220,7 +221,7 @@ class BilibiliAPIMixin:
 
     async def _qr_login_poll(self, qrcode_key):
         try:
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.get(
                     BILI_QR_POLL_URL,
                     params={"qrcode_key": qrcode_key},
@@ -601,7 +602,7 @@ class BilibiliAPIMixin:
             form.add_field('category', 'daily')
             form.add_field('csrf', self.config.get("BILI_JCT", ""))
             headers = {"Cookie": self._headers()["Cookie"], "User-Agent": USER_AGENT, "Referer": "https://www.bilibili.com"}
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.post(BILI_UPLOAD_IMAGE_URL, headers=headers, data=form, timeout=aiohttp.ClientTimeout(total=30)) as r:
                     result = await r.json()
             if result.get("code") == 0:
@@ -641,7 +642,7 @@ class BilibiliAPIMixin:
         payload = {"dyn_req": {"content": {"contents": [{"raw_text": text, "type": 1, "biz_id": ""}]}, "pics": [img_info], "scene": 2}}
         try:
             headers = {**self._headers(), "Content-Type": "application/json"}
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.post(BILI_DYNAMIC_IMAGE_URL, params=params, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as r:
                     result = await r.json()
             if result.get("code") == 0:

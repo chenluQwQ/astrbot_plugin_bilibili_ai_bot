@@ -10,6 +10,7 @@ from datetime import datetime
 from urllib.parse import parse_qs, unquote, urlparse
 
 import aiohttp
+from .network import plugin_http_session
 from astrbot.api import logger
 
 from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
@@ -164,7 +165,7 @@ class ShareMixin:
 
     async def _resolve_share_url(self, url):
         try:
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.get(
                     url,
                     headers={**self._headers(), "Accept": "text/html,application/xhtml+xml"},

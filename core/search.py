@@ -4,6 +4,7 @@ import json
 import time
 from collections import OrderedDict
 import aiohttp
+from .network import plugin_http_session, openai_proxy_kwargs, redact_proxy_error
 from astrbot.api import logger
 from .config import WEB_SEARCH_CACHE_FILE
 
@@ -19,13 +20,13 @@ class WebSearchMixin:
                 return None
             if backend == "perplexity":
                 from openai import AsyncOpenAI
-                self._web_search_client = AsyncOpenAI(api_key=api_key, base_url="https://api.perplexity.ai")
+                self._web_search_client = AsyncOpenAI(api_key=api_key, base_url="https://api.perplexity.ai", **openai_proxy_kwargs(self.config))
             elif backend == "custom":
                 base_url = self._normalize_openai_base_url(self.config.get("WEB_SEARCH_API_BASE", ""))
                 if not base_url:
                     return None
                 from openai import AsyncOpenAI
-                self._web_search_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+                self._web_search_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
         return self._web_search_client
 
     async def _web_search(self, query: str) -> str:
@@ -127,7 +128,7 @@ class WebSearchMixin:
             "sources": ["web"],
             "safe": True,
         }
-        async with aiohttp.ClientSession() as s:
+        async with plugin_http_session(self.config) as s:
             async with s.post(
                 url,
                 json=payload,
@@ -204,7 +205,7 @@ class WebSearchMixin:
             "tools": [{"type": "web_search"}],
             "max_output_tokens": 600,
         }
-        async with aiohttp.ClientSession() as s:
+        async with plugin_http_session(self.config) as s:
             async with s.post(
                 url,
                 json=payload,
@@ -220,7 +221,7 @@ class WebSearchMixin:
 
     async def _search_tavily(self, query: str, api_key: str, max_results: int) -> str:
         payload = {"query": query, "max_results": max_results, "search_depth": "basic", "include_answer": True}
-        async with aiohttp.ClientSession() as s:
+        async with plugin_http_session(self.config) as s:
             async with s.post(
                 "https://api.tavily.com/search",
                 json=payload,
@@ -261,11 +262,11 @@ class WebSearchMixin:
             )
             return (resp.choices[0].message.content or "").strip() if resp.choices else ""
         except Exception as e:
-            logger.error(f"[BiliBot] Perplexity 调用失败: {e}")
+            logger.error(f"[BiliBot] Perplexity 调用失败: {redact_proxy_error(e, self.config)}")
             return ""
 
     async def _search_bocha(self, query: str, api_key: str, max_results: int) -> str:
-        async with aiohttp.ClientSession() as s:
+        async with plugin_http_session(self.config) as s:
             async with s.post(
                 "https://api.bochaai.com/v1/web-search",
                 json={"query": query, "count": max_results, "summary": True},
@@ -311,7 +312,7 @@ class WebSearchMixin:
             )
             return (resp.choices[0].message.content or "").strip() if resp.choices else ""
         except Exception as e:
-            logger.error(f"[BiliBot] 自定义搜索接口调用失败: {e}")
+            logger.error(f"[BiliBot] 自定义搜索接口调用失败: {redact_proxy_error(e, self.config)}")
             return ""
 
     # ── 搜索判断 ──

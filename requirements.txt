@@ -1,7 +1,9 @@
 aiohttp>=3.9
+aiohttp-socks>=0.8
+httpx[socks]>=0.27
 cryptography>=41.0
 lunardate>=0.2.0
-openai>=1.0
+openai>=1.55.3
 Pillow>=9.0
 qrcode>=7.4
 yt-dlp>=2025.1.0

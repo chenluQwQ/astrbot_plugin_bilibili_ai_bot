@@ -20,6 +20,7 @@ from typing import Any, Awaitable, Callable
 from astrbot.api import logger
 from astrbot.api.star import Context
 from astrbot.api.web import error_response, json_response, request
+from .network import normalize_proxy_url
 
 from .config import (
     AFFECTION_FILE,
@@ -903,6 +904,8 @@ async def handle_save_config(plugin: Any):
                 return _failure(f"未知配置项: {key}")
             try:
                 updates[key] = _coerce_config_value(key, field, value)
+                if key == "PROXY_URL":
+                    updates[key] = normalize_proxy_url(updates[key])
             except (TypeError, ValueError) as exc:
                 return _failure(str(exc))
         if updates.get("ENABLE_OWNER_RECOMMEND") is True and str(_config_value(plugin, "RECOMMEND_OWNER_DELIVERY", "private_message")).lower() == "off":
@@ -953,7 +956,10 @@ async def handle_save_config(plugin: Any):
                 plugin._bangumi_times, plugin._bangumi_triggered, plugin._bangumi_update_checked = [], set(), False
                 plugin._special_follow_times, plugin._special_follow_triggered = [], set()
         logger.info(f"[BiliBot WebUI] saved {len(updates)} settings")
-        return _response({"saved": list(updates)}, f"已保存 {len(updates)} 项配置")
+        message = f"已保存 {len(updates)} 项配置"
+        if "PROXY_URL" in updates:
+            message += "；请重载插件使所有网络连接应用新代理"
+        return _response({"saved": list(updates)}, message)
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] config save failed: {exc}")
         return _failure(str(exc), 500)

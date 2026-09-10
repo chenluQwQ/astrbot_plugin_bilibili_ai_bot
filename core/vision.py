@@ -2,6 +2,7 @@
 import math
 import base64
 import aiohttp
+from .network import plugin_http_session, openai_proxy_kwargs, redact_proxy_error
 from astrbot.api import logger
 
 
@@ -28,6 +29,7 @@ class VisionMixin:
                 base_url=base_url,
                 timeout=timeout,
                 max_retries=0,
+                **openai_proxy_kwargs(self.config),
             )
         return self._embed_client
 
@@ -40,7 +42,7 @@ class VisionMixin:
             resp = await client.embeddings.create(model=embed_model, input=text)
             return resp.data[0].embedding
         except Exception as e:
-            logger.warning(f"[BiliBot] Embedding 暂不可用，本次跳过向量检索: {e}")
+            logger.warning(f"[BiliBot] Embedding 暂不可用，本次跳过向量检索: {redact_proxy_error(e, self.config)}")
             return None
 
     @staticmethod
@@ -61,7 +63,7 @@ class VisionMixin:
                 return None
             from openai import AsyncOpenAI
             base_url = self._normalize_openai_base_url(self.config.get("VIDEO_VISION_API_BASE", "https://api.siliconflow.cn/v1"))
-            self._video_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            self._video_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
         return self._video_vision_client
 
     def _get_image_vision_client(self):
@@ -71,7 +73,7 @@ class VisionMixin:
                 return None
             from openai import AsyncOpenAI
             base_url = self._normalize_openai_base_url(self.config.get("IMAGE_VISION_API_BASE", "https://api.siliconflow.cn/v1"))
-            self._image_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            self._image_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
         return self._image_vision_client
 
     async def _vision_call(self, client, model, content_parts, max_tokens=250):
@@ -84,7 +86,7 @@ class VisionMixin:
             )
             return resp.choices[0].message.content.strip() if resp.choices else None
         except Exception as e:
-            logger.error(f"[BiliBot] 视觉模型调用失败: {e}")
+            logger.error(f"[BiliBot] 视觉模型调用失败: {redact_proxy_error(e, self.config)}")
             return None
 
     async def _fetch_image_base64(self, url):
@@ -92,7 +94,7 @@ class VisionMixin:
         try:
             if not url.startswith("http"):
                 url = "https:" + url
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.get(
                     url,
                     headers={"Referer": "https://www.bilibili.com"},

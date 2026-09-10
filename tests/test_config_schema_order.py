@@ -26,6 +26,10 @@ class ConfigSchemaOrderTests(unittest.TestCase):
             "LLM_CIRCUIT_FAILURE_THRESHOLD",
             "LLM_CIRCUIT_COOLDOWN_SECONDS",
         ])
+
+    def test_optional_proxy_is_near_account_and_model_settings(self):
+        self.assertEqual(self.schema["PROXY_URL"]["default"], "")
+        self.assert_contiguous(["PROXY_URL", "LLM_PROVIDER_ID"])
         self.assertEqual(self.schema["LLM_CIRCUIT_FAILURE_THRESHOLD"]["default"], 5)
         self.assertEqual(self.schema["LLM_CIRCUIT_COOLDOWN_SECONDS"]["default"], 120)
 

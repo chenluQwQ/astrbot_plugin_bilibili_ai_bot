@@ -11,6 +11,7 @@ import asyncio
 import traceback
 import hashlib
 import aiohttp
+from .network import plugin_http_session
 from datetime import datetime
 from astrbot.api import logger
 from .config import (
@@ -134,7 +135,7 @@ class DynamicMixin:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        async with aiohttp.ClientSession() as s:
+        async with plugin_http_session(self.config) as s:
             async with s.post(
                 url,
                 headers=headers,
@@ -175,7 +176,7 @@ class DynamicMixin:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {"model": model, "messages": [{"role": "user", "content": styled_prompt}], "modalities": ["image"]}
         try:
-            async with aiohttp.ClientSession() as s:
+            async with plugin_http_session(self.config) as s:
                 async with s.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=120)) as r:
                     if r.status != 200:
                         logger.error(f"[BiliBot] 图片生成HTTP错误: {r.status}")
