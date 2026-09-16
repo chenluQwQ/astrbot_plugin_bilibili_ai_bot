@@ -342,6 +342,23 @@ class ShareMixin:
             return [video_path], False
         return segments[:max_segments], len(segments) > max_segments
 
+    def _share_forward_component(self, event, components):
+        """One forward bundle, with exactly one video/file per node."""
+        try:
+            from astrbot.api.message_components import Node, Nodes
+
+            try:
+                self_id = str(event.get_self_id() or "0")
+            except (AttributeError, TypeError):
+                self_id = str(getattr(getattr(event, "message_obj", None), "self_id", "0") or "0")
+            return Nodes([
+                Node(uin=self_id, name="BiliBot", content=[component])
+                for component in components
+            ])
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning(f"[BiliBot] 当前适配器无法构建视频合集，回退逐段发送: {type(exc).__name__}")
+            return None
+
     def _prepare_share_send_files(self, paths, bvid):
         """复制一份专供适配器发送的文件，避免原下载/切片文件被后续清理影响。"""
         send_dir = os.path.join(TEMP_VIDEO_DIR, f"share_send_{bvid}_{int(time.time() * 1000)}")
@@ -632,15 +649,24 @@ class ShareMixin:
             if not send_paths:
                 yield event.plain_result("⚠️ 原视频切片准备失败，先看解析卡和链接吧。")
                 return
-            total = len(send_paths)
-            for idx, path in enumerate(send_paths, 1):
+            components = []
+            for path in send_paths:
                 comp = self._share_video_component(path)
-                caption = f"📼 回放切片 {idx}/{total} · 《{info.get('title','未知标题')[:24]}》"
-                if comp:
-                    yield event.chain_result([__import__('astrbot.api.message_components', fromlist=['Plain']).Plain(caption), comp])
+                if not comp:
+                    yield event.plain_result(f"当前 AstrBot 适配器没有可用的视频/文件组件，只能保留链接： https://www.bilibili.com/video/{bvid}")
+                    return
+                components.append(comp)
+            # 单段直接发；多段用一个聊天记录合集，每个节点仅含视频，不能混入文字。
+            if len(components) == 1:
+                yield event.chain_result(components)
+            else:
+                forward = self._share_forward_component(event, components)
+                if forward is not None:
+                    yield event.chain_result([forward])
                 else:
-                    yield event.plain_result(f"{caption}\n当前 AstrBot 适配器没有可用的视频/文件组件，只能保留链接： https://www.bilibili.com/video/{bvid}")
-                    break
+                    yield event.plain_result("当前适配器不支持视频聊天记录合集，改为逐段发送。")
+                    for comp in components:
+                        yield event.chain_result([comp])
             if skipped:
                 yield event.plain_result("后面还有内容，我先按配置发到这里；想多发可以调大 BILI_SHARE_PARSE_MAX_SEGMENTS。")
         finally:
