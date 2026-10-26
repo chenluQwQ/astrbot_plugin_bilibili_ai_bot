@@ -1054,6 +1054,12 @@
       "step": 1
     }
   },
+  "COMMENT_SYNC_DYNAMIC": {
+    "description": "【主动看片·互动】发评论时同步发布到动态",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，主动看片评论、番剧评论和 LLM 工具 post_comment 发评论时会带上 sync_to_dynamic=1，由B站把这条评论连同对应视频同步发布为一条动态；回复他人评论不受影响。"
+  },
   "PROACTIVE_FOLLOW": {
     "description": "【主动行为】主动关注UP主",
     "type": "bool",

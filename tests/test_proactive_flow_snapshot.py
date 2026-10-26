@@ -224,7 +224,7 @@ class FlowProbe(ProactiveMixin):
         self.record("fav_video", oid)
         return True
 
-    async def _send_comment(self, oid, text):
+    async def _send_comment(self, oid, text, sync_to_dynamic=False):
         self.record("send_comment", oid, text)
         return True
 

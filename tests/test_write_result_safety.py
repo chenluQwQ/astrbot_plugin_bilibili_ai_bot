@@ -141,6 +141,15 @@ class HttpWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await bot._send_comment(1, "hello"))
         self.assertEqual(bot._http_post.await_count, 1)
 
+    async def test_comment_sync_to_dynamic_flag_controls_request_body(self):
+        bot = WriteProbe()
+        bot._http_post = AsyncMock(return_value=({"code": 0}, None))
+        self.assertTrue(await bot._send_comment(1, "hello", sync_to_dynamic=True))
+        self.assertEqual(bot._http_post.await_args.kwargs["data"]["sync_to_dynamic"], 1)
+        bot._http_post.reset_mock()
+        self.assertTrue(await bot._send_comment(1, "hello"))
+        self.assertNotIn("sync_to_dynamic", bot._http_post.await_args.kwargs["data"])
+
     async def test_live_danmaku_propagates_unknown(self):
         bot = LiveDanmakuMixin()
         bot.config = {

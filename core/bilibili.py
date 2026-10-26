@@ -282,12 +282,13 @@ class BilibiliAPIMixin:
         content = re.sub(r'^@[^ \t\n\r]+\s*', '', content)
         return content.strip()
 
-    async def _send_comment(self, oid, comment_text, oid_type=1):
+    async def _send_comment(self, oid, comment_text, oid_type=1, sync_to_dynamic=False):
+        data = {"oid": oid, "type": oid_type, "message": comment_text, "csrf": self.config.get("BILI_JCT", "")}
+        if sync_to_dynamic:
+            # 让B站把这条评论连同对应内容同步发布为一条动态
+            data["sync_to_dynamic"] = 1
         try:
-            d, _ = await self._http_post(
-                BILI_REPLY_URL,
-                data={"oid": oid, "type": oid_type, "message": comment_text, "csrf": self.config.get("BILI_JCT", "")},
-            )
+            d, _ = await self._http_post(BILI_REPLY_URL, data=data)
             code = d.get("code", -1)
             if code == 0:
                 return True
