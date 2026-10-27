@@ -13,6 +13,7 @@ from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import ProviderRequest, LLMResponse
 from .core.config import *
 from .core.runtime import WriteResultUnknownError
+from .core.chat_text import split_for_chat
 from .core import (
     UtilsMixin, LLMMixin, VisionMixin, MemoryMixin,
     AffectionMixin, PersonalityMixin, BilibiliAPIMixin,
@@ -1365,7 +1366,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 "\n可加日期查往天，如：/bili日志 视频 2026-07-01（默认今天）"
             )
             return
-        yield event.plain_result(renderers[kind](target_date, date_given))
+        for chunk in split_for_chat(renderers[kind](target_date, date_given)):
+            yield event.plain_result(chunk)
 
     def _render_video_log(self, target_date, date_given):
         wl = self._load_json(WATCH_LOG_FILE, [])
@@ -1399,13 +1401,13 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         lines.append(f"     时间: {detail.get('time', w.get('time', ''))} | 评价耗时: {detail['elapsed_seconds']}秒")
                 else:
                     lines.append(f"     UP:{w.get('up_name','?')} | {score}分 | {w.get('mood','?')}")
-                if w.get("review"): lines.append(f"     📝 {w['review'][:60]}")
+                if w.get("review"): lines.append(f"     📝 {w['review']}")
                 lines.append(f"     {actions}")
         if today_comment:
             lines.append(f"\n💬 发了 {len(today_comment)} 条评论：")
             for i, c in enumerate(today_comment, 1):
                 lines.append(f"  {i}. 「{c.get('title','?')[:30]}」")
-                lines.append(f"     💬 {c.get('comment','?')[:80]}")
+                lines.append(f"     💬 {c.get('comment','?')}")
         return "\n".join(lines)
 
     def _render_bangumi_log(self, target_date, date_given):
@@ -1418,9 +1420,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             t = l.get("time", "?")
             time_part = t.split(" ", 1)[1] if " " in t else t
             lines.append(f"{i}. [{time_part}] 《{l.get('title', '?')}》第{l.get('ep_index', '?')}话")
-            lines.append(f"   ⭐{l.get('score', '?')}/10 {l.get('mood', '')} {l.get('review', '')[:40]}")
+            lines.append(f"   ⭐{l.get('score', '?')}/10 {l.get('mood', '')} {l.get('review', '')}")
             if l.get("comment"):
-                lines.append(f"   💬 {l['comment'][:40]}")
+                lines.append(f"   💬 {l['comment']}")
         return "\n".join(lines)
 
     def _render_dynamic_log(self, target_date, date_given):
