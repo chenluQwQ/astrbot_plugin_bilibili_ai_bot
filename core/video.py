@@ -798,7 +798,9 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         openai = 纯 video_url；file = 官方 file part；qwen = video_url + fps；gemini = 塞进 image_url。
         """
         if fmt == "gemini":
-            # Gemini 兼容层把 mp4 当 image_url 收。
+            # Gemini 兼容层把 mp4 当 image_url 收。OpenAI 兼容网关会原样转发这个 part（吃不吃看网关），
+            # 但 AstrBot 原生 Gemini 适配器把 image_url 一律当图片严格解析，会当场拒收——
+            # 那种拒答已经在 vision.py 的 _ASTRBOT_PART_REJECTIONS 里归到「不支持」。
             parts = [{"type": "image_url", "image_url": {"url": f"data:video/mp4;base64,{video_b64}"}}]
         elif fmt == "file":
             # OpenAI 官方 / 多数新版网关：file_data 直接吃 data URI。

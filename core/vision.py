@@ -14,6 +14,18 @@ _UNSUPPORTED_HINTS = (
     "unknown variant", "unrecognized content", "unknown content",
     "invalid content type", "list of dicts", "not a valid content",
 )
+# AstrBot 的 provider 链路上没有「视频 part」，把 mp4 塞进任何形状都会被它内部拒掉，
+# 而且这两种失败都不带 HTTP 状态码，只能靠文本识别：
+#   * 原生 Gemini 适配器：image_url 里的 mp4 会被严格图片解析拒绝，
+#     抛 ValueError: Invalid image file: data URI mime='video/mp4' payload_len=…
+#   * 原生 Gemini 适配器：video_url / file part 会落进它的音频分支，
+#     抛 KeyError: 'audio_url'
+# 两者都是确定性的「这个报文形状它不吃」，重试同一段视频没有意义。
+_ASTRBOT_PART_REJECTIONS = (
+    "invalid image file",
+    "data uri mime=",
+    "'audio_url'",
+)
 # 只有「内容/消息结构被拒」才算能力问题，否则普通参数报错会把整个阶段误拉黑。
 _CONTENT_WORDS = ("content", "message", "part", "modal", "video", "image")
 _REJECT_WORDS = ("invalid", "unsupported", "not support", "unknown", "unexpected", "not a valid", "expected")
@@ -41,6 +53,9 @@ def classify_vision_rejection(exc):
         if status in (400, 415, 422):
             if any(hint in text for hint in _UNAVAILABLE_HINTS):
                 return "unavailable"
+            # 排在 too_large 之前：AstrBot 的拒收文本里带 payload_len=…，否则会被误判成体积超限。
+            if any(hint in text for hint in _ASTRBOT_PART_REJECTIONS):
+                return "unsupported"
             if any(hint in text for hint in _TOO_LARGE_HINTS):
                 return "too_large"
             if any(hint in text for hint in _UNSUPPORTED_HINTS):
@@ -50,6 +65,8 @@ def classify_vision_rejection(exc):
             return "other"
     if any(hint in text for hint in _UNAVAILABLE_HINTS):
         return "unavailable"
+    if any(hint in text for hint in _ASTRBOT_PART_REJECTIONS):
+        return "unsupported"
     if any(hint in text for hint in _UNSUPPORTED_HINTS):
         return "unsupported"
     return "other"
