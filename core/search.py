@@ -192,9 +192,7 @@ class WebSearchMixin:
         if base_url.lower().endswith("/responses"):
             url = base_url
         else:
-            if not base_url.lower().endswith("/v1"):
-                base_url = f"{base_url}/v1"
-            url = f"{base_url}/responses"
+            url = f"{self._normalize_openai_base_url(base_url)}/responses"
         model = str(self.config.get("WEB_SEARCH_MODEL", "") or "grok-4.6").strip()
         payload = {
             "model": model,

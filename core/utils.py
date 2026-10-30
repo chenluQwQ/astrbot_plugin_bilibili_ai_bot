@@ -7,6 +7,7 @@ import threading
 import time
 import asyncio
 import aiohttp
+from urllib.parse import urlsplit
 from .network import plugin_http_session
 from .runtime import WriteResultUnknownError
 from astrbot.api import logger
@@ -33,11 +34,14 @@ class UtilsMixin:
 
     @staticmethod
     def _normalize_openai_base_url(value):
-        """Accept a host/root URL and normalize it to an OpenAI-compatible /v1 base."""
+        """Append /v1 only to a bare host URL; a URL that already has a path is kept as-is."""
         url = str(value or "").strip().rstrip("/")
         if not url:
             return ""
-        return url if url.lower().endswith("/v1") else f"{url}/v1"
+        parsed = urlsplit(url if "://" in url else f"//{url}")
+        if parsed.path.strip("/"):
+            return url
+        return f"{url}/v1"
 
     # ── Cookie / Header ──
     def _has_cookie(self):

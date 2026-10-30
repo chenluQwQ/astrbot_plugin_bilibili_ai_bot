@@ -119,7 +119,7 @@
     "description": "【总结模型】独立 API 地址",
     "type": "string",
     "default": "",
-    "hint": "填写 OpenAI 兼容接口根地址（通常以 /v1 结尾），留空使用 https://api.openai.com/v1。"
+    "hint": "填写 OpenAI 兼容接口地址（通常以 /v1 结尾；只填根地址时自动补 /v1，带其他路径如 /api/v3 则原样使用），留空使用 https://api.openai.com/v1。"
   },
   "SUMMARY_MODEL": {
     "description": "【总结模型】独立 API 模型名",
@@ -144,7 +144,7 @@
     "description": "【生成模型】独立 API 地址",
     "type": "string",
     "default": "",
-    "hint": "填写 OpenAI 兼容接口根地址（通常以 /v1 结尾），留空使用 https://api.openai.com/v1。"
+    "hint": "填写 OpenAI 兼容接口地址（通常以 /v1 结尾；只填根地址时自动补 /v1，带其他路径如 /api/v3 则原样使用），留空使用 https://api.openai.com/v1。"
   },
   "GENERATION_MODEL": {
     "description": "【生成模型】独立 API 模型名",
@@ -2211,7 +2211,7 @@
     "description": "【高级·记忆】Embedding API Base URL",
     "type": "string",
     "default": "https://api.siliconflow.cn/v1",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "只填服务根地址（如 https://example.com）时自动补 /v1；地址里已带路径（如 /v1、/api/v3）则原样使用。"
   },
   "EMBED_MODEL": {
     "description": "【高级·记忆】Embedding 模型名称",
@@ -2242,7 +2242,7 @@
     "description": "【高级·视觉】视频分析 API Base URL",
     "type": "string",
     "default": "",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "只填服务根地址（如 https://example.com）时自动补 /v1；地址里已带路径（如 /v1、/api/v3）则原样使用。"
   },
   "VIDEO_VISION_MODEL": {
     "description": "【高级·视觉】视频分析模型名称",
@@ -2295,7 +2295,7 @@
     "description": "【高级·视觉】图片识别 API Base URL",
     "type": "string",
     "default": "",
-    "hint": "可只填写服务根地址，插件会自动补全 /v1，并避免重复添加。"
+    "hint": "只填服务根地址（如 https://example.com）时自动补 /v1；地址里已带路径（如 /v1、/api/v3）则原样使用。"
   },
   "IMAGE_VISION_MODEL": {
     "description": "【高级·视觉】图片识别模型名称",
