@@ -438,6 +438,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         # 分享视频的观看/评价任务会调模型和发消息，停用后不能继续跑。
         for task in list(getattr(self, "_share_reaction_tasks", ())):
             task.cancel()
+        for task in list(getattr(self, "_tool_watch_jobs", {}).values()):
+            task.cancel()
         extension_registry = getattr(self, "_bilibot_extension_registry", None)
         if extension_registry is not None:
             try:
