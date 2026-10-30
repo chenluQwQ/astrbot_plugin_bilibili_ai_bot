@@ -693,7 +693,8 @@ want_continue：是否值得继续追，烂番可以果断弃。
                                     "proactive_comment",
                                     episode_key,
                                     lambda: self._send_comment(
-                                        aid, comment, oid_type=1
+                                        aid, comment, oid_type=1,
+                                        sync_to_dynamic=self.config.get("COMMENT_SYNC_DYNAMIC", False),
                                     ),
                                 )
                             ).success:

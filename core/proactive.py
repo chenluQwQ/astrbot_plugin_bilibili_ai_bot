@@ -1740,7 +1740,10 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
                 f"{watch_round.action_key_prefix}_comment:{bvid}",
                 "proactive_comment",
                 bvid,
-                lambda: self._send_comment(oid, proactive_comment),
+                lambda: self._send_comment(
+                    oid, proactive_comment,
+                    sync_to_dynamic=self.config.get("COMMENT_SYNC_DYNAMIC", False),
+                ),
             )
         ).success:
             return

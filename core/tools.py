@@ -517,7 +517,10 @@ def create_tools(plugin):
                     f"tool_comment:{oid}:{short_digest(comment_text)}",
                     "tool_comment",
                     oid,
-                    lambda: plugin._send_comment(int(oid), comment_text),
+                    lambda: plugin._send_comment(
+                        int(oid), comment_text,
+                        sync_to_dynamic=plugin.config.get("COMMENT_SYNC_DYNAMIC", False),
+                    ),
                 )
                 return write_outcome_text(
                     outcome, f"评论成功：{comment_text}", "评论发送失败。", "评论发送"

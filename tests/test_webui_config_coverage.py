@@ -43,6 +43,14 @@ class WebuiConfigCoverageTests(unittest.TestCase):
                     "DYNAMIC_FROM_VIDEO", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_PROMPT"):
             self.assertIn(key, drawers["dynamic"][1], key)
 
+    def test_comment_sync_toggle_lives_in_the_proactive_drawer(self):
+        drawers = _capability_keys()
+        self.assertIn("COMMENT_SYNC_DYNAMIC", drawers["proactive"][1])
+        page_keys = _block("const PAGE_KEYS", "const SCHEDULE_REGEN_KEYS")
+        self.assertIn('"COMMENT_SYNC_DYNAMIC"', page_keys)
+        self.assertNotIn('"COMMENT_SYNC_DYNAMIC"', _block("interaction: [", "autonomy: ["))
+        self.assertNotIn("COMMENT_SYNC_DYNAMIC", _block("function renderInteraction", "const EVENT_STYLES"))
+
     def test_conditions_point_at_live_keys(self):
         for key, field in SCHEMA.items():
             if field.get("deprecated"):
