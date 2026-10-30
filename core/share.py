@@ -673,7 +673,7 @@ class ShareMixin:
         self._start_share_reaction(event, info, share_record, reply_target)
         sent_message_id = None
         try:
-            async for result in self._send_shared_video(event, bvid):
+            async for result in self._send_shared_video(event, bvid, info.get("duration")):
                 if isinstance(result, dict):
                     sent_message_id = result.get("message_id") or sent_message_id
                 else:
@@ -682,7 +682,7 @@ class ShareMixin:
             if not reply_target.done():
                 reply_target.set_result(sent_message_id or self._event_message_id(event))
 
-    async def _send_shared_video(self, event, bvid):
+    async def _send_shared_video(self, event, bvid, duration=None):
         """Download and send the original video; a dict result reports its message id."""
         if not self.config.get("BILI_SHARE_PARSE_SEND_VIDEO", True):
             return
@@ -695,7 +695,7 @@ class ShareMixin:
         skipped = False
         try:
             max_height = max(144, int(self.config.get("BILI_SHARE_PARSE_VIDEO_MAX_HEIGHT", 720)))
-            video_path = await self._download_video(bvid, max_height=max_height)
+            video_path = await self._download_video(bvid, max_height=max_height, duration=duration)
             if not video_path:
                 yield event.plain_result("⚠️ 原视频下载失败，先看解析卡和链接吧。")
                 return
