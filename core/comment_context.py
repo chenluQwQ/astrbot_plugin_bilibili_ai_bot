@@ -1,5 +1,6 @@
 """A bounded tool loop driven by the same model that writes public replies."""
 import asyncio
+import collections
 import json
 import re
 import time
@@ -25,6 +26,9 @@ class CommentContextMixin:
     _COMMENT_CONTEXT_TOOL_TIMEOUT = 25
     _COMMENT_CONTEXT_VIDEO_TIMEOUT = 240
     _COMMENT_REPLY_MODEL_TIMEOUT = 90
+    _COMMENT_INSPECT_INLINE_WAIT = 30
+    _COMMENT_INSPECT_QUEUE_LIMIT = 5
+    _COMMENT_INSPECT_EXTRA_SECONDS = 300
 
     def _comment_context_tools(self, oid, comment_type):
         if not self.config.get("COMMENT_CONTEXT_ENABLED", True):
@@ -67,7 +71,89 @@ class CommentContextMixin:
             info, request["query"], request.get("start_seconds"), request.get("end_seconds")
         )
 
-    async def _run_comment_reply_flow(self, prompt, system_prompt, oid, comment_type, thread_id, *, suspicious=False, test_mode=False):
+    def _comment_inspection_timeout(self, duration):
+        """后台视频检查的总时限：下载等待加上切片和模型调用的余量。"""
+        return max(
+            self._COMMENT_CONTEXT_VIDEO_TIMEOUT,
+            self._video_download_timeout(duration) + self._COMMENT_INSPECT_EXTRA_SECONDS,
+        )
+
+    def _enqueue_comment_inspection(self, request, oid, comment_type, state, started):
+        """把视频检查交给后台；同时只跑一个，排队满了返回 None。"""
+        jobs = getattr(self, "_comment_inspection_jobs", None)
+        if jobs is None:
+            jobs = self._comment_inspection_jobs = collections.deque()
+        if len(jobs) > self._COMMENT_INSPECT_QUEUE_LIMIT:
+            return None
+        job = {
+            "request": request, "oid": oid, "comment_type": comment_type, "state": state, "started": started,
+            "future": asyncio.get_running_loop().create_future(), "defer": None, "resume": None,
+        }
+        jobs.append(job)
+        worker = getattr(self, "_comment_inspection_worker", None)
+        if worker is None or worker.done():
+            self._comment_inspection_worker = asyncio.create_task(self._run_comment_inspection_jobs())
+        return job
+
+    async def _await_comment_inspection(self, job):
+        """正在跑的检查先等一小会儿；返回 None 表示转后台，主循环不再等它。"""
+        if self._comment_inspection_jobs[0] is not job:
+            return None
+        await asyncio.wait({job["future"]}, timeout=self._COMMENT_INSPECT_INLINE_WAIT)
+        return job["future"].result() if job["future"].done() else None
+
+    async def _run_comment_inspection(self, job):
+        try:
+            state = job["state"]
+            if "video_info" not in state:
+                state["video_info"] = await self._get_video_info(job["oid"])
+            info = state["video_info"] if isinstance(state["video_info"], dict) else {}
+            return await asyncio.wait_for(
+                self._execute_comment_context_tool(job["request"], job["oid"], job["comment_type"], state),
+                timeout=self._comment_inspection_timeout(info.get("duration")),
+            )
+        except asyncio.TimeoutError:
+            return {"status": "unavailable", "reason": "timeout", "detail": "查询超时，未取得可靠结果"}
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 评论资料获取失败: {exception_detail(exc, self.config)}")
+            return {"status": "unavailable", "reason": "tool_failed", "detail": "查询失败，未取得可靠结果"}
+
+    async def _run_comment_inspection_jobs(self):
+        jobs = self._comment_inspection_jobs
+        while jobs:
+            job = jobs[0]
+            outcome = await self._run_comment_inspection(job)
+            job["future"].set_result(outcome)
+            jobs.popleft()
+            if not job["defer"]:
+                continue
+            resume = job["resume"]
+            self._record_comment_context_call(resume["trace"], resume["evidence"], job["request"], outcome, job["started"])
+            try:
+                await job["defer"](resume)
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 评论视频检查后续回复失败: {exception_detail(exc, self.config)}")
+
+    def _cancel_comment_inspections(self):
+        """停止时丢弃后台检查和排队的评论；它们已标记处理过，重启后不再回复。"""
+        worker = getattr(self, "_comment_inspection_worker", None)
+        if worker and not worker.done():
+            worker.cancel()
+        self._comment_inspection_worker = None
+        jobs = getattr(self, "_comment_inspection_jobs", None)
+        while jobs:
+            jobs.popleft()["future"].cancel()
+
+    @staticmethod
+    def _record_comment_context_call(trace, evidence, request, outcome, started):
+        trace.append({"tool": request["name"], "status": outcome.get("status", "unavailable"),
+                      "cached": bool(outcome.get("from_cache")), "seconds": round(time.monotonic() - started, 2),
+                      "reason": outcome.get("reason", "" if outcome.get("status") == "ok" else "no_material")})
+        # Each bounded block carries its question as well as its answer.
+        evidence.append(wrap_untrusted(json.dumps({"request": request, "result": outcome}, ensure_ascii=False), "queried_material"))
+        logger.info(f"[BiliBot] 评论资料请求 {request['name']}: {trace[-1]['status']}")
+
+    async def _run_comment_reply_flow(self, prompt, system_prompt, oid, comment_type, thread_id, *, suspicious=False, test_mode=False, defer=None, resume=None):
         try:
             budget = max(0, min(6, int(self.config.get("COMMENT_CONTEXT_MAX_CALLS", 4))))
         except (TypeError, ValueError):
@@ -75,8 +161,15 @@ class CommentContextMixin:
         tools = [] if suspicious else self._comment_context_tools(oid, comment_type)
         state, requested, evidence, trace = {}, set(), [], []
         inspection_count = 0
+        first_round = 0
+        if resume:
+            # 分析完再回到这里，发布不再等第二次视频检查。
+            state, requested, evidence, trace = resume["state"], resume["requested"], resume["evidence"], resume["trace"]
+            inspection_count = 2
+            first_round = resume["next_round"]
+            prompt += "\n\n【说明】这条评论是一段时间前收到的，你刚刚看完视频才来回复。"
         result = {"decision": "error", "error": "context_budget_exhausted"}
-        for round_index in range(budget + 1):
+        for round_index in range(first_round, budget + 1):
             allowed = tools if round_index < budget else []
             descriptions = "\n".join(f"- {name}: {TOOL_HELP[name]}" for name in allowed)
             control = (
@@ -121,6 +214,18 @@ class CommentContextMixin:
                 if request["name"] == "video_inspect":
                     inspection_count += 1
                 try:
+                    if request["name"] == "video_inspect" and defer is not None:
+                        job = self._enqueue_comment_inspection(request, oid, comment_type, state, started)
+                        if job is None:
+                            raise asyncio.TimeoutError
+                        outcome = await self._await_comment_inspection(job)
+                        if outcome is None:
+                            job["defer"] = defer
+                            job["resume"] = {"state": state, "requested": requested, "evidence": evidence,
+                                             "trace": trace, "next_round": round_index + 1}
+                            return {"decision": "deferred"}
+                        self._record_comment_context_call(trace, evidence, request, outcome, started)
+                        continue
                     timeout = self._COMMENT_CONTEXT_VIDEO_TIMEOUT if request["name"] == "video_inspect" else self._COMMENT_CONTEXT_TOOL_TIMEOUT
                     outcome = await asyncio.wait_for(
                         self._execute_comment_context_tool(request, oid, comment_type, state), timeout=timeout
@@ -130,12 +235,7 @@ class CommentContextMixin:
                 except Exception as exc:
                     logger.warning(f"[BiliBot] 评论资料获取失败: {exception_detail(exc, self.config)}")
                     outcome = {"status": "unavailable", "reason": "tool_failed", "detail": "查询失败，未取得可靠结果"}
-            trace.append({"tool": request["name"], "status": outcome.get("status", "unavailable"),
-                          "cached": bool(outcome.get("from_cache")), "seconds": round(time.monotonic() - started, 2),
-                          "reason": outcome.get("reason", "" if outcome.get("status") == "ok" else "no_material")})
-            # Each bounded block carries its question as well as its answer.
-            evidence.append(wrap_untrusted(json.dumps({"request": request, "result": outcome}, ensure_ascii=False), "queried_material"))
-            logger.info(f"[BiliBot] 评论资料请求 {request['name']}: {trace[-1]['status']}")
+            self._record_comment_context_call(trace, evidence, request, outcome, started)
         if suspicious and result.get("decision") == "reply":
             result["score_delta"] = min(result.get("score_delta", 0), -3)
         result["_context_trace"] = trace

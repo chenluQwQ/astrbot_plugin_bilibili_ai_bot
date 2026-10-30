@@ -227,6 +227,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                 task.cancel()
                 if task is not asyncio.current_task():
                     await asyncio.gather(task, return_exceptions=True)
+        self._cancel_comment_inspections()
         if self._proactive_task and not self._proactive_task.done():
             self._proactive_task.cancel()
             self._proactive_task = None
