@@ -7,7 +7,7 @@ import traceback
 import time
 from .video_diagnostics import evaluation_failure, get_call_diagnostic, set_call_diagnostic, exception_detail
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from astrbot.api import logger
 from .config import (
     OWNER_RECOMMEND_LOG_FILE,
@@ -1473,7 +1473,8 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
         """按关注、搜索、视频池三种来源取候选，并按当天配额合并排序。"""
         today_str = datetime.now().strftime("%Y-%m-%d")
         today_watched = [l for l in watch_log if l.get("time", "").startswith(today_str)]
-        min_pubdate_hot = int(datetime(datetime.now().year, 1, 1).timestamp())
+        # 用 UTC 年初：naive datetime.timestamp() 会按本机时区折算，导致同一份快照在不同时区的机器上产生不同数值。
+        min_pubdate_hot = int(datetime(datetime.now().year, 1, 1, tzinfo=timezone.utc).timestamp())
         prefilter_extra = (
             max(0, int(self.config.get("PROACTIVE_LLM_PREFILTER_MAX_REJECTS", 3)))
             if self.config.get("ENABLE_PROACTIVE_LLM_PREFILTER", False)
