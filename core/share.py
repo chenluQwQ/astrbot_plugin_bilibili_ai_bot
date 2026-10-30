@@ -17,6 +17,7 @@ from .config import TEMP_VIDEO_DIR, VIDEO_MEMORY_FILE
 from .content_protocol import (
     ContentProtocolError, SHARE_REACTION_SCHEMA_PROMPT, SHARE_WATCH_SCHEMA_PROMPT,
     parse_share_reaction, parse_share_watch_decision,
+    TOOL_WATCH_FOLLOWUP_SCHEMA_PROMPT,
 )
 from .security.redact import wrap_untrusted
 
@@ -949,6 +950,45 @@ class ShareMixin:
             raise
         except Exception as exc:
             logger.warning(f"[BiliBot] 分享视频观看/评价失败: {exc}")
+
+    async def _tool_watch_followup_text(self, watch_message, *, scene, user_text, persona, provider_id):
+        prompt = (
+            f"刚才在QQ{scene}里，对方让你看的B站视频你转到后台去看了，现在有结果了，要主动接着说一句。\n"
+            f"{wrap_untrusted(watch_message[:1600], 'watch_result')}\n"
+        )
+        if user_text.strip():
+            prompt += f"对方当时的消息：\n{wrap_untrusted(user_text[:300], 'share_message')}\n"
+        prompt += (
+            "看完了就基于真正看到的内容说一句；结果显示没看成就如实说没看成，不要编内容。"
+            "不复述标题，不带链接，不提分析、评分这些内部过程。\n"
+            + TOOL_WATCH_FOLLOWUP_SCHEMA_PROMPT
+        )
+        raw = await self._llm_call(prompt, system_prompt=persona, max_tokens=120, provider_id=provider_id)
+        if not raw:
+            return ""
+        try:
+            parsed = parse_share_reaction(raw)
+        except ContentProtocolError as exc:
+            logger.warning(f"[BiliBot] 工具看片结果消息结构校验失败，改发固定提示: {exc}")
+            return ""
+        return parsed["text"] if parsed["decision"] == "comment" else ""
+
+    async def _send_tool_watch_followup(self, umo, watch_message, *, scene, user_text, failed=False):
+        """Tell the conversation that asked how a backgrounded watch ended."""
+        text = "刚才那个视频没看成，晚点再试试吧。" if failed else ""
+        if not failed:
+            try:
+                provider_id = await self._qq_session_provider_id(umo)
+                if provider_id:
+                    persona = await self._qq_session_persona_prompt(umo)
+                    text = await self._tool_watch_followup_text(
+                        watch_message, scene=scene, user_text=user_text,
+                        persona=persona, provider_id=provider_id,
+                    )
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 工具看片结果消息生成失败，改发固定提示: {exc}")
+        # 用户还在等结果，模型说不出话也要告诉一声；固定文字不含模型输出。
+        await self._send_share_reaction(umo, text or "刚才那个视频有结果了，可以再问问我。", None)
 
     async def _send_share_reaction(self, umo, text, reply_to):
         import astrbot.api.message_components as Comp

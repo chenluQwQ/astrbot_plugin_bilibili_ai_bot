@@ -231,6 +231,11 @@ SHARE_REACTION_SCHEMA_PROMPT = (
     "看完有具体感受才用comment，text是一句口语化的短评；说不出具体内容就用skip且text留空。"
 )
 
+TOOL_WATCH_FOLLOWUP_SCHEMA_PROMPT = (
+    '只输出完整JSON：{"decision":"comment|skip","text":"一句话"}。'
+    "text是一句口语化的短句，60字以内；实在说不出来才用skip且text留空。"
+)
+
 DYNAMIC_SCHEMA_PROMPT = (
     '只输出完整JSON：{"decision":"post|skip|search","text":"动态正文",'
     '"search_query":"","image":"none|generate|video_cover","image_prompt":""}。'

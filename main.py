@@ -440,6 +440,8 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             task.cancel()
         for task in list(getattr(self, "_tool_watch_jobs", {}).values()):
             task.cancel()
+        for task in list(getattr(self, "_tool_watch_followup_tasks", ())):
+            task.cancel()
         extension_registry = getattr(self, "_bilibot_extension_registry", None)
         if extension_registry is not None:
             try:

@@ -20,7 +20,7 @@ WATCH_INLINE_WAIT = 30
 WATCH_MAX_JOBS = 3
 WATCH_PENDING_MESSAGE = (
     "[还在看] 这个视频比较长，已转到后台继续，看完会写入视频记忆。"
-    "现在还不知道视频内容，不要编造；告诉对方你正在看就好，不要重复调用这个工具。"
+    "现在还不知道视频内容，不要编造；告诉对方你正在看、看完会说一声就好，不要重复调用这个工具。"
 )
 
 
@@ -400,16 +400,34 @@ def create_tools(plugin):
     # AstrBot 给每次工具调用限时（用户日志里是 300 秒），长视频下载加分析常常超过，
     # 超时会把这次看片整个取消。所以先等一小会儿，没看完就留在后台继续。
     plugin._tool_watch_jobs = {}
+    plugin._tool_watch_followup_tasks = set()
+    watch_followups = {}
 
-    def _log_watch_job(key, task):
+    async def _send_watch_followup(umo, message, *, scene, user_text, failed):
+        try:
+            await plugin._send_tool_watch_followup(
+                umo, message, scene=scene, user_text=user_text, failed=failed
+            )
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 工具看片结果消息发送失败: {exc}")
+
+    def _finish_watch_job(key, task):
         plugin._tool_watch_jobs.pop(key, None)
+        waiting = watch_followups.pop(key, {})
         if task.cancelled():
             return
         error = task.exception()
         if error is not None:
             logger.warning(f"[BiliBot] 工具后台看片失败({key}): {error}")
+        message = "" if error is not None else str(task.result() or "")
+        for umo, (scene, user_text) in waiting.items():
+            followup = asyncio.create_task(_send_watch_followup(
+                umo, message, scene=scene, user_text=user_text, failed=error is not None,
+            ))
+            plugin._tool_watch_followup_tasks.add(followup)
+            followup.add_done_callback(plugin._tool_watch_followup_tasks.discard)
 
-    async def _run_watch_job(key, start_job):
+    async def _run_watch_job(key, start_job, event):
         """同一个视频只跑一份：模型重复调用时等已有的任务，不重新下载。"""
         task = plugin._tool_watch_jobs.get(key)
         if task is None:
@@ -417,10 +435,16 @@ def create_tools(plugin):
                 return "⚠️ 手头还有几个视频没看完，先不接新的，晚点再试。"
             task = asyncio.create_task(start_job())
             plugin._tool_watch_jobs[key] = task
-            task.add_done_callback(lambda done: _log_watch_job(key, done))
+            task.add_done_callback(lambda done: _finish_watch_job(key, done))
         # asyncio.wait 被取消或超时都不会取消 task，工具调用结束后它照常跑完。
         await asyncio.wait({task}, timeout=WATCH_INLINE_WAIT)
         if not task.done():
+            umo = str(getattr(event, "unified_msg_origin", "") or "")
+            if umo:
+                watch_followups.setdefault(key, {})[umo] = (
+                    plugin._share_scene(event)[1],
+                    str(getattr(event, "message_str", "") or ""),
+                )
             return WATCH_PENDING_MESSAGE
         if task.cancelled():
             return "⚠️ 看片被中断了。"
@@ -456,6 +480,7 @@ def create_tools(plugin):
             return await _run_watch_job(
                 f"watch:{bvid.lower()}",
                 lambda: _watch_video_message(bvid, force_rewatch=force),
+                event,
             )
 
     async def _watch_and_share_private(receiver_mid, requested_bvid, cooldown, key):
@@ -541,6 +566,7 @@ def create_tools(plugin):
             return await _run_watch_job(
                 f"share:{key}",
                 lambda: _watch_and_share_private(receiver_mid, requested_bvid, cooldown, key),
+                getattr(getattr(context, "context", None), "event", None),
             )
 
     # ── B站操作工具 ──
