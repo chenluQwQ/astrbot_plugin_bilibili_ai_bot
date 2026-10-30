@@ -266,7 +266,7 @@ class InspectionTests(unittest.IsolatedAsyncioTestCase):
         bot._append_json_list = lambda key, row, cap: files.setdefault(key, []).append(copy.deepcopy(row))
         bot._get_video_vision_client = lambda: None
         directories = []
-        async def download(bvid, *, output_dir):
+        async def download(bvid, *, output_dir, duration=None):
             directories.append(output_dir)
             file = Path(output_dir) / (bvid + ".mp4"); file.write_bytes(b"test")
             return str(file)

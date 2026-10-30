@@ -1,4 +1,5 @@
 """回复生成、应用回复结果、统一轮询。"""
+import asyncio
 import os
 import re
 import json
@@ -258,6 +259,8 @@ class ReplyMixin(CommentContextMixin):
         channel="comment",
         reference_context="",
         allow_tool_request=False,
+        comment_defer=None,
+        comment_resume=None,
     ):
         try:
             sp = await self._get_system_prompt()
@@ -440,7 +443,8 @@ class ReplyMixin(CommentContextMixin):
                 prompt += f"\n\n【补充提示词】{custom_reply_inst}"
             if channel == "comment":
                 return await self._run_comment_reply_flow(
-                    prompt, sp, oid, comment_type, thread_id, suspicious=is_suspicious
+                    prompt, sp, oid, comment_type, thread_id, suspicious=is_suspicious,
+                    defer=comment_defer, resume=comment_resume,
                 )
             prompt += "\n\n" + reply_schema_instruction(tools=schema_tool_names)
             rt = await self._llm_call(prompt, system_prompt=sp)
@@ -842,45 +846,92 @@ class ReplyMixin(CommentContextMixin):
                 if image_desc:
                     logger.info(f"[BiliBot] 🖼️ 图片内容：{image_desc[:50]}...")
 
-            result = await self._generate_reply(content, mid, username, thread_id, oid, comment_type, image_desc=image_desc)
-            decision = str((result or {}).get("decision") or "error")
-            if decision in {"ignore", "observe"}:
-                await self.event_runtime.transition(
-                    claim.event_key, EventState.IGNORED, f"model_{decision}"
-                )
-                return
-            if decision != "reply" or not result.get("reply"):
-                reason = str((result or {}).get("error") or "reply_generation_failed")
-                logger.warning(f"[BiliBot] {username} 回复未生成：{reason}")
-                await self.event_runtime.transition(
-                    claim.event_key, EventState.FAILED, reason
-                )
-                return
+            comment = {
+                "event_key": claim.event_key, "mid": mid, "username": username, "content": content,
+                "oid": oid, "rpid": rpid, "comment_type": comment_type, "thread_id": thread_id,
+                "image_desc": image_desc, "content_emb": content_emb,
+            }
 
-            sent = await self._apply_reply_result(
-                mid=mid, username=username, content=content,
-                oid=oid, rpid=rpid, comment_type=comment_type,
-                thread_id=thread_id, result=result,
+            async def resume_after_inspection(resume):
+                await self._resume_comment_reply(comment, resume)
+
+            result = await self._generate_reply(
+                content, mid, username, thread_id, oid, comment_type, image_desc=image_desc,
+                comment_defer=resume_after_inspection,
             )
-
-            if sent and self.config.get("ENABLE_SIMILAR_SKIP", False):
-                await self._record_replied_content(content, emb=content_emb)
-
-            # 回复冷却：防止短时间内重复回复
-            cooldown = max(int(self.config.get("REPLY_COOLDOWN", 15)), 5)
-            self._reply_cooldown_until = time.time() + cooldown
-
-            # 恶意告警：回复完成后异步检查
-            try:
-                await self._check_abuse_alert(
-                    username=username, mid=mid, content=content,
-                    bot_reply=result.get("reply", ""),
-                    score_delta=result.get("score_delta", 0),
-                )
-            except Exception as e:
-                logger.debug(f"[BiliBot] 恶意告警检查异常: {e}")
+            if (result or {}).get("decision") == "deferred":
+                logger.info(f"[BiliBot] 📹 视频检查转后台，看完再回复：{username}")
+                return
+            await self._finish_comment_reply(comment, result)
         except Exception as e:
             logger.error(f"[BiliBot] 轮询出错: {e}\n{traceback.format_exc()}")
+
+    def _in_sleep_hours(self):
+        h = datetime.now().hour
+        ss = self.config.get("SLEEP_START", 2)
+        se = self.config.get("SLEEP_END", 8)
+        return (ss <= h < se) if ss <= se else (h >= ss or h < se)
+
+    async def _resume_comment_reply(self, comment, resume):
+        """视频检查做完后才开始回复；发送仍受回复模型和发送动作各自的时限约束。"""
+        try:
+            while self._in_sleep_hours() and getattr(self, "_running", True):
+                await asyncio.sleep(60)
+            if self._daily_reply_limit_reached("comment"):
+                self._log_security_event(
+                    "daily_reply_limit", comment["mid"], comment["username"], comment["content"], "评论回复达到管理员硬上限"
+                )
+                await self.event_runtime.transition(comment["event_key"], EventState.IGNORED, "daily_reply_limit")
+                return
+            result = await self._generate_reply(
+                comment["content"], comment["mid"], comment["username"], comment["thread_id"],
+                comment["oid"], comment["comment_type"], image_desc=comment["image_desc"],
+                comment_resume=resume,
+            )
+            await self._finish_comment_reply(comment, result)
+        except Exception as e:
+            logger.error(f"[BiliBot] 评论后续回复出错: {e}\n{traceback.format_exc()}")
+            await self.event_runtime.transition(comment["event_key"], EventState.FAILED, "deferred_reply_failed")
+
+    async def _finish_comment_reply(self, comment, result):
+        username = comment["username"]
+        content = comment["content"]
+        decision = str((result or {}).get("decision") or "error")
+        if decision in {"ignore", "observe"}:
+            await self.event_runtime.transition(
+                comment["event_key"], EventState.IGNORED, f"model_{decision}"
+            )
+            return
+        if decision != "reply" or not result.get("reply"):
+            reason = str((result or {}).get("error") or "reply_generation_failed")
+            logger.warning(f"[BiliBot] {username} 回复未生成：{reason}")
+            await self.event_runtime.transition(
+                comment["event_key"], EventState.FAILED, reason
+            )
+            return
+
+        sent = await self._apply_reply_result(
+            mid=comment["mid"], username=username, content=content,
+            oid=comment["oid"], rpid=comment["rpid"], comment_type=comment["comment_type"],
+            thread_id=comment["thread_id"], result=result,
+        )
+
+        if sent and self.config.get("ENABLE_SIMILAR_SKIP", False):
+            await self._record_replied_content(content, emb=comment["content_emb"])
+
+        # 回复冷却：防止短时间内重复回复
+        cooldown = max(int(self.config.get("REPLY_COOLDOWN", 15)), 5)
+        self._reply_cooldown_until = time.time() + cooldown
+
+        # 恶意告警：回复完成后异步检查
+        try:
+            await self._check_abuse_alert(
+                username=username, mid=comment["mid"], content=content,
+                bot_reply=result.get("reply", ""),
+                score_delta=result.get("score_delta", 0),
+            )
+        except Exception as e:
+            logger.debug(f"[BiliBot] 恶意告警检查异常: {e}")
 
     # ── 语义去重 ──
 

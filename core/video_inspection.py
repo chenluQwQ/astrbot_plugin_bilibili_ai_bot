@@ -98,7 +98,7 @@ class VideoInspectionMixin:
             with tempfile.TemporaryDirectory(prefix="inspection_", dir=root) as directory:
                 workspace = Path(directory).resolve()
                 assert workspace.is_relative_to(root)
-                source = await self._download_video(bvid, output_dir=str(workspace))
+                source = await self._download_video(bvid, output_dir=str(workspace), duration=info.get("duration"))
                 if not source:
                     return {"status": "unavailable", "detail": "视频下载失败，未检查画面"}
                 duration = await self._get_video_duration(source)
