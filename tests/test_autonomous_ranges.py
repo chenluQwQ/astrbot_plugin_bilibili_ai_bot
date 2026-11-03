@@ -139,6 +139,9 @@ class ReplyProbe(ReplyMixin):
 
 
 class VideoProbe(VideoMixin):
+    async def _report_video_history(self, *_args):
+        return True
+
     def __init__(self, config, cache=None):
         self.config = config
         self.cache = cache or {}

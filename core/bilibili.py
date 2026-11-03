@@ -282,15 +282,55 @@ class BilibiliAPIMixin:
         content = re.sub(r'^@[^ \t\n\r]+\s*', '', content)
         return content.strip()
 
-    async def _send_comment(self, oid, comment_text, oid_type=1):
+    async def _send_comment(self, oid, comment_text, oid_type=1, at_names=None, *, result_sink=None, pictures=None):
+        """发评论。
+
+        Args:
+            at_names: 可选 {昵称: UID}。B站只在 ``at_name_to_mid`` 里声明过的
+                昵称才会渲染成真正可点击、能收到提醒的 @；正文里光写 "@昵称"
+                只是一段普通文字，对方收不到通知。
+        """
+        # 保留 bool 返回值；用本次调用的容器传递发布凭据，避免并发串用全局结果。
+        if result_sink is not None:
+            result_sink.clear()
+            result_sink["send_status"] = "unknown"
         try:
-            d, _ = await self._http_post(
-                BILI_REPLY_URL,
-                data={"oid": oid, "type": oid_type, "message": comment_text, "csrf": self.config.get("BILI_JCT", "")},
-            )
+            data = {
+                "oid": oid,
+                "type": oid_type,
+                "message": comment_text,
+                "csrf": self.config.get("BILI_JCT", ""),
+            }
+            at_map = {
+                str(name).strip(): str(mid).strip()
+                for name, mid in (at_names or {}).items()
+                if str(name).strip() and str(mid).strip().isdigit()
+            }
+            if at_map:
+                data["at_name_to_mid"] = json.dumps(
+                    {name: int(mid) for name, mid in at_map.items()},
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            if pictures:
+                data.update(pictures=json.dumps(pictures, separators=(",", ":")), plat=1,
+                            statistics=json.dumps({"appId": 100, "platform": 5}), gaia_source="main_web")
+            # 发布是非幂等操作：响应丢失时不得由底层 HTTP 自动重复发送。
+            d, _ = await self._http_post(BILI_REPLY_URL, data=data, timeout=10, retries=0)
             code = d.get("code", -1)
             if code == 0:
+                if result_sink is not None:
+                    payload = d.get("data") if isinstance(d.get("data"), dict) else {}
+                    reply = payload.get("reply") if isinstance(payload.get("reply"), dict) else {}
+                    result_sink.update({
+                        "send_status": "published",
+                        "rpid": str(reply.get("rpid_str") or reply.get("rpid") or payload.get("rpid") or ""),
+                    })
+                if at_map:
+                    logger.info(f"[BiliBot] @提及已声明：{list(at_map)}")
                 return True
+            if result_sink is not None:
+                result_sink["send_status"] = "failed"
             if code == -101:
                 logger.warning("[BiliBot] 发评论失败：Cookie 已失效")
             elif code == -403 or code == 12015:
@@ -406,11 +446,21 @@ class BilibiliAPIMixin:
             "title": str(info.get("title", "") or bvid),
             "bvid": bvid,
         }
-        return await self._send_bili_private_payload(
+        sent = await self._send_bili_private_payload(
             receiver_mid,
             7,
             content,
             label="视频私信",
+        )
+        if sent:
+            return True
+        logger.warning(
+            f"[BiliBot] 原生视频卡片发送失败，降级为链接私信：{bvid}"
+        )
+        title = str(info.get("title", "") or bvid).strip()
+        return await self._send_bili_private_message(
+            receiver_mid,
+            f"{title}\nhttps://www.bilibili.com/video/{bvid}",
         )
 
     # ── 关注列表 ──
@@ -484,11 +534,12 @@ class BilibiliAPIMixin:
             body = sub_data.get("body", [])
             if not body:
                 return ""
-            # 拼接字幕文本，限制长度
+            # Keep enough source material for the low-token sampler to cover the
+            # whole timeline. The final model-facing budget is enforced later.
             lines = [item.get("content", "") for item in body if item.get("content")]
-            full_text = " ".join(lines)
-            if len(full_text) > 2000:
-                full_text = full_text[:2000] + "…（字幕过长已截断）"
+            full_text = "\n".join(lines)
+            if len(full_text) > 12000:
+                full_text = full_text[:12000] + "\n…（字幕源过长已截断）"
             lan = (selected_subtitle or {}).get("lan", "?")
             subtitle_id = (selected_subtitle or {}).get("id_str") or (selected_subtitle or {}).get("id", "?")
             logger.info(
@@ -519,6 +570,32 @@ class BilibiliAPIMixin:
             pass
         return []
 
+    async def _get_hot_comments_with_rpid(self, oid, limit=10):
+        """抓热门评论并附带 rpid，供楼中楼回复使用。
+
+        返回 [{"rpid": str, "message": str, "username": str, "mid": str}, ...]。
+        失败返回空列表。
+        """
+        try:
+            d, _ = await self._http_get("https://api.bilibili.com/x/v2/reply/main", params={"oid": oid, "type": 1, "mode": 3, "ps": limit})
+            if d.get("code") != 0:
+                return []
+            out = []
+            for r in d.get("data", {}).get("replies", []) or []:
+                msg = str(r.get("content", {}).get("message", "") or "").strip()
+                if not msg:
+                    continue
+                member = r.get("member", {}) or {}
+                out.append({
+                    "rpid": str(r.get("rpid", "") or ""),
+                    "message": msg,
+                    "username": str(member.get("uname", "") or ""),
+                    "mid": str(member.get("mid", "") or ""),
+                })
+            return out
+        except Exception:
+            return []
+
     async def _get_video_oid(self, bvid):
         try:
             d, _ = await self._http_get("https://api.bilibili.com/x/web-interface/view", params={"bvid": bvid})
@@ -527,6 +604,52 @@ class BilibiliAPIMixin:
         except Exception:
             pass
         return None
+
+    async def _report_video_history(self, aid, cid, duration=0, bvid=""):
+        """Report a conservative playback heartbeat so analyzed videos appear in history."""
+        try:
+            aid = int(aid or 0)
+            cid = int(cid or 0)
+            duration = max(0, int(duration or 0))
+        except (TypeError, ValueError):
+            return False
+        if aid <= 0 or cid <= 0:
+            logger.warning(
+                f"[BiliBot] 跳过播放历史上报：aid/cid 无效 ({aid}/{cid})"
+            )
+            return False
+
+        played_time = max(1, min(duration or 1, 60))
+        payload = {
+            "aid": aid,
+            "cid": cid,
+            "bvid": str(bvid or ""),
+            "played_time": played_time,
+            "realtime": played_time,
+            "start_ts": int(time.time()) - played_time,
+            "type": 3,
+            "dt": 2,
+            "play_type": 0,
+            "csrf": self.config.get("BILI_JCT", ""),
+        }
+        try:
+            result, _ = await self._http_post(
+                "https://api.bilibili.com/x/click-interface/web/heartbeat",
+                data=payload,
+                retries=1,
+            )
+            if result.get("code") == 0:
+                logger.info(
+                    f"[BiliBot] ▶️ 已上报播放历史：{bvid or aid} ({played_time}s)"
+                )
+                return True
+            logger.warning(
+                f"[BiliBot] 播放历史上报失败({bvid or aid}): "
+                f"code={result.get('code')} {result.get('message', '')}"
+            )
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 播放历史上报异常({bvid or aid}): {exc}")
+        return False
 
     # ── 互动 ──
     async def _like_video(self, aid):
@@ -615,17 +738,21 @@ class BilibiliAPIMixin:
             return False
 
     # ── 图片上传 ──
-    async def _upload_image_to_bilibili(self, image_path):
+    async def _upload_image_to_bilibili(self, image_path, *, biz=None, timeout=30):
         try:
             with open(image_path, "rb") as f:
                 img_data = f.read()
             form = aiohttp.FormData()
-            form.add_field('file_up', img_data, filename='image.png', content_type='image/png')
+            import mimetypes
+            form.add_field('file_up', img_data, filename=os.path.basename(image_path),
+                           content_type=mimetypes.guess_type(image_path)[0] or 'image/png')
+            if biz:
+                form.add_field('biz', biz)
             form.add_field('category', 'daily')
             form.add_field('csrf', self.config.get("BILI_JCT", ""))
             headers = {"Cookie": self._headers()["Cookie"], "User-Agent": USER_AGENT, "Referer": "https://www.bilibili.com"}
             async with plugin_http_session(self.config) as s:
-                async with s.post(BILI_UPLOAD_IMAGE_URL, headers=headers, data=form, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                async with s.post(BILI_UPLOAD_IMAGE_URL, headers=headers, data=form, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
                     result = await r.json()
             if result.get("code") == 0:
                 img_info = result["data"]

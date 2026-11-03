@@ -285,7 +285,7 @@ class UtilsMixin:
             },
             "features": {
                 "video_cover_analysis": bool(video_provider_id or video_api_ready or self.config.get("LLM_PROVIDER_ID", "")),
-                "image_recognition": bool(image_provider_id or image_api_ready),
+                "image_recognition": bool(image_provider_id or image_api_ready or video_provider_id or video_api_ready),
                 "proactive_video_media": proactive_media_ready and bool(video_provider_id or video_api_ready),
                 "proactive_video_fallback_text": bool(self.config.get("LLM_PROVIDER_ID", "")),
                 "dynamic_image_generation": image_gen_ready,
@@ -308,8 +308,8 @@ class UtilsMixin:
             logger.warning("[BiliBot] 未配置 LLM_PROVIDER_ID。文本回复/评价/纯文本回退将依赖 AstrBot 当前默认聊天模型。")
         if not (env["llm"]["video_provider"] or env["llm"]["video_api"]):
             logger.warning("[BiliBot] 未配置视频视觉模型。视频相关分析将退回纯文本概括。")
-        if not (env["llm"]["image_provider"] or env["llm"]["image_api"]):
-            logger.warning("[BiliBot] 未配置图片识别模型。评论图片识别功能将不可用。")
+        if not (env["llm"]["image_provider"] or env["llm"]["image_api"] or env["llm"]["video_provider"] or env["llm"]["video_api"]):
+            logger.warning("[BiliBot] 未配置图片识别模型（且视频视觉模型也未配置）。评论图片识别功能将不可用。")
         if self.config.get("ENABLE_WEB_SEARCH", False):
             ws_backend = (self.config.get("WEB_SEARCH_BACKEND", "") or "tavily").lower()
             ws_key = self.config.get("WEB_SEARCH_API_KEY", "")

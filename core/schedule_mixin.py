@@ -153,6 +153,25 @@ class ScheduleMixin:
         elapsed = (now - scheduled).total_seconds()
         return 0 <= elapsed < cls._SCHEDULE_TRIGGER_GRACE_MINUTES * 60
 
+    def _proactive_slot_due(self, now, hour, minute):
+        """Allow a once-in-window proactive slot to recover after delays or restarts."""
+        if self._schedule_slot_due(now, hour, minute):
+            return True
+        key = f"{int(hour)}:{int(minute):02d}"
+        now_minute = now.hour * 60 + now.minute
+        scheduled_minute = int(hour) * 60 + int(minute)
+        for window in getattr(self, "_proactive_windows", []) or []:
+            if str(window.get("scheduled_time") or "") != key:
+                continue
+            end_pair = self._parse_time_value(window.get("end_time"))
+            if not end_pair:
+                continue
+            end_minute = end_pair[0] * 60 + end_pair[1]
+            elapsed = (now_minute - scheduled_minute) % 1440
+            available = (end_minute - scheduled_minute) % 1440
+            return 0 <= elapsed < available
+        return False
+
     def _autonomous_config_fingerprint(self):
         keys = (
             "ENABLE_AUTONOMOUS_DAILY_PLAN", "AUTONOMOUS_ACTIVITY_LEVEL",
@@ -845,7 +864,14 @@ JSON 格式：{{"proactive_windows":["HH:MM-HH:MM"],"dynamic_times":["HH:MM"],"d
         now_dt = datetime.now()
         changed = False
         self._ensure_today_schedules()
-        proactive_overdue = {f"{h}:{m:02d}" for h, m in self._proactive_times if (now_dt.hour > h or (now_dt.hour == h and now_dt.minute > m))}
+        proactive_overdue = {
+            f"{h}:{m:02d}"
+            for h, m in self._proactive_times
+            if (
+                now_dt.hour > h or (now_dt.hour == h and now_dt.minute > m)
+            )
+            and not self._proactive_slot_due(now_dt, h, m)
+        }
         overdue_to_add = proactive_overdue - self._proactive_triggered
         if overdue_to_add:
             self._proactive_triggered.update(overdue_to_add)

@@ -1239,6 +1239,12 @@ query 只保留用于B站搜索的关键词或UP主名字，不要包含“帮�
 
         messages.sort(key=private_sort_key)
         trusted_domains = self.config.get("PRIVATE_MESSAGE_TRUSTED_DOMAINS", []) or None
+        # ── 回复门控：休眠区间内不回复私信，也不标记已读，醒来后自然补上 ──
+        if messages and not self._reply_allowed_now():
+            logger.info(
+                f"[BiliBot] 🌙 休眠中，暂缓处理 {len(messages)} 条私信（待醒来补回复）"
+            )
+            return
         for message in messages:
             try:
                 handled = await self._handle_private_message(message, trusted_domains)

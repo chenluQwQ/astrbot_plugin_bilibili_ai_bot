@@ -21,6 +21,13 @@ from astrbot.api import logger
 from astrbot.api.star import Context
 from astrbot.api.web import error_response, json_response, request
 from .network import normalize_proxy_url
+from .browse_log import (
+    collect_browse_entries,
+    collect_failure_entries,
+    collect_reply_entries,
+)
+from . import livingmemory_bridge
+from .umo import send_to_umo
 
 from .config import (
     AFFECTION_FILE,
@@ -29,6 +36,8 @@ from .config import (
     DYNAMIC_LOG_FILE,
     DYNAMIC_SCHEDULE_FILE,
     DYNAMIC_WATCH_SCHEDULE_FILE,
+    LINK_CONSENT_FILE,
+    LINK_CONSENT_TTL_HOURS,
     PREFERENCE_STATE_FILE,
     PROACTIVE_LOG_FILE,
     REPLY_LOG_FILE,
@@ -36,6 +45,7 @@ from .config import (
     SECURITY_LOG_FILE,
     SPECIAL_FOLLOW_SCHEDULE_FILE,
     USER_PROFILE_FILE,
+    WATCH_LOG_FILE,
 )
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
@@ -132,6 +142,22 @@ def register_webui(plugin_instance: Any, context: Context):
         ("memory/purge", "POST", handle_memory_purge, "Purge aged BiliBot memories"),
         ("memory/cleanup", "GET", handle_memory_cleanup_status, "Irrelevant memory cleanup status"),
         ("memory/cleanup", "POST", handle_memory_cleanup_start, "Start irrelevant memory cleanup"),
+        ("browse/log", "GET", handle_browse_log, "Watched videos, thoughts and comments"),
+        ("browse/replies", "GET", handle_browse_replies, "Comment and private-message replies"),
+        ("browse/failed", "GET", handle_browse_failed, "Video evaluation failures with diagnostics"),
+        ("personas", "GET", handle_persona_list, "AstrBot personas for the persona dropdown"),
+        ("providers", "GET", handle_provider_list, "AstrBot model providers for provider selects"),
+        ("memory/backfill-embeddings", "POST", handle_memory_backfill_embeddings, "Fill missing memory embeddings"),
+        ("link/consent", "GET", handle_link_consent, "External-link consent state (24h quiet window)"),
+        ("link/consent/ack", "POST", handle_link_consent_ack, "Acknowledge the external-link notice for 24h"),
+        ("livingmemory/status", "GET", handle_livingmemory_status, "LivingMemory sync status"),
+        ("livingmemory/sync", "POST", handle_livingmemory_sync, "Push records into LivingMemory"),
+        ("livingmemory/probe", "POST", handle_livingmemory_probe, "Embedding and memory engine self-check"),
+        ("gallery/status", "GET", handle_gallery_status, "Gallery and retained history status"),
+        ("gallery/list", "GET", handle_gallery_list, "Gallery metadata and bounded local thumbnails"),
+        ("gallery/evict", "POST", handle_gallery_evict, "Evict a registered local image preserving history"),
+        ("gallery/retry", "POST", handle_gallery_retry, "Retry interrupted gallery eviction"),
+        ("notify/test", "POST", handle_notify_test, "Send one test message to a unified_msg_origin"),
         ("cache/stats", "GET", handle_cache_stats, "BiliBot cache usage"),
         ("cache/purge", "POST", handle_cache_purge, "Purge BiliBot disposable cache"),
         ("profiles", "GET", handle_get_profiles, "BiliBot relationship profiles"),
@@ -407,6 +433,9 @@ async def handle_get_stats(plugin: Any):
         private_replies = sum(1 for item in reply_log if item.get("channel") == "private")
         dynamic_posts = len(_today_entries(_load_json(plugin, DYNAMIC_LOG_FILE, []), "time", "timestamp"))
         proactive_entries = _today_entries(_load_json(plugin, PROACTIVE_LOG_FILE, []), "time", "timestamp")
+        proactive_watches = _today_entries(
+            _load_json(plugin, WATCH_LOG_FILE, []), "time", "timestamp"
+        )
         security_entries = _today_entries(_load_json(plugin, SECURITY_LOG_FILE, []), "time", "timestamp")
         memory_stats = plugin.memory_api.stats() if getattr(plugin, "memory_api", None) else {"total": len(getattr(plugin, "_memory", []))}
         profiles = _load_json(plugin, USER_PROFILE_FILE, {})
@@ -428,11 +457,23 @@ async def handle_get_stats(plugin: Any):
         if not warnings:
             warnings.append({"level": "success", "title": "未发现重大问题", "detail": "账号、调度与运行时状态未出现需要立即处理的异常。"})
 
-        proactive_max = int(_config_value(plugin, "PROACTIVE_DAILY_LIMIT", 0) or 0)
+        # 全天可看视频总数的上限 = 每天最多安排几轮(ROUNDS) × 每轮计划观看几个(VIDEO_COUNT)，
+        # 再被「每天最多看几个视频」(PROACTIVE_DAILY_LIMIT，0=不限制) 收紧。
+        # 之前只读 PROACTIVE_DAILY_LIMIT，它留空(0)时前端就把配额画成「—」，
+        # 与实际可看量（轮次×每轮）对不上。
+        proactive_rounds = max(0, int(_config_value(plugin, "PROACTIVE_TIMES_COUNT", 0) or 0))
         if _config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False):
-            autonomous_limit = int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_MAX", proactive_max) or 0)
-            if autonomous_limit > 0:
-                proactive_max = min([value for value in (proactive_max, autonomous_limit) if value > 0], default=autonomous_limit)
+            # 注意：AUTONOMOUS_PROACTIVE_DAILY_MAX 限制的是「轮次」，不是视频数。
+            autonomous_rounds = int(
+                _config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_MAX", proactive_rounds) or 0
+            )
+            if autonomous_rounds > 0:
+                proactive_rounds = min(proactive_rounds, autonomous_rounds)
+        proactive_videos_per_round = max(0, int(_config_value(plugin, "PROACTIVE_VIDEO_COUNT", 0) or 0))
+        proactive_max = proactive_rounds * proactive_videos_per_round
+        proactive_daily_limit = max(0, int(_config_value(plugin, "PROACTIVE_DAILY_LIMIT", 0) or 0))
+        if proactive_daily_limit > 0:
+            proactive_max = min(proactive_max, proactive_daily_limit)
 
         data = {
             "running": running,
@@ -446,10 +487,17 @@ async def handle_get_stats(plugin: Any):
             "ignored_today": int(event_states.get("ignored", 0)),
             "comment_replies_today": comment_replies,
             "private_replies_today": private_replies,
+            "proactive_comments_today": len(proactive_entries),
+            "proactive_watches_today": len(proactive_watches),
             "filtered_today": len(security_entries),
             "dynamic_posts_today": dynamic_posts,
-            "proactive_used": len(proactive_entries),
+            # Backward-compatible field used by older WebUI bundles. The
+            # ceiling is 轮次 × 每轮视频数, further clamped by an explicit
+            # PROACTIVE_DAILY_LIMIT when that is set to a positive number.
+            "proactive_used": len(proactive_watches),
             "proactive_max": proactive_max,
+            "proactive_rounds": proactive_rounds,
+            "proactive_videos_per_round": proactive_videos_per_round,
             "memory_total": int(memory_stats.get("total", 0)),
             "profiles_total": len(profiles) if isinstance(profiles, dict) else 0,
             "next_action": f"{next_item['time']} {next_item['label']}" if next_item else "今日暂无待执行事件",
@@ -539,6 +587,289 @@ async def handle_memory_stats(plugin: Any):
         return _response(data)
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] memory stats failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_browse_log(plugin: Any):
+    """浏览日志：今日 / 昨日 / 近7天看过的视频、想法与评论。"""
+    try:
+        range_key = str(request.query.get("range", "today") or "today").strip()
+        try:
+            limit = int(request.query.get("limit", 300) or 300)
+        except (TypeError, ValueError):
+            limit = 300
+        include_failed = str(request.query.get("include_failed", "") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        return _response(collect_browse_entries(plugin, range_key, limit, include_failed))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] browse log failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+def _range_limit(max_default: int):
+    range_key = str(request.query.get("range", "today") or "today").strip()
+    try:
+        limit = int(request.query.get("limit", max_default) or max_default)
+    except (TypeError, ValueError):
+        limit = max_default
+    return range_key, limit
+
+
+async def handle_browse_replies(plugin: Any):
+    """评论区回复 / 私信回复明细，按时间倒序。"""
+    try:
+        range_key, limit = _range_limit(500)
+        return _response(collect_reply_entries(plugin, range_key, limit))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] browse replies failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_browse_failed(plugin: Any):
+    """评价失败明细 + 失败原因分布，供紧凑列表与单条展开使用。"""
+    try:
+        range_key, limit = _range_limit(500)
+        return _response(collect_failure_entries(plugin, range_key, limit))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] browse failed detail failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_persona_list(plugin: Any):
+    """读取 AstrBot 已配置的人格，供前端下拉选择。"""
+    try:
+        manager = getattr(plugin.context, "persona_manager", None)
+        items: list[dict[str, Any]] = []
+        default_id = ""
+        if manager is not None:
+            for persona in getattr(manager, "personas_v3", []) or []:
+                name = str((persona or {}).get("name") or "").strip()
+                if not name:
+                    continue
+                prompt = str((persona or {}).get("prompt") or "").strip()
+                items.append(
+                    {
+                        "id": name,
+                        "name": name,
+                        "prompt_preview": prompt[:200],
+                        "prompt_length": len(prompt),
+                    }
+                )
+            try:
+                default_persona = await manager.get_default_persona_v3()
+                default_id = str((default_persona or {}).get("name") or "").strip()
+            except Exception as exc:
+                logger.warning(f"[BiliBot WebUI] 读取默认人格失败: {exc}")
+        selected = plugin.config.get("USE_ASTRBOT_PERSONA", True)
+        if isinstance(selected, bool):
+            selected_id = "" if selected else "__off__"
+        else:
+            selected_id = str(selected or "").strip()
+        return _response(
+            {
+                "items": items,
+                "default_id": default_id,
+                "selected_id": selected_id,
+                "manager_ready": manager is not None,
+            }
+        )
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] persona list failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_provider_list(plugin: Any):
+    """列出 AstrBot 已配置的文本/多模态提供商，供前端 provider 下拉使用。
+
+    语音合成、语音识别、向量化类提供商不会出现在这里：它们不能用来生成回复，
+    列出来只会让人误选。
+    """
+    skipped_types = ("tts", "stt", "embedding", "rerank", "whisper", "speech")
+    try:
+        manager = getattr(plugin.context, "provider_manager", None)
+        items: list[dict[str, Any]] = []
+        for entry in getattr(manager, "providers_config", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            provider_id = str(entry.get("id") or "").strip()
+            if not provider_id:
+                continue
+            provider_type = str(entry.get("type") or "").lower()
+            if any(word in provider_type for word in skipped_types):
+                continue
+            model_config = entry.get("model_config") if isinstance(entry.get("model_config"), dict) else {}
+            items.append(
+                {
+                    "id": provider_id,
+                    "type": str(entry.get("type") or ""),
+                    "model": str(model_config.get("model") or ""),
+                    "enable": bool(entry.get("enable", True)),
+                }
+            )
+        return _response({"items": items, "manager_ready": manager is not None})
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] provider list failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_memory_backfill_embeddings(plugin: Any):
+    """为缺少向量的历史记忆补算 embedding（幂等，可重复执行）。"""
+    try:
+        body = await request.json(default={})
+        raw_limit = body.get("limit") if isinstance(body, dict) else None
+        try:
+            limit = int(raw_limit) if raw_limit not in (None, "", 0) else 200
+        except (TypeError, ValueError):
+            limit = 200
+        backfill = getattr(plugin, "backfill_missing_embeddings", None)
+        if backfill is None:
+            return _failure("当前版本不支持向量回填", 400)
+        return _response(await backfill(limit=limit))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] memory backfill failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+def _link_consent_state(plugin: Any) -> dict[str, Any]:
+    """读取外链跳转确认状态。沙箱 iframe 里 localStorage/cookie 全不可用，
+    只能由后端记录「用户已在何时确认过本地网络提示」。"""
+    snapshot = _load_json(plugin, LINK_CONSENT_FILE, {})
+    ack_at = 0.0
+    if isinstance(snapshot, dict):
+        try:
+            ack_at = float(snapshot.get("ack_at") or 0)
+        except (TypeError, ValueError):
+            ack_at = 0.0
+    now = time.time()
+    ttl_seconds = LINK_CONSENT_TTL_HOURS * 3600
+    expires_at = ack_at + ttl_seconds if ack_at else 0.0
+    acked = bool(ack_at) and now < expires_at
+    return {
+        "acked": acked,
+        "ack_at": int(ack_at) if ack_at else 0,
+        "expires_at": int(expires_at) if expires_at else 0,
+        "remaining_seconds": int(expires_at - now) if acked else 0,
+        "ttl_hours": LINK_CONSENT_TTL_HOURS,
+    }
+
+
+async def handle_link_consent(plugin: Any):
+    """GET：外链确认是否仍在 24 小时有效期内。"""
+    try:
+        return _response(_link_consent_state(plugin))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] link consent read failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_link_consent_ack(plugin: Any):
+    """POST：记录一次「已知悉本地网络提示」确认，从此 24 小时内不再提示。"""
+    try:
+        now = time.time()
+        try:
+            plugin._save_json(LINK_CONSENT_FILE, {"ack_at": now, "ack_at_text": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        except Exception as exc:
+            logger.warning(f"[BiliBot WebUI] link consent persist failed: {exc}")
+        state = _link_consent_state(plugin)
+        # 即使落盘失败也按本次会话已确认返回，避免反复打扰
+        state["acked"] = True
+        state["persist_error"] = False
+        return _response(state)
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] link consent ack failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_livingmemory_status(plugin: Any):
+    try:
+        return _response(await livingmemory_bridge.status(plugin))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] livingmemory status failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_livingmemory_sync(plugin: Any):
+    try:
+        body = await request.json(default={})
+        raw_days = body.get("days") if isinstance(body, dict) else None
+        try:
+            days = int(raw_days) if raw_days not in (None, "", 0) else None
+        except (TypeError, ValueError):
+            days = None
+        result = await livingmemory_bridge.sync(
+            plugin, days=days, reason="manual",
+            dry_run=isinstance(body, dict) and body.get("dry_run") is True,
+        )
+        if not result.get("ok"):
+            return _response({**result, "ok": False})
+        return _response(result)
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] livingmemory sync failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_livingmemory_probe(plugin: Any):
+    try:
+        return _response(await livingmemory_bridge.probe(plugin))
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] livingmemory probe failed: {exc}")
+        return _failure(str(exc), 500)
+
+
+async def handle_gallery_status(plugin: Any):
+    from . import image_gallery
+    try:
+        return _response(image_gallery.status())
+    except Exception as exc:
+        return _failure(str(exc), 500)
+
+
+async def handle_gallery_list(plugin: Any):
+    from .gallery_workflow import listing
+    try:
+        return _response(listing())
+    except Exception:
+        return _failure("图库读取失败，请检查插件日志并重试", 500)
+
+
+async def handle_gallery_evict(plugin: Any):
+    from . import image_gallery
+    body = await request.json(default={})
+    if not isinstance(body, dict) or not isinstance(body.get("asset_id"), str):
+        return _failure("请提供已登记图片的 asset_id")
+    result = await image_gallery.evict_asset(plugin, body["asset_id"], reason=body.get("reason") or "manual")
+    return _response(result)
+
+
+async def handle_gallery_retry(plugin: Any):
+    from . import image_gallery
+    try:
+        recovered = await image_gallery.recover(plugin)
+        # 手动重试同时补交历史事件；自动同步也会执行同样的恢复步骤。
+        synced = await livingmemory_bridge.sync(plugin, reason="gallery_retry")
+        return _response({"recovery": recovered, "sync": synced, "gallery": image_gallery.status()})
+    except Exception as exc:
+        return _failure(str(exc), 500)
+
+
+async def handle_notify_test(plugin: Any):
+    """给指定 UMO 发一条测试消息，把「看起来发了、其实没发」变成明确结果。"""
+    try:
+        body = await request.json(default={})
+        body = body if isinstance(body, dict) else {}
+        raw_umo = str(body.get("umo") or _config_value(plugin, "OWNER_QQ_UMO", "") or "").strip()
+        text = str(
+            body.get("text")
+            or "【BiliBot 连通性测试】看到这条消息，说明 UMO 配置正确。"
+        )[:300]
+        delivered, detail = await send_to_umo(plugin.context, raw_umo, text)
+        return _response({"sent": delivered, "raw_umo": raw_umo, "resolved_umo": detail})
+    except Exception as exc:
+        logger.exception(f"[BiliBot WebUI] notify test failed: {exc}")
         return _failure(str(exc), 500)
 
 

@@ -225,8 +225,10 @@ def create_tools(plugin):
         description: str = (
             "Parse a Bilibili video link, short link, or BV ID and directly send the parse card "
             "and optional original video to the current chat. Use when the user explicitly asks "
-            "to parse or send a Bilibili video. Do not call it merely because a quoted message "
-            "contains a Bilibili link; the user's current message must show parse intent."
+            "to parse or send a Bilibili video to the current chat. Never use this tool when the "
+            "user asks to privately share or send a video to the owner; use "
+            "watch_and_share_video_private instead. Do not call it merely because a quoted "
+            "message contains a Bilibili link; the user's current message must show parse intent."
         )
         parameters: dict = Field(default_factory=lambda: {
             "type": "object",
@@ -456,7 +458,12 @@ def create_tools(plugin):
     @dataclass
     class WatchVideoTool(FunctionTool[AstrAgentContext]):
         name: str = "watch_video"
-        description: str = "Read watched video memories first; analyze and save a new Bilibili video once. Rewatch only on an explicit administrator request. Can then use interaction tools."
+        description: str = (
+            "Read watched video memories first; analyze and save a new Bilibili video once. "
+            "Rewatch only on an explicit administrator request. Can then use interaction tools. "
+            "Do not use this tool when the user asks to privately share or send the video to the "
+            "owner; use watch_and_share_video_private instead."
+        )
         parameters: dict = Field(default_factory=lambda: {
             "type": "object",
             "properties": {
@@ -530,8 +537,9 @@ def create_tools(plugin):
         name: str = "watch_and_share_video_private"
         description: str = (
             "Watch a Bilibili video completely, save the video memory, then send its native "
-            "Bilibili share card to the owner's Bilibili UID. Only call when the user "
-            "explicitly asks to watch and privately share a video with the owner."
+            "Bilibili share card to the owner's Bilibili UID. Always use this tool, rather than "
+            "bili_parse_video or watch_video, when the user explicitly asks to watch and "
+            "privately share or send a video to the owner."
         )
         parameters: dict = Field(default_factory=lambda: {
             "type": "object",
@@ -1160,7 +1168,6 @@ def create_tools(plugin):
     # 默认只向模型暴露少量、职责清晰的入口。
     tools = [
         RecallBiliTool(),
-        ParseBiliShareTool(),
         SearchBilibiliTool(),
         WatchVideoTool(),
         BiliBangumiTool(),
@@ -1169,6 +1176,14 @@ def create_tools(plugin):
         # 拉黑具有更高风险，保留独立工具名和独立确认语义。
         BlockBiliUserTool(),
     ]
+    # Disabled tools should not be exposed to the model: otherwise it may pick
+    # the parser for an owner-private-share request and stop after the switch
+    # error instead of calling the dedicated share tool.
+    if (
+        plugin.config.get("ENABLE_BILI_SHARE_PARSE", False)
+        and plugin.config.get("BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED", True)
+    ):
+        tools.insert(1, ParseBiliShareTool())
     # 私信分享工具默认隐藏，只有管理员显式开启后才注册给 LLM。
     if plugin.config.get("BILI_PRIVATE_SHARE_TOOL_ENABLED", False):
         tools.append(WatchAndShareVideoPrivateTool())

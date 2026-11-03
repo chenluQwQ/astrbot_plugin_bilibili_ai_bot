@@ -76,10 +76,10 @@
     "hint": "选 AstrBot 里已配好的提供商；判断、写评语、记忆压缩都走它。"
   },
   "USE_ASTRBOT_PERSONA": {
-    "description": "【人设】使用 AstrBot 自带人设",
-    "type": "bool",
-    "default": true,
-    "hint": "开启后使用 AstrBot 全局人设；关闭则只依赖下面的附加提示词。"
+    "description": "【人设】使用哪个人格（下拉选择 AstrBot 已配置的人格）",
+    "type": "string",
+    "default": "",
+    "hint": "作用于所有由模型生成的 B站回复、评论与动态文案。留空跟随 AstrBot 默认人格；选择不启用时只使用下方附加提示词，兼容旧布尔配置。"
   },
   "CUSTOM_SYSTEM_PROMPT": {
     "description": "【人设】B站活动附加系统提示词",
@@ -103,11 +103,11 @@
     "hint": "冷却结束后只放行一个探测请求；成功后恢复，失败则重新冷却。建议 60-600 秒。"
   },
   "SUMMARY_PROVIDER_ID": {
-    "description": "【总结模型】选择 AstrBot 模型提供商",
+    "description": "【总结模型】日总结 / 周总结的生成模型（AstrBot 提供商）",
     "type": "string",
     "default": "",
     "_special": "select_provider",
-    "hint": "从下拉列表选择 AstrBot 已配置的模型；选中后优先于下方独立 API。留空时，有独立 API 配置则使用它，否则沿用默认聊天模型。"
+    "hint": "作用于：每日总结、每周总结、性格演化摘要的文本生成。选中后优先于下方的独立 API；留空时若有独立 API 则用它，否则沿用默认聊天模型。兼容性：这里填的是 AstrBot「服务提供商」列表里的 ID，插件只按 ID 调用，不关心里面是官方 API、one-api 还是【多 API 模型路由】(multi_api_router)。multi_api_router 注册的提供商一样可以直接选，它内部的路由、重试与负载均衡由该插件自己负责。"
   },
   "SUMMARY_API_KEY": {
     "description": "【总结模型】独立 API 密钥",
@@ -128,11 +128,11 @@
     "hint": "使用独立 API 时必须填写模型名。总结用于视频内容、记忆整理和日/周总结；生成用于评分感想、推荐文案与动态。"
   },
   "GENERATION_PROVIDER_ID": {
-    "description": "【生成模型】选择 AstrBot 模型提供商",
+    "description": "【生成模型】发动态 / 写文案的生成模型（AstrBot 提供商）",
     "type": "string",
     "default": "",
     "_special": "select_provider",
-    "hint": "从下拉列表选择 AstrBot 已配置的模型；选中后优先于下方独立 API。留空时，有独立 API 配置则使用它，否则沿用默认聊天模型。"
+    "hint": "作用于：发布 B站动态的文案、主动评论草稿等「写一段话」类任务。选中后优先于下方的独立 API。兼容性：这里填的是 AstrBot「服务提供商」列表里的 ID，插件只按 ID 调用，不关心里面是官方 API、one-api 还是【多 API 模型路由】(multi_api_router)。multi_api_router 注册的提供商一样可以直接选，它内部的路由、重试与负载均衡由该插件自己负责。"
   },
   "GENERATION_API_KEY": {
     "description": "【生成模型】独立 API 密钥",
@@ -935,7 +935,7 @@
     "default": 6,
     "min": 0,
     "max": 10,
-    "hint": "视频评价达到此分数才允许执行；管理员阈值不会被模型意愿绕过。",
+    "hint": "视频评价达到此分数才允许执行；设为0时，所有可靠理解且评价成功的视频都会评论。",
     "condition": {
       "PROACTIVE_LIKE": true
     },
@@ -1024,10 +1024,10 @@
   "PROACTIVE_COMMENT_DAILY_LIMIT": {
     "description": "【主动看片·数量】每天最多主动评论几条",
     "type": "int",
-    "default": 2,
+    "default": 12,
     "min": 0,
     "max": 30,
-    "hint": "所有主动看片来源合计的硬上限；0=不主动评论。它不会要求 Bot 为了凑数发表评论。",
+    "hint": "所有主动看片来源合计的硬上限；0=不主动评论。可靠理解且评价成功的视频会各评论一次，理解失败的视频不会公开评论。",
     "condition": {
       "ENABLE_PROACTIVE": true,
       "PROACTIVE_COMMENT": true
@@ -1041,10 +1041,10 @@
   "PROACTIVE_COMMENT_MIN_SCORE": {
     "description": "【主动行为】评论最低评分",
     "type": "int",
-    "default": 7,
+    "default": 0,
     "min": 0,
     "max": 10,
-    "hint": "视频评价达到此分数才允许执行；管理员阈值不会被模型意愿绕过。",
+    "hint": "视频评价达到此分数才允许执行；设为0时，所有可靠理解且评价成功的视频都会评论。",
     "condition": {
       "PROACTIVE_COMMENT": true
     },
@@ -1112,7 +1112,7 @@
       "bili_private_and_qq",
       "all"
     ],
-    "hint": "private_message=B站私信；comment=评论区@主人；both=B站两种都发；qq_private=QQ私信；bili_private_and_qq=B站私信+QQ；all=全部通道。QQ 使用 OWNER_QQ_UMO。",
+    "hint": "private_message=B站私信；comment=评论区@主人；both=B站两种都发；qq_private=QQ私信；bili_private_and_qq=B站私信+QQ；all=B站私信+评论区@+QQ私信+主人最近活跃群@。所有推荐均附带看完后的想法。",
     "condition": {
       "ENABLE_PROACTIVE": true,
       "ENABLE_OWNER_RECOMMEND": true
@@ -1795,10 +1795,10 @@
     }
   },
   "SCHEDULE_PLAN_PROVIDER_ID": {
-    "description": "【自主安排】今日计划生成模型",
+    "description": "【自主安排】今日计划生成模型（AstrBot 提供商）",
     "type": "string",
     "default": "",
-    "hint": "从 AstrBot 已配置的模型提供商中选择；留空跟随 LLM_PROVIDER_ID / AstrBot 默认聊天模型。",
+    "hint": "作用于：每天生成「今日计划」时的结构化排期（几点评论、几点看片、几点发动态）。留空跟随 LLM_PROVIDER_ID / AstrBot 默认聊天模型。兼容性：这里填的是 AstrBot「服务提供商」列表里的 ID，插件只按 ID 调用，不关心里面是官方 API、one-api 还是【多 API 模型路由】(multi_api_router)。multi_api_router 注册的提供商一样可以直接选，它内部的路由、重试与负载均衡由该插件自己负责。",
     "_special": "select_provider",
     "condition": {
       "ENABLE_AUTONOMOUS_DAILY_PLAN": true
@@ -2226,7 +2226,7 @@
     "hint": "向量服务超时时会跳过本次向量检索，不影响视频分析、私信回复和普通记忆写入。"
   },
   "VIDEO_VISION_PROVIDER_ID": {
-    "description": "【高级·视觉】视频分析使用的 AstrBot 模型提供商（优先使用，失败退回独立 API）",
+    "description": "【高级·视觉】看片时理解画面的多模态模型（AstrBot 提供商）",
     "type": "string",
     "default": "",
     "_special": "select_provider",
@@ -2279,7 +2279,7 @@
     }
   },
   "IMAGE_VISION_PROVIDER_ID": {
-    "description": "【高级·视觉】图片识别使用的 AstrBot 模型提供商",
+    "description": "【高级·视觉】图片识别使用的多模态模型（AstrBot 提供商）",
     "type": "string",
     "default": "",
     "_special": "select_provider",
@@ -2463,7 +2463,7 @@
     "type": "string",
     "default": "",
     "_special": "select_provider",
-    "hint": "保留用于旧式搜索判断路径；评论区按需资料流程由回复模型自行决定搜索，不再单独调用此模型。",
+    "hint": "作用于：旧式搜索判断路径——判断一条评论/私信是否需要联网查资料。保留兼容用；新的评论区按需资料流程由回复模型自行决定是否搜索。留空则不启用这条判断。兼容性：这里填的是 AstrBot「服务提供商」列表里的 ID，插件只按 ID 调用，不关心里面是官方 API、one-api 还是【多 API 模型路由】(multi_api_router)。multi_api_router 注册的提供商一样可以直接选，它内部的路由、重试与负载均衡由该插件自己负责。",
     "condition": {
       "ENABLE_WEB_SEARCH": true
     }
@@ -2589,5 +2589,178 @@
     "min": 0,
     "max": 200,
     "invisible": true
+  },
+  "GALLERY_COLLECT_ENABLED": {
+    "description": "【图库】主动浏览时自动收藏评论区和动态中的反应图",
+    "type": "bool",
+    "default": true,
+    "hint": "只读取已有图片，不会触发点赞、评论或转发。新图最多每次2张、每天12次识图。"
+  },
+  "GALLERY_COMMENT_ENABLED": {
+    "description": "【图库】主动一级评论自动配图",
+    "type": "bool",
+    "default": true,
+    "hint": "有合适图片且已配置LivingMemory目标会话时使用；选图或上传失败退回文字。"
+  },
+  "GALLERY_COLLECT_PER_BROWSE": {
+    "description": "【图库】每次浏览的新图处理上限",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 2,
+    "hint": "0至2张；0表示暂停新图采集。重复图片复用识别结果。"
+  },
+  "GALLERY_CAPTION_DAILY_MAX": {
+    "description": "【图库】每日识图尝试上限",
+    "type": "int",
+    "default": 12,
+    "min": 0,
+    "max": 12,
+    "hint": "0至12次，失败调用也计入；持久化保存，不因重载清零。"
+  },
+  "GALLERY_MATCH_MIN": {
+    "description": "【图库】图片直接匹配的相似度下限",
+    "type": "float",
+    "default": 0.55,
+    "min": 0.3,
+    "max": 0.95,
+    "step": 0.05,
+    "hint": "0.3至0.95；未达此值的相关候选还会按情绪和语境判断一次，合适程度至少0.85才配图。无合适图片发送文字。"
+  },
+  "OWNER_QQ_RECENT_GROUP_MAX_AGE_HOURS": {
+    "description": "【跨端活动与分享】主人最近活跃群有效期（小时）",
+    "type": "int",
+    "default": 168,
+    "min": 1,
+    "max": 720,
+    "hint": "主人在群内发言后记录该群；all 模式会在有效期内向最近一个群@主人。"
+  },
+  "VIDEO_ANALYSIS_MODE": {
+    "description": "【视频分析】看片模式",
+    "type": "string",
+    "default": "pond_low_token",
+    "options": [
+      "pond_low_token",
+      "storyboard",
+      "legacy"
+    ],
+    "hint": "pond_low_token=低 Token 模式：字幕在本地按时间压缩且不调用摘要模型，无字幕只做一次少量抽帧。storyboard=分镜模式：字幕优先，无字幕时用 HSV 镜头检测选出代表性画面拼成宫格图，一次视觉调用理解全片脉络（更省 token，覆盖面更均匀）。legacy=传统模式：使用原有字幕校验、摘要与分段视觉链路。"
+  },
+  "VIDEO_LOW_TOKEN_SUBTITLE_CHARS": {
+    "description": "【视频分析】低Token字幕摘录字符预算",
+    "type": "int",
+    "default": 2400,
+    "min": 600,
+    "max": 6000,
+    "hint": "从整条字幕时间线均匀摘取的最大字符数；不会额外调用模型。"
+  },
+  "VIDEO_LOW_TOKEN_SUBTITLE_ATTEMPTS": {
+    "description": "【视频分析】字幕候选读取次数",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 4,
+    "hint": "B站AI字幕偶尔会返回串源内容；低Token模式会去重并选取与标题最匹配的一份，再做归属校验。"
+  },
+  "VIDEO_LOW_TOKEN_FRAME_COUNT": {
+    "description": "【视频分析】无字幕时抽帧数",
+    "type": "int",
+    "default": 3,
+    "min": 2,
+    "max": 4,
+    "hint": "仅在没有字幕时使用；所有画面合并为一次视觉请求。"
+  },
+  "VIDEO_STORYBOARD_GRID_COLS": {
+    "description": "【视频分析】分镜宫格图列数",
+    "type": "int",
+    "default": 3,
+    "min": 2,
+    "max": 4,
+    "hint": "分镜模式下宫格图的列数，与行数相乘决定选取的代表画面数量（如 3×3=9 个画面）。"
+  },
+  "VIDEO_STORYBOARD_GRID_ROWS": {
+    "description": "【视频分析】分镜宫格图行数",
+    "type": "int",
+    "default": 3,
+    "min": 2,
+    "max": 4,
+    "hint": "分镜模式下宫格图的行数。画面越多越精细，但单次视觉调用的 token 越大。"
+  },
+  "VIDEO_STORYBOARD_SAMPLE_FPS": {
+    "description": "【视频分析】分镜镜头检测抽帧率（帧/秒）",
+    "type": "float",
+    "default": 1.0,
+    "min": 0.5,
+    "max": 4.0,
+    "hint": "用于 HSV 镜头切换检测的密集抽帧率；越高越精细但本地计算越慢。默认 1fps 已足够。"
+  },
+  "VIDEO_STORYBOARD_MAX_TOKENS": {
+    "description": "【视频分析】分镜视觉调用最大输出 Token",
+    "type": "int",
+    "default": 3500,
+    "min": 500,
+    "max": 8000,
+    "hint": "分镜模式无字幕时，单次宫格图视觉调用的 max_tokens。推理类视觉模型（如 deepseek-flash）会先用 token 思考，给太小会导致正文未输出就被截断（实测 360 会返回空）；建议 2000~4000，默认 3500。"
+  },
+  "VIDEO_STORYBOARD_ASR_ENABLED": {
+    "description": "【视频分析】分镜无字幕时用语音转文字补对白",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。开启后，分镜模式在视频没有字幕时，会用 AstrBot 配置的语音转文字（STT）提供商把音轨切片逐段转写成对白，并入宫格图视觉调用一起分析。能拿到对白、内容更准，但会多出 STT 调用与对白文字 token，单次看片成本与耗时都会上升。"
+  },
+  "ENABLE_OWNER_AT_VIDEO_REACTION": {
+    "description": "【评论互动】主人@视频时观看并回复观后感",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。开启后，主人在评论区@bot 并附带视频链接/BV号时，bot 会实际观看该视频、写下观后感回复在主人那条评论下，并记录到视频记忆与长期记忆。观看会产生模型调用成本。"
+  },
+  "LIVINGMEMORY_SYNC_ENABLED": {
+    "description": "【记忆联动】把看片、评论与私信同步到 LivingMemory",
+    "type": "bool",
+    "default": true,
+    "hint": "只同步通过安全过滤与内容评估的记录；关掉后不再写入，已有记忆不受影响。"
+  },
+  "LIVINGMEMORY_SESSION_UMO": {
+    "description": "【记忆联动】记忆写入的目标会话 UMO",
+    "type": "string",
+    "default": "",
+    "hint": "留空则跟随 OWNER_QQ_UMO。格式为 平台实例ID:消息类型:会话ID，例如 demo_onebot:FriendMessage:10001；只填 FriendMessage:10001 会自动补全平台实例。示例为虚构会话。"
+  },
+  "LIVINGMEMORY_SYNC_INTERVAL_MINUTES": {
+    "description": "【记忆联动】自动同步间隔（分钟）",
+    "type": "int",
+    "default": 10,
+    "min": 2,
+    "max": 720
+  },
+  "LIVINGMEMORY_SYNC_WINDOW_DAYS": {
+    "description": "【记忆联动】每次回看的天数",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 60,
+    "hint": "每次同步会扫描最近N天的记录，已写过的不会重复写入。"
+  },
+  "ENABLE_CROSS_PLATFORM_PROFILE_SYNC": {
+    "description": "【安全与工具】允许 QQ 侧主人互动回灌到主人画像",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后，主人在 QQ 群/私信中的发言会被脱敏后提炼为画像事实与标签，写入主人画像（与 B站沟通来源分开标注）。默认关闭，保持画像仅来自 B站。"
+  },
+  "PROACTIVE_COMMENT_MAX_LEN": {
+    "description": "【主动行为】主动评论字数上限",
+    "type": "int",
+    "default": 80,
+    "min": 20,
+    "max": 200,
+    "hint": "单条主动评论最多多少字，超出截断；20-200 可调。"
+  },
+  "PROACTIVE_HOT_REPLY_COUNT": {
+    "description": "【主动行为】热评楼中楼回复条数",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 10,
+    "hint": "看完视频后，从前10条热评里随机抽几条做楼中楼回复；0=不回复热评（关闭）。"
   }
 }

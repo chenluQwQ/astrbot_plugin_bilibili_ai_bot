@@ -9,10 +9,12 @@ from .understanding import (
     MediaUnderstanding,
     image_url_hash,
 )
+from .storyboard import build_storyboard
 
 __all__ = [
     "MediaDigestRequest",
     "MediaDigestResult",
     "MediaUnderstanding",
     "image_url_hash",
+    "build_storyboard",
 ]

@@ -157,6 +157,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         class DiskBot(ProactiveMixin, UtilsMixin):
             pass
         bot = DiskBot()
+        bot._report_video_history = AsyncMock(return_value=True)
         bot.config = {"PROACTIVE_FOLLOW_UIDS": ["42"]}
         bot._seen_video_bvids = AsyncMock(return_value=set())
         bot._get_up_latest_video = AsyncMock(return_value={"bvid": "BVtest", "title": "test", "up_name": "UP", "oid": 1, "up_mid": "42"})

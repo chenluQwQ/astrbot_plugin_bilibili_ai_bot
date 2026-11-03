@@ -284,11 +284,41 @@ class LLMMixin:
             await circuit._record_llm_failure(circuit_mode, self._last_llm_error)
             return None
 
+    def _persona_selection(self):
+        """解析「使用 AstrBot 人设」配置。
+
+        兼容三种历史写法：
+        - ``True`` / ``False``：旧布尔开关，True 表示跟随 AstrBot 默认人格；
+        - ``""``：跟随 AstrBot 默认人格；
+        - ``"<persona_id>"``：指定人格，``"__off__"`` 表示关闭。
+
+        Returns:
+            (是否启用, 人格 ID；空字符串代表跟随默认人格)
+        """
+        raw = self.config.get("USE_ASTRBOT_PERSONA", True)
+        if isinstance(raw, bool):
+            return raw, ""
+        value = str(raw or "").strip()
+        if value.lower() in {"off", "__off__", "false", "0", "none"}:
+            return False, ""
+        # 空字符串表示「跟随 AstrBot 默认人格」，即启用但不指定具体人格。
+        return True, value
+
     async def _get_system_prompt(self):
         base_prompt = ""
-        if self.config.get("USE_ASTRBOT_PERSONA", True):
+        enabled, persona_id = self._persona_selection()
+        if enabled:
             try:
-                persona = await self.context.persona_manager.get_default_persona_v3()
+                manager = self.context.persona_manager
+                persona = None
+                if persona_id:
+                    persona = manager.get_persona_v3_by_id(persona_id)
+                    if persona is None:
+                        logger.warning(
+                            f"[BiliBot] 找不到人格 {persona_id}，回退 AstrBot 默认人设"
+                        )
+                if persona is None:
+                    persona = await manager.get_default_persona_v3()
                 if persona and persona.get("prompt"):
                     base_prompt = str(persona["prompt"]).strip()
             except Exception as e:

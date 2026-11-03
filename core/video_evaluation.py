@@ -26,14 +26,16 @@ class VideoEvaluationError(ValueError):
     pass
 
 
-def _text(value: Any, field: str, limit: int, *, empty=True) -> str:
+def _text(value: Any, field: str, limit: int | None, *, empty=True) -> str:
     if not isinstance(value, str):
         raise VideoEvaluationError(f"{field}_must_be_string")
     value = value.strip()
     if not empty and not value:
         raise VideoEvaluationError(f"{field}_empty")
-    if len(value) > limit:
-        raise VideoEvaluationError(f"{field}_too_long")
+    # 记忆类字段（评分理由/感想/推荐理由）limit 传 None，完整保留、不截断、不丢弃；
+    # 其余仍有硬约束的字段（心情、分区、信号、关键词等）保留上限，超长才截断兜底。
+    if limit is not None and len(value) > limit:
+        value = value[:limit].rstrip()
     return value
 
 
@@ -58,19 +60,19 @@ def parse_video_evaluation(raw: str) -> dict[str, Any]:
     score = round(float(score), 1)
     if not math.isfinite(score) or not 1.0 <= score <= 10.0:
         raise VideoEvaluationError("score_out_of_range")
-    score_reason = _text(value.get("score_reason"), "score_reason", 120, empty=False)
+    score_reason = _text(value.get("score_reason"), "score_reason", None, empty=False)
     comment = _text(value.get("comment"), "comment", 80)
     mood = _text(value.get("mood"), "mood", 10, empty=False)
     if mood not in MOODS:
         raise VideoEvaluationError("invalid_mood")
-    review = _text(value.get("review"), "review", 180, empty=False)
+    review = _text(value.get("review"), "review", None, empty=False)
     partition = _text(value.get("partition"), "partition", 30)
     want_follow = value.get("want_follow")
     recommend_owner = value.get("recommend_owner")
     if not isinstance(want_follow, bool) or not isinstance(recommend_owner, bool):
         raise VideoEvaluationError("boolean_field_invalid")
     recommend_reason = _text(
-        value.get("recommend_reason"), "recommend_reason", 80
+        value.get("recommend_reason"), "recommend_reason", None
     )
     if recommend_owner and not recommend_reason:
         raise VideoEvaluationError("owner_recommendation_needs_reason")

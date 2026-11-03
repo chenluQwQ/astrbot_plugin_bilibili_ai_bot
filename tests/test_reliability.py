@@ -105,6 +105,9 @@ class PrivateMessageReliabilityTests(unittest.TestCase):
         module = self.module
 
         class Bot(module.PrivateMessageMixin):
+            def _reply_allowed_now(self):
+                return True
+
             def __init__(self):
                 self.config = {
                     "DEDE_USER_ID": "999",

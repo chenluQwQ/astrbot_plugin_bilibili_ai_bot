@@ -74,6 +74,13 @@ class FlowProbe(ProactiveMixin):
     _append_json_list = UtilsMixin._append_json_list
     _clip_media_text = staticmethod(VideoMixin._clip_media_text)
 
+    async def _report_video_history(self, *_args):
+        return True
+
+    async def _send_gallery_comment(self, oid, text, *, result_sink, **_kwargs):
+        result_sink.update(send_status="published", rpid="test-reply", images=[], image_selection={})
+        return await self._send_comment(oid, text)
+
     def __init__(self, config, *, files=None, latest=None, followings=(), pool=(),
                  search=(), evaluations=None, analysis_basis=None, oids=None,
                  cookies=None, failing_actions=(), watched=()):

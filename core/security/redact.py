@@ -164,3 +164,39 @@ def clip_tool_output(text: str, limit: int = 1500) -> str:
     if len(content) <= limit:
         return content
     return content[:limit] + f"\n…（输出已截断，原长 {len(content)} 字）"
+
+
+#: 个人信息（PII）。从记忆里抽取内容喂给模型前，必须替换成抽象说辞，
+#: 不让密码、手机号、QQ 号、邮箱、证件号、银行卡等进入提示词。
+_PII_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
+    # 手机号（11 位，1 开头）
+    (re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"), "手机号"),
+    # 座机号（区号-号码）
+    (re.compile(r"(?<!\d)0\d{2,3}[-—]\d{7,8}(?!\d)"), "座机号"),
+    # QQ 号（5~11 位纯数字，且不在电话/证件上下文里）
+    (re.compile(r"(?<!\d)[1-9]\d{4,10}(?!\d)"), "QQ号"),
+    # 邮箱
+    (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "邮箱"),
+    # 身份证（18 位，含 X 结尾）
+    (re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)"), "身份证号"),
+    # 银行卡（13~19 位纯数字）
+    (re.compile(r"(?<!\d)\d{13,19}(?!\d)"), "银行卡号"),
+    # 密码/口令/验证码：把具体值替换成「密码」，只留字段名
+    (re.compile(r"(密码|口令|password|passwd|pwd|验证码|验证code|code)\s*[:：=]\s*[^\s,;，。；\"']+", re.IGNORECASE), r"\1=[已隐藏]"),
+    # 裸的 token/jwt/access 值
+    (re.compile(r"\b(?:eyJ[A-Za-z0-9._-]{8,}|[A-Za-z0-9]{32,})\b"), "凭据"),
+)
+
+
+def redact_pii(text: str) -> str:
+    """把记忆/外部内容里的个人信息替换为抽象说辞，供喂给模型前使用。
+
+    注意顺序：先替换更具体的（手机号、邮箱、证件、银行卡、密码），
+    最后才处理 QQ 号（5~11 位纯数字），避免把长数字串误伤。
+    这里的替换目标是「不泄露具体值」，用「手机号」「QQ号」「邮箱」等
+    抽象词占位，模型仍能理解「对方提到过联系方式」，但拿不到真实值。
+    """
+    result = str(text or "")
+    for pattern, replacement in _PII_RULES:
+        result = pattern.sub(replacement, result)
+    return result

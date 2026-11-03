@@ -8,3 +8,15 @@ data/
 # Local run reports are not publication artifacts.
 docs/*test-log*.md
 test-reports/
+# 本地账号配置、运行数据与备份不得进入公开仓库。
+.env
+.env.*
+logs/
+backups/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.pem
+*.key

@@ -250,12 +250,14 @@ class InspectionTests(unittest.IsolatedAsyncioTestCase):
         bot._get_video_context.assert_not_awaited()
 
     async def test_identity_context_uses_memory_without_new_watch_or_hot_comments(self):
-        bot = types.SimpleNamespace(_get_video_info=AsyncMock(return_value={"bvid": BV, "title": "测试", "desc": "不应自动插入"}),
+        bot = types.SimpleNamespace(_get_video_info=AsyncMock(return_value={"bvid": BV, "title": "测试", "desc": "页面背景简介"}),
             _cached_video_memory=lambda _: {"summary": "旧视频总结", "review": "当时感想"},
             _clip_media_text=lambda s, limit: s[:limit])
-        context, _ = await VideoMixin._get_comment_video_memory_context(bot, 1)
+        context, info = await VideoMixin._get_comment_video_memory_context(bot, 1)
         self.assertIn("没有重新观看", context)
-        self.assertNotIn("不应自动插入", context)
+        self.assertIn("页面背景简介", context)
+        self.assertIn('trust="untrusted"', context)
+        self.assertEqual(info["_recall_summary"], "旧视频总结")
 
     async def test_inspection_cache_ranges_audio_and_cleanup(self):
         class Inspector(VideoMixin):

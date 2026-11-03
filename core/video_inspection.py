@@ -65,14 +65,21 @@ class VideoInspectionMixin:
         cached = self._cached_video_memory(bvid) if bvid else None
         text = f"当前视频：{str(info.get('title', ''))[:150]}；UP主：{str(info.get('owner_name', ''))[:60]}；BV：{bvid}。"
         text += f" 时长：{info.get('duration', '?')}秒。"
+        # 页面简介补足二创角色等背景，仍作为不可信参考随整段材料包裹。
+        description = re.sub(r"\s+", " ", str(info.get("desc") or "")).strip()[:400]
+        if description:
+            text += f"\n视频简介（作者提供的背景线索，以画面为准）：{description}"
+        recall_info = dict(info)
         if cached:
-            text += "\n已有观看记忆（没有重新观看）：" + self._clip_media_text(cached.get("analysis") or cached.get("summary"), 400)
+            summary = self._clip_media_text(cached.get("analysis") or cached.get("summary"), 400)
+            text += "\n已有观看记忆（没有重新观看）：" + summary
+            recall_info["_recall_summary"] = summary
             if cached.get("review"):
                 text += "\n当时感想：" + self._clip_media_text(cached["review"], 180)
             text += "\n记忆没有提到的细节不等于视频中没有。"
         else:
             text += "\n未提供可靠观看内容。可按需请求简介、字幕、热评或定向检查；不能凭标题假装看过。"
-        return wrap_untrusted(text, "video_memory_reference"), info
+        return wrap_untrusted(text, "video_memory_reference"), recall_info
 
     async def _inspect_comment_video(self, info, question, start=None, end=None):
         bvid = str(info.get("bvid", ""))

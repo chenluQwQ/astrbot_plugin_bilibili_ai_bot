@@ -4,7 +4,7 @@ AstrBot Plugin - Bilibili Bot 1.7.3
 拆分版本：核心逻辑分布在 core/ 下的 Mixin 模块中。
 """
 import sys
-import io, os, time, asyncio, random, traceback
+import io, os, re, time, asyncio, random, traceback
 from datetime import datetime
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -22,6 +22,9 @@ from .core import (
     PrivateMessageMixin, LiveDanmakuMixin, ConsolidationEngine, BiliBotMemoryAPI,
     EventRuntime, LayeredRuntime,
 )
+from .core.runtime import ActionRequest, EventPriority
+from .core.livingmemory_bridge import maybe_sync as maybe_sync_livingmemory
+from .core.profile_sync import handle_qq_message as handle_cross_platform_profile
 
 _ACTIVE_BILIBOT = None
 _BILIBOT_MAIN_TASK_NAME = "astrbot_plugin_bilibili_ai_bot.main_loop"
@@ -156,6 +159,14 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         else:
             logger.warning("[BiliBot] Cookie无效")
 
+    @filter.on_astrbot_loaded()
+    async def on_astrbot_loaded(self):
+        """Ensure background tasks start after a full AstrBot process restart."""
+        if self._running and self._task and not self._task.done():
+            return
+        logger.info("[BiliBot] AstrBot 已就绪，恢复后台任务")
+        await self.initialize()
+
     async def _start_bot(self):
         async with self._start_lock:
             if self._running and self._task and not self._task.done():
@@ -265,12 +276,31 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         except Exception as e:
             logger.error(f"[BiliBot] 日终清算异常: {e}", exc_info=True)
 
+    async def _sync_livingmemory_if_due(self):
+        """节流同步：看片、评论区回复、B站私信 → LivingMemory 长期记忆。"""
+        await maybe_sync_livingmemory(self)
+
+    def _reply_allowed_now(self):
+        """当前是否允许回复评论/私信。
+
+        依据作息（SLEEP_START/SLEEP_END）判断：休眠区间内不回复，但轮询照常。
+        这样夜间收到的 @ 与私信会被拉到但不处理、也不标记已读，睡醒后下一轮
+        自然补上，实现「解耦轮询与回复」的兜底。
+        """
+        now = datetime.now()
+        minute = now.hour * 60 + now.minute
+        return self._is_awake_minute(minute)
+
     async def _main_loop(self):
         logger.info("[BiliBot] 主循环开始")
         while self._running:
             try:
                 await self._maybe_evolve_personality()
                 await self._ensure_autonomous_daily_plan()
+                try:
+                    await self._sync_livingmemory_if_due()
+                except Exception as e:
+                    logger.warning(f"[BiliBot] 记忆联动调度异常: {e}")
                 h = datetime.now().hour
                 ss = self.config.get("SLEEP_START", 2)
                 se = self.config.get("SLEEP_END", 8)
@@ -291,6 +321,18 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                             await self._maybe_weekly_summary()
                         except Exception as e:
                             logger.error(f"[BiliBot] 周总结调度异常: {e}")
+
+                # ── 私信与评论轮询：睡眠期间也照常拉取（但不回复），
+                #    避免夜间 @/私信因跳过轮询而漏掉；是否回复由轮询内部的
+                #    _reply_allowed_now() 门控决定，醒来后自然补上。 ──
+                if self.config.get("ENABLE_PRIVATE_MESSAGES", False):
+                    await self._poll_private_messages()
+                if self.config.get("ENABLE_REPLY", True):
+                    await self._poll_unified()
+
+                # 睡眠期间：主动看片/动态/番剧/特关等主动行为全部暂停，
+                # 只保留上面的被动轮询与日终清算。
+                if in_sleep:
                     await asyncio.sleep(60)
                     continue
                 ci = self.config.get("COOKIE_CHECK_INTERVAL", 6) * 3600
@@ -308,7 +350,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                         self._proactive_times, self._proactive_triggered = self._load_or_generate_schedule()
                     for ph, pm in self._proactive_times:
                         key = f"{ph}:{pm:02d}"
-                        if key not in self._proactive_triggered and self._schedule_slot_due(now_dt, ph, pm):
+                        if key not in self._proactive_triggered and self._proactive_slot_due(now_dt, ph, pm):
                             if self._proactive_task is None or self._proactive_task.done():
                                 self._proactive_task = asyncio.create_task(self._run_proactive())
                                 self._proactive_triggered.add(key)
@@ -336,10 +378,6 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
                                 self._save_dynamic_schedule_state(self._dynamic_times, self._dynamic_triggered)
                                 logger.info(f"[BiliBot] 📢 触发动态发布（{key}）")
                                 break
-                if self.config.get("ENABLE_PRIVATE_MESSAGES", False):
-                    await self._poll_private_messages()
-                if self.config.get("ENABLE_REPLY", True):
-                    await self._poll_unified()
                 # 番剧主动看番（随机时间调度，与视频/动态一致）
                 if self.config.get("ENABLE_BANGUMI", False) and self.config.get("BANGUMI_PROACTIVE", False):
                     now_dt = datetime.now()
@@ -468,6 +506,7 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
     # ===== QQ命令 =====
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE, priority=850)
     async def on_group_bili_share(self, event: AstrMessageEvent):
+        self._remember_owner_recent_group(event)
         async for result in self._handle_bili_share(event, trigger_mode="auto"):
             yield result
 
@@ -479,6 +518,15 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             yield result
         if handled:
             event.stop_event()
+
+    # ===== 跨平台画像同步（旁路监听，不干预正常消息流）=====
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE, priority=200)
+    async def on_group_profile_sync(self, event: AstrMessageEvent):
+        await handle_cross_platform_profile(self, event)
+
+    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE, priority=200)
+    async def on_private_profile_sync(self, event: AstrMessageEvent):
+        await handle_cross_platform_profile(self, event)
 
     @filter.command("bili解析")
     async def cmd_bili_parse(self, event: AstrMessageEvent):
@@ -573,6 +621,9 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             "private_message": "B站私信",
             "comment": "评论区@",
             "both": "私信+评论区",
+            "qq_private": "QQ私信",
+            "bili_private_and_qq": "B站私信+QQ私信",
+            "all": "B站私信+评论区@+QQ私信+最近活跃群@",
             "off": "关闭",
         }.get(self._owner_recommend_delivery(), "B站私信")
         private_scope = {
@@ -796,6 +847,71 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         })
         self._save_json(PROACTIVE_TRIGGER_LOG_FILE, trigger_log[-200:])
         yield event.plain_result("🎯 已手动触发一次主动看视频")
+
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("bili分享")
+    async def cmd_private_share_owner(self, event: AstrMessageEvent):
+        """Deterministically watch and privately share a video to OWNER_MID."""
+        match = re.search(r"\b(BV[0-9A-Za-z]{10})\b", event.message_str or "", re.I)
+        if not match:
+            yield event.plain_result("用法：/bili分享 <BV号>")
+            return
+        if not self.config.get("BILI_PRIVATE_SHARE_TOOL_ENABLED", False):
+            yield event.plain_result("⚠️ 看完后私信给主人功能未开启")
+            return
+        receiver_mid = str(self.config.get("OWNER_MID", "") or "").strip()
+        if not receiver_mid.isdigit():
+            yield event.plain_result("⚠️ 主人的B站 UID（OWNER_MID）未正确配置")
+            return
+        if receiver_mid == str(self.config.get("DEDE_USER_ID", "") or "").strip():
+            yield event.plain_result("⚠️ 主人的B站 UID 不能与 Bot 的B站 UID 相同")
+            return
+
+        requested_bvid = match.group(1)
+        yield event.plain_result("🎬 正在观看并准备通过B站私信分享给主人...")
+        result = await self._watch_video_and_save_memory(
+            requested_bvid, memory_source="command_private_share"
+        )
+        if not result.get("ok"):
+            yield event.plain_result(str(result.get("message") or "视频分析失败"))
+            return
+
+        try:
+            cooldown = max(
+                0, int(self.config.get("BILI_PRIVATE_SHARE_COOLDOWN", 60) or 0)
+            )
+        except (TypeError, ValueError):
+            cooldown = 60
+        bucket = int(time.time() // max(1, cooldown or 1))
+        actual_bvid = str(result.get("bvid") or requested_bvid)
+        outcome = await self.event_runtime.execute(
+            ActionRequest(
+                key=f"command_private_share:{receiver_mid}:{actual_bvid}:{bucket}",
+                kind="private_video_share",
+                event_key="bilibili:command:private_share",
+                target_id=receiver_mid,
+                priority=EventPriority.ADMIN,
+                metadata={"command": "bili分享", "bvid": actual_bvid},
+            ),
+            lambda: self._send_bili_private_video_share(
+                receiver_mid, result["video_info"]
+            ),
+        )
+        if outcome.success:
+            yield event.plain_result(
+                f"✅ 已通过B站私信分享给主人\n"
+                f"视频：{result['video_info'].get('title', actual_bvid)}\n"
+                f"BV号：{actual_bvid}"
+            )
+        elif outcome.state == "unknown":
+            yield event.plain_result(
+                "⚠️ 私信发送结果未知，可能已送达；请先检查B站私信，不要立即重试"
+            )
+        else:
+            yield event.plain_result(
+                "❌ B站私信发送失败，请检查 Cookie、CSRF、OWNER_MID 和风控日志"
+            )
+
     async def _tool_bili_watch_videos_result(self) -> str:
         if not self._has_cookie():
             return "未登录B站，无法执行主动看视频。请先使用 /bili登录 完成扫码登录。"
@@ -846,10 +962,29 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
         parts = event.message_str.strip().split(maxsplit=1)
         tm = self._bili_toggle_items()
         if len(parts)<2:
-            lines = ["可切换功能："] + [f"  {n} ({'✅' if self.config.get(k,True) else '❌'})" for n,k in tm.items()] + ["","用法: /bili开关 回复","      /bili开关 全部 ← 一键开/关所有"]
+            lines = ["可切换功能："] + [f"  {n} ({'✅' if self.config.get(k,True) else '❌'})" for n,k in tm.items()] + ["","用法: /bili开关 打开|关闭 ← 启动或停止 BiliBot","      /bili开关 回复","      /bili开关 全部 ← 一键开/关所有"]
             yield event.plain_result("\n".join(lines))
             return
         name=parts[1].strip()
+
+        # 兼容用户将“开关”理解为 BiliBot 的全局运行状态。
+        if name in {"打开", "开启"}:
+            if self._running:
+                yield event.plain_result("⚠️ 已在运行")
+                return
+            if not self._has_cookie():
+                yield event.plain_result("❌ 请先 /bili登录")
+                return
+            await self._start_bot()
+            yield event.plain_result("🚀 已启动！")
+            return
+        if name in {"关闭", "关掉"}:
+            if not self._running:
+                yield event.plain_result("⚠️ 没在运行")
+                return
+            await self._stop_bot()
+            yield event.plain_result("⏹️ 已停止")
+            return
 
         # ── 一键全部开/关 ──
         if name == "全部":

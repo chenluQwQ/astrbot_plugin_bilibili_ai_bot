@@ -6,6 +6,7 @@ import sys
 import tempfile
 import types
 import unittest
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -37,7 +38,10 @@ BV = "BV1xx411c7mD"
 
 class Bot(VideoMixin, ShareMixin, ProactiveMixin, DynamicMixin, MemoryMixin):
     def __init__(self):
-        self.config = {"ENABLE_VIDEO_LONG_TERM_MEMORY": False}
+        self.config = {
+            "ENABLE_VIDEO_LONG_TERM_MEMORY": False,
+            "VIDEO_ANALYSIS_MODE": "legacy",
+        }
         self.files = {}
         self._memory = []
         self._get_video_oid = AsyncMock(return_value=123)
@@ -48,6 +52,7 @@ class Bot(VideoMixin, ShareMixin, ProactiveMixin, DynamicMixin, MemoryMixin):
         })
         self._get_video_tags = AsyncMock(return_value=[])
         self._get_hot_comments = AsyncMock(return_value=[])
+        self._report_video_history = AsyncMock()  # 已有观看流程会上报历史；离线测试隔离该接口。
         self._save_self_memory_record = AsyncMock()
         self._evaluate_video = AsyncMock(return_value={
             "score": 8.3, "score_reason": "清楚演示榫卯结构", "mood": "开心",
@@ -69,6 +74,117 @@ class Bot(VideoMixin, ShareMixin, ProactiveMixin, DynamicMixin, MemoryMixin):
 
 
 class VideoRecallTests(unittest.IsolatedAsyncioTestCase):
+    def test_low_token_subtitle_sampler_covers_full_timeline(self):
+        text = "\n".join(f"第{i:02d}段内容" for i in range(50))
+        sampled = VideoMixin._sample_subtitle_timeline(text, 600)
+        self.assertIn("第00段", sampled)
+        self.assertIn("第49段", sampled)
+        self.assertLessEqual(len(sampled), 600)
+
+    async def test_low_token_subtitle_skips_summary_and_visual_models(self):
+        bot = Bot()
+        bot.config["VIDEO_ANALYSIS_MODE"] = "pond_low_token"
+        bot._get_low_token_subtitle = AsyncMock(
+            return_value="开头介绍材料\n中段完成榫卯\n结尾展示抽屉"
+        )
+        bot._analyze_video_pond_frames = AsyncMock()
+        bot._summary_llm_call = AsyncMock()
+        info = {"bvid": BV, "title": "木工", "cid": 1}
+        result = await VideoMixin._analyze_video_with_vision_inner(bot, info)
+        self.assertIn("榫卯", result)
+        self.assertEqual(info["analysis_basis"], "subtitles_low_token")
+        bot._analyze_video_pond_frames.assert_not_awaited()
+        bot._summary_llm_call.assert_not_awaited()
+
+    async def test_low_token_no_subtitle_uses_single_frame_path(self):
+        bot = Bot()
+        bot.config["VIDEO_ANALYSIS_MODE"] = "pond_low_token"
+        bot._get_low_token_subtitle = AsyncMock(return_value="")
+        bot._analyze_video_pond_frames = AsyncMock(return_value="画面展示木工抽屉")
+        info = {"bvid": BV, "title": "木工", "cid": 1}
+        result = await VideoMixin._analyze_video_with_vision_inner(bot, info)
+        self.assertIn("木工抽屉", result)
+        self.assertEqual(info["analysis_basis"], "video_media_low_token")
+        bot._analyze_video_pond_frames.assert_awaited_once()
+
+    async def test_owner_recent_group_is_recorded_and_used_for_delivery(self):
+        bot = Bot()
+        bot.config.update({
+            "OWNER_QQ_UMO": "FriendMessage:10001",
+            "OWNER_NAME": "主人",
+            "OWNER_QQ_RECENT_GROUP_MAX_AGE_HOURS": 168,
+        })
+        event = types.SimpleNamespace(
+            unified_msg_origin="demo_onebot:GroupMessage:20001",
+            get_sender_id=lambda: "10001",
+        )
+        self.assertTrue(bot._remember_owner_recent_group(event))
+        bot.context = types.SimpleNamespace(send_message=AsyncMock())
+        class FakeMessageChain:
+            def __init__(self):
+                self.chain = []
+            def at(self, name, qq):
+                self.chain.append(types.SimpleNamespace(name=name, qq=str(qq)))
+                return self
+            def message(self, text):
+                self.chain.append(types.SimpleNamespace(text=text))
+                return self
+        event_module = types.ModuleType("astrbot.api.event")
+        event_module.MessageChain = FakeMessageChain
+        with patch.dict(sys.modules, {"astrbot.api.event": event_module}):
+            self.assertTrue(
+                await bot._send_owner_recommend_qq_group("看完挺有意思", BV)
+            )
+        args = bot.context.send_message.await_args.args
+        self.assertEqual(args[0], event.unified_msg_origin)
+        self.assertEqual(args[1].chain[0].qq, "10001")
+        self.assertIn(BV, args[1].chain[-1].text)
+
+    async def test_stale_owner_group_is_not_used(self):
+        bot = Bot()
+        bot.config.update({
+            "OWNER_QQ_UMO": "FriendMessage:10001",
+            "OWNER_QQ_RECENT_GROUP_MAX_AGE_HOURS": 1,
+        })
+        bot.files[config.OWNER_QQ_RECENT_GROUP_FILE] = {
+            "umo": "demo_onebot:GroupMessage:20001",
+            "group_id": "20001",
+            "owner_qq": "10001",
+            "updated_at": time.time() - 7200,
+        }
+        bot.context = types.SimpleNamespace(send_message=AsyncMock())
+        self.assertFalse(
+            await bot._send_owner_recommend_qq_group("过期消息", BV)
+        )
+        bot.context.send_message.assert_not_awaited()
+
+    async def test_low_token_subtitle_validator_rejects_mismatched_topic(self):
+        bot = Bot()
+        bot._summary_llm_call = AsyncMock(
+            return_value='{"relevant":false,"reason":"主题完全不符"}'
+        )
+        bot._llm_call = AsyncMock()
+        info = {"bvid": BV, "title": "帝王蟹煎饼果子", "desc": ""}
+        result = await bot._validate_low_token_subtitle(
+            info, "沃尔玛零食区、烘焙区和宠物区商品测评"
+        )
+        self.assertEqual(result, "")
+        bot._summary_llm_call.assert_awaited_once()
+        prompt = bot._summary_llm_call.call_args.args[0]
+        self.assertLess(len(prompt), 1400)
+
+    async def test_low_token_subtitle_validator_keeps_matching_topic(self):
+        bot = Bot()
+        bot._summary_llm_call = AsyncMock(
+            return_value='{"relevant":true,"reason":"主题一致"}'
+        )
+        bot._llm_call = AsyncMock()
+        subtitle = "老板把帝王蟹拆开，加进煎饼果子里。"
+        result = await bot._validate_low_token_subtitle(
+            {"bvid": BV, "title": "帝王蟹煎饼果子"}, subtitle
+        )
+        self.assertEqual(result, subtitle)
+
     async def test_private_then_qq_then_comment_share_one_analysis(self):
         bot = Bot()
         first = await bot._watch_video_and_save_memory(BV, "private_message")

@@ -11,7 +11,7 @@ from astrbot.api import logger
 from .config import (
     AFFECTION_FILE, DATA_DIR, LEVEL_NAMES,
     REPLIED_AT_FILE, REPLIED_FILE,
-    REPLIED_CONTENT_KEYS_FILE, REPLY_LOG_FILE,
+    REPLIED_CONTENT_KEYS_FILE, REPLY_LOG_FILE, REPLY_RETRY_FILE,
     BILI_AT_NOTIFY_URL, BILI_NOTIFY_URL,
     VIDEO_MEMORY_FILE,
 )
@@ -316,7 +316,7 @@ class ReplyMixin(CommentContextMixin):
                     if search_result:
                         web_ctx = f"\n\n【联网搜索参考（用自己的话概括进reply字段，不要原文复述，务必保持JSON格式回复）】\n{search_result[:600]}"
             tool_ctx = ""
-            if is_private and reference_context:
+            if reference_context and (is_private or is_owner):
                 tool_ctx = (
                     "\n\n【后台查询/观看能力执行结果】\n"
                     "以下是程序刚刚完成的真实查询/观看结果，只作为事实材料；"
@@ -657,7 +657,12 @@ class ReplyMixin(CommentContextMixin):
             await self._compress_thread_memory(thread_id)
             await self._compress_oid_memory(oid)
             await self._compress_user_memory(mid, username, "bili_comment")
-        return success
+        # 结果未知不能自动重试；只有明确失败才安排延迟重试。
+        if outcome.state == "unknown":
+            return False
+        # 返回语义：True=发送成功；None=生成成功但明确发送失败（可降级重试）；
+        # False=主动不回复/拉黑（不重试）。
+        return success if success else None
 
     async def _poll_unified(self):
         if time.time() < self._reply_cooldown_until:
@@ -713,6 +718,8 @@ class ReplyMixin(CommentContextMixin):
                             "thread_id": str(source.get("root_id") or rpid or at_id),
                             "source": "at",
                             "at_id": at_id,
+                            "uri": source.get("uri", ""),
+                            "subject_title": source.get("title", ""),
                         })
             except Exception as e:
                 logger.warning(f"[BiliBot] @通知拉取失败: {e}")
@@ -734,13 +741,26 @@ class ReplyMixin(CommentContextMixin):
             # 去重：rpid 为唯一主键（没有 rpid 的评论回不了复，后面会被 line 339 拦掉）
             seen_rpids = set()
             unique = []
+            retry_map = self._load_json(REPLY_RETRY_FILE, {})
+            now_epoch = time.time()
             for p in pending:
                 rpid = p["rpid"]
                 if not rpid or rpid in seen_rpids or rpid in replied:
                     continue
+                # 发送失败降级重试：未到重试时间的先跳过，避免立即重试造成死循环
+                retry_at = retry_map.get(str(rpid))
+                if retry_at and now_epoch < float(retry_at):
+                    continue
                 seen_rpids.add(rpid)
                 unique.append(p)
             if not unique:
+                return
+
+            # ── 回复门控：休眠区间内不回复，但也不标记已读，醒来后自然补上 ──
+            if not self._reply_allowed_now():
+                logger.info(
+                    f"[BiliBot] 🌙 休眠中，暂缓处理 {len(unique)} 条评论/@（待醒来补回复）"
+                )
                 return
 
             event_items = [
@@ -758,8 +778,12 @@ class ReplyMixin(CommentContextMixin):
             oid = item["oid"]
             comment_type = item["comment_type"]
             thread_id = item["thread_id"]
+            item_uri = item.get("uri", "")
+            subject_title = item.get("subject_title", "")
 
-            claim = await self.event_runtime.claim(runtime_event)
+            claim = await self.event_runtime.claim(
+                runtime_event, allow_retry_failed=str(rpid) in retry_map
+            )
             if not claim.accepted:
                 if rpid:
                     replied.add(rpid)
@@ -846,10 +870,119 @@ class ReplyMixin(CommentContextMixin):
                 if image_desc:
                     logger.info(f"[BiliBot] 🖼️ 图片内容：{image_desc[:50]}...")
 
+            # ── 主人 @ 视频：实际观看并生成观后感，作为参考材料注入回复 ──
+            reference_context = ""
+            owner_reaction_video = None  # 主人 @ 视频观后感成功时，记录视频信息用于私信兜底
+            if (
+                self.config.get("ENABLE_OWNER_AT_VIDEO_REACTION", False)
+                and self._is_owner(mid)
+                and item.get("source") == "at"
+            ):
+                # 优先从 @ 文本中抠出 BV/av 链接；若主人是在某条视频的评论区
+                # 里 @ bot（@ 文本只有文字、不含链接），则回退到该评论所属的
+                # 视频 aid（subject_id，即 oid；business_id==1 表示视频评论）。
+                video_id = re.search(
+                    r"bilibili\.com/video/(BV[0-9A-Za-z]{10}|av\d+)|(BV[0-9A-Za-z]{10})",
+                    content,
+                    flags=re.IGNORECASE,
+                )
+                matched_video_id = ""
+                if video_id:
+                    matched_video_id = video_id.group(1) or video_id.group(2)
+                elif oid and str(comment_type) == "1":
+                    matched_video_id = str(oid)
+                if matched_video_id:
+                    logger.info(
+                        f"[BiliBot] 🎬 主人@视频，开始观看并生成观后感：{matched_video_id}"
+                        f"（来源：{'@文本链接' if video_id else '评论所属视频'}）"
+                    )
+                    watch_result = await self._watch_video_and_save_memory(
+                        matched_video_id, memory_source="owner_at_video"
+                    )
+                    if watch_result.get("ok"):
+                        # 只注入「贴合人设的观后感」素材，不含评分/评分理由——
+                        # 评分仅用于内部判断与记忆，不应说给主人听。
+                        parts = [
+                            "【你已经实际看完该视频，请以你的口吻和人设，"
+                            "自然地说出看完之后的真实感受或想法；"
+                            "不要提「评分」「几分」「评分理由」这类内部判断，"
+                            "也不要复述整段内容或客套，挑最触动你的一个点聊。】",
+                        ]
+                        title = str(watch_result.get("title", "")).strip()
+                        up_name = str(watch_result.get("up_name", "")).strip()
+                        content_detail = str(watch_result.get("content_detail", "")).strip()
+                        review = str(watch_result.get("review", "")).strip()
+                        if title:
+                            parts.append(f"视频标题：{title}")
+                        if up_name:
+                            parts.append(f"UP主：{up_name}")
+                        if content_detail:
+                            parts.append(f"视频内容（供你回忆）：{self._clip_media_text(content_detail, 800)}")
+                        if review:
+                            parts.append(f"你当时看完的感受：{self._clip_media_text(review, 200)}")
+                        reference_context = "\n".join(parts)
+                        # 记录视频信息，供「评论区回复 + 私信兜底」使用
+                        bvid = str(watch_result.get("bvid", "")).strip()
+                        owner_reaction_video = {
+                            "title": title,
+                            "bvid": bvid,
+                            "link": f"https://www.bilibili.com/video/{bvid}" if bvid else "",
+                        }
+                    else:
+                        reference_context = (
+                            "【本次尝试观看失败，请如实说明暂时没能读取，"
+                            "不要声称已经看完】\n"
+                            + str(watch_result.get("message", "未知错误"))
+                        )
+
+            # ── 主人 @ 图文帖子（business_id != 1，uri 含 opus）：浏览帖子并生成观后感 ──
+            owner_reaction_post = None  # 帖子浏览成功时记录标题/链接，供私信兜底
+            if (
+                self.config.get("ENABLE_OWNER_AT_VIDEO_REACTION", False)
+                and self._is_owner(mid)
+                and item.get("source") == "at"
+                and not owner_reaction_video
+                and str(comment_type) != "1"
+            ):
+                m_opus = re.search(r"opus/(\d+)", item_uri or "")
+                opus_id = m_opus.group(1) if m_opus else None
+                if opus_id:
+                    logger.info(f"[BiliBot] 📰 主人@图文帖子，开始浏览：opus={opus_id}")
+                    post = await self._fetch_opus_post(opus_id)
+                    if post:
+                        parts = [
+                            "【你已经实际看完这条图文帖子，请以你的口吻和人设，"
+                            "自然地说出看完之后的真实感受或想法；"
+                            "不要复述整段内容或客套，挑最触动你的一个点聊。】",
+                        ]
+                        p_title = str(post.get("title", "") or subject_title or "").strip()
+                        p_text = str(post.get("text", "")).strip()
+                        p_images = post.get("images", []) or []
+                        if p_title:
+                            parts.append(f"帖子标题：{p_title}")
+                        if p_text:
+                            parts.append(f"帖子正文：{self._clip_media_text(p_text, 800)}")
+                        # 多图拼一张整体识别，作为图片描述注入
+                        post_image_desc = ""
+                        if p_images:
+                            post_image_desc = await self._recognize_images(p_images)
+                            if post_image_desc:
+                                parts.append(f"帖子图片（拼图整体识别）：{post_image_desc}")
+                        if reference_context:
+                            parts.append(reference_context)
+                        reference_context = "\n".join(parts)
+                        opus_link = f"https://www.bilibili.com/opus/{opus_id}"
+                        owner_reaction_post = {"title": p_title, "link": opus_link}
+                    else:
+                        reference_context = (
+                            "【本次尝试浏览帖子失败，请如实说明暂时没能读取，"
+                            "不要声称已经看完】"
+                        )
+
             comment = {
                 "event_key": claim.event_key, "mid": mid, "username": username, "content": content,
                 "oid": oid, "rpid": rpid, "comment_type": comment_type, "thread_id": thread_id,
-                "image_desc": image_desc, "content_emb": content_emb,
+                "image_desc": image_desc, "content_emb": content_emb, "reference_context": reference_context, "owner_reaction": owner_reaction_video or owner_reaction_post,
             }
 
             async def resume_after_inspection(resume):
@@ -857,7 +990,7 @@ class ReplyMixin(CommentContextMixin):
 
             result = await self._generate_reply(
                 content, mid, username, thread_id, oid, comment_type, image_desc=image_desc,
-                comment_defer=resume_after_inspection,
+                reference_context=reference_context, comment_defer=resume_after_inspection,
             )
             if (result or {}).get("decision") == "deferred":
                 logger.info(f"[BiliBot] 📹 视频检查转后台，看完再回复：{username}")
@@ -886,7 +1019,7 @@ class ReplyMixin(CommentContextMixin):
             result = await self._generate_reply(
                 comment["content"], comment["mid"], comment["username"], comment["thread_id"],
                 comment["oid"], comment["comment_type"], image_desc=comment["image_desc"],
-                comment_resume=resume,
+                reference_context=comment.get("reference_context", ""), comment_resume=resume,
             )
             await self._finish_comment_reply(comment, result)
         except Exception as e:
@@ -915,6 +1048,31 @@ class ReplyMixin(CommentContextMixin):
             oid=comment["oid"], rpid=comment["rpid"], comment_type=comment["comment_type"],
             thread_id=comment["thread_id"], result=result,
         )
+
+        rpid = str(comment["rpid"])
+        retry_map = self._load_json(REPLY_RETRY_FILE, {})
+        if sent is None:
+            replied = set(self._load_json(REPLIED_FILE, []))
+            replied.discard(rpid)
+            self._save_json(REPLIED_FILE, list(replied))
+            retry_map[rpid] = time.time() + 3600
+            self._save_json(REPLY_RETRY_FILE, retry_map)
+        elif rpid in retry_map:
+            retry_map.pop(rpid, None)
+            self._save_json(REPLY_RETRY_FILE, retry_map)
+
+        # 仅在评论确认送达后，给主人私信一份观后感；不补发未知请求。
+        reaction = comment.get("owner_reaction")
+        if sent and reaction and self._is_owner(comment["mid"]):
+            parts = [str(result.get("reply") or "").strip()]
+            if reaction.get("title"):
+                parts.append(f"——《{reaction['title']}》")
+            if reaction.get("link"):
+                parts.append(reaction["link"])
+            try:
+                await self._send_bili_private_message(comment["mid"], "\n".join(parts))
+            except Exception as exc:
+                logger.warning(f"[BiliBot] 主人观后感私信发送异常，不自动补发: {exc}")
 
         if sent and self.config.get("ENABLE_SIMILAR_SKIP", False):
             await self._record_replied_content(content, emb=comment["content_emb"])
@@ -1060,9 +1218,11 @@ class ReplyMixin(CommentContextMixin):
                     f"要拉黑他吗？"
                 )
 
-            from astrbot.api.event import MessageChain
-            chain = MessageChain().message(msg)
-            await self.context.send_message(umo, chain)
-            logger.info(f"[BiliBot] 🔔 恶意告警已发送 → QQ | {username}({mid}): {content[:30]}")
+            from .umo import send_to_umo
+            delivered, detail = await send_to_umo(self.context, umo, msg)
+            if delivered:
+                logger.info(f"[BiliBot] 🔔 恶意告警已发送 → QQ | {username}({mid}): {content[:30]}")
+            else:
+                logger.warning(f"[BiliBot] 恶意告警未送达（{detail}）| {username}({mid})")
         except Exception as e:
             logger.warning(f"[BiliBot] 恶意告警发送失败: {e}")

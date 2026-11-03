@@ -45,7 +45,12 @@ const state = {
   memory: {},
   memoryCleanup: {},
   memoryCleanupTimer: null,
+  gallery: { items: [], status: {} },
   profiles: [],
+  browse: { range: "today", includeFailed: false, data: { items: [], counts: {} }, lm: {}, busy: false, detail: null, detailLoading: false, expanded: new Set() },
+  linkConsent: { loaded: false, acked: false, remaining_seconds: 0, ttl_hours: 24 },
+  personas: { items: [], default_id: "", selected_id: "", manager_ready: false },
+  providers: { items: [], manager_ready: false },
   interest: {},
   security: {},
   cache: {},
@@ -71,6 +76,8 @@ const state = {
 
 const NAV_ITEMS = [
   ["overview", "house", "总览", "健康、配额与运行监控"],
+  ["browse", "video", "浏览日志", "看过的视频、想法与评论"],
+  ["gallery", "memory-card", "评论图库", "收藏的反应图、配图与历史"],
   ["autonomy", "clock", "自主与作息", "活跃度、彩虹日程与范围限制"],
   ["interaction", "message", "回复与互动", "评论、私信、弹幕与分享"],
   ["memory", "memory-card", "记忆与关系", "记忆、画像、心情与好感度"],
@@ -84,6 +91,7 @@ const PAGE_KEYS = {
   interaction: [
     "ENABLE_REPLY", "POLL_INTERVAL", "REPLY_COOLDOWN", "REPLY_PROBABILITY_PERCENT", "REPLY_ALWAYS_UIDS",
     "ENABLE_SIMILAR_SKIP", "REPLY_SIMILARITY_PERCENT", "CUSTOM_REPLY_INSTRUCTION",
+    "ENABLE_OWNER_AT_VIDEO_REACTION",
     "COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS",
     "ENABLE_INTEREST_BASED_REPLY", "INTEREST_SELECTION_PROMPT", "FILTER_LOW_VALUE_MESSAGES",
     "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES", "INTEREST_APPLY_TO_PRIVATE",
@@ -111,10 +119,11 @@ const PAGE_KEYS = {
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
     "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE",
+    "PROACTIVE_COMMENT_MAX_LEN", "PROACTIVE_HOT_REPLY_COUNT",
     "PROACTIVE_FOLLOW", "PROACTIVE_FOLLOW_MIN_SCORE",
     "CUSTOM_PROACTIVE_INSTRUCTION", "ENABLE_OWNER_RECOMMEND", "RECOMMEND_OWNER_DELIVERY", "RECOMMEND_OWNER_MIN_SCORE",
-    "RECOMMEND_OWNER_DAILY_LIMIT", "RECOMMEND_OWNER_MIN_GAP_MINUTES", "CUSTOM_RECOMMEND_INSTRUCTION", "OWNER_QQ_UMO", "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "SPECIAL_FOLLOW_ENABLED",
-    "SPECIAL_FOLLOW_TIMES_COUNT", "ENABLE_BANGUMI", "BANGUMI_PROACTIVE",
+    "RECOMMEND_OWNER_DAILY_LIMIT", "RECOMMEND_OWNER_MIN_GAP_MINUTES", "CUSTOM_RECOMMEND_INSTRUCTION", "OWNER_QQ_UMO", "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "SPECIAL_FOLLOW_ENABLED", "SPECIAL_FOLLOW_MODE",
+    "SPECIAL_FOLLOW_TIMES_COUNT", "SPECIAL_FOLLOW_FIXED_TIMES", "ENABLE_BANGUMI", "BANGUMI_PROACTIVE",
     "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT",
     "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW", "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS",
     "DYNAMIC_POST_CHANCE", "DYNAMIC_FROM_VIDEO", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_PROMPT",
@@ -223,6 +232,8 @@ const MOCK_FIELDS = {
   PROACTIVE_FAV_MIN_SCORE: ["【主动行为】收藏最低评分", "int", 8],
   PROACTIVE_COMMENT: ["【主动行为】允许主动评论", "bool", true],
   PROACTIVE_COMMENT_MIN_SCORE: ["【主动行为】评论最低评分", "int", 7],
+  PROACTIVE_COMMENT_MAX_LEN: ["【主动行为】评论字数上限", "int", 80],
+  PROACTIVE_HOT_REPLY_COUNT: ["【主动行为】热评楼中楼回复条数", "int", 0],
   PROACTIVE_FOLLOW: ["【主动行为】允许主动关注 UP 主", "bool", true],
   PROACTIVE_FOLLOW_MIN_SCORE: ["【主动行为】关注最低评分", "int", 9],
   ENABLE_DYNAMIC: ["【动态发布】启用主动发布动态", "bool", false],
@@ -279,7 +290,7 @@ const MOCK_FIELDS = {
   LLM_PROVIDER_ID: ["【人设】用于回复与记忆压缩的 LLM", "string", "default"],
   LLM_CIRCUIT_FAILURE_THRESHOLD: ["【模型可靠性】连续失败多少次后暂停调用", "int", 5],
   LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 120],
-  USE_ASTRBOT_PERSONA: ["【人设】使用 AstrBot 自带人设", "bool", true],
+  USE_ASTRBOT_PERSONA: ["【人设】使用哪个人格（下拉选择 AstrBot 已配置的人格）", "string", ""],
   CUSTOM_SYSTEM_PROMPT: ["【人设】自定义系统提示词", "text", ""],
   ENABLE_LLM_TOOLS: ["【功能开关】启用 LLM 工具", "bool", false],
   SECURITY_ENABLE_PRIVATE_READ_TOOLS: ["【安全与工具】允许账号私密读取工具", "bool", false],
@@ -365,6 +376,7 @@ function buildMock() {
       { name: "qq_admin", label: "QQ 管理命令", description: "执行 QQ 管理操作", origin: "plugin", origin_name: "QQ 管理插件", active: true, compatible: false, reason: "跨平台管理能力保持隔离" },
     ],
     cache: { total_bytes: 18874368, buckets: { images: { label: "临时图片", bytes: 5242880 }, videos: { label: "临时视频", bytes: 12582912 }, search: { label: "联网搜索缓存", bytes: 1048576 }, qr: { label: "登录二维码", bytes: 2048 } }, protected: ["B站 Cookie 与扫码登录状态", "记忆与用户画像", "好感度", "日程和运行数据库"] },
+    linkConsent: { acked: false, remaining_seconds: 0, ttl_hours: 24 },
   };
 }
 
@@ -519,7 +531,7 @@ function unwrap(result) {
 async function apiGet(path, query = {}) {
   if (isPreview) {
     await sleep(70);
-    const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "memory/cleanup": mock.memoryCleanup, "profiles": mock.profiles, "interest/status": mock.interest, "security/stats": mock.security, "tools/available": mock.availableTools, "cache/stats": mock.cache };
+    const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "memory/cleanup": mock.memoryCleanup, "profiles": mock.profiles, "interest/status": mock.interest, "security/stats": mock.security, "tools/available": mock.availableTools, "cache/stats": mock.cache, "link/consent": mock.linkConsent };
     if (path === "account/qr/generate") return { image: "", key: "preview", expires_in: 180 };
     if (path === "account/qr/poll") return { status: "waiting", message: "预览模式不连接真实账号" };
     if (path === "extensions") return [mockCreatorManifest()];
@@ -541,6 +553,7 @@ async function apiPost(path, body = {}) {
       return structuredClone(mock.memoryCleanup);
     }
     if (path === "account/logout") mock.account = { logged_in: false, configured: false, reason: "尚未连接 B站账号" };
+    if (path === "link/consent/ack") { mock.linkConsent = { acked: true, remaining_seconds: 86400, ttl_hours: 24 }; return structuredClone(mock.linkConsent); }
     if (path === "schedule/regenerate") return structuredClone(regenerateMockSchedule());
     if (path === "schedule/override") {
       mock.schedule.events = structuredClone(body.events || []);
@@ -589,6 +602,8 @@ function descriptionMeta(field = {}) {
 }
 
 function setDraft(key, value) {
+  // 同值 change 不重建保存栏，避免输入失焦时吞掉“放弃/保存”的点击。
+  if (JSON.stringify(state.draft[key]) === JSON.stringify(value)) return;
   state.draft[key] = value;
   if (JSON.stringify(value) === JSON.stringify(state.config[key])) state.dirtyKeys.delete(key);
   else state.dirtyKeys.add(key);
@@ -703,6 +718,17 @@ function openMobileNav() {
 async function loadBase() {
   if (!isPreview && bridge?.ready) await bridge.ready();
   const extensionDiscovery = apiGet("extensions").catch(() => []);
+  // 人格 / 提供商下拉是全局选项源，提前取一次，避免在非「基础设置」页渲染成空下拉。
+  // 外链确认状态（24 小时静默窗口）同样提前取：沙箱里 localStorage 不可用，只能依赖后端。
+  const choiceSources = Promise.all([
+    apiGet("personas").catch(() => ({ items: [] })),
+    apiGet("providers").catch(() => ({ items: [] })),
+    apiGet("link/consent").catch(() => ({})),
+  ]).then(([personas, providers, consent]) => {
+    state.personas = { items: [], default_id: "", selected_id: "", manager_ready: false, ...(personas || {}) };
+    state.providers = { items: [], manager_ready: false, ...(providers || {}) };
+    state.linkConsent = { loaded: true, acked: false, remaining_seconds: 0, ttl_hours: 24, ...(consent || {}) };
+  });
   const [schema, config, stats, persona] = await Promise.all([
     apiGet("config/schema"), apiGet("config"), apiGet("stats"), apiGet("persona/state"),
   ]);
@@ -711,6 +737,7 @@ async function loadBase() {
   state.draft = structuredClone(state.config);
   state.stats = stats || {};
   state.persona = persona || {};
+  await choiceSources;
   const setExtensions = (extensions) => {
     state.extensions = Array.isArray(extensions) ? extensions.filter((item) => item && item.enabled !== false) : [];
   };
@@ -745,6 +772,15 @@ async function refreshPageData(page) {
     state.memory = memory || {};
     state.memoryCleanup = cleanup || {};
     state.profiles = Array.isArray(profiles) ? profiles : [];
+  } else if (page === "gallery") {
+    state.gallery = await apiGet("gallery/list") || { items: [], status: {} };
+  } else if (page === "browse") {
+    const [log, lm] = await Promise.all([
+      apiGet("browse/log", { range: state.browse.range || "today", include_failed: state.browse.includeFailed ? 1 : 0 }),
+      apiGet("livingmemory/status").catch(() => ({})),
+    ]);
+    state.browse.data = log || { items: [], counts: {} };
+    state.browse.lm = lm || {};
   } else if (page === "security") {
     const [security, availableTools] = await Promise.all([apiGet("security/stats"), apiGet("tools/available")]);
     state.security = security || {};
@@ -763,7 +799,14 @@ async function refreshPageData(page) {
     state.stats = stats || {};
     state.interest = interest || {};
   } else if (page === "basics") {
-    state.cache = await apiGet("cache/stats") || {};
+    const [cache, personas, providers] = await Promise.all([
+      apiGet("cache/stats").catch(() => ({})),
+      apiGet("personas").catch(() => ({ items: [] })),
+      apiGet("providers").catch(() => ({ items: [] })),
+    ]);
+    state.cache = cache || {};
+    state.personas = { items: [], default_id: "", selected_id: "", manager_ready: false, ...(personas || {}) };
+    state.providers = { items: [], manager_ready: false, ...(providers || {}) };
   }
 }
 
@@ -912,9 +955,10 @@ function statusPill(label, tone = "neutral") {
   return `<span class="status-pill ${tone}"><i></i>${esc(label)}</span>`;
 }
 
-function metricCard(label, value, foot, iconName, tone = "blue", progress = null, quota = null) {
+function metricCard(label, value, foot, iconName, tone = "blue", progress = null, quota = null, action = "") {
   const meter = progress === null ? "" : `<div class="metric-meter"><div><span>今日用量</span>${quota === null ? "" : `<b>${esc(value)} / ${esc(quota)}</b>`}</div><div class="micro-progress"><i style="width:${clamp(progress, 0, 100)}%"></i></div></div>`;
-  return `<article class="metric-card tone-${tone}"><div class="metric-top"><span class="metric-icon">${icon(iconName)}</span><span>${esc(label)}</span></div><strong>${esc(value)}</strong><p>${esc(foot)}</p>${meter}</article>`;
+  const attrs = action ? ` data-action="${esc(action)}" role="button" tabindex="0"` : "";
+  return `<article class="metric-card tone-${tone}${action ? " is-clickable" : ""}"${attrs}><div class="metric-top"><span class="metric-icon">${icon(iconName)}</span><span>${esc(label)}</span>${action ? `<span class="metric-open">${icon("arrow-right")}</span>` : ""}</div><strong>${esc(value)}</strong><p>${esc(foot)}</p>${meter}</article>`;
 }
 
 function sectionHead(title, subtitle = "", iconName = "settings", extra = "") {
@@ -958,6 +1002,11 @@ const OPTION_LABELS = {
   IMAGE_GEN_BACKEND: { openai: "OpenAI 兼容接口", novelai: "NovelAI" },
   WEB_SEARCH_BACKEND: { tavily: "Tavily", firecrawl: "Firecrawl", grok: "Grok", perplexity: "Perplexity", bocha: "博查", custom: "自定义接口" },
   VIDEO_VISION_FORMAT: { auto: "自动探测", openai: "OpenAI video_url", file: "OpenAI file", qwen: "通义千问 / vLLM", gemini: "Gemini 兼容层", none: "不直读，只截帧" },
+  VIDEO_ANALYSIS_MODE: {
+    pond_low_token: "低 Token 模式（字幕优先 + 少量抽帧）",
+    storyboard: "分镜模式（字幕优先 + 镜头检测宫格图）",
+    legacy: "传统模式（字幕校验 + 分段视觉）",
+  },
 };
 
 // 只能从固定几项里选的列表配置，用勾选代替逐行手填。
@@ -976,10 +1025,66 @@ function renderListChoices(key, value, label) {
   return `<div class="list-choices" data-list-choices="${key}" role="group" aria-label="${esc(label)}">${Object.entries(choices).map(([option, text]) => `<label class="list-choice"><input type="checkbox" data-list-choice="${key}" value="${esc(option)}" ${selected.has(option) ? "checked" : ""} /><span>${esc(text)}</span></label>`).join("")}</div>`;
 }
 
+/** 人设下拉：选项来自 AstrBot 已配置的人格，空值 = 跟随默认人格。 */
+function renderPersonaSelect(value, label) {
+  const personas = Array.isArray(state.personas.items) ? state.personas.items : [];
+  const current = value === false ? "__off__" : value === true ? "" : String(value ?? "");
+  const defaultId = state.personas.default_id || "";
+  const options = [
+    `<option value="__off__" ${current === "__off__" ? "selected" : ""}>不启用（只用 B站附加提示词）</option>`,
+    `<option value="" ${current === "" ? "selected" : ""}>跟随 AstrBot 默认人格${defaultId ? `（当前：${esc(defaultId)}）` : ""}</option>`,
+  ];
+  personas.forEach((persona) => {
+    options.push(`<option value="${esc(persona.id)}" ${current === persona.id ? "selected" : ""}>${esc(persona.name)}${persona.prompt_length ? ` · ${persona.prompt_length} 字` : ""}</option>`);
+  });
+  if (current && current !== "__off__" && !personas.some((persona) => persona.id === current)) {
+    options.push(`<option value="${esc(current)}" selected>${esc(current)}（AstrBot 中未找到该人格）</option>`);
+  }
+  const hint = state.personas.manager_ready === false ? `<p class="control-hint">没读到 AstrBot 人格管理器，先去 AstrBot「人格设定」里建一个人格。</p>` : "";
+  return `<div class="control-stack"><select class="input" data-config-key="USE_ASTRBOT_PERSONA" aria-label="${esc(label)}">${options.join("")}</select>${hint}</div>`;
+}
+
+const PROVIDER_ROLES = [
+  ["LLM_PROVIDER_ID", "回复主模型", "评论回复、私信回复、上下文判断、记忆压缩"],
+  ["SUMMARY_PROVIDER_ID", "总结模型", "日总结、周总结、性格演化摘要"],
+  ["GENERATION_PROVIDER_ID", "生成模型", "发动态文案、评论草稿"],
+  ["SCHEDULE_PLAN_PROVIDER_ID", "计划模型", "每天生成今日计划的排期"],
+  ["WEB_SEARCH_JUDGE_PROVIDER_ID", "搜索判断", "旧式判断是否需要联网查资料"],
+  ["VIDEO_VISION_PROVIDER_ID", "视频视觉", "看片时读画面与字幕（需多模态）"],
+  ["IMAGE_VISION_PROVIDER_ID", "图片识别", "收到图片时的识图（需多模态）"],
+];
+
+/** 模型提供商下拉：选项来自 AstrBot 已配置的提供商，空值 = 跟随默认/独立 API。 */
+function renderProviderSelect(key, value, label) {
+  const providers = Array.isArray(state.providers.items) ? state.providers.items : [];
+  const current = String(value ?? "");
+  const options = [`<option value="" ${current === "" ? "selected" : ""}>留空 · 用下方独立 API 或 AstrBot 默认模型</option>`];
+  providers.forEach((provider) => {
+    const suffix = [provider.model, provider.enable === false ? "已停用" : ""].filter(Boolean).join(" · ");
+    options.push(`<option value="${esc(provider.id)}" ${current === provider.id ? "selected" : ""}>${esc(provider.id)}${suffix ? `　${esc(suffix)}` : ""}</option>`);
+  });
+  if (current && !providers.some((provider) => provider.id === current)) {
+    options.push(`<option value="${esc(current)}" selected>${esc(current)}（AstrBot 中未找到）</option>`);
+  }
+  return `<select class="input" data-config-key="${key}" aria-label="${esc(label)}">${options.join("")}</select>`;
+}
+
+/** 说明「AstrBot 模型提供商」这组配置各自作用于什么功能。 */
+function renderProviderHelp() {
+  const rows = PROVIDER_ROLES.filter(([key]) => hasKey(key));
+  if (!rows.length) return "";
+  return `<div class="provider-help">
+    <div class="provider-help-head"><span class="provider-help-icon">${icon("controller")}</span><div><strong>这些「AstrBot 模型提供商」分别管什么</strong><p>字段值都是 AstrBot「服务提供商」里的 ID，插件只按 ID 调用；${rows.length} 个环节可以指向同一个提供商，也可以各用各的。<b>兼容【多 API 模型路由】</b>：multi_api_router 注册的提供商能直接选，它内部的路由、重试与负载均衡由该插件自己负责。</p></div></div>
+    <div class="provider-role-grid">${rows.map(([key, role, scope]) => `<div class="provider-role"><span>${esc(role)}</span><b title="${esc(String(currentValue(key) || "留空"))}">${esc(String(currentValue(key) || "留空 · 默认"))}</b><small>${esc(scope)}</small><code>${esc(key)}</code></div>`).join("")}</div>
+  </div>`;
+}
+
 function renderControl(key, field = {}, compact = false) {
   const value = currentValue(key);
   const type = field.type || "string";
   const label = descriptionMeta(field).label;
+  if (key === "USE_ASTRBOT_PERSONA") return renderPersonaSelect(value, label);
+  if (field._special === "select_provider") return renderProviderSelect(key, value, label);
   if (type === "bool") {
     return `<label class="switch-control"><input data-config-key="${key}" type="checkbox" ${value ? "checked" : ""} /><span class="switch-track"><i></i></span><span class="sr-only">切换${esc(label)}</span></label>`;
   }
@@ -1400,6 +1505,8 @@ function bindCreatorContent() {
 function renderPage(page) {
   return {
     overview: renderOverview,
+    browse: renderBrowse,
+    gallery: renderGallery,
     interaction: renderInteraction,
     autonomy: renderAutonomy,
     memory: renderMemory,
@@ -1586,6 +1693,49 @@ function shouldAutoOpenGuide() {
   return GUIDE_STEPS.some((step) => (step.id === "account" || step.id === "owner") && step.done() === false);
 }
 
+function imageSelectionLabel(selection) {
+  if (!selection?.reason) return "历史记录未保存选图过程";
+  return {
+    no_gallery_image: "图库没有可用图片", disabled: "配图已关闭", no_memory_target: "未配置记忆目标",
+    no_compatible_candidate: "没有可比较的图片", low_similarity: "图片与评论关联不足",
+    semantic_match: "文字含义匹配", emotion_match: "情绪和语境匹配",
+    no_emotion_match: "没有适合这条评论的反应图", judgment_timeout: "选图判断超时，使用文字",
+    judgment_unavailable: "选图判断暂不可用，使用文字", selection_unavailable: "选图暂不可用",
+    upload_failed: "图片上传失败，使用文字",
+  }[selection.reason] || "选图过程待核对";
+}
+
+function renderSelection(selection) {
+  if (!selection?.reason) return "";
+  const matched = ["semantic_match","emotion_match"].includes(selection.reason);
+  return `<p class="gallery-note"><b>${matched ? "选图" : "未配图"}：</b>${esc(imageSelectionLabel(selection))}${selection.judgment_reason ? ` · ${esc(selection.judgment_reason)}` : ""}${Number.isFinite(selection.top_score) ? ` · 含义相似度 ${Number(selection.top_score).toFixed(2)}` : ""}</p>`;
+}
+
+function renderGallery() {
+  const data = state.gallery || {};
+  const s = data.status || {};
+  return `${pageHead("GALLERY", "评论图库", "主动浏览时收藏合适的反应图；发送评论时按文字含义选图。", button("刷新图库", "refresh", "refresh"))}
+    <section class="card section-card"><p>可用 ${num(s.available)} / 150 张 · 已淘汰 ${num(s.evicted)} 张 · 今日识图 ${num(s.caption_attempts_today)} 次 · 历史待同步 ${num(s.history_pending)} 条${num(s.send_unknown) ? ` · 发送结果待核对 ${num(s.send_unknown)} 条` : ""}</p>
+      <p class="gallery-note">图片只用于主动一级评论。被动回复和楼中楼继续使用文字或原生表情。图片文件由 BiliBot 保存，LivingMemory 展示已发布图片的公开地址；本地淘汰后保留文字经历。</p>
+      ${renderFields(["GALLERY_COLLECT_ENABLED", "GALLERY_COMMENT_ENABLED", "GALLERY_COLLECT_PER_BROWSE", "GALLERY_CAPTION_DAILY_MAX", "GALLERY_MATCH_MIN"])}
+      ${button("重试历史同步", "gallery-retry", "refresh")}
+    </section>
+    <section class="card section-card"><h2>最近选图结果</h2>
+      ${(data.recent_selections || []).map((entry) => `<div class="gallery-copy"><small>${esc(entry.time)} · ${esc(entry.bvid)}</small>${renderSelection(entry.selection)}</div>`).join("") || `<p class="gallery-note">新评论会记录是否匹配、为什么不配图。旧评论没有选图过程记录。</p>`}
+    </section>
+    <section class="gallery-grid" aria-label="评论图片">
+      ${(data.items || []).map((item) => {
+        const available = item.local_status === "available";
+        const thumb = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(item.thumbnail || "") ? item.thumbnail : "";
+        return `<article class="card gallery-card">
+          <div class="gallery-thumb">${thumb ? `<img src="${esc(thumb)}" alt="${esc(item.description || "评论图片")}" loading="lazy" width="160" height="160" />` : `<span>${available ? "缩略图暂不可用" : "本地已淘汰"}</span>`}</div>
+          <div class="gallery-copy"><strong>${esc(item.description || "暂无描述")}</strong><p>${esc(item.emotion || "未标注情绪")} · 喜欢 ${num(item.liking)} / 10 · 使用 ${num(item.uses)} 次</p>
+          <small>${item.source_kind === "dynamic" ? "来自动态" : "来自评论区"}${item.source_bvid ? ` · ${esc(item.source_bvid)}` : ""}</small>
+          ${available ? `<button type="button" class="button soft" data-gallery-evict="${esc(item.asset_id)}">淘汰本地图片</button>` : `<span class="gallery-evicted">历史信息已保留</span>`}</div></article>`;
+      }).join("") || `<div class="card empty-inline">图库暂时没有图片。开启采集并保存后，下一次主动浏览会从评论区或关注动态寻找合适的表情包。无需手动发布评论。</div>`}
+    </section>`;
+}
+
 function renderOverview() {
   const s = state.stats || {};
   const warning = (s.warnings || [])[0] || { level: "success", title: "未发现重大问题", detail: "当前没有需要立即处理的异常。" };
@@ -1593,8 +1743,9 @@ function renderOverview() {
   const accountReady = Boolean(s.account_connected || state.account?.logged_in);
   const running = s.running !== false;
   const schedulerHealthy = Boolean(s.scheduler_healthy);
+  const proactiveUsed = num(s.proactive_watches_today ?? s.proactive_used);
   const proactiveMax = num(s.proactive_max);
-  const proactiveProgress = proactiveMax > 0 ? num(s.proactive_used) / proactiveMax * 100 : 0;
+  const proactiveProgress = proactiveMax > 0 ? proactiveUsed / proactiveMax * 100 : 0;
   const replyLimit = Math.max(1, num(currentValue("AUTONOMOUS_REPLY_DAILY_MAX"), 80));
   const privateLimit = Math.max(1, num(currentValue("AUTONOMOUS_PRIVATE_DAILY_MAX"), 30));
   return `${pageHead("MONITOR", "运行总览", "最重要的账号、调度、互动、安全与配额状态集中在这里。", button("刷新状态", "refresh", "refresh"))}
@@ -1605,9 +1756,10 @@ function renderOverview() {
       <div class="health-side"><strong>${num(s.activity_level, state.persona.energy)}%</strong><span>${esc(s.activity_label || "今日活跃度")}</span><div class="activity-mini"><i style="width:${clamp(num(s.activity_level, 55), 0, 100)}%"></i></div></div>
     </section>
     <section class="metrics-grid">
-      ${metricCard("评论回复", fmt(s.comment_replies_today), "评论区已发送", "message", "pink", num(s.comment_replies_today) / replyLimit * 100, replyLimit)}
+      ${metricCard("今日评论回复", fmt(s.comment_replies_today), "回复收到的B站评论", "message", "pink", num(s.comment_replies_today) / replyLimit * 100, replyLimit)}
       ${metricCard("私信回复", fmt(s.private_replies_today), "安全私信已发送", "user", "violet", num(s.private_replies_today) / privateLimit * 100, privateLimit)}
-      ${metricCard("主动行为", fmt(s.proactive_used), proactiveMax ? "浏览、互动与分享" : "未设置有效配额", "play", "blue", proactiveProgress, proactiveMax || "—")}
+      ${metricCard("今日主动看片", fmt(proactiveUsed), proactiveMax > 0 ? "已进入分析流程的视频" : "每日轮次或每轮数量为 0，暂不设上限", "play", "blue", proactiveProgress, proactiveMax > 0 ? proactiveMax : null)}
+      ${metricCard("今日主动评论", fmt(s.proactive_comments_today), "主动看片后成功发布", "message", "violet")}
       ${metricCard("内容过滤", fmt(s.filtered_today), "低价值、广告与重复内容", "shield", "green")}
       ${metricCard("记忆总量", fmt(s.memory_total), `${fmt(s.profiles_total)} 个用户画像`, "memory-card", "orange")}
       ${metricCard("今日失败", fmt(s.failed_today), num(s.failed_today) ? "建议立即检查 AstrBot 日志" : "未发现执行失败", "lightning", num(s.failed_today) ? "red" : "green")}
@@ -1628,7 +1780,8 @@ function renderOverview() {
         <div class="quota-list">
           ${quotaRow("评论回复", num(s.comment_replies_today), replyLimit, "pink")}
           ${quotaRow("私信回复", num(s.private_replies_today), privateLimit, "violet")}
-          ${quotaRow("主动行为", num(s.proactive_used), proactiveMax || 1, "blue")}
+          ${quotaRow("主动看片", proactiveUsed, proactiveMax, "blue")}
+          ${quotaRow("主动评论", num(s.proactive_comments_today), Math.max(1, num(currentValue("PROACTIVE_COMMENT_DAILY_LIMIT"), 12)), "violet")}
         </div>
       </article>
     </section>`;
@@ -1639,9 +1792,10 @@ function monitorRow(label, value, detail, ok, target) {
 }
 
 function quotaRow(label, used, total, tone) {
-  const safeTotal = Math.max(1, num(total));
+  const unlimited = num(total) <= 0;
+  const safeTotal = unlimited ? Math.max(1, num(used)) : num(total);
   const percent = clamp(num(used) / safeTotal * 100, 0, 100);
-  return `<div class="quota-row"><div><span>${esc(label)}</span><b>${fmt(used)} / ${fmt(total)}</b></div><div class="quota-track tone-${tone}"><i style="width:${percent}%"></i></div></div>`;
+  return `<div class="quota-row"><div><span>${esc(label)}</span><b>${fmt(used)} / ${unlimited ? "不限" : fmt(total)}</b></div><div class="quota-track tone-${tone}"><i style="width:${percent}%"></i></div></div>`;
 }
 
 function parseInterestReport(report) {
@@ -1732,7 +1886,7 @@ const EVENT_STYLES = {
 
 const AUTONOMY_CAPABILITIES = [
   { id: "plan-generation", title: "每日计划编排", icon: "calendar", toggle: "ENABLE_AUTONOMOUS_DAILY_PLAN", description: "决定由模型安排今天的事件，或切换到管理员固定计划。", keys: ["AUTONOMOUS_PLAN_GENERATION_MODE", "AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES", "AUTONOMOUS_PLAN_GENERATION_TIME", "AUTONOMOUS_PLAN_RETRY_MINUTES", "AUTONOMOUS_PLAN_MAX_RETRIES", "SCHEDULE_PLAN_PROVIDER_ID", "AUTONOMOUS_PROACTIVE_WINDOW_MINUTES", "AUTONOMOUS_PLAN_PROMPT"] },
-  { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在主动浏览时间段内观看视频，并执行受评分阈值保护的互动。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_COUNT", "PROACTIVE_COMMENT_DAILY_LIMIT", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS"] },
+  { id: "proactive", title: "主动浏览", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在主动浏览时间段内观看视频，并执行受评分阈值保护的互动。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_COUNT", "PROACTIVE_COMMENT_DAILY_LIMIT", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_ANALYSIS_MODE", "VIDEO_STORYBOARD_ASR_ENABLED", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS"] },
   { id: "dynamic", title: "动态发布", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按今日计划生成并发布 B站动态；时间由固定计划或自主计划统一安排。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },
   { id: "dynamic-watch", title: "关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "查看关注用户的新动态图文与视频投稿，触发节奏由统一日程管理。", keys: ["DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
   { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "巡视特别关注用户的新内容；自主安排时按每日次数排进日程，固定计划时按“准确执行时刻”触发。", keys: ["SPECIAL_FOLLOW_TIMES_COUNT"] },
@@ -1935,6 +2089,21 @@ function renderBehaviorMatrix() {
   return `<div class="behavior-matrix">${cards}</div>`;
 }
 
+function renderCommentBehaviorExtras() {
+  const keys = ["PROACTIVE_COMMENT_MAX_LEN", "PROACTIVE_HOT_REPLY_COUNT"].filter(hasKey);
+  if (!keys.length) return "";
+  const hintFor = {
+    PROACTIVE_COMMENT_MAX_LEN: "单条主动评论与热评回复的字数上限，超出截断（20-200 字）",
+    PROACTIVE_HOT_REPLY_COUNT: "看完视频后从前 10 条热评里随机抽几条做楼中楼回复；0=不回复热评",
+  };
+  const cards = keys.map((key) => {
+    const field = state.schema[key] || {};
+    const meta = descriptionMeta(field);
+    return `<article class="behavior-card behavior-extra"><div class="behavior-head"><span>${icon(key === "PROACTIVE_HOT_REPLY_COUNT" ? "message" : "controller")}</span><strong>${esc(key === "PROACTIVE_HOT_REPLY_COUNT" ? "热评回复" : "评论字数")}</strong></div><div class="behavior-extra-body">${renderControl(key, field)}</div><p class="behavior-extra-hint">${esc(hintFor[key] || meta.label)}</p></article>`;
+  }).join("");
+  return `<div class="behavior-matrix behavior-extra-matrix">${cards}</div>`;
+}
+
 function renderPlanStatus(plan, autonomous) {
   const failed = autonomous && plan.generation_status === "error";
   const status = failed ? "今日模型计划未生成，不新增自动事件" : autonomous ? "模型计划已通过安全上限校验" : "管理员固定计划";
@@ -2080,8 +2249,411 @@ function renderAutonomy() {
     </section>
     ${renderPlanModeCard(plan, autonomous, events)}
     ${renderConfigSection("全局行为预算与超时", "评论、私信、主动看片和直播共用最后一道总量保护；这里不负责重复重试", ["BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS"], "shield")}
-    <section class="card section-card behavior-section">${sectionHead("主动行为评分", "管理员决定每个动作的最低内容评分；模型意愿不能绕过阈值", "controller")}${renderBehaviorMatrix()}</section>
+    <section class="card section-card behavior-section">${sectionHead("主动行为评分", "管理员决定每个动作的最低内容评分；模型意愿不能绕过阈值", "controller")}${renderBehaviorMatrix()}${renderCommentBehaviorExtras()}</section>
     <section class="card capability-section">${sectionHead("主动能力总开关", "先决定是否允许这类行为，再进入独立子界面设置细节；关闭后不会生成对应日程", "controller")}${renderCapabilityCards()}</section>`;
+}
+
+function renderBrowse() {
+  const data = state.browse.data || {};
+  const counts = data.counts || {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  const range = data.range || state.browse.range || "today";
+  const lm = state.browse.lm || {};
+  const tabs = [["today", "今日"], ["yesterday", "昨日"], ["7d", "近7天"]];
+  return `${pageHead("BROWSE", "浏览日志", "看过的视频、当时的想法和留下的评论，按时间倒序；同一视频只保留最新一次记录。", button("立即同步到长期记忆", "browse-sync", "save", "primary"))}
+    <section class="browse-toolbar">
+      <div class="browse-tabs">${tabs.map(([key, label]) => `<button class="browse-tab ${range === key ? "is-active" : ""}" data-browse-range="${key}" type="button" aria-selected="${range === key}">${esc(label)}</button>`).join("")}</div>
+      <div class="browse-toolbar-right">
+        <button class="browse-failed-toggle ${state.browse.includeFailed ? "is-active" : ""}" data-action="browse-toggle-failed" type="button">${icon("lightning")}含评价失败 ${fmt(counts.failed)}</button>
+        <span class="browse-range-caption">${esc(data.start || "")} → ${esc(data.end || "")}</span>
+      </div>
+    </section>
+    <section class="metrics-grid four">
+      ${metricCard("看过视频", fmt(counts.videos), "去重后的视频数", "video", "blue")}
+      ${metricCard("留下评论", fmt(counts.comments), "主动评论条数", "message", "pink")}
+      ${metricCard("评论区回复", fmt(counts.replies), "点开看每一条回复", "user", "violet", null, null, "browse-detail-replies")}
+      ${metricCard("评价失败", fmt(counts.failed), "点开看失败原因", "lightning", num(counts.failed) ? "red" : "green", null, null, "browse-detail-failed")}
+    </section>
+    <section class="card browse-card">
+      ${sectionHead("浏览明细", `${data.label || "今日"} · 共 ${items.length} 个视频`, "video", statusPill(`${fmt(counts.candidates)} 次抓取`, "blue"))}
+      <div class="browse-list">${items.length ? items.map(renderBrowseItem).join("") : `<div class="empty-inline">这个区间还没有浏览记录。</div>`}</div>
+    </section>
+    <section class="card lm-card">
+      ${sectionHead("长期记忆联动", "经安全过滤的浏览、评论与私信会写成 LivingMemory 的长期记忆", "memory-card", statusPill(lm.engine_ready ? "引擎就绪" : "引擎未就绪", lm.engine_ready ? "green" : "orange"))}
+      <div class="lm-grid">
+        ${lmFact("记忆目标会话", lm.target_umo || "未配置")}
+        ${lmFact("待同步记录", fmt(lm.pending))}
+        ${lmFact("累计写入", fmt(lm.synced_total))}
+        ${lmFact("上次同步", lm.last_run ? new Date(num(lm.last_run) * 1000).toLocaleString("zh-CN") : "尚未运行")}
+      </div>
+      <div class="lm-actions">
+        ${button("同步现在", "browse-sync", "save")}
+        ${button("连通性自检", "browse-probe", "shield")}
+      </div>
+    </section>
+    ${renderConfigSection("记忆联动设置", "同步开关、目标会话与扫描窗口；目标会话留空时跟随主人 QQ 私信", ["LIVINGMEMORY_SYNC_ENABLED", "LIVINGMEMORY_SESSION_UMO", "LIVINGMEMORY_SYNC_INTERVAL_MINUTES", "LIVINGMEMORY_SYNC_WINDOW_DAYS"], "memory-card")}`;
+}
+
+function lmFact(label, value) {
+  return `<div class="lm-fact"><span>${esc(label)}</span><b>${esc(String(value ?? "—"))}</b></div>`;
+}
+
+function renderBrowseItem(item) {
+  const failed = item.status === "failed";
+  const score = num(item.score);
+  const tone = failed ? "red" : score >= 7 ? "green" : "blue";
+  const scoreText = failed ? "评价失败" : item.score === null || item.score === undefined || item.score === "" ? "未评分" : `${score} 分`;
+  const url = item.url || (item.bvid ? `https://www.bilibili.com/video/${item.bvid}` : "");
+  const metaBits = [item.up_name ? `UP ${item.up_name}` : "", item.tname, item.source_detail].filter(Boolean);
+  const replies = Array.isArray(item.replies) ? item.replies : [];
+  const title = videoTitleLink(url, item.title || item.bvid || "未记录标题");
+  return `<article class="browse-item tone-${tone}">
+    <div class="browse-head">
+      <span class="browse-time">${esc(item.time || "未知时间")}</span>
+      ${statusPill(scoreText, tone)}
+      ${item.mood ? statusPill(item.mood, "violet") : ""}
+      ${(item.actions || []).map((action) => `<span class="browse-chip">${esc(action)}</span>`).join("")}
+    </div>
+    ${title}
+    ${metaBits.length ? `<div class="browse-meta">${metaBits.map((bit) => `<span>${esc(bit)}</span>`).join("")}</div>` : ""}
+    ${item.thought ? `<div class="browse-quote"><b>想法</b><p>${esc(item.thought)}</p></div>` : ""}
+    ${item.review ? `<div class="browse-quote soft"><b>感受</b><p>${esc(item.review)}</p></div>` : ""}
+    ${item.comment ? `<div class="browse-quote comment"><b>我的评论</b><p>${esc(item.comment)}</p></div>` : ""}
+    ${renderSelection(item.comments?.at(-1)?.image_selection)}
+    ${replies.length ? `<div class="browse-replies">${replies.slice(0, 3).map((reply) => `<p><b>回复 @${esc(reply.username || "对方")}</b>：${esc(reply.content || "")} → ${esc(reply.reply || "")}${reply.native_emotes?.length ? `<small> · B站原生表情 ${esc(reply.native_emotes.join(" "))}</small>` : ""}</p>`).join("")}</div>` : ""}
+  </article>`;
+}
+
+/** 统一的 B 站标题链接：左键交给 openExternalUrl，中键/Ctrl/右键保留浏览器原生行为。 */
+function videoTitleLink(url, text, extraClass = "") {
+  const classes = `browse-title ${extraClass}`.trim();
+  if (!url) return `<span class="${classes}">${esc(text)}</span>`;
+  return `<a class="${classes}" href="${esc(url)}" data-open-url="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(url)}">${esc(text)}</a>`;
+}
+
+async function loadBrowseRange(range) {
+  state.browse.range = range;
+  try {
+    state.browse.data = await apiGet("browse/log", { range, include_failed: state.browse.includeFailed ? 1 : 0 }) || { items: [], counts: {} };
+    state.browse.lm = await apiGet("livingmemory/status").catch(() => state.browse.lm || {});
+  } catch (error) {
+    toast("浏览日志读取失败", error.message || "请检查插件日志", "error");
+    return;
+  }
+  renderCurrentPage();
+}
+
+// ── 外链打开 ────────────────────────────────────────────────
+// AstrBot 控制台把插件页放进 sandbox="allow-scripts allow-forms allow-downloads"
+// 的 iframe：没有 allow-popups（window.open / target="_blank" 全被静默拦下），
+// 也没有 allow-same-origin（localStorage / cookie 不可用，前端记不住时间）。
+// 因此交互设计为：
+//   · 首次点击外链 → 弹一次「本地网络环境访问」提示；确认后由后端记录
+//     （link/consent → link_consent.json），24 小时内再点直接打开、不再提示；
+//     超过 24 小时自然过期，下一次点击会再提示一次。
+//   · 「打开」优先 window.open（若页面不在沙箱里，浏览器会正常开新标签）；
+//     沙箱内打不开时，视频链接直接在本页内嵌 B站视频页（实测可正常渲染），
+//     非视频链接退回链接面板，永远给出可复制的地址。
+async function openExternalUrl(url) {
+  if (!url) return;
+  if (!state.linkConsent?.loaded) {
+    // 启动时没拉到确认状态（接口异常）：补拉一次，避免误弹或漏弹。
+    try {
+      state.linkConsent = { loaded: true, acked: false, remaining_seconds: 0, ttl_hours: 24, ...(await apiGet("link/consent")) };
+    } catch (error) { state.linkConsent = { loaded: true, acked: false, remaining_seconds: 0, ttl_hours: 24 }; }
+  }
+  if (!state.linkConsent.acked) { renderLinkNotice(url); return; }
+  jumpExternal(url);
+}
+
+/** 首次（或距上次确认超过 24 小时）点击外链时的确认提示。 */
+function renderLinkNotice(url) {
+  modalRoot.innerHTML = `<div class="drawer-backdrop" data-link-backdrop><div class="link-dialog" role="dialog" aria-modal="true" aria-labelledby="link-notice-title">
+    <header>
+      <span class="drawer-icon">${icon("shield")}</span>
+      <div><small>EXTERNAL LINK NOTICE</small><h2 id="link-notice-title">即将打开外部链接</h2><p>跳转会在你当前使用的浏览器中打开，需要<b>本地网络环境</b>才能正常访问；由此产生的流量需要自行承担。</p></div>
+      <button class="modal-close" data-link-close type="button" aria-label="关闭">×</button>
+    </header>
+    <input class="input link-dialog-input" id="link-notice-url" readonly value="${esc(url)}" aria-label="目标链接" />
+    <p class="link-dialog-consent">确认后 <b>24 小时内</b>再次点击外链将直接打开，不再重复提示。</p>
+    <footer>
+      <button class="button primary" data-link-confirm type="button">${icon("arrow-right")}确认并打开</button>
+      <button class="button soft" data-link-copy type="button">${icon("save")}复制链接</button>
+      <button class="button soft" data-link-close type="button">取消</button>
+    </footer>
+  </div></div>`;
+  const input = modalRoot.querySelector("#link-notice-url");
+  const close = () => {
+    modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-closing");
+    window.setTimeout(() => { modalRoot.innerHTML = ""; }, 200);
+  };
+  modalRoot.querySelectorAll("[data-link-close]").forEach((node) => node.addEventListener("click", close));
+  modalRoot.querySelector("[data-link-backdrop]")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+  const confirmButton = modalRoot.querySelector("[data-link-confirm]");
+  confirmButton?.addEventListener("click", async () => {
+    if (confirmButton.disabled) return;
+    confirmButton.disabled = true;
+    confirmButton.textContent = "正在确认…";
+    try {
+      state.linkConsent = { ...state.linkConsent, loaded: true, ...(await apiPost("link/consent/ack")) };
+    } catch (error) {
+      toast("确认状态保存失败", "本次会话内仍会直接打开，刷新页面后可能再次提示", "error");
+      state.linkConsent = { ...state.linkConsent, loaded: true, acked: true };
+    }
+    close();
+    jumpExternal(url);
+  });
+  modalRoot.querySelector("[data-link-copy]")?.addEventListener("click", async () => {
+    const ok = await copyText(url);
+    if (ok) toast("链接已复制", url, "success");
+    else if (input) { input.select(); toast("请手动复制", "已选中链接，按 Ctrl+C 复制", "error"); }
+  });
+  if (input) {
+    input.addEventListener("click", () => input.select());
+    input.select();
+  }
+  requestAnimationFrame(() => modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-visible"));
+}
+
+/** 确认后的实际跳转：能开新窗口就开，开不了就在本页内嵌打开。 */
+function jumpExternal(url) {
+  let opened = null;
+  try {
+    opened = window.open(url, "_blank", "noopener,noreferrer");
+  } catch (error) {
+    opened = null;
+  }
+  if (opened) return;
+  const bvid = (String(url).match(/BV[0-9A-Za-z]+/) || [""])[0];
+  if (bvid) { renderVideoPreview(url, bvid); return; }
+  renderLinkDialog(url);
+}
+
+/** 非视频链接的兜底面板：沙箱拦弹窗时，至少给出可复制的地址。 */
+function renderLinkDialog(url) {
+  modalRoot.innerHTML = `<div class="drawer-backdrop" data-link-backdrop><div class="link-dialog" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title">
+    <header>
+      <span class="drawer-icon">${icon("video")}</span>
+      <div><small>OPEN EXTERNAL LINK</small><h2 id="link-dialog-title">控制台不允许弹新窗口</h2><p>AstrBot 后台用沙箱 iframe 承载插件页面（sandbox 里没有 allow-popups），浏览器会拦掉弹窗。请复制链接到浏览器地址栏打开。</p></div>
+      <button class="modal-close" data-link-close type="button" aria-label="关闭">×</button>
+    </header>
+    <input class="input link-dialog-input" id="link-dialog-url" readonly value="${esc(url)}" aria-label="目标链接" />
+    <ol class="link-dialog-tips">
+      <li>点<b>复制链接</b>粘到浏览器地址栏；</li>
+      <li>也可以 <b>Ctrl / ⌘ + 点击</b>标题，让浏览器自己开新标签。</li>
+    </ol>
+    <footer>
+      <button class="button soft" data-link-copy type="button">${icon("save")}复制链接</button>
+      <button class="button soft" data-link-retry type="button">${icon("refresh")}再试新窗口</button>
+      <button class="button soft" data-link-close type="button">关闭</button>
+    </footer>
+  </div></div>`;
+  const input = modalRoot.querySelector("#link-dialog-url");
+  const close = () => {
+    modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-closing");
+    window.setTimeout(() => { modalRoot.innerHTML = ""; }, 200);
+  };
+  modalRoot.querySelectorAll("[data-link-close]").forEach((node) => node.addEventListener("click", close));
+  modalRoot.querySelector("[data-link-backdrop]")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+  modalRoot.querySelector("[data-link-retry]")?.addEventListener("click", () => {
+    let opened = null;
+    try { opened = window.open(url, "_blank", "noopener,noreferrer"); } catch (error) { opened = null; }
+    if (opened) { close(); return; }
+    toast("依然被拦截", "控制台沙箱禁止弹窗，请复制链接到浏览器打开", "error");
+  });
+  modalRoot.querySelector("[data-link-copy]")?.addEventListener("click", async () => {
+    const ok = await copyText(url);
+    if (ok) toast("链接已复制", url, "success");
+    else if (input) { input.select(); toast("请手动复制", "已选中链接，按 Ctrl+C 复制", "error"); }
+  });
+  if (input) {
+    input.addEventListener("click", () => input.select());
+    input.select();
+  }
+  requestAnimationFrame(() => modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-visible"));
+}
+
+/** 在本页内嵌 B站视频页。实测 www.bilibili.com/video/<BV> 在当前沙箱下能正常
+ *  渲染（标题、播放器、导航都在），而 player.bilibili.com 只有黑块，所以直接嵌整页。 */
+function renderVideoPreview(pageUrl, bvid) {
+  modalRoot.innerHTML = `<div class="drawer-backdrop is-visible" data-preview-backdrop><div class="video-preview" role="dialog" aria-modal="true" aria-labelledby="video-preview-title">
+    <header>
+      <div><small>IN-PANEL VIEW</small><h2 id="video-preview-title">${esc(bvid || "视频页")}</h2><p>B站视频页已内嵌在本页，可直接观看；需要登录互动（点赞/评论/弹幕）时请复制链接到浏览器打开。</p></div>
+      <div class="video-preview-actions">
+        <button class="button soft" data-preview-copy type="button">${icon("save")}复制链接</button>
+        <button class="button soft" data-preview-close type="button">返回面板</button>
+      </div>
+    </header>
+    <div class="video-preview-stage"><iframe class="video-preview-frame" src="${esc(pageUrl)}" referrerpolicy="no-referrer" allow="autoplay; fullscreen; encrypted-media" allowfullscreen loading="lazy" title="${esc(bvid || "视频")}"></iframe></div>
+    <p class="video-preview-url">${esc(pageUrl)}</p>
+  </div></div>`;
+  const close = () => {
+    modalRoot.innerHTML = "";
+  };
+  modalRoot.querySelectorAll("[data-preview-close]").forEach((node) => node.addEventListener("click", close));
+  modalRoot.querySelector("[data-preview-copy]")?.addEventListener("click", async () => {
+    const ok = await copyText(pageUrl);
+    toast(ok ? "链接已复制" : "请手动复制", ok ? pageUrl : "沙箱可能限制剪贴板，请选中下方链接按 Ctrl+C", ok ? "success" : "error");
+  });
+  modalRoot.querySelector("[data-preview-backdrop]")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (error) { /* 沙箱里 clipboard 可能被禁用，走兜底 */ }
+  try {
+    const helper = document.createElement("textarea");
+    helper.value = text;
+    helper.setAttribute("readonly", "readonly");
+    helper.style.position = "fixed";
+    helper.style.opacity = "0";
+    document.body.appendChild(helper);
+    helper.select();
+    const ok = document.execCommand("copy");
+    helper.remove();
+    return ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+// ── 浏览日志明细抽屉：评论区回复 / 评价失败 ──────────────────
+const BROWSE_DETAIL_META = {
+  replies: { title: "评论区回复明细", subtitle: "一条回复一行，按时间倒序；点标题可直接打开视频", icon: "user" },
+  failed: { title: "评价失败明细", subtitle: "紧凑列出失败要点，展开单条可看具体原因与上下文", icon: "lightning" },
+};
+
+async function openBrowseDetail(kind) {
+  if (!BROWSE_DETAIL_META[kind]) return;
+  state.browse.detail = { kind, data: null, loading: true, error: "" };
+  state.browse.expanded = new Set();
+  renderBrowseDetailDrawer();
+  const endpoint = kind === "replies" ? "browse/replies" : "browse/failed";
+  try {
+    const data = await apiGet(endpoint, { range: state.browse.range || "today" });
+    if (state.browse.detail?.kind === kind) state.browse.detail = { kind, data: data || {}, loading: false, error: "" };
+  } catch (error) {
+    if (state.browse.detail?.kind === kind) state.browse.detail = { kind, data: null, loading: false, error: error.message || "读取失败" };
+  }
+  renderBrowseDetailDrawer();
+}
+
+function renderBrowseDetailDrawer() {
+  const detail = state.browse.detail;
+  if (!detail) return;
+  const meta = BROWSE_DETAIL_META[detail.kind];
+  const data = detail.data || {};
+  const body = detail.loading
+    ? `<div class="detail-loading">${icon("refresh")}<span>正在读取明细…</span></div>`
+    : detail.error
+      ? `<div class="detail-loading is-error">${icon("shield")}<span>${esc(detail.error)}</span></div>`
+      : detail.kind === "replies" ? renderReplyDetailBody(data) : renderFailureDetailBody(data);
+  const rangeLabel = data.label || (state.browse.range === "yesterday" ? "昨日" : state.browse.range === "7d" ? "近7天" : "今日");
+  modalRoot.innerHTML = `<div class="drawer-backdrop" data-detail-backdrop><aside class="autonomy-drawer detail-drawer" role="dialog" aria-modal="true" aria-labelledby="detail-drawer-title">
+    <header><span class="drawer-icon">${icon(meta.icon)}</span><div><small>${esc(rangeLabel)} · ${detail.kind === "replies" ? "REPLIES" : "EVALUATION FAILURES"}</small><h2 id="detail-drawer-title">${esc(meta.title)}</h2><p>${esc(meta.subtitle)}</p></div><button class="modal-close" data-detail-close type="button" aria-label="关闭">×</button></header>
+    <div class="detail-body">${body}</div>
+    <footer><button class="button soft" data-detail-close type="button">关闭</button></footer>
+  </aside></div>`;
+  const close = () => {
+    modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-closing");
+    window.setTimeout(() => {
+      modalRoot.innerHTML = "";
+      state.browse.detail = null;
+    }, 200);
+  };
+  modalRoot.querySelectorAll("[data-detail-close]").forEach((node) => node.addEventListener("click", close));
+  modalRoot.querySelector("[data-detail-backdrop]")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+  modalRoot.querySelectorAll("[data-fail-toggle]").forEach((node) => node.addEventListener("click", () => {
+    const key = node.dataset.failToggle;
+    if (state.browse.expanded.has(key)) state.browse.expanded.delete(key);
+    else state.browse.expanded.add(key);
+    renderBrowseDetailDrawer();
+  }));
+  bindExternalLinks(modalRoot);
+  requestAnimationFrame(() => modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-visible"));
+}
+
+function bindExternalLinks(scope) {
+  scope.querySelectorAll("[data-open-url]").forEach((node) => {
+    node.addEventListener("click", (event) => {
+      // 中键 / Ctrl / ⌘ / Shift 点击交给浏览器原生（新标签页由浏览器自己开，沙箱拦不住）
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      openExternalUrl(node.dataset.openUrl);
+    });
+  });
+}
+
+function renderReplyDetailBody(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const byChannel = data.by_channel || {};
+  const chips = Object.entries(byChannel).map(([key, count]) => `<span class="detail-chip">${esc({ comment: "评论区", private: "私信", live: "直播弹幕" }[key] || key)} ${fmt(count)}</span>`).join("");
+  if (!items.length) return `<div class="detail-empty">${icon("message")}<strong>这个区间没有回复记录</strong><span>换个时间范围，或等下一次互动后再看。</span></div>`;
+  return `<div class="detail-summary"><span>共 ${fmt(data.count ?? items.length)} 条</span>${chips}${(data.count || 0) > items.length ? `<span class="detail-warn">仅显示最近 ${fmt(items.length)} 条</span>` : ""}</div>
+    <div class="reply-detail-list">${items.map((item) => `<article class="reply-detail-row">
+      <div class="reply-detail-head">
+        <span class="browse-time">${esc(item.time || "")}</span>
+        <span class="browse-chip">${esc(item.channel_label || "评论区回复")}</span>
+        ${num(item.score_delta) ? statusPill(`好感 ${num(item.score_delta) > 0 ? "+" : ""}${num(item.score_delta)}`, num(item.score_delta) > 0 ? "green" : "red") : ""}
+        ${videoTitleLink(item.url, item.title || item.bvid || "未记录视频", "is-small")}
+      </div>
+      <div class="reply-detail-pair">
+        <p class="reply-detail-in"><b>@${esc(item.username || "对方")}</b>${esc(item.content || "（未记录原文）")}</p>
+        <p class="reply-detail-out"><b>我回</b>${esc(item.reply || "（未记录回复）")}${item.native_emotes?.length ? `<small> · B站原生表情 ${esc(item.native_emotes.join(" "))}</small>` : ""}</p>
+      </div>
+    </article>`).join("")}</div>`;
+}
+
+function renderFailureDetailBody(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const stages = Array.isArray(data.by_stage) ? data.by_stage : [];
+  const reasons = Array.isArray(data.top_reason) ? data.top_reason : [];
+  if (!items.length) return `<div class="detail-empty">${icon("shield")}<strong>这个区间没有评价失败</strong><span>要么抓取的视频都解析成功，要么还没开始抓取。</span></div>`;
+  return `<div class="detail-summary">
+      <span>共 ${fmt(data.count ?? items.length)} 条</span>
+      ${stages.map((item) => `<span class="detail-chip">${esc(item.label)} ${fmt(item.count)}</span>`).join("")}
+      ${(data.count || 0) > items.length ? `<span class="detail-warn">仅显示最近 ${fmt(items.length)} 条</span>` : ""}
+    </div>
+    ${reasons.length ? `<div class="fail-reason-bar">${reasons.map((item) => `<span>${esc(item.label)}<b>${fmt(item.count)}</b></span>`).join("")}</div>` : ""}
+    <div class="fail-list">${items.map((item, index) => renderFailureRow(item, index)).join("")}</div>`;
+}
+
+function renderFailureRow(item, index) {
+  const key = `${item.time}|${item.bvid}|${index}`;
+  const open = state.browse.expanded.has(key);
+  const pairs = [
+    ["失败阶段", item.stage_label || item.stage || "未记录"],
+    ["失败原因", item.reason_label || "未记录原因"],
+    ["原因代码", item.reason || "—"],
+    ["分析依据", item.analysis_basis_label || "未记录"],
+    ["耗时", item.elapsed_seconds === null || item.elapsed_seconds === undefined ? "—" : `${item.elapsed_seconds}s`],
+    ["模型路由", [item.model_route, item.model_provider].filter(Boolean).join(" / ") || "未记录"],
+    ["返回长度", item.response_chars === null || item.response_chars === undefined ? "—" : `${item.response_chars} 字符`],
+    ["命中缓存", item.from_cache ? "是" : "否"],
+    ["来源", [item.source, item.source_detail].filter(Boolean).join(" · ") || "未记录"],
+  ];
+  const detail = open ? `<div class="fail-detail">
+      <div class="fail-detail-grid">${pairs.map(([label, value]) => `<div><span>${esc(label)}</span><b>${esc(String(value))}</b></div>`).join("")}</div>
+      ${item.missing_fields?.length ? `<div class="fail-detail-block"><span>缺失字段</span><div class="fail-tags">${item.missing_fields.map((field) => `<i>${esc(field)}</i>`).join("")}</div></div>` : ""}
+      ${item.media_errors?.length ? `<div class="fail-detail-block"><span>媒体获取过程</span><ul>${item.media_errors.map((err) => `<li><b>${esc(err.stage || "步骤")}</b>${esc(err.reason || "")}</li>`).join("")}</ul></div>` : ""}
+      <div class="fail-detail-block"><span>上下文</span><p>Bot 抓到了《${esc(item.title || "未知视频")}》${item.up_name ? `（UP ${esc(item.up_name)}）` : ""}，但没拿到可用于评价的${item.analysis_basis === "video_media_low_token" ? "字幕与画面" : "内容"}，因此这一条被判定为评价失败、不计入想法与评论。</p></div>
+      ${item.url ? `<div class="fail-detail-actions"><button class="button soft" data-open-url="${esc(item.url)}" type="button">${icon("video")}打开视频链接</button></div>` : ""}
+    </div>` : "";
+  return `<article class="fail-row ${open ? "is-open" : ""}">
+    <div class="fail-line">
+      <span class="fail-time">${esc((item.time || "").slice(5) || "—")}</span>
+      <span class="fail-bv">${esc(item.bvid || "—")}</span>
+      <span class="fail-title" title="${esc(item.title || "")}">${esc(item.title || "未知视频")}</span>
+      <span class="fail-tag">${esc(item.stage_label || "未分类")}</span>
+      <span class="fail-tag is-reason">${esc(item.reason_label || "未记录原因")}</span>
+      <button class="fail-toggle" data-fail-toggle="${esc(key)}" type="button" aria-expanded="${open}">${open ? "收起" : "展开"}</button>
+    </div>
+    ${detail}
+  </article>`;
 }
 
 function renderMemory() {
@@ -2104,8 +2676,9 @@ function renderMemory() {
           <div class="policy-status"><span class="policy-icon">${icon(m.isolation_mode === "safe_share" ? "unlock" : "lock")}</span><div><strong>${esc(isolation)}</strong><p>${m.safe_share ? "仅给主人侧共享经过硬脱敏的无害趣事。" : "B站与 QQ/AstrBot 的具体记忆默认互不注入。"}</p></div></div>
           <button class="button soft wide" data-page-target="security" type="button">${icon("shield")}打开安全与记忆隔离设置</button>
         </article>
-        <article class="card memory-maintenance">${sectionHead("记忆维护", "清理超过保留周期的老化记录", "trash")}
-          <p>清理不会删除仍在保留期内的记忆，也不会重置用户好感度。</p>${button("清理过期记忆", "purge-memory", "trash", "danger")}
+        <article class="card memory-maintenance">${sectionHead("记忆维护", "清理过期记录，或为历史记忆补齐语义向量", "trash")}
+          <p>清理不会删除仍在保留期内的记忆，也不会重置用户好感度。补齐向量只补缺失项，不会重算已有向量。</p>
+          <div class="maintenance-actions">${button("补齐记忆向量", "backfill-embeddings", "refresh", "soft")}${button("清理过期记忆", "purge-memory", "trash", "danger")}</div>
           ${renderMemoryCleanup()}
         </article>
       </aside>
@@ -2182,7 +2755,7 @@ function renderSecurity() {
       ${metricCard("工具拒绝", fmt(securityCount(["bili_tool_denied"])), "未授权请求未执行", "lock", "violet")}
       ${metricCard("记忆策略", memoryMode === "safe_share" ? "安全共享" : "平台隔离", "仅向主人侧开放脱敏摘要", "memory-card", "orange")}
     </section>
-    ${renderConfigSection("工具隔离总控", "高风险工具不会因为关闭前端开关而自动获得权限；关闭 LLM 工具会拒绝全部 B站查询、看视频与搜索调用", ["BILI_TOOL_ISOLATION_ENABLED", "ENABLE_LLM_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS", "BILI_ALLOW_SEARCH_TOOLS", "BILI_PROMPT_INJECTION_DEFENSE", "BILI_TOOL_AUDIT_ENABLED"], "shield")}
+    ${renderConfigSection("工具隔离总控", "高风险工具不会因为关闭前端开关而自动获得权限；关闭 LLM 工具会拒绝全部 B站查询、看视频与搜索调用", ["BILI_TOOL_ISOLATION_ENABLED", "ENABLE_LLM_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS", "BILI_ALLOW_SEARCH_TOOLS", "BILI_PROMPT_INJECTION_DEFENSE", "BILI_TOOL_AUDIT_ENABLED", "ENABLE_CROSS_PLATFORM_PROFILE_SYNC"], "shield")}
     <section class="card section-card tool-access-card">${sectionHead("B站端私信回复工具", "仅供B站私信收到消息后的回复模型按需查询公开信息；与 QQ/AstrBot 聊天工具分开，不会自动执行", "controller")}${renderToolSummary()}</section>
     <div class="two-column">
       ${renderConfigSection("记忆隔离与安全共享", "默认隔离；开启共享后也只向已绑定主人侧提供脱敏摘要", ["MEMORY_ISOLATION_MODE", "ENABLE_SAFE_CROSS_PLATFORM_MEMORY", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES", "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT"], "memory-card")}
@@ -2206,7 +2779,7 @@ const BASIC_KEY_ORDER = {
   "网络代理": ["PROXY_URL"],
   "人设与模型": ["USE_ASTRBOT_PERSONA", "CUSTOM_SYSTEM_PROMPT", "LLM_PROVIDER_ID", "SUMMARY_PROVIDER_ID", "SUMMARY_API_KEY", "SUMMARY_API_BASE", "SUMMARY_MODEL", "GENERATION_PROVIDER_ID", "GENERATION_API_KEY", "GENERATION_API_BASE", "GENERATION_MODEL", "LLM_CIRCUIT_FAILURE_THRESHOLD", "LLM_CIRCUIT_COOLDOWN_SECONDS"],
   "Embedding 与记忆": ["EMBED_API_KEY", "EMBED_API_BASE", "EMBED_MODEL", "EMBED_TIMEOUT_SECONDS"],
-  "视频分析": ["VIDEO_VISION_PROVIDER_ID", "VIDEO_VISION_API_KEY", "VIDEO_VISION_API_BASE", "VIDEO_VISION_MODEL", "VIDEO_VISION_FORMAT", "VIDEO_VISION_FPS", "VIDEO_SEGMENT_MINUTES", "VIDEO_SEGMENT_MAX_COUNT"],
+  "视频分析": ["VIDEO_ANALYSIS_MODE", "VIDEO_LOW_TOKEN_SUBTITLE_CHARS", "VIDEO_LOW_TOKEN_SUBTITLE_ATTEMPTS", "VIDEO_LOW_TOKEN_FRAME_COUNT", "VIDEO_STORYBOARD_GRID_COLS", "VIDEO_STORYBOARD_GRID_ROWS", "VIDEO_STORYBOARD_SAMPLE_FPS", "VIDEO_STORYBOARD_MAX_TOKENS", "VIDEO_STORYBOARD_ASR_ENABLED", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_SEGMENT_MINUTES", "VIDEO_SEGMENT_MAX_COUNT", "VIDEO_VISION_PROVIDER_ID", "VIDEO_VISION_API_KEY", "VIDEO_VISION_API_BASE", "VIDEO_VISION_MODEL", "VIDEO_VISION_FORMAT", "VIDEO_VISION_FPS"],
   "性格演化": ["EVOLVE_MIN_DATA_DAYS", "EVOLVE_WEEKDAY", "EVOLVE_HOUR", "ENABLE_MEME_LEARNING", "EVOLVE_PROMPT"],
   "图片识别": ["IMAGE_VISION_PROVIDER_ID", "IMAGE_VISION_API_KEY", "IMAGE_VISION_API_BASE", "IMAGE_VISION_MODEL"],
   "联网搜索": ["ENABLE_WEB_SEARCH", "WEB_SEARCH_BACKEND", "WEB_SEARCH_API_KEY", "WEB_SEARCH_API_BASE", "WEB_SEARCH_MODEL", "WEB_SEARCH_JUDGE_PROVIDER_ID", "WEB_SEARCH_MAX_RESULTS"],
@@ -2277,8 +2850,9 @@ function renderBasics() {
       if (!keys.length) return "";
       const iconName = { "人设与模型": "heart", "性格演化": "star", "Embedding 与记忆": "memory-card", "视频分析": "video", "图片识别": "sun", "图片生成": "sun", "联网搜索": "search", "总结": "calendar", "Cookie 与系统": "settings", "高级接口": "controller" }[name] || "settings";
       const evolutionToggle = name === "性格演化" && hasKey("ENABLE_PERSONALITY_EVOLUTION") ? `<div class="settings-inline-toggle"><div><strong>${esc(descriptionMeta(state.schema.ENABLE_PERSONALITY_EVOLUTION).label)}</strong><small>${esc(state.schema.ENABLE_PERSONALITY_EVOLUTION.hint || "")}</small></div>${renderControl("ENABLE_PERSONALITY_EVOLUTION", state.schema.ENABLE_PERSONALITY_EVOLUTION)}</div>` : "";
+      const providerHelp = name === "人设与模型" ? renderProviderHelp() : "";
       const evolutionKeys = name === "性格演化" ? keys.filter((key) => key !== "ENABLE_PERSONALITY_EVOLUTION") : keys;
-      return `<details class="settings-group card" ${query || index < 2 ? "open" : ""}><summary><span class="section-icon">${icon(iconName)}</span><div><strong>${esc(name)}</strong><small>${evolutionKeys.length + (evolutionToggle ? 1 : 0)} 项配置</small></div>${icon("arrow-right")}</summary><div class="settings-group-body"><div class="settings-group-inner">${evolutionToggle}${renderFields(evolutionKeys)}</div></div></details>`;
+      return `<details class="settings-group card" ${query || index < 2 ? "open" : ""}><summary><span class="section-icon">${icon(iconName)}</span><div><strong>${esc(name)}</strong><small>${evolutionKeys.length + (evolutionToggle ? 1 : 0)} 项配置</small></div>${icon("arrow-right")}</summary><div class="settings-group-body"><div class="settings-group-inner">${providerHelp}${evolutionToggle}${renderFields(evolutionKeys)}</div></div></details>`;
     }).join("") || `<div class="card empty-search">${icon("search")}<strong>没有匹配的配置</strong><span>换一个关键词试试。</span></div>`}</div>`;
 }
 
@@ -2445,9 +3019,31 @@ function bindStepperControls(root = content) {
 }
 
 function bindContent() {
+  content.querySelectorAll("[data-gallery-evict]").forEach((node) => node.addEventListener("click", async () => {
+    const ok = await confirmModal("淘汰本地图片", "删除本地图片和选图向量，保留已发送评论及图片描述、来源和公开地址。", "确认淘汰", true);
+    if (!ok) return;
+    node.disabled = true;
+    try {
+      const result = await apiPost("gallery/evict", { asset_id: node.dataset.galleryEvict });
+      if (!result.ok) throw new Error(result.reason || "淘汰未完成");
+      await refreshPageData("gallery");
+      renderCurrentPage();
+      toast("本地图片已淘汰", result.pending ? "历史已保留，远端状态等待同步" : "历史信息已保留");
+    } catch (error) { toast("淘汰失败", error.message, "error"); node.disabled = false; }
+  }));
   bindConfigControls();
+  bindExternalLinks(content);
   if (state.currentPage === "autonomy") bindRingInteractions();
   content.querySelectorAll("[data-action]").forEach((node) => node.addEventListener("click", () => handleAction(node.dataset.action, node)));
+  content.querySelectorAll('[data-action][role="button"]').forEach((node) => node.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handleAction(node.dataset.action, node);
+  }));
+  content.querySelectorAll("[data-browse-range]").forEach((node) => node.addEventListener("click", () => {
+    if (node.dataset.browseRange === state.browse.range) return;
+    loadBrowseRange(node.dataset.browseRange);
+  }));
   content.querySelectorAll("[data-page-target]").forEach((node) => node.addEventListener("click", () => navigate(node.dataset.pageTarget)));
   content.querySelectorAll("[data-guide-step]").forEach((node) => node.addEventListener("click", () => openGuideTarget(GUIDE_STEPS.find((step) => step.id === node.dataset.guideStep))));
   content.querySelectorAll("[data-plan-mode]").forEach((node) => node.addEventListener("click", () => {
@@ -2553,10 +3149,61 @@ function setActiveScheduleEvent(index) {
 }
 
 async function handleAction(action, source = null) {
+  if (action === "gallery-retry") {
+    if (source) source.disabled = true;
+    try {
+      await apiPost("gallery/retry");
+      await refreshPageData("gallery");
+      renderCurrentPage();
+      toast("已重试历史同步", "可在历史待同步数量查看剩余任务");
+    } catch (error) { toast("同步失败", error.message, "error"); if (source) source.disabled = false; }
+    return;
+  }
   if (action === "refresh") return refreshCurrent();
   if (action === "save") return saveDraft();
   if (action === "discard") return discardDraft();
   if (action === "refresh-memory") return refreshAndRender("memory", "记忆数据已刷新");
+  if (action === "browse-detail-replies") return openBrowseDetail("replies");
+  if (action === "browse-detail-failed") return openBrowseDetail("failed");
+  if (action === "browse-toggle-failed") {
+    state.browse.includeFailed = !state.browse.includeFailed;
+    await loadBrowseRange(state.browse.range || "today");
+    return;
+  }
+  if (action === "browse-sync") {
+    try {
+      const result = await apiPost("livingmemory/sync", {});
+      if (result?.ok === false) {
+        toast("没有写入新记忆", result.reason || "LivingMemory 暂不可用", "error");
+        return;
+      }
+      await refreshPageData("browse");
+      renderCurrentPage();
+      const written = num(result?.written);
+      toast(
+        written ? "已写入长期记忆" : "没有新记录需要写入",
+        written ? `新增 ${written} 条${num(result?.failed) ? `，失败 ${num(result.failed)} 条` : ""}，目标 ${result.target_umo || "未知会话"}` : (result?.target_umo ? `目标 ${result.target_umo}` : "当前记录都已同步"),
+      );
+    } catch (error) {
+      toast("同步失败", error.message || "请检查插件日志", "error");
+    }
+    return;
+  }
+  if (action === "browse-probe") {
+    try {
+      const probe = await apiPost("livingmemory/probe", {});
+      const embedding = probe?.embedding || {};
+      const living = probe?.livingmemory || {};
+      const summary = embedding.ok
+        ? `向量接口正常（${embedding.model || "未知模型"}，${embedding.dimensions || "?"} 维）`
+        : `向量接口异常：${embedding.error || "未知错误"}`;
+      const engineText = living.ok ? `LivingMemory 引擎就绪 · ${fmt(living.documents)} 条记忆` : `LivingMemory 未就绪：${living.error || "记忆引擎未初始化"}`;
+      toast("连通性自检", `${summary}；${engineText}`, embedding.ok && living.ok ? "success" : "error");
+    } catch (error) {
+      toast("自检失败", error.message || "请检查插件日志", "error");
+    }
+    return;
+  }
   if (action === "refresh-security") return refreshAndRender("security", "安全审计已刷新");
   if (action === "open-tool-picker") return openToolPicker();
   if (action === "refresh-account") return refreshAndRender("account", state.account?.logged_in ? "账号连接正常" : "账号仍未连接");
@@ -2605,6 +3252,24 @@ async function handleAction(action, source = null) {
       toast(deep ? "深度清理完成" : "普通清理完成", `已释放 ${formatBytes(result?.removed_bytes || 0)}，当前占用 ${formatBytes(state.cache.total_bytes)}`);
     } catch (error) {
       toast("缓存清理失败", error.message || "请检查插件日志", "error");
+    }
+    return;
+  }
+  if (action === "backfill-embeddings") {
+    try {
+      toast("开始补齐向量", "缺失越少越快；补齐期间可以继续用面板", "success");
+      const result = await apiPost("memory/backfill-embeddings", { limit: 200 });
+      const filled = num(result?.filled);
+      const remaining = num(result?.remaining);
+      toast(
+        remaining ? "已补一批，还有剩余" : "向量补齐完成",
+        `本次补 ${filled} 条${num(result?.failed) ? `，失败 ${num(result.failed)} 条` : ""}${remaining ? `，剩余 ${remaining} 条（再点一次继续）` : "，全部记忆现在都能参与语义检索"}`,
+        num(result?.failed) ? "error" : "success",
+      );
+      await refreshPageData("memory");
+      renderCurrentPage();
+    } catch (error) {
+      toast("补齐向量失败", error.message || "请检查 Embedding 配置", "error");
     }
     return;
   }

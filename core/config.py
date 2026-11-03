@@ -33,6 +33,7 @@ TEMP_VIDEO_DIR = os.path.join(DATA_DIR, "temp_videos")
 REPLIED_AT_FILE = os.path.join(DATA_DIR, "replied_at.json")
 REPLIED_CONTENT_KEYS_FILE = os.path.join(DATA_DIR, "replied_content_keys.json")
 REPLY_LOG_FILE = os.path.join(DATA_DIR, "reply_log.json")
+REPLY_RETRY_FILE = os.path.join(DATA_DIR, "reply_retry.json")
 PRIVATE_MESSAGE_STATE_FILE = os.path.join(DATA_DIR, "private_message_state.json")
 BANGUMI_MEMORY_FILE = os.path.join(DATA_DIR, "bangumi_memory.json")
 WEEKLY_SUMMARY_FILE = os.path.join(DATA_DIR, "weekly_summary.json")
@@ -147,3 +148,6 @@ DEFAULT_DYNAMIC_PROMPT = """B站动态的感觉：
 - 当前时段只是背景，确实和内容有关时再自然带到"""
 
 OWNER_RECOMMEND_LOG_FILE = os.path.join(DATA_DIR, "owner_recommend_log.json")
+OWNER_QQ_RECENT_GROUP_FILE = os.path.join(DATA_DIR, "owner_qq_recent_group.json")
+LINK_CONSENT_FILE = os.path.join(DATA_DIR, "link_consent.json")  # 外链跳转「本地网络」确认时间戳
+LINK_CONSENT_TTL_HOURS = 24  # 确认一次后多少小时内不再提示

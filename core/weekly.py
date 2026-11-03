@@ -957,6 +957,7 @@ class WeeklySummaryMixin:
                 has_qq_image = False
                 try:
                     from astrbot.api.event import MessageChain
+                    from .umo import send_chain_to_umo
                     chain = MessageChain().message("📅 本周B站生活周报")
                     if image_path:
                         image_chain = self._append_image_to_chain(chain, image_path)
@@ -971,7 +972,9 @@ class WeeklySummaryMixin:
                     logger.warning(f"[BiliBot] 周总结QQ图片消息构建失败，尚未发送，改用文本: {exc}")
                     chain = MessageChain().message(summary)
                 try:
-                    await self.context.send_message(umo, chain)
+                    delivered, detail = await send_chain_to_umo(self.context, umo, chain)
+                    if not delivered:
+                        raise RuntimeError(detail)
                 except Exception as exc:
                     results.append("QQ私信结果未知")
                     logger.warning(f"[BiliBot] 周总结QQ私信结果未知，不自动重发: {exc}")
@@ -1064,12 +1067,15 @@ class WeeklySummaryMixin:
             if umo:
                 try:
                     from astrbot.api.event import MessageChain
+                    from .umo import send_chain_to_umo
                     chain = MessageChain().message("今日B站生活小结")
                     if image_path:
                         chain = self._append_image_to_chain(chain, image_path) or MessageChain().message(summary)
                     else:
                         chain = MessageChain().message(summary)
-                    await self.context.send_message(umo, chain)
+                    delivered, detail = await send_chain_to_umo(self.context, umo, chain)
+                    if not delivered:
+                        raise RuntimeError(detail)
                     results.append("QQ私信图片" if image_path else "QQ私信")
                 except Exception as exc:
                     results.append("QQ私信结果未知")

@@ -77,6 +77,7 @@ def load_reply_module(data_dir):
         "REPLIED_CONTENT_KEYS_FILE": str(Path(data_dir) / "content_keys.json"),
         "REPLY_LOG_FILE": str(Path(data_dir) / "reply_log.json"),
         "COMMENT_CONTEXT_LOG_FILE": str(Path(data_dir) / "comment_context_log.json"),
+        "REPLY_RETRY_FILE": str(Path(data_dir) / "reply_retry.json"),
         "BILI_AT_NOTIFY_URL": "at",
         "BILI_NOTIFY_URL": "notify",
         "VIDEO_MEMORY_FILE": str(Path(data_dir) / "video_memory.json"),

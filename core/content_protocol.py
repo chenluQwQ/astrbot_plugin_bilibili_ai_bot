@@ -29,14 +29,12 @@ def _object(raw: str) -> dict[str, Any]:
     return value
 
 
-def _public_text(value: Any, *, field: str, limit: int, required: bool) -> str:
+def _public_text(value: Any, *, field: str, limit: int, required: bool, truncate=False) -> str:
     if not isinstance(value, str):
         raise ContentProtocolError(f"{field}_must_be_string")
     text = re.sub(r"[\r\n]+", " ", value).strip()
     if required and not text:
         raise ContentProtocolError(f"{field}_required")
-    if len(text) > limit:
-        raise ContentProtocolError(f"{field}_too_long")
     lowered = text.lower()
     if any(marker in lowered for marker in ("```", "<think", "<analysis", "<internal")):
         raise ContentProtocolError(f"{field}_contains_internal_markup")
@@ -45,6 +43,10 @@ def _public_text(value: Any, *, field: str, limit: int, required: bool) -> str:
         r'["\']?\s*[:：]', text,
     ):
         raise ContentProtocolError(f"{field}_contains_internal_fields")
+    if len(text) > limit:
+        if not truncate:
+            raise ContentProtocolError(f"{field}_too_long")
+        text = text[:limit].rstrip()
     return text
 
 
@@ -55,7 +57,7 @@ def parse_proactive_comment(raw: str) -> dict[str, Any]:
     decision = str(value.get("decision") or "").strip().lower()
     if decision not in {"comment", "skip"}:
         raise ContentProtocolError("invalid_comment_decision")
-    text = _public_text(value.get("text"), field="text", limit=80, required=decision == "comment")
+    text = _public_text(value.get("text"), field="text", limit=80, required=decision == "comment", truncate=True)
     if decision == "skip" and text:
         raise ContentProtocolError("skipped_comment_has_text")
     return {"decision": decision, "text": text}
@@ -68,7 +70,7 @@ def parse_recommendation(raw: str) -> dict[str, Any]:
     decision = str(value.get("decision") or "").strip().lower()
     if decision not in {"share", "skip"}:
         raise ContentProtocolError("invalid_recommendation_decision")
-    text = _public_text(value.get("text"), field="text", limit=80, required=decision == "share")
+    text = _public_text(value.get("text"), field="text", limit=120, required=decision == "share", truncate=True)
     if decision == "skip" and text:
         raise ContentProtocolError("skipped_recommendation_has_text")
     return {"decision": decision, "text": text}

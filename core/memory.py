@@ -789,6 +789,85 @@ class MemoryMixin:
                 "uploaded_by",
             )
 
+    async def backfill_missing_embeddings(self, limit: int = 200, sleep_seconds: float = 0.05):
+        """为缺少 embedding 的历史记忆补算向量。
+
+        SQLite 迁移后 ``memory_vectors`` 只覆盖迁移时已带向量的记录，早期
+        embedding 接口不可用的那段窗口写入的记忆会一直缺失向量，语义检索
+        （``_semantic_search`` 会跳过没有 embedding 的记录）就永远召回不到。
+        本方法是幂等运维操作：只补空，不重算已有向量。
+
+        Args:
+            limit: 单次最多补多少条，避免一口气打爆 embedding 接口。
+            sleep_seconds: 每条之间的间隔，给上游限流留余地。
+
+        Returns:
+            dict：含 total / had / missing / filled / failed / remaining。
+        """
+        if not isinstance(getattr(self, "_memory", None), list):
+            return {"ok": False, "error": "记忆库尚未加载"}
+        pending = [
+            record
+            for record in self._memory
+            if isinstance(record, dict)
+            and str(record.get("text") or "").strip()
+            and not record.get("embedding")
+        ]
+        total = len(self._memory)
+        had = total - len(pending)
+        if not pending:
+            return {
+                "ok": True, "total": total, "had": had, "missing": 0,
+                "filled": 0, "failed": 0, "remaining": 0,
+            }
+        model = str(self.config.get("EMBED_MODEL", "") or "")
+        filled = 0
+        failed = 0
+        errors: list[str] = []
+        for record in pending[: max(1, int(limit))]:
+            text = str(record.get("text") or "").strip()
+            try:
+                embedding = await self._get_embedding(text)
+            except Exception as exc:  # 单个失败不应中断整批
+                embedding = None
+                if len(errors) < 3:
+                    errors.append(f"{type(exc).__name__}: {exc}"[:160])
+            if not embedding:
+                failed += 1
+                continue
+            record["embedding"] = embedding
+            if model:
+                record["embedding_model"] = model
+            try:
+                await self._save_memory_entry(record)
+            except Exception as exc:
+                record.pop("embedding", None)
+                failed += 1
+                if len(errors) < 3:
+                    errors.append(f"写入失败 {type(exc).__name__}: {exc}"[:160])
+                continue
+            filled += 1
+            if sleep_seconds > 0:
+                import asyncio
+
+                await asyncio.sleep(sleep_seconds)
+        remaining = len(pending) - filled - failed
+        if filled:
+            logger.info(
+                f"[BiliBot] 记忆向量回填完成：+{filled} 条（失败 {failed}，剩余 {remaining}）"
+            )
+        return {
+            "ok": True,
+            "total": total,
+            "had": had,
+            "missing": len(pending),
+            "filled": filled,
+            "failed": failed,
+            "remaining": max(0, remaining),
+            "embedding_model": model,
+            "errors": errors,
+        }
+
     # ══════════════════════════════════════
     #  检索
     # ══════════════════════════════════════
@@ -1157,6 +1236,32 @@ class MemoryMixin:
     # ══════════════════════════════════════
     #  上下文构建（分层优先级）
     # ══════════════════════════════════════
+    @staticmethod
+    def _video_recall_query(query_text, video_info):
+        """给“看看她”等短句补充当前视频语境；只使用公开页面和已有观看内容。"""
+        if not isinstance(video_info, dict):
+            return query_text
+
+        def compact(value, limit):
+            return re.sub(r"\s+", " ", value).strip()[:limit] if isinstance(value, str) else ""
+
+        fields = [
+            ("视频标题", compact(video_info.get("title"), 160)),
+            ("视频简介", compact(video_info.get("desc"), 400)),
+        ]
+        # 预览简介不能冒充观看摘要；保留原有可见范围和相似度阈值。
+        if video_info.get("content_analyzed") is not False:
+            summary = (
+                video_info.get("_recall_summary")
+                or video_info.get("analysis")
+                or video_info.get("summary")
+            )
+            fields.append(("已有观看摘要", compact(summary, 240)))
+        material = [f"{label}：{value}" for label, value in fields if value]
+        if not material:
+            return query_text
+        return "\n".join([f"当前消息：{compact(query_text, 300)}", *material])
+
     async def _build_memory_context(self, thread_id, user_id, query_text, oid=0, comment_type=1, channel="comment"):
         """
         三层优先级：
@@ -1167,6 +1272,7 @@ class MemoryMixin:
         parts = []
         bot_mid = self.config.get("DEDE_USER_ID", "")
         reader_scope = self._reader_scope_for_channel(channel)
+        recall_query = query_text
 
         # ── 第一层：主上下文 ──
 
@@ -1185,6 +1291,7 @@ class MemoryMixin:
             if vc:
                 parts.append(vc)
             if cache_entry:
+                recall_query = MemoryMixin._video_recall_query(query_text, cache_entry)
                 bvid = cache_entry.get("bvid", "")
                 # UP主画像（知道这个UP主是谁）
                 up_mid = str(cache_entry.get("owner_mid", ""))
@@ -1246,8 +1353,9 @@ class MemoryMixin:
 
         # 3.1 全局语义搜索（排除本oid的记忆，避免重复；带元数据让模型判断）
         global_mems = await self._search_global_relevant(
-            query_text,
+            recall_query,
             current_oid=oid,
+            current_bvid=bvid,
             limit=5,
             reader_scope=reader_scope,
             user_id=user_id,
@@ -1260,9 +1368,16 @@ class MemoryMixin:
                 + "\n".join(global_mems)
             )
 
+        if channel == "comment":
+            from .unified_knowledge import public_knowledge_context
+
+            knowledge = await public_knowledge_context(self, recall_query)
+            if knowledge:
+                parts.append(knowledge)
+
         return "\n\n".join(parts) if parts else ""
 
-    async def _search_global_relevant(self, query_text, current_oid=0, limit=5, reader_scope="bili_comment", user_id=""):
+    async def _search_global_relevant(self, query_text, current_oid=0, limit=5, reader_scope="bili_comment", user_id="", current_bvid=""):
         """全局语义搜索，排除当前 oid，返回带元数据的格式化结果。
         不做硬阈值截断，让模型根据上下文自行判断相关性。"""
         current_oid_str = str(current_oid) if current_oid else ""
@@ -1270,6 +1385,8 @@ class MemoryMixin:
             m for m in self._memory
             if "embedding" in m
             and (not current_oid_str or m.get("oid", "") != current_oid_str)
+            # 看片记忆可能没有 oid；补充 BV 过滤，避免页面语境总是召回本页自己。
+            and (not current_bvid or m.get("bvid", "") != current_bvid)
             and self._memory_visible_to(m, reader_scope, user_id)
         ]
         if not cands:
