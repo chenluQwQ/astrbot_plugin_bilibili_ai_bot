@@ -392,6 +392,13 @@ class AffectionMixin:
         profile["username"] = username or profile.get("username", "")
         profiles[uid] = profile
         self._save_json(USER_PROFILE_FILE, profiles)
+        # 阶段 3：本地好感仍是唯一分数来源（双读），这里只把脱敏事件异步上报从绫；
+        # 放在函数末尾 + 延迟导入，避免影响主链或产生循环依赖。
+        try:
+            from .emotion_bridge import report_relationship_event
+            report_relationship_event(self, uid, username, score_delta, source)
+        except Exception:
+            pass
         return relation
 
     # ── 心情 ──

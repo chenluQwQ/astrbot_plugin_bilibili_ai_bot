@@ -273,6 +273,12 @@ class BiliBiliBot(Star, UtilsMixin, LLMMixin, VisionMixin, MemoryMixin, Affectio
             logger.info("[BiliBot] 🌙 开始日终清算...")
             summary = await self._consolidation.run_daily()
             logger.info(f"[BiliBot] 🌙 日终清算完成:\n{summary}")
+            # 阶段 3：清算后再做一次好感/亲和度对账；失败不影响已完成的清算。
+            try:
+                from .core.emotion_bridge import run_daily_reconcile
+                await run_daily_reconcile(self)
+            except Exception as e:
+                logger.error(f"[BiliBot] 情绪对账异常: {e}")
         except Exception as e:
             logger.error(f"[BiliBot] 日终清算异常: {e}", exc_info=True)
 
