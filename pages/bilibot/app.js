@@ -1060,8 +1060,12 @@ function renderProviderSelect(key, value, label) {
   const current = String(value ?? "");
   const options = [`<option value="" ${current === "" ? "selected" : ""}>留空 · 用下方独立 API 或 AstrBot 默认模型</option>`];
   providers.forEach((provider) => {
-    const suffix = [provider.model, provider.enable === false ? "已停用" : ""].filter(Boolean).join(" · ");
-    options.push(`<option value="${esc(provider.id)}" ${current === provider.id ? "selected" : ""}>${esc(provider.id)}${suffix ? `　${esc(suffix)}` : ""}</option>`);
+    const displayName = provider.display_name || provider.model || provider.id;
+    const suffix = [
+      provider.model && provider.model !== displayName ? provider.model : "",
+      provider.enable === false ? "已停用" : "",
+    ].filter(Boolean).join(" · ");
+    options.push(`<option value="${esc(provider.id)}" ${current === provider.id ? "selected" : ""}>${esc(displayName)}${suffix ? `　${esc(suffix)}` : ""}</option>`);
   });
   if (current && !providers.some((provider) => provider.id === current)) {
     options.push(`<option value="${esc(current)}" selected>${esc(current)}（AstrBot 中未找到）</option>`);

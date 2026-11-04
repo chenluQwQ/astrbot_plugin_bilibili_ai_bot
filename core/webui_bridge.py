@@ -706,7 +706,13 @@ async def handle_provider_list(plugin: Any):
                 {
                     "id": provider_id,
                     "type": str(entry.get("type") or ""),
-                    "model": str(model_config.get("model") or ""),
+                    "model": str(model_config.get("model") or entry.get("model") or ""),
+                    "display_name": str(
+                        entry.get("display_name")
+                        or entry.get("label")
+                        or entry.get("name")
+                        or ""
+                    ).strip(),
                     "enable": bool(entry.get("enable", True)),
                 }
             )
@@ -1280,7 +1286,20 @@ def _provider_choices(plugin: Any) -> list[tuple[str, str]]:
         if not provider_id:
             continue
         model = str(getattr(meta, "model", "") or "").strip()
-        choices.append((provider_id, f"{provider_id}（{model}）" if model and model != provider_id else provider_id))
+        config = getattr(provider, "provider_config", {}) or {}
+        display_name = str(
+            config.get("display_name")
+            or config.get("label")
+            or config.get("name")
+            or ""
+        ).strip()
+        label = display_name or provider_id
+        choices.append(
+            (
+                provider_id,
+                f"{label}（{model}）" if model and model != label else label,
+            )
+        )
     return choices
 
 
