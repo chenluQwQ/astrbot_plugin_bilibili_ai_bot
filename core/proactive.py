@@ -28,9 +28,10 @@ from .content_protocol import (
 )
 from . import gallery_workflow
 from . import native_emotes
+from .proactive_comments import ProactiveCommentMixin, today_primary_comment_count
 
 
-class ProactiveMixin:
+class ProactiveMixin(ProactiveCommentMixin):
     """主动刷B站看视频。"""
 
     async def _send_gallery_comment(self, oid, text, *, bvid, title, at_names, result_sink):
@@ -651,25 +652,7 @@ class ProactiveMixin:
 
     @staticmethod
     def _today_proactive_comment_count(watch_log, proactive_log=None):
-        today = datetime.now().strftime("%Y-%m-%d")
-        actions = set()
-        for item in proactive_log or []:
-            if not isinstance(item, dict):
-                continue
-            time_text = str(item.get("time") or "")
-            if not time_text.startswith(today):
-                continue
-            identity = str(item.get("bvid") or item.get("title") or item.get("type") or "unknown")
-            actions.add(f"{time_text}|{identity}")
-        for item in watch_log or []:
-            if not isinstance(item, dict) or "💬评论" not in (item.get("actions") or []):
-                continue
-            time_text = str(item.get("time") or "")
-            if not time_text.startswith(today):
-                continue
-            identity = str(item.get("bvid") or item.get("title") or "unknown")
-            actions.add(f"{time_text}|{identity}")
-        return len(actions)
+        return today_primary_comment_count(watch_log, proactive_log)
 
     def _fallback_proactive_search_queries(self, watch_log=None):
         """LLM 无法决定搜索词时，用近期高分分区和随机兜底分区继续搜索。"""
@@ -2057,9 +2040,9 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
                 logger.info("[BiliBot] ⭐ 收藏成功")
         if watch_round.per_video_comment and score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 0) and watch_round.comment_count < watch_round.daily_comment_limit and self.config.get("PROACTIVE_COMMENT", True):
             await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
-        if not watch_round.is_special and self._proactive_hot_reply_count() > 0:
+        if self._proactive_hot_reply_count() > 0:
             hot_replied = await self._reply_hot_comments(oid, bvid, analysis_info, video_description)
-            watch_round.comment_count += hot_replied
+            # 热评是楼中楼回复，由独立开关控制，不占主动主评论额度。
             if hot_replied:
                 actions.append(f"💬热评×{hot_replied}")
         if (
@@ -2087,14 +2070,13 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
         text = re.sub(r"[\r\n]+", " ", text).strip()[:self._proactive_comment_max_len()]
         if not text:
             return
-        final_comment, at_names = self._owner_comment_with_at(text)
         publish_result = {}
         outcome = await self._execute_proactive_action(
             f"{watch_round.action_key_prefix}_comment:{bvid}",
             "proactive_comment", bvid,
-            lambda: self._send_gallery_comment(
-                oid, final_comment, bvid=bvid, title=video.get("title", ""),
-                at_names=at_names, result_sink=publish_result,
+            lambda: self._send_proactive_comment_once(
+                oid, text, bvid=bvid, title=video.get("title", ""),
+                result_sink=publish_result,
             ),
         )
         if not outcome.success:
@@ -2106,7 +2088,8 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
         self._save_json(COMMENTED_FILE, list(watch_round.commented_videos))
         entry = {
             "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "bvid": bvid, "title": video.get("title", ""), "comment": final_comment,
+            "bvid": bvid, "title": video.get("title", ""), "comment": publish_result.get("comment", text),
+            "owner_mention_mid": publish_result.get("owner_mention_mid", ""),
             "send_status": publish_result.get("send_status", "unknown"),
             "rpid": publish_result.get("rpid", ""),
             "images": publish_result.get("images", []),
@@ -2123,6 +2106,9 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
         owner_mid = str(self.config.get("OWNER_MID", "") or "").strip()
         owner_bili = self.config.get("OWNER_BILI_NAME", "")
         delivery = self._owner_recommend_delivery()
+        if delivery == "comment" and self._owner_comment_notification_state(bvid):
+            logger.info(f"[BiliBot] 评论区已提醒主人，跳过重复推荐：{bvid}")
+            return
         try:
             rec_reason = evaluation.get("recommend_reason", "")
             owner_interest = await self._owner_recommendation_context(
@@ -2199,20 +2185,22 @@ want_dynamic判断：看完是否真有话想在自己的B站动态里说——�
                     logger.warning(
                         "[BiliBot] 跳过B站私信推荐：未配置 OWNER_MID"
                     )
-            if delivery in {"comment", "both", "all"} and "💬评论" not in actions:
+            if delivery in {"comment", "both", "all"} and not self._owner_comment_notification_state(bvid):
                 if owner_bili:
-                    rec_msg = f"@{owner_bili} {rec_text}"
                     if (
                         await self._execute_proactive_action(
                             f"proactive_owner_comment:{bvid}",
                             "proactive_owner_recommend",
                             bvid,
-                            lambda: self._send_comment(oid, rec_msg),
+                            lambda: self._send_proactive_comment_once(
+                                oid, rec_text, bvid=bvid, title=video.get("title", ""),
+                                result_sink={}, recommendation=True,
+                            ),
                         )
                     ).success:
                         actions.append("📢评论区推荐给主人")
                         sent_owner_recommend = True
-                        logger.info(f"[BiliBot] 📢 已在评论区@主人：{rec_msg}")
+                        logger.info(f"[BiliBot] 📢 已在评论区提醒主人：{bvid}")
                 else:
                     logger.warning(
                         "[BiliBot] 跳过评论区推荐：未配置 OWNER_BILI_NAME"

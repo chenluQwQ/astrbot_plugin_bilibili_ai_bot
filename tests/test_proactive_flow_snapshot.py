@@ -231,7 +231,9 @@ class FlowProbe(ProactiveMixin):
         self.record("fav_video", oid)
         return True
 
-    async def _send_comment(self, oid, text):
+    async def _send_comment(self, oid, text, at_names=None, *, result_sink=None):
+        if result_sink is not None:
+            result_sink.update(send_status="published", rpid="test-reply")
         self.record("send_comment", oid, text)
         return True
 
@@ -391,6 +393,7 @@ class ProactiveFlowSnapshotTests(unittest.IsolatedAsyncioTestCase):
             sleep=sleep, CancelledError=proactive_module.asyncio.CancelledError
         )
         with patch.object(proactive_module, "datetime", FixedDatetime), \
+                patch("core.proactive_comments.datetime", FixedDatetime), \
                 patch.object(proactive_module, "random", rng), \
                 patch.object(proactive_module, "asyncio", fake_asyncio):
             await coroutine

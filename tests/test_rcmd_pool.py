@@ -23,6 +23,8 @@ _source = Path(__file__).resolve().parents[1] / "core" / "proactive.py"
 _tree = ast.parse(_source.read_text(encoding="utf-8"))
 _class = next(node for node in _tree.body if isinstance(node, ast.ClassDef) and node.name == "ProactiveMixin")
 _class.body = [node for node in _class.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "_get_rcmd_videos"]
+# 只提取推荐池方法；其余业务 mixin 不属于此独立 AST 支架的依赖。
+_class.bases = []
 _namespace = {"random": random, "logger": logging.getLogger(__name__)}
 exec(compile(ast.Module(body=[_class], type_ignores=[]), str(_source), "exec"), _namespace)
 ProactiveMixin = _namespace["ProactiveMixin"]

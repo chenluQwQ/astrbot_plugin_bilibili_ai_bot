@@ -147,9 +147,17 @@
     {}
    ],
    [
+    "save_json",
+    "owner_comment_notify_log.json"
+   ],
+   [
     "send_comment",
     11,
     "@柠弥 短评9.6"
+   ],
+   [
+    "save_json",
+    "owner_comment_notify_log.json"
    ],
    [
     "save_json",
@@ -426,9 +434,17 @@
     {}
    ],
    [
+    "save_json",
+    "owner_comment_notify_log.json"
+   ],
+   [
     "send_comment",
     41,
     "@柠弥 这段手绘过渡真的好看"
+   ],
+   [
+    "save_json",
+    "owner_comment_notify_log.json"
    ],
    [
     "action",
@@ -632,6 +648,18 @@
      "analysis_basis": "video_media"
     }
    ],
+   "owner_comment_notify_log.json": {
+    "777:BV_FOLLOW": {
+     "state": "published",
+     "time": "2026-10-25 14:30:00",
+     "rpid": "test-reply"
+    },
+    "777:BV_TODAY": {
+     "state": "published",
+     "time": "2026-10-25 14:30:00",
+     "rpid": "test-reply"
+    }
+   },
    "commented_videos.json": [
     "BV_FOLLOW"
    ],
@@ -641,6 +669,7 @@
      "bvid": "BV_FOLLOW",
      "title": "手绘短片",
      "comment": "@柠弥 短评9.6",
+     "owner_mention_mid": "777",
      "send_status": "published",
      "rpid": "test-reply",
      "images": [],
@@ -1496,9 +1525,17 @@
     {}
    ],
    [
+    "save_json",
+    "owner_comment_notify_log.json"
+   ],
+   [
     "send_comment",
     81,
     "@柠弥 短评9.4"
+   ],
+   [
+    "save_json",
+    "owner_comment_notify_log.json"
    ],
    [
     "save_json",
@@ -1612,6 +1649,7 @@
      "bvid": "BV_SP1",
      "title": "特关视频",
      "comment": "@柠弥 短评9.4",
+     "owner_mention_mid": "777",
      "send_status": "published",
      "rpid": "test-reply",
      "images": [],
@@ -1619,6 +1657,13 @@
      "type": "special_follow"
     }
    ],
+   "owner_comment_notify_log.json": {
+    "777:BV_SP1": {
+     "state": "published",
+     "time": "2026-10-25 14:30:00",
+     "rpid": "test-reply"
+    }
+   },
    "commented_videos.json": [
     "BV_SP1"
    ],
