@@ -2636,11 +2636,18 @@ function renderFailureRow(item, index) {
     ["命中缓存", item.from_cache ? "是" : "否"],
     ["来源", [item.source, item.source_detail].filter(Boolean).join(" · ") || "未记录"],
   ];
+  const contextText = item.reason === "diagnostic_missing"
+    ? "这条记录来自旧版本，当时没有保存失败诊断；只能确认本次没有生成评分，不计入想法与评论。"
+    : ["evaluation_schema", "evaluation"].includes(item.stage)
+      ? `Bot 已取得内容并调用模型，但返回结果没有通过评价校验（${esc(item.reason_label || "原因未记录")}），因此这一条不计入想法与评论。`
+      : ["model_request", "evaluation_exception"].includes(item.stage)
+        ? `Bot 已取得内容，但模型调用没有成功（${esc(item.reason_label || "原因未记录")}），因此这一条不计入想法与评论。`
+        : `Bot 抓到了《${esc(item.title || "未知视频")}》${item.up_name ? `（UP ${esc(item.up_name)}）` : ""}，但没拿到可用于评价的${item.analysis_basis === "video_media_low_token" ? "字幕与画面" : "内容"}，因此这一条被判定为评价失败、不计入想法与评论。`;
   const detail = open ? `<div class="fail-detail">
       <div class="fail-detail-grid">${pairs.map(([label, value]) => `<div><span>${esc(label)}</span><b>${esc(String(value))}</b></div>`).join("")}</div>
       ${item.missing_fields?.length ? `<div class="fail-detail-block"><span>缺失字段</span><div class="fail-tags">${item.missing_fields.map((field) => `<i>${esc(field)}</i>`).join("")}</div></div>` : ""}
       ${item.media_errors?.length ? `<div class="fail-detail-block"><span>媒体获取过程</span><ul>${item.media_errors.map((err) => `<li><b>${esc(err.stage || "步骤")}</b>${esc(err.reason || "")}</li>`).join("")}</ul></div>` : ""}
-      <div class="fail-detail-block"><span>上下文</span><p>Bot 抓到了《${esc(item.title || "未知视频")}》${item.up_name ? `（UP ${esc(item.up_name)}）` : ""}，但没拿到可用于评价的${item.analysis_basis === "video_media_low_token" ? "字幕与画面" : "内容"}，因此这一条被判定为评价失败、不计入想法与评论。</p></div>
+      <div class="fail-detail-block"><span>上下文</span><p>${contextText}</p></div>
       ${item.url ? `<div class="fail-detail-actions"><button class="button soft" data-open-url="${esc(item.url)}" type="button">${icon("video")}打开视频链接</button></div>` : ""}
     </div>` : "";
   return `<article class="fail-row ${open ? "is-open" : ""}">

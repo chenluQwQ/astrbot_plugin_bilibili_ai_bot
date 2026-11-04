@@ -209,3 +209,52 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         result = safe_detail('api_key="abc" Bearer secret-token https://host/secret sk-abc_xyz')
         for secret in ("abc", "secret-token", "host/secret", "sk-"):
             self.assertNotIn(secret, result)
+
+
+class BrowseFailureLogTests(unittest.TestCase):
+    """浏览日志的失败计数必须和失败明细来自同一批 watch_log 记录。"""
+
+    class Bot:
+        def __init__(self, watch, comments=(), replies=()):
+            self.files = {
+                "watch_log.json": list(watch),
+                "proactive_log.json": list(comments),
+                "reply_log.json": list(replies),
+            }
+
+        def _load_json(self, path, default=None):
+            name = str(path).replace("\\", "/").rsplit("/", 1)[-1]
+            return self.files.get(name, [] if default is None else default)
+
+    @staticmethod
+    def now():
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def test_comment_only_item_does_not_inflate_failure_count(self):
+        from core import browse_log
+        bot = self.Bot(
+            watch=[{
+                "time": self.now(), "bvid": "BVfail", "score": None,
+                "evaluation_status": "failed",
+                "diagnostic": {"stage": "evaluation_schema", "reason": "score_reason_too_long"},
+            }],
+            comments=[{"time": self.now(), "bvid": "BVcomment", "comment": "hello", "title": "t"}],
+        )
+        browse = browse_log.collect_browse_entries(bot, "today", 300, True)
+        self.assertEqual(browse["counts"]["failed"], 1)
+        comment_item = next(i for i in browse["items"] if i["bvid"] == "BVcomment")
+        self.assertNotEqual(comment_item["status"], "failed")
+
+        failures = browse_log.collect_failure_entries(bot, "today")
+        self.assertEqual(failures["count"], 1)
+        self.assertEqual(failures["items"][0]["bvid"], "BVfail")
+        self.assertEqual(failures["items"][0]["reason_label"], "评分理由超长")
+
+    def test_legacy_record_without_diagnostic_gets_explicit_reason(self):
+        from core import browse_log
+        bot = self.Bot(watch=[{"time": self.now(), "bvid": "BVold", "score": None, "evaluation_status": "failed"}])
+        failures = browse_log.collect_failure_entries(bot, "today")
+        self.assertEqual(failures["items"][0]["stage"], "unknown")
+        self.assertEqual(failures["items"][0]["reason"], "diagnostic_missing")
+        self.assertEqual(failures["items"][0]["reason_label"], "旧记录未保存失败原因")

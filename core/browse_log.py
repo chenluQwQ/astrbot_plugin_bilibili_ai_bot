@@ -142,6 +142,7 @@ def collect_browse_entries(bot, range_key: str = "today", limit: int = 300, incl
         bvid = str(rec.get("bvid") or "").strip()
         item_key = bvid or f"anon-{rec.get('time')}"
         items[item_key] = _new_item(rec)  # 同一视频取最新一次记录
+        items[item_key]["_from_watch"] = True
         if item_key not in order:
             order.append(item_key)
 
@@ -159,6 +160,11 @@ def collect_browse_entries(bot, range_key: str = "today", limit: int = 300, incl
     for rec in sorted(replies, key=lambda r: str(r.get("time") or "")):
         _attach(rec, "replies")
 
+    # 只有 watch_log 里的记录才可能是「评价失败」。评论区回复/主动评论可能
+    # 来自区间外的看片记录，这里临时补出来的条目没有评分，不能算失败。
+    for item_key in order:
+        items[item_key].setdefault("_from_watch", False)
+
     entries = []
     for item_key in order:
         item = items[item_key]
@@ -173,7 +179,8 @@ def collect_browse_entries(bot, range_key: str = "today", limit: int = 300, incl
         except (TypeError, ValueError):
             score_value = 0.0
         # 没有评分、也没有任何想法/评论的记录，等同于没进入分析流程
-        if str(item["status"]).lower() == "failed" or (score_value <= 0 and not item["thought"]):
+        from_watch = item.pop("_from_watch", False)
+        if from_watch and (str(item["status"]).lower() == "failed" or (score_value <= 0 and not item["thought"])):
             item["status"] = "failed"
         entries.append(item)
 
@@ -219,6 +226,8 @@ FAILURE_STAGE_LABELS = {
     "vision": "画面识别",
     "evaluation": "评价生成",
     "evaluation_schema": "评价结果解析",
+    "evaluation_exception": "评价异常",
+    "model_request": "模型请求",
     "llm": "模型调用",
     "unknown": "未分类",
 }
@@ -232,6 +241,7 @@ FAILURE_REASON_LABELS = {
     "empty_response": "模型返回空内容",
     "timeout": "调用超时",
     "content_unavailable": "内容不可用",
+    "diagnostic_missing": "旧记录未保存失败原因",
 }
 
 ANALYSIS_BASIS_LABELS = {
@@ -340,8 +350,9 @@ def collect_failure_entries(bot, range_key: str = "today", limit: int = 500) -> 
     for rec in raw:
         diagnostic = rec.get("diagnostic") if isinstance(rec.get("diagnostic"), dict) else {}
         stage = str(diagnostic.get("stage") or "").strip() or "unknown"
-        reason = diagnostic.get("reason") or rec.get("evaluation_status") or ""
-        reason_text = str(reason or "").strip()
+        # 旧记录没有 diagnostic，明确提示「未保存」，避免显示无意义的 failed。
+        reason = diagnostic.get("reason") or ""
+        reason_text = str(reason).strip() or "diagnostic_missing"
         basis = str(diagnostic.get("analysis_basis") or rec.get("analysis_basis") or "").strip()
         media_errors = [
             {
