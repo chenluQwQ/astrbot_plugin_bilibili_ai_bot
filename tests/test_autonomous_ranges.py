@@ -25,7 +25,8 @@ def _install_astrbot_stub():
     root = str(Path(__file__).resolve().parents[1])
     if root not in sys.path:
         sys.path.insert(0, root)
-    if isinstance(getattr(sys.modules.get("astrbot"), "api", None), types.ModuleType):
+    api = getattr(sys.modules.get("astrbot"), "api", None)
+    if isinstance(api, types.ModuleType) and not getattr(api, "_logger_only", False):
         return
     astrbot = types.ModuleType("astrbot")
     astrbot.__path__ = []

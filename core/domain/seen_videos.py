@@ -7,13 +7,11 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+from astrbot.api import logger
 from datetime import datetime
 
 from ..config import SEEN_VIDEOS_FILE
 from ..infra.host_view import HostView
-
-logger = logging.getLogger("astrbot")
 
 
 def _bv(value) -> str:

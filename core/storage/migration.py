@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
+from astrbot.api import logger
 import os
 import shutil
 import sqlite3
@@ -27,7 +27,6 @@ from typing import Any, Iterable
 
 from .json_file import JsonFile
 
-logger = logging.getLogger("astrbot")
 
 BACKUP_DIR_NAME = "backup"
 KEEP_BACKUPS = 5

@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from astrbot.api import logger
 import os
 import sqlite3
 from datetime import datetime, timedelta
@@ -20,7 +20,6 @@ from typing import Any
 from .json_file import JsonFile
 from .migration import Importer, MigrationRunner, record_fingerprint
 
-logger = logging.getLogger("astrbot")
 
 # 种类 → (旧文件名, 旧上限)
 KINDS = {

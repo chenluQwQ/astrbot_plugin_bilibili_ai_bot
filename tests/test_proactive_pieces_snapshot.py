@@ -169,8 +169,8 @@ PIECES = {
     "trigger/direct": lambda: (dict(reply="no"), lambda p: p.proactive_browse._should_trigger_proactive_from_text("你去刷B站视频")),
     "trigger/model_yes": lambda: (dict(reply="yes"), lambda p: p.proactive_browse._should_trigger_proactive_from_text("B站有什么好看的")),
     "trigger/model_no": lambda: (dict(reply="no"), lambda p: p.proactive_browse._should_trigger_proactive_from_text("B站有什么好看的")),
-    "trigger/off": lambda: (dict(reply="yes"), lambda p: p.proactive_browse._maybe_trigger_proactive_from_llm(types.SimpleNamespace(message_str="去B站看看视频吧", get_sender_name=lambda: "柠"), types.SimpleNamespace(system_prompt=""))),
-    "trigger/starts": lambda: (dict(reply="yes", config={"ENABLE_PROACTIVE": True}), lambda p: p.proactive_browse._maybe_trigger_proactive_from_llm(types.SimpleNamespace(message_str="去B站看看视频吧", get_sender_name=lambda: "柠"), types.SimpleNamespace(system_prompt=""))),
+    "trigger/off": lambda: (dict(reply="yes"), lambda p: p.proactive_browse._maybe_trigger_proactive_from_llm(types.SimpleNamespace(message_str="去B站看看视频吧", get_sender_name=lambda: "柠"), types.SimpleNamespace(prompt="去B站看看视频吧"))),
+    "trigger/starts": lambda: (dict(reply="yes", config={"ENABLE_PROACTIVE": True}), lambda p: p.proactive_browse._maybe_trigger_proactive_from_llm(types.SimpleNamespace(message_str="去B站看看视频吧", get_sender_name=lambda: "柠"), types.SimpleNamespace(prompt="去B站看看视频吧"))),
     # 看前预筛
     "prefilter/off": lambda: (dict(reply='{"watch":false}'), lambda p: p.video_discovery._should_watch_video_before_download({"bvid": "B", "title": "t", "_source": "search"}, [17], 0, 3)),
     "prefilter/follow_passes": lambda: (dict(reply="NO", config={"ENABLE_PROACTIVE_LLM_PREFILTER": True}), lambda p: p.video_discovery._should_watch_video_before_download({"bvid": "B", "title": "t", "_source": "follow"}, [17], 0, 3)),

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+from astrbot.api import logger
 from array import array
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -25,7 +25,6 @@ from typing import Any, Callable
 
 from ..config import MEMORY_FILE
 
-logger = logging.getLogger("astrbot")
 
 # sqlite 里记着「旧 json 已经整份导入过」的键；老用户靠它不重复导入，不能改名。
 MIGRATED_KEY = "unified_memory_v2_ready"

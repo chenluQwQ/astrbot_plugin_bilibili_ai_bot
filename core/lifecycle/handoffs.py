@@ -15,11 +15,9 @@
 
 from __future__ import annotations
 
-import logging
+from astrbot.api import logger
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
-
-logger = logging.getLogger("astrbot")
 
 
 @dataclass(frozen=True)
