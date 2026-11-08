@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import logging
+from astrbot.api import logger
 import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -30,7 +30,6 @@ from typing import Awaitable, Callable, Protocol, Union
 from .activities import ActivityRuns, ActivityState
 from .day import SleepWindow, today
 
-logger = logging.getLogger("astrbot")
 
 AWAKE = "awake"
 ASLEEP = "asleep"

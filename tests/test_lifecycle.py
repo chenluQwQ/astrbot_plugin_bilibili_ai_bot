@@ -1,11 +1,14 @@
 """core.lifecycle: the day, the activity state machine and the single main loop."""
 
 import asyncio
+import logging
 import sqlite3
 import unittest
+from unittest import mock
 from datetime import datetime
 
 from core.lifecycle.activities import ActivityRuns, ActivityState, IllegalTransition
+from core.lifecycle import scheduler as scheduler_module
 from core.lifecycle.day import SleepWindow, today
 from core.lifecycle.scheduler import ASLEEP, AWAKE, Routine, Scheduler
 
@@ -136,6 +139,10 @@ class FakeBranch:
 
 class SchedulerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # 别的测试装的假 astrbot 可能先被导入，日志断言要的是真的 "astrbot" logger
+        patcher = mock.patch.object(scheduler_module, "logger", logging.getLogger("astrbot"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.now = datetime(2026, 10, 28, 9, 0)
         self.runs = ActivityRuns(sqlite3.connect(":memory:"))
         self.scheduler = Scheduler(self.runs, lambda: SleepWindow(2, 8), clock=lambda: self.now)

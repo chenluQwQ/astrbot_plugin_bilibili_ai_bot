@@ -6,13 +6,12 @@
 
 from __future__ import annotations
 
-import logging
+from astrbot.api import logger
 from datetime import datetime
 from typing import Callable
 
 from ..storage.json_file import JsonFile
 
-logger = logging.getLogger("astrbot")
 
 OWNER_SCORE = 100
 

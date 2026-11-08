@@ -18,7 +18,7 @@ from ._watch_round import PROACTIVE_WATCH, _WatchRound
 
 
 class ProactiveBrowse(HostView):
-    HOST_API = frozenset({"memory_docs", "activity_logs", "activities", "bili_http", "bili_users", "environment", "json_store", "memo_watch", "models", "now_doing", "owner_recommend", "processed_keys", "schedule_rules", "seen_videos", "settings", "taste", "up_skip", "video_discovery", "video_pools", "watch_video"})
+    HOST_API = frozenset({"memory_docs", "activity_logs", "activities", "bili_http", "bili_users", "environment", "json_store", "memo_watch", "models", "now_doing", "owner_recommend", "processed_keys", "qq_chat", "schedule_rules", "seen_videos", "settings", "taste", "up_skip", "video_discovery", "video_pools", "watch_video"})
 
     async def _should_trigger_proactive_from_text(self, text):
         text = (text or "").strip()
@@ -58,7 +58,7 @@ class ProactiveBrowse(HostView):
             return
         self.activity_logs.trigger.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "type": "manual_proactive_request", "scheduled": "llm_request", "status": "triggered", "content": msg[:100]})
         sender_name = event.get_sender_name() or "用户"
-        req.system_prompt += f"\n\n【系统提示】{sender_name}叫你去看B站视频，你已在后台开始执行一次看视频流程。回复时让对方知道你去看了，看完后相关记忆会存入你的评论区记忆中，之后可以回忆起来。"
+        self.qq_chat._inject_context_block_before_user(req, f"【系统提示】{sender_name}叫你去看B站视频，你已在后台开始执行一次看视频流程。回复时让对方知道你去看了，看完后相关记忆会存入你的评论区记忆中，之后可以回忆起来。")
 
     async def _run_proactive(self, max_watch=None, max_comment=None, focus=None):
         """``focus``：每日计划给这一段定的重点（``domain/day_focus.py``），没有就照常混着挑。"""

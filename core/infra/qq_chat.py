@@ -167,26 +167,20 @@ class QQChat(HostView):
         return str(prompt or "").strip()
 
     def _inject_context_block_before_user(self, req, block):
-        messages = getattr(req, "messages", None)
-        if isinstance(messages, list):
-            ctx_message = {"role": "user", "content": block}
-            insert_at = len(messages)
-            for i in range(len(messages) - 1, -1, -1):
-                msg = messages[i]
-                role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
-                if role == "user":
-                    insert_at = i
-                    break
-            messages.insert(insert_at, ctx_message)
-            return True
-
-        for attr in ("prompt", "user_prompt", "query"):
-            value = getattr(req, attr, None)
-            if isinstance(value, str) and value.strip():
-                setattr(req, attr, f"{block}\n\n{value}")
+        """把背景作为本轮用户消息的临时附加段，不碰 system_prompt 和历史，免得打掉缓存。"""
+        parts = getattr(req, "extra_user_content_parts", None)
+        if isinstance(parts, list):
+            try:
+                from astrbot.core.agent.message import TextPart
+                part = TextPart(text=block)
+                mark = getattr(part, "mark_as_temp", None)
+                parts.append(mark() if callable(mark) else part)
                 return True
+            except Exception as exc:
+                logger.debug(f"[BiliBot] 无法追加临时上下文段，改拼进用户消息: {exc}")
 
-        # Fallback only: normal paths avoid changing system_prompt cache.
-        current = getattr(req, "system_prompt", "") or ""
-        setattr(req, "system_prompt", f"{current}\n\n{block}" if current else block)
-        return True
+        value = getattr(req, "prompt", None)
+        if isinstance(value, str):
+            req.prompt = f"{block}\n\n{value}" if value.strip() else block
+            return True
+        return False

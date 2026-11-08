@@ -58,6 +58,7 @@ def proactive_parts():
         owner_recommend = preferring(_cls("features._owner_recommend", "OwnerRecommend"))
         watch_video = preferring(_cls("features._watch_video", "WatchVideo"))
         proactive_browse = preferring(_cls("features.proactive_browse", "ProactiveBrowse"))
+        qq_chat = part(_cls("infra.qq_chat", "QQChat"))
         special_follow = preferring(_cls("features.special_follow", "SpecialFollow"))
         dynamic_watch = preferring(_cls("features.dynamic_watch", "DynamicWatch"))
         up_skip = part(_up_skip)

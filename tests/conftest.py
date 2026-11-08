@@ -2,8 +2,8 @@
 
 Several legacy tests replace ``sys.modules['astrbot']`` during collection.  The
 real tool submodules are therefore preloaded first, while the top-level package
-and ``astrbot.api`` are removed again so each test still controls its own API
-stub and temporary data directory.
+and ``astrbot.api`` are replaced by a logger-only fallback so each test still
+controls its own API stub and temporary data directory.
 """
 
 import importlib
@@ -68,3 +68,21 @@ finally:
     for _name in list(sys.modules):
         if _name == "astrbot" or _name.startswith("astrbot.api"):
             sys.modules.pop(_name, None)
+
+
+def _install_logger_fallback():
+    """Plugin modules import ``logger`` from ``astrbot.api``; tests that need more replace these."""
+    import logging
+
+    astrbot = sys.modules.setdefault("astrbot", types.ModuleType("astrbot"))
+    if not hasattr(astrbot, "__path__"):
+        astrbot.__path__ = []
+    api = types.ModuleType("astrbot.api")
+    api.__path__ = []
+    api._logger_only = True
+    api.logger = logging.getLogger("astrbot")
+    sys.modules["astrbot.api"] = api
+    astrbot.api = api
+
+
+_install_logger_fallback()

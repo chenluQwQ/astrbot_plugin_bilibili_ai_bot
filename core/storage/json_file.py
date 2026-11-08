@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import glob
 import json
-import logging
+from astrbot.api import logger
 import os
 import shutil
 import tempfile
@@ -20,7 +20,6 @@ import threading
 import time
 from typing import Any, Callable
 
-logger = logging.getLogger("astrbot")
 
 KEEP_CORRUPT_COPIES = 3
 

@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from astrbot.api import logger
 import os
 import sqlite3
 import threading
@@ -21,7 +21,6 @@ from typing import Any, Callable, Iterable
 from .json_file import JsonFile
 from .migration import Importer, MigrationRunner
 
-logger = logging.getLogger("astrbot")
 
 CACHE_KIB = 512
 
