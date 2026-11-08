@@ -23,7 +23,7 @@ python3 -m venv .venv
 
 ## 行为快照
 
-`tests/test_proactive_flow_snapshot.py` 用假的 B站、模型和存储跑完整的主动浏览流程，逐条比对 `tests/snapshots/proactive_flows.json`。重构时快照必须不变；有意改变行为时才重新生成，并在 PR 说明里写原因：
+`tests/test_proactive_flow_snapshot.py` 用假的 B站、模型和存储跑完整的主动看视频流程，逐条比对 `tests/snapshots/proactive_flows.json`。重构时快照必须不变；有意改变行为时才重新生成，并在 PR 说明里写原因：
 
 ```bash
 BILIBOT_UPDATE_SNAPSHOTS=1 .venv/bin/python -m pytest -q tests/test_proactive_flow_snapshot.py
