@@ -1,7 +1,7 @@
 """插件的启停：AstrBot 激活后开后台、启动/停止主循环、停用时收拾干净；主循环和它管的夜里例行、Cookie 检查。
 
-插件上只留一个 ``runner``。主循环任务、启动锁、清算任务、上次查 Cookie 的时间、问题日志的
-handler 住在这里；``_running`` 和各活动正在跑的任务别处还在读，留在插件上。
+插件上只留一个 ``runner``。主循环任务、启动锁、清算任务、上次查 Cookie 的时间
+住在这里；``_running`` 和各活动正在跑的任务别处还在读，留在插件上。
 """
 from __future__ import annotations
 
@@ -11,10 +11,9 @@ import traceback
 from datetime import datetime
 
 from astrbot.api import logger
-from .config import DATA_DIR, LAYERED_DB_FILE, PLUGIN_VERSION, PROBLEM_LOG_FILE
+from .config import DATA_DIR, LAYERED_DB_FILE, PLUGIN_VERSION
 from .domain.dynamic_ideas import DynamicIdeas
 from .domain.memos import Memos
-from .infra import problem_log
 from .infra.host_view import HostView
 from .storage.migration import backup_data_dir
 
@@ -35,15 +34,9 @@ class Runner(HostView):
         self.start_lock = asyncio.Lock()
         self.consolidation_task = None
         self.last_cookie_check = 0
-        self.problem_log_handler = None
 
     async def initialize(self):
         """Start background work only after AstrBot has formally activated the plugin."""
-        try:
-            self.problem_log_handler = problem_log.attach(logger, PROBLEM_LOG_FILE)
-        except Exception as exc:
-            self.problem_log_handler = None
-            logger.warning(f"[BiliBot] 问题日志文件打不开（不影响运行）: {exc}")
         try:
             # 每个版本第一次启动先备份 data/（json + sqlite），在任何迁移之前。
             await asyncio.to_thread(backup_data_dir, DATA_DIR, PLUGIN_VERSION, LAYERED_DB_FILE)
@@ -274,9 +267,6 @@ class Runner(HostView):
             self.states.close()
         except Exception as exc:
             logger.warning(f"[BiliBot] 小状态关闭异常: {exc}")
-        # 最后摘：上面关闭时出的问题也要记进去。热重载不摘的话新旧实例会各写一遍。
-        problem_log.detach(logger, self.problem_log_handler)
-        self.problem_log_handler = None
         # LLM 工具不在此手动注销：按名称删除可能误删其他插件覆盖注册的同名工具；
         # AstrBot 会按 handler_module_path 清理当前插件的工具。
         self.cache_files._cleanup_temp_files()
