@@ -9,6 +9,8 @@ import json
 import re
 from typing import Any
 
+from .video_evaluation import parse_dynamic_kind
+
 
 class ContentProtocolError(ValueError):
     """Generated content is incomplete, unsafe, or outside its schema."""
@@ -123,22 +125,95 @@ def parse_memory_evaluation(raw: str, expected_ids) -> dict[str, int]:
     return scores
 
 
+def _short_list(value: Any, *, field: str, limit: int, max_items: int) -> list[str]:
+    if not isinstance(value, list) or len(value) > max_items:
+        raise ContentProtocolError(f"{field}_schema_mismatch")
+    items: list[str] = []
+    for item in value:
+        text = _public_text(item, field=field, limit=limit, required=True)
+        if text not in items:
+            items.append(text)
+    return items
+
+
+def parse_profile_digest(raw: str, expected_ids) -> dict[str, dict[str, Any]]:
+    """Nightly profile notes keyed by group id; any malformed item rejects the batch.
+
+    A group the model leaves out learned nothing new.  An empty ``impression``
+    keeps the current one.
+    """
+    value = _object(raw)
+    if set(value) != {"users"} or not isinstance(value["users"], list):
+        raise ContentProtocolError("profile_digest_schema_mismatch")
+    expected = {str(item) for item in expected_ids}
+    notes: dict[str, dict[str, Any]] = {}
+    for item in value["users"]:
+        if not isinstance(item, dict) or set(item) != {"id", "impression", "facts", "tags"}:
+            raise ContentProtocolError("profile_digest_item_mismatch")
+        group_id = item["id"]
+        if not isinstance(group_id, str) or group_id not in expected:
+            raise ContentProtocolError("profile_digest_unknown_id")
+        if group_id in notes:
+            raise ContentProtocolError("profile_digest_duplicate_id")
+        notes[group_id] = {
+            "impression": _public_text(item["impression"], field="impression", limit=80, required=False),
+            "facts": _short_list(item["facts"], field="fact", limit=40, max_items=5),
+            "tags": _short_list(item["tags"], field="tag", limit=12, max_items=5),
+        }
+    return notes
+
+
+def parse_video_impressions(raw: str, expected_ids) -> dict[str, str]:
+    """One-sentence impressions keyed by rpid; any malformed item rejects the batch."""
+    value = _object(raw)
+    if set(value) != {"items"} or not isinstance(value["items"], list):
+        raise ContentProtocolError("video_impressions_schema_mismatch")
+    expected = {str(item) for item in expected_ids}
+    impressions: dict[str, str] = {}
+    for item in value["items"]:
+        if not isinstance(item, dict) or set(item) != {"rpid", "impression"}:
+            raise ContentProtocolError("video_impressions_item_mismatch")
+        rpid = item["rpid"]
+        if not isinstance(rpid, str) or rpid not in expected:
+            raise ContentProtocolError("video_impressions_unknown_rpid")
+        if rpid in impressions:
+            raise ContentProtocolError("video_impressions_duplicate_rpid")
+        impressions[rpid] = _public_text(
+            item["impression"], field="impression", limit=60, required=True
+        )
+    return impressions
+
+
 DYNAMIC_IMAGE_CHOICES = {"none", "generate", "video_cover"}
 
 
 def parse_dynamic_content(
-    raw: str, *, allow_search: bool = False, allow_video_cover: bool = False,
+    raw: str, *, allow_search: bool = False, idea_ids=None, cover_idea_ids=(),
 ) -> dict[str, Any]:
     """Validate a dynamic decision.
 
     ``search`` only asks the host to run a read-only web query and feed the
     result back; it never publishes anything.  The legacy
-    ``need_image``/``image_prompt`` envelope is still accepted.
+    ``need_image``/``image_prompt`` envelope is still accepted when no ideas
+    were offered.
+
+    ``idea_ids``: the dynamic-pool ideas offered in the prompt.  When given, the
+    reply must carry ``idea`` (one of them, or 0 for none); ``video_cover`` is
+    only allowed together with an idea in ``cover_idea_ids``.
     """
     value = _object(raw)
     legacy = {"decision", "text", "need_image", "image_prompt"}
     current = {"decision", "text", "search_query", "image", "image_prompt"}
-    if set(value) == legacy:
+    idea = 0
+    if idea_ids is not None:
+        if set(value) != current | {"idea"}:
+            raise ContentProtocolError("dynamic_schema_mismatch")
+        idea = value.get("idea")
+        if isinstance(idea, bool) or not isinstance(idea, int):
+            raise ContentProtocolError("idea_must_be_integer")
+        if idea and idea not in set(idea_ids):
+            raise ContentProtocolError("unknown_idea")
+    elif set(value) == legacy:
         need_image = value.get("need_image")
         if not isinstance(need_image, bool):
             raise ContentProtocolError("need_image_must_be_boolean")
@@ -162,7 +237,7 @@ def parse_dynamic_content(
     image = str(value.get("image") or "").strip().lower()
     if image not in DYNAMIC_IMAGE_CHOICES:
         raise ContentProtocolError("invalid_dynamic_image")
-    if image == "video_cover" and not allow_video_cover:
+    if image == "video_cover" and idea not in set(cover_idea_ids):
         raise ContentProtocolError("video_cover_not_available")
     image_prompt = _public_text(
         value.get("image_prompt"), field="image_prompt", limit=500,
@@ -174,17 +249,26 @@ def parse_dynamic_content(
         raise ContentProtocolError("search_query_without_search")
     if image != "generate" and image_prompt:
         raise ContentProtocolError("image_prompt_without_image")
+    if decision != "post" and idea:
+        raise ContentProtocolError(f"{decision}_dynamic_has_idea")
     return {
         "decision": decision, "text": text, "search_query": search_query,
         "image": image, "need_image": image != "none", "image_prompt": image_prompt,
+        "idea": idea,
     }
+
+
+BANGUMI_DYNAMIC_KEYS = {"want_dynamic", "dynamic_angle", "dynamic_kind"}
+# 番剧没有可转发的视频稿件，不能搬运。
+BANGUMI_DYNAMIC_KINDS = ("吐槽", "段子", "分享")
 
 
 def parse_bangumi_evaluation(raw: str) -> dict[str, Any]:
     """Validate a bangumi evaluation before any embedded comment is sent."""
     value = _object(raw)
     expected = {"score", "comment", "mood", "review", "want_continue"}
-    if set(value) != expected:
+    # 想发动态是后加的三个字段，要么都有要么都没有（旧输出按不想发）。
+    if set(value) not in (expected, expected | BANGUMI_DYNAMIC_KEYS):
         raise ContentProtocolError("bangumi_schema_mismatch")
     score = value.get("score")
     if isinstance(score, bool) or not isinstance(score, (int, float)):
@@ -202,12 +286,27 @@ def parse_bangumi_evaluation(raw: str) -> dict[str, Any]:
     want_continue = value.get("want_continue")
     if not isinstance(want_continue, bool):
         raise ContentProtocolError("want_continue_must_be_boolean")
+    want_dynamic = value.get("want_dynamic", False)
+    if not isinstance(want_dynamic, bool):
+        raise ContentProtocolError("want_dynamic_must_be_boolean")
+    dynamic_angle = _public_text(
+        value.get("dynamic_angle", ""), field="dynamic_angle", limit=80, required=want_dynamic
+    )
+    if dynamic_angle and not want_dynamic:
+        raise ContentProtocolError("dynamic_angle_without_wish")
+    try:
+        dynamic_kind = parse_dynamic_kind(value, want_dynamic, BANGUMI_DYNAMIC_KINDS)
+    except ValueError as exc:
+        raise ContentProtocolError(str(exc)) from exc
     return {
         "score": score,
         "comment": comment,
         "mood": mood,
         "review": review,
         "want_continue": want_continue,
+        "want_dynamic": want_dynamic,
+        "dynamic_angle": dynamic_angle,
+        "dynamic_kind": dynamic_kind,
     }
 
 
@@ -234,6 +333,15 @@ SHARE_REACTION_SCHEMA_PROMPT = (
 TOOL_WATCH_FOLLOWUP_SCHEMA_PROMPT = (
     '只输出完整JSON：{"decision":"comment|skip","text":"一句话"}。'
     "text是一句口语化的短句，60字以内；实在说不出来才用skip且text留空。"
+)
+
+DYNAMIC_IDEA_SCHEMA_PROMPT = (
+    '只输出完整JSON：{"decision":"post|skip|search","text":"动态正文",'
+    '"search_query":"","image":"none|generate|video_cover","image_prompt":"","idea":0}。'
+    "idea填你用了的那条想法的编号，没用池子里的想法就填0；skip和search时idea为0。"
+    "没有真实且具体的发布动机就用skip；skip和search时text、image_prompt留空、image为none。"
+    "search只在可用时使用，search_query写一条具体的搜索词，查到的资料会再交给你决定。"
+    "image为generate时image_prompt写画面描述，其余情况留空；video_cover只能和带封面的想法一起用。"
 )
 
 DYNAMIC_SCHEMA_PROMPT = (

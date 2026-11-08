@@ -14,7 +14,6 @@ class CommandPermissionTests(unittest.TestCase):
         expected = {
             "cmd_status",
             "cmd_schedule",
-            "cmd_live_danmaku",
             "cmd_memory",
             "cmd_memory_integration",
             "cmd_affection",
@@ -72,6 +71,7 @@ class SecureDefaultTests(unittest.TestCase):
     def test_tool_authorization_switches_default_off(self):
         schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
         for key in (
+            "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS",
             "SECURITY_ENABLE_PRIVATE_READ_TOOLS",
             "SECURITY_ENABLE_WRITE_TOOLS",
         ):
@@ -88,6 +88,7 @@ class SecureDefaultTests(unittest.TestCase):
             "PRIVATE_MESSAGE_AUTO_REPLY",
             "ENABLE_DYNAMIC",
             "ENABLE_LLM_TOOLS",
+            "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS",
             "SECURITY_ENABLE_PRIVATE_READ_TOOLS",
             "SECURITY_ENABLE_WRITE_TOOLS",
         ):
@@ -98,13 +99,18 @@ class SecureDefaultTests(unittest.TestCase):
             self.assertRegex(match.group(0), r'"bool",\s*false\]')
 
     def test_runtime_fallbacks_match_secure_schema(self):
-        checks = {
-            ROOT / "core/tools.py": 'config.get("ENABLE_LLM_TOOLS", False)',
-            ROOT / "core/private_messages.py": 'config.get("PRIVATE_MESSAGE_AUTO_REPLY", False)',
-            ROOT / "main.py": "config.get('PRIVATE_MESSAGE_AUTO_REPLY',False)",
-        }
-        for path, needle in checks.items():
-            self.assertIn(needle, path.read_text(encoding="utf-8"), str(path))
+        # Code that reads through core.settings gets the schema default, which the
+        # *_default_off tests above already pin to off. Code that still
+        # reads the raw config must fall back to off as well.
+        from core.settings import Settings
+
+        for key in ("ENABLE_LLM_TOOLS", "PRIVATE_MESSAGE_AUTO_REPLY"):
+            self.assertFalse(Settings({}).bool(key), key)
+        for path in (*(ROOT / "core/tools").glob("*.py"), *(ROOT / "core/features").glob("*private*.py"), ROOT / "main.py"):
+            text = path.read_text(encoding="utf-8")
+            for key in ("ENABLE_LLM_TOOLS", "PRIVATE_MESSAGE_AUTO_REPLY"):
+                for match in re.finditer(rf"config\.get\(\s*[\"']{key}[\"']\s*(,\s*([^)]*))?\)", text):
+                    self.assertEqual((match.group(2) or "").strip(), "False", f"{path.name}: {match.group(0)}")
 
 
 if __name__ == "__main__":

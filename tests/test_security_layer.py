@@ -235,7 +235,23 @@ class ToolGateTests(unittest.TestCase):
         """不可信通道默认零工具 —— 这是报告 17 节的推荐默认值。"""
         self.assertEqual(self.gate.visible_specs(self.stranger), [])
 
+    def test_public_read_is_admin_only_by_default(self):
+        self.settings["SECURITY_EXTERNAL_TOOL_ALLOWLIST"] = ["search_bili"]
+        qq_stranger = Caller(actor_id="qq:5", role=Role.STRANGER, scope=Scope.QQ_PRIVATE)
+        spec = self.gate.get("search_bili")
+        for caller in (self.stranger, qq_stranger):
+            decision = self.gate.authorize(spec, caller)
+            self.assertFalse(decision.allowed)
+            self.assertIn("只有管理员", decision.reason)
+        self.assertTrue(self.gate.authorize(spec, self.admin).allowed)
+        self.settings["SECURITY_ALLOW_NON_ADMIN_READ_TOOLS"] = True
+        self.assertTrue(self.gate.authorize(spec, qq_stranger).allowed)
+        # 放开以后私密读取仍只给管理员。
+        self.settings["SECURITY_ENABLE_PRIVATE_READ_TOOLS"] = True
+        self.assertFalse(self.gate.authorize(self.gate.get("read_dm"), qq_stranger).allowed)
+
     def test_allowlist_opens_only_named_public_tool(self):
+        self.settings["SECURITY_ALLOW_NON_ADMIN_READ_TOOLS"] = True
         self.settings["SECURITY_EXTERNAL_TOOL_ALLOWLIST"] = ["search_bili"]
         names = [s.name for s in self.gate.visible_specs(self.stranger)]
         self.assertEqual(names, ["search_bili"])

@@ -57,6 +57,39 @@ class VideoEvaluationSchemaTests(unittest.TestCase):
             with self.assertRaises(VideoEvaluationError):
                 self.parse(bad)
 
+    def test_interactions_are_chosen_and_a_bad_choice_only_drops_itself(self):
+        self.assertEqual(self.parse(payload())["interactions"], [])
+        result = self.parse(payload(interactions=["comment", "like"]))
+        self.assertEqual((result["interactions"], result["interactions_error"]), (["comment", "like"], ""))
+        for bad, reason in ((["share"], "invalid_interaction"), (["like", "like"], "duplicate_interaction"),
+                            ("like", "interactions_must_be_list")):
+            result = self.parse(payload(interactions=bad))
+            self.assertEqual((result["interactions"], result["interactions_error"]), ([], reason))
+            self.assertEqual(result["score"], 8.6)
+
+    def test_impression_is_optional_and_short(self):
+        self.assertEqual(self.parse(payload())["impression"], "")
+        result = self.parse(payload(impression=" 守塔人父子和解的那一集 "))
+        self.assertEqual(result["impression"], "守塔人父子和解的那一集")
+        for bad in (payload(impression="长" * 61), payload(impression=None)):
+            with self.assertRaises(VideoEvaluationError):
+                self.parse(bad)
+
+    def test_dynamic_kind(self):
+        result = self.parse(payload(want_dynamic=True, dynamic_angle="想说说"))
+        self.assertEqual(result["dynamic_kind"], "分享")  # 没写类型按分享（旧输出）
+        self.assertEqual(self.parse(payload())["dynamic_kind"], "")
+        for kind in ("吐槽", "段子", "搬运", "分享"):
+            result = self.parse(payload(want_dynamic=True, dynamic_angle="想说说", dynamic_kind=kind))
+            self.assertEqual(result["dynamic_kind"], kind)
+        for bad in (
+            payload(want_dynamic=True, dynamic_angle="想说说", dynamic_kind="日常"),
+            payload(want_dynamic=True, dynamic_angle="想说说", dynamic_kind=1),
+            payload(want_dynamic=False, dynamic_angle="", dynamic_kind="吐槽"),
+        ):
+            with self.assertRaises(VideoEvaluationError):
+                self.parse(bad)
+
     def test_plain_text_partial_json_and_extra_fields_are_rejected(self):
         for value in ("挺好看的，8分", '{"score":8', payload(analysis="内部分析")):
             with self.subTest(value=value):

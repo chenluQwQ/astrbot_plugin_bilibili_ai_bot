@@ -1,3 +1,4 @@
+from base_parts import BaseParts
 import asyncio
 import json
 import sys
@@ -47,10 +48,28 @@ from core.config import (  # noqa: E402
     PREFERENCE_STATE_FILE,
     WEEKLY_SUMMARY_FILE,
 )
-from core.personality import PersonalityMixin  # noqa: E402
+from core.domain.personality import Personality, parse_weekly_evolution  # noqa: E402
+from core.features.personality_evolution import PersonalityEvolution, qualified_feedback  # noqa: E402
+from core.settings import SettingsAccessor  # noqa: E402
+from itself import itself  # noqa: E402
 
 
-class PersonalityProbe(PersonalityMixin):
+class _ProbeFile:
+    def __init__(self, files, path):
+        self._files, self._path = files, path
+
+    def read(self, default=None):
+        return self._files.get(self._path, default)
+
+    def write(self, value):
+        self._files[self._path] = json.loads(json.dumps(value, ensure_ascii=False))
+
+
+class PersonalityProbe(BaseParts):
+    models = itself
+    web_search = itself
+    settings = SettingsAccessor()
+
     def __init__(self, *, daily_days=0, responses=None, config=None):
         self.config = {
             "ENABLE_PERSONALITY_EVOLUTION": True,
@@ -65,6 +84,8 @@ class PersonalityProbe(PersonalityMixin):
             WEEKLY_SUMMARY_FILE: [],
             PREFERENCE_STATE_FILE: {"current": []},
         }
+        self.personality = Personality(_ProbeFile(self.files, PERSONALITY_FILE))
+        self.personality_evolution = PersonalityEvolution(self)
         self.responses = list(responses or [])
         self.llm_calls = 0
         self.web_queries = []
@@ -134,22 +155,22 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
             daily_days=7, config={"ENABLE_PERSONALITY_EVOLUTION": False}
         )
 
-        result = await probe._maybe_evolve_personality(force=True)
+        result = await probe.personality_evolution.maybe_evolve(force=True)
 
         self.assertEqual(result["status"], "disabled")
         self.assertEqual(probe.llm_calls, 0)
 
     async def test_readiness_requires_three_distinct_nonempty_daily_summaries(self):
         probe = PersonalityProbe(daily_days=2)
-        waiting = await probe._personality_evolution_readiness()
+        waiting = await probe.personality_evolution.readiness()
         probe.files[DAILY_SUMMARY_FILE].append({
             "date": (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"),
             "summary": "第三天",
             "structured": {"counts": {"videos": 0, "conversations": 0}},
         })
-        still_waiting = await probe._personality_evolution_readiness()
+        still_waiting = await probe.personality_evolution.readiness()
         probe.files[DAILY_SUMMARY_FILE][-1]["structured"]["counts"]["videos"] = 1
-        ready = await probe._personality_evolution_readiness()
+        ready = await probe.personality_evolution.readiness()
 
         self.assertFalse(waiting["ready"])
         self.assertFalse(still_waiting["ready"])
@@ -158,17 +179,18 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_readiness_can_use_privacy_filtered_structures_derived_from_logs(self):
         probe = PersonalityProbe(daily_days=0)
-        probe._collect_weekly_data = lambda days=7: {"days": days}
-        probe._group_activity_by_day = lambda _data: {
+        probe.activity_digest = types.SimpleNamespace()
+        probe.activity_digest._collect_weekly_data = lambda days=7: {"days": days}
+        probe.activity_digest._group_activity_by_day = lambda _data: {
             "2026-08-18": {}, "2026-08-19": {}, "2026-08-20": {},
         }
-        probe._build_structured_activity_summary = lambda _data, **kwargs: {
+        probe.activity_digest._build_structured_activity_summary = lambda _data, **kwargs: {
             "period": kwargs["period_key"],
             "counts": {"videos": 1},
             "conversation_highlights": [],
         }
 
-        readiness = await probe._personality_evolution_readiness()
+        readiness = await probe.personality_evolution.readiness()
 
         self.assertTrue(readiness["ready"])
         self.assertEqual(readiness["days"], 3)
@@ -179,8 +201,8 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
     async def test_weekly_update_is_bounded_versioned_and_only_runs_once(self):
         probe = PersonalityProbe(daily_days=3, responses=[_evolution_reply()])
 
-        first = await probe._maybe_evolve_personality(force=True)
-        second = await probe._maybe_evolve_personality(force=True)
+        first = await probe.personality_evolution.maybe_evolve(force=True)
+        second = await probe.personality_evolution.maybe_evolve(force=True)
         state = probe.files[PERSONALITY_FILE]
 
         self.assertEqual(first["status"], "updated")
@@ -194,18 +216,53 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_weekly_attempt_is_not_repeated(self):
         probe = PersonalityProbe(daily_days=3, responses=["not-json"])
 
-        first = await probe._maybe_evolve_personality(force=True)
-        second = await probe._maybe_evolve_personality(force=True)
+        first = await probe.personality_evolution.maybe_evolve(force=True)
+        second = await probe.personality_evolution.maybe_evolve(force=True)
 
         self.assertEqual(first["status"], "failed")
         self.assertEqual(second["status"], "already_attempted")
         self.assertEqual(probe.llm_calls, 1)
 
+    async def test_no_model_reply_keeps_this_weeks_chance(self):
+        probe = PersonalityProbe(
+            daily_days=3, responses=[None, _evolution_reply()],
+            config={"EVOLVE_HOUR": datetime.now().hour},
+        )
+
+        first = await probe.personality_evolution.maybe_evolve(force=True)
+        state = probe.files[PERSONALITY_FILE]
+        self.assertEqual(first["status"], "model_unavailable")
+        self.assertNotEqual(state.get("last_attempt_week"), state["model_retry_week"])
+
+        # 还没到重试时间：定时检查不再叫模型
+        self.assertEqual((await probe.personality_evolution.maybe_evolve())["status"], "waiting_for_model")
+        self.assertEqual(probe.llm_calls, 1)
+
+    async def test_retry_runs_once_a_day_and_counts_for_the_missed_week(self):
+        now = datetime.now()
+        other_day = (now.weekday() + 1) % 7
+        probe = PersonalityProbe(
+            daily_days=3, responses=[_evolution_reply()],
+            config={"EVOLVE_WEEKDAY": other_day, "EVOLVE_HOUR": (now.hour + 1) % 24},
+        )
+        probe.files[PERSONALITY_FILE] = {"model_retry_week": "2000-W01", "model_retry_after": "2000-01-01 00:00"}
+
+        # 不是约定的小时：不试
+        self.assertEqual((await probe.personality_evolution.maybe_evolve())["status"], "not_due")
+        self.assertEqual(probe.llm_calls, 0)
+
+        # 到了约定的小时：试，成功算回错过的那一周，下一次约定时刻照常跑
+        probe.config["EVOLVE_HOUR"] = now.hour
+        self.assertEqual((await probe.personality_evolution.maybe_evolve())["status"], "updated")
+        state = probe.files[PERSONALITY_FILE]
+        self.assertEqual(state["last_evolve_week"], "2000-W01")
+        self.assertNotIn("model_retry_week", state)
+
     async def test_rollback_restores_previous_dynamic_block(self):
         probe = PersonalityProbe(daily_days=3, responses=[_evolution_reply()])
-        await probe._maybe_evolve_personality(force=True)
+        await probe.personality_evolution.maybe_evolve(force=True)
 
-        success, _message = probe._rollback_personality()
+        success, _message = probe.personality.rollback()
         state = probe.files[PERSONALITY_FILE]
 
         self.assertTrue(success)
@@ -214,7 +271,7 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["rollback"]["restored_snapshot_version"], 0)
 
     async def test_reflection_evidence_rejects_single_ordinary_suggestion(self):
-        qualified = PersonalityProbe._qualified_feedback([
+        qualified = qualified_feedback([
             {
                 "feedback_type": "suggestion", "topic": "少反问",
                 "count": 1, "distinct_actors": 1, "owner_count": 0,
@@ -239,7 +296,7 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
             responses=[_evolution_reply(reflections=["我不该犯这个错误"])],
         )
 
-        await probe._maybe_evolve_personality(force=True)
+        await probe.personality_evolution.maybe_evolve(force=True)
 
         self.assertEqual(
             probe.files[PERSONALITY_FILE]["dynamic_block"]["recent_reflections"],
@@ -266,7 +323,7 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        merged = await probe._merge_grounded_meme_candidates(candidates, source)
+        merged = await probe.personality_evolution.merge_grounded_meme_candidates(candidates, source)
 
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0]["phrase"], "绝绝子")
@@ -282,8 +339,8 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
             }]
         }
 
-        self.assertEqual(probe._get_personality_prompt(""), "")
-        prompts = [probe._get_personality_prompt(f"测试语境{i}") for i in range(200)]
+        self.assertEqual(probe.personality.prompt(""), "")
+        prompts = [probe.personality.prompt(f"测试语境{i}") for i in range(200)]
         exposed = [prompt for prompt in prompts if "绝绝子" in prompt]
 
         self.assertGreater(len(exposed), 0)
@@ -299,7 +356,32 @@ class PersonalityEvolutionTests(unittest.IsolatedAsyncioTestCase):
         }]
 
         with self.assertRaisesRegex(ValueError, "meme_candidates_count_mismatch"):
-            probe._parse_weekly_evolution(json.dumps(value, ensure_ascii=False))
+            parse_weekly_evolution(json.dumps(value, ensure_ascii=False))
+
+
+class ManualEditTests(unittest.TestCase):
+    def setUp(self):
+        self.files = {}
+        self.personality = Personality(_ProbeFile(self.files, PERSONALITY_FILE))
+
+    def test_add_keeps_the_last_five_habits_and_bumps_version(self):
+        for i in range(6):
+            self.personality.add_manual("习惯", f"习惯{i}")
+        state = self.files[PERSONALITY_FILE]
+        self.assertEqual(state["speech_habits"], [f"习惯{i}" for i in range(1, 6)])
+        self.assertEqual(state["version"], 6)
+        self.assertIn("手动维护的说话习惯：习惯1", self.personality.prompt())
+
+    def test_unknown_category_writes_nothing(self):
+        self.assertTrue(self.personality.add_manual("口头禅", "x").startswith("❌"))
+        self.assertNotIn(PERSONALITY_FILE, self.files)
+
+    def test_remove_by_position(self):
+        self.assertEqual(self.personality.remove_manual("看法", 0), "🌱 没有演化记录")
+        self.personality.add_manual("变化", "更爱看纪录片")
+        self.assertTrue(self.personality.remove_manual("变化", 1).startswith("❌ 序号超范围"))
+        self.assertEqual(self.personality.remove_manual("变化", 0), "✅ 已删除：更爱看纪录片")
+        self.assertEqual(self.files[PERSONALITY_FILE]["evolved_traits"], [])
 
 
 if __name__ == "__main__":

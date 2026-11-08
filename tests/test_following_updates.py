@@ -1,3 +1,4 @@
+from base_parts import BaseParts
 import importlib.util
 import sys
 import types
@@ -28,7 +29,7 @@ def _load_bilibili_module():
     for name in (
         "BILI_COOKIE_CONFIRM_URL", "BILI_COOKIE_INFO_URL", "BILI_COOKIE_REFRESH_URL",
         "BILI_DYNAMIC_IMAGE_URL", "BILI_DYNAMIC_TEXT_URL", "BILI_NAV_URL",
-        "BILI_PRIVATE_MSG_SEND_URL", "BILI_QR_GENERATE_URL", "BILI_QR_POLL_URL",
+        "BILI_PRIVATE_MESSAGES_URL", "BILI_PRIVATE_MSG_SEND_URL", "BILI_PRIVATE_SESSIONS_URL", "BILI_QR_GENERATE_URL", "BILI_QR_POLL_URL",
         "BILI_REPLY_URL", "BILI_UPLOAD_IMAGE_URL",
     ):
         setattr(config, name, "https://example.test")
@@ -37,12 +38,7 @@ def _load_bilibili_module():
     config.USER_AGENT = "test"
     sys.modules[config.__name__] = config
 
-    module_name = f"{package_name}.bilibili"
-    spec = importlib.util.spec_from_file_location(module_name, ROOT / "core" / "bilibili.py")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    return importlib.import_module(f"{package_name}.infra.bili.dynamics")
 
 
 class FollowingUpdatesTests(unittest.IsolatedAsyncioTestCase):
@@ -53,7 +49,7 @@ class FollowingUpdatesTests(unittest.IsolatedAsyncioTestCase):
     async def test_numeric_string_timestamp_and_limit_are_accepted(self):
         today_ts = str(int(datetime.now().timestamp()))
 
-        class Client(self.module.BilibiliAPIMixin):
+        class Client(BaseParts):
             async def _http_get(self, *_args, **_kwargs):
                 return {
                     "code": 0,
@@ -77,12 +73,12 @@ class FollowingUpdatesTests(unittest.IsolatedAsyncioTestCase):
                     },
                 }, None
 
-        results = await Client().get_following_updates(limit="20")
+        results = await self.module.BiliDynamics(Client()).get_following_updates(limit="20")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["up_name"], "测试UP")
 
     async def test_bad_timestamp_does_not_drop_the_whole_feed(self):
-        class Client(self.module.BilibiliAPIMixin):
+        class Client(BaseParts):
             async def _http_get(self, *_args, **_kwargs):
                 return {
                     "code": 0,
@@ -106,7 +102,7 @@ class FollowingUpdatesTests(unittest.IsolatedAsyncioTestCase):
                     },
                 }, None
 
-        results = await Client().get_following_updates(limit="bad")
+        results = await self.module.BiliDynamics(Client()).get_following_updates(limit="bad")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["text"], "仍应返回")
 

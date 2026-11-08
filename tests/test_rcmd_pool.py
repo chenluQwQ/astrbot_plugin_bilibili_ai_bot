@@ -10,6 +10,7 @@ B站 ``/x/web-interface/index/top/rcmd`` 对 ``ps`` 有上限：
 ``fresh_type`` 0-4、``fresh_idx``、``fresh_idx_1h``、``version=1`` 均不影响。
 """
 
+from base_parts import BaseParts
 import ast
 import asyncio
 import logging
@@ -19,19 +20,19 @@ from pathlib import Path
 
 # Load the production method without importing the AstrBot runtime. This keeps
 # this regression test runnable on its own, not dependent on other tests' stubs.
-_source = Path(__file__).resolve().parents[1] / "core" / "proactive.py"
+_source = Path(__file__).resolve().parents[1] / "core" / "infra" / "bili" / "video_pools.py"
 _tree = ast.parse(_source.read_text(encoding="utf-8"))
-_class = next(node for node in _tree.body if isinstance(node, ast.ClassDef) and node.name == "ProactiveMixin")
+_class = next(node for node in _tree.body if isinstance(node, ast.ClassDef) and node.name == "BiliVideoPools")
 _class.body = [node for node in _class.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "_get_rcmd_videos"]
-_namespace = {"random": random, "logger": logging.getLogger(__name__)}
+_namespace = {"random": random, "logger": logging.getLogger(__name__), "BiliApi": object}
 exec(compile(ast.Module(body=[_class], type_ignores=[]), str(_source), "exec"), _namespace)
-ProactiveMixin = _namespace["ProactiveMixin"]
+ProactiveMixin = _namespace["BiliVideoPools"]
 
 RCMD_URL = "https://api.bilibili.com/x/web-interface/index/top/rcmd"
 MAX_ACCEPTED_PS = 14
 
 
-class RcmdProbe(ProactiveMixin):
+class RcmdProbe(ProactiveMixin, BaseParts):
     def __init__(self):
         self.config = {}
         self.calls = []

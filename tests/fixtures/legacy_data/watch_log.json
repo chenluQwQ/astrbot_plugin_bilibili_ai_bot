@@ -1,0 +1,508 @@
+[
+ {
+  "time": "2026-08-21 15:05",
+  "bvid": "BV1VGUpENJvp",
+  "title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
+  "up_name": "假50样例文",
+  "up_mid": "5683571684",
+  "score": 8.0,
+  "score_reason": "假52样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
+  "mood": "平静",
+  "comment": "假498样例文本假数据测试内容样例文本假数据测试内容样",
+  "review": "假53样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假54样例文本假数据测",
+    "polarity": "like",
+    "strength": 0.6,
+    "evidence": "假55样例文本假数据测试内容样例文本假数据测"
+   },
+   {
+    "type": "up",
+    "value": "假50样例文",
+    "polarity": "curious",
+    "strength": 0.4,
+    "evidence": "假56样例文本假数据测试内容样例文本假"
+   }
+  ],
+  "search_keywords": [
+   "假57样例文本假",
+   "假50样例文",
+   "假58样例文本假"
+  ],
+  "actions": [
+   "👍点赞",
+   "⭐收藏",
+   "💬评论",
+   "✉️私信推荐给主人"
+  ],
+  "pic": "",
+  "tname": "生活",
+  "source": "search",
+  "source_detail": "假499样",
+  "manual": false
+ },
+ {
+  "time": "2026-08-21 15:07",
+  "bvid": "BV1AUhqMHZkk",
+  "title": "假63样",
+  "up_name": "假62样",
+  "up_mid": "242533",
+  "score": 5.5,
+  "score_reason": "假64样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
+  "mood": "平静",
+  "comment": "假500样例文本假数据测试内容样例文本假数据测试内容",
+  "review": "假65样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假66样例文本假数",
+    "polarity": "curious",
+    "strength": 0.3,
+    "evidence": "假67样例文本假数据测试内容样例文本假数据"
+   },
+   {
+    "type": "theme",
+    "value": "假68样例文本假",
+    "polarity": "fatigue",
+    "strength": 0.2,
+    "evidence": "假69样例文本假数据测试内容样例文本假数"
+   }
+  ],
+  "search_keywords": [
+   "假70样例文",
+   "假71样例文"
+  ],
+  "actions": [],
+  "pic": "https://example.invalid/500.jpg",
+  "tname": "动画",
+  "source": "pool",
+  "source_detail": "",
+  "manual": false
+ },
+ {
+  "time": "2026-08-25 14:47",
+  "bvid": "BV1p3qwnXPMF",
+  "title": "假76样例文本假数据测试内容",
+  "up_name": "假75样例文",
+  "up_mid": "676010842",
+  "score": 6.0,
+  "score_reason": "假77样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
+  "mood": "好笑",
+  "comment": "假502样例文本假数据测试内容样",
+  "review": "假78样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假79样例文本假数",
+    "polarity": "like",
+    "strength": 0.4,
+    "evidence": "假80样例文本假数据测试内容样例文本假数据测试内容样"
+   }
+  ],
+  "search_keywords": [
+   "假81样例文本假数",
+   "假82样例文"
+  ],
+  "actions": [
+   "👍点赞"
+  ],
+  "pic": "https://example.invalid/502.jpg",
+  "tname": "资讯",
+  "source": "follow",
+  "source_detail": "following",
+  "manual": false
+ },
+ {
+  "time": "2026-08-27 11:42",
+  "bvid": "BV1mqRNv9pjy",
+  "title": "假87样例文本假数据测试内容样例文本假数据测试内容样例文本",
+  "up_name": "假86样例",
+  "up_mid": "89366661",
+  "score": 6.5,
+  "score_reason": "假88样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例",
+  "mood": "好笑",
+  "comment": "假504样例文本假数据测试内容样例文本假数据测试内容样例文本假",
+  "review": "假89样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假90样例文本假数",
+    "polarity": "curious",
+    "strength": 0.4,
+    "evidence": "假91样例文本假数据测试内容样例文本假数据测"
+   },
+   {
+    "type": "work",
+    "value": "假92样",
+    "polarity": "curious",
+    "strength": 0.3,
+    "evidence": "假93样例文本假数据测试内容样例文本"
+   }
+  ],
+  "search_keywords": [
+   "假94样例文本",
+   "假95样例文本",
+   "假96样例文本假",
+   "假86样例"
+  ],
+  "actions": [
+   "👍点赞"
+  ],
+  "pic": "https://example.invalid/504.jpg",
+  "tname": "综艺",
+  "source": "follow",
+  "source_detail": "following",
+  "manual": false
+ },
+ {
+  "time": "2026-08-30 14:49",
+  "bvid": "BV1XcuBCP7Qz",
+  "title": "假101样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
+  "up_name": "假100样例文本假数据",
+  "up_mid": "722069520",
+  "score": 7.0,
+  "score_reason": "假102样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本",
+  "mood": "好笑",
+  "comment": "假506样例文本假数据测试内容样例文本假数据测试内",
+  "review": "假103样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假104样例文本假数据",
+    "polarity": "curious",
+    "strength": 0.5,
+    "evidence": "假105样例文本假数据测试内容样例文本假数据测试内"
+   },
+   {
+    "type": "theme",
+    "value": "假106样例文本假数据",
+    "polarity": "like",
+    "strength": 0.4,
+    "evidence": "假107样例文本假数据测试内容样例文本假数据"
+   }
+  ],
+  "search_keywords": [
+   "假108样",
+   "假109",
+   "假110样例文本",
+   "假111样"
+  ],
+  "actions": [
+   "👍点赞",
+   "💬评论"
+  ],
+  "pic": "",
+  "tname": "纪录片",
+  "source": "search",
+  "source_detail": "假507样例文本",
+  "manual": false
+ },
+ {
+  "time": "2026-08-31 14:47",
+  "bvid": "BV1DstNNcnkN",
+  "title": "假116样例文本假数据测试内容样例文本假数据测",
+  "up_name": "假115",
+  "up_mid": "9338595",
+  "score": 6.0,
+  "score_reason": "假117样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
+  "mood": "平静",
+  "comment": "假508样例文本假数据测试内",
+  "review": "假118样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假119样例文本假数据",
+    "polarity": "curious",
+    "strength": 0.4,
+    "evidence": "假120样例文本假数据测试内容样例文本假数据测试内"
+   },
+   {
+    "type": "theme",
+    "value": "假121样例文本假",
+    "polarity": "like",
+    "strength": 0.3,
+    "evidence": "假122样例文本假数据测试内容样例文本假数据测试内容样例文本"
+   }
+  ],
+  "search_keywords": [
+   "假123样例文本假数据测试",
+   "假124样例文本假数据测试内容",
+   "假125样"
+  ],
+  "actions": [
+   "👍点赞"
+  ],
+  "pic": "https://example.invalid/508.jpg",
+  "tname": "数码",
+  "source": "follow",
+  "source_detail": "following",
+  "manual": false
+ },
+ {
+  "time": "2026-09-01 11:03",
+  "bvid": "BV1X5f0vLKev",
+  "title": "假130样例文本假数据测试内容样例文本假数据测",
+  "up_name": "假129",
+  "up_mid": "61920766",
+  "score": 6.5,
+  "score_reason": "假131样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
+  "mood": "好笑",
+  "comment": "假510样例文本假数据测试内容样例文本假数据测试内容样例文本假数据",
+  "review": "假132样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假133样例文本假数",
+    "polarity": "curious",
+    "strength": 0.4,
+    "evidence": "假134样例文本假数据测试内容样例文本假"
+   },
+   {
+    "type": "theme",
+    "value": "假135样例文本假数据测",
+    "polarity": "like",
+    "strength": 0.3,
+    "evidence": "假136样例文本假数据测试内容样"
+   }
+  ],
+  "search_keywords": [
+   "假137样例文",
+   "假138样例文本假数据测试",
+   "假139样例文本假"
+  ],
+  "actions": [
+   "👍点赞"
+  ],
+  "pic": "https://example.invalid/510.jpg",
+  "tname": "汽车",
+  "source": "follow",
+  "source_detail": "following",
+  "manual": false
+ },
+ {
+  "time": "2026-09-13 14:21",
+  "bvid": "BV1DDtBtaecr",
+  "title": "假168样例文本假数据测试内容样例文本",
+  "up_name": "假167样",
+  "up_mid": "7835865784",
+  "score": 8.0,
+  "score_reason": "假169样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
+  "mood": "震撼",
+  "comment": "假512样例文本假数据测试内容样例文本假数据测试内容样例文",
+  "review": "假170样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假171样例文本假数",
+    "polarity": "like",
+    "strength": 0.7,
+    "evidence": "假172样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样"
+   },
+   {
+    "type": "theme",
+    "value": "假173样例文本假数据",
+    "polarity": "curious",
+    "strength": 0.6,
+    "evidence": "假174样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例"
+   },
+   {
+    "type": "up",
+    "value": "假167样",
+    "polarity": "like",
+    "strength": 0.6,
+    "evidence": "假175样例文本假数据测试内容样例文本假数据测"
+   }
+  ],
+  "search_keywords": [
+   "假176样",
+   "假177样例文",
+   "假178样例",
+   "假179样例"
+  ],
+  "actions": [
+   "👍点赞",
+   "⭐收藏",
+   "💬评论",
+   "✉️私信推荐给主人"
+  ],
+  "pic": "https://example.invalid/512.jpg",
+  "tname": "知识",
+  "source": "pool",
+  "source_detail": "",
+  "manual": false,
+  "discovery_mode": "interest",
+  "recommend_reason": "假514样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容"
+ },
+ {
+  "time": "2026-10-09 10:17",
+  "bvid": "BV1v3G7SDsQv",
+  "title": "假227样例文本假数据测试内容样例文本假数据测试内容样例文本",
+  "up_name": "假226样例文本假",
+  "up_mid": "83418062",
+  "score": 7.0,
+  "score_reason": "假228样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本",
+  "mood": "开心",
+  "comment": "假515样例文本假数据测试内容样例文本假数据测试内容样例文",
+  "review": "假229样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
+  "preference_signals": [
+   {
+    "type": "work",
+    "value": "假230样例文本假数据测试",
+    "polarity": "curious",
+    "strength": 0.6,
+    "evidence": "假231样例文本假数据测试内容样例文本假数据测试内容样例文"
+   },
+   {
+    "type": "music",
+    "value": "假232",
+    "polarity": "like",
+    "strength": 0.5,
+    "evidence": "假233样例文本假数据测试内容样例文本假数据测试内容样"
+   },
+   {
+    "type": "theme",
+    "value": "假234样例文本",
+    "polarity": "like",
+    "strength": 0.4,
+    "evidence": "假235样例文本假数据测试内容样例文本假数据测试内"
+   }
+  ],
+  "search_keywords": [
+   "假236样例文本假数据测试内容样例文",
+   "假237样例文本假数据测试内容样例文本假",
+   "假238样例文",
+   "假239样例文本假数据测试内容"
+  ],
+  "actions": [
+   "👍点赞",
+   "💬评论"
+  ],
+  "pic": "",
+  "tname": "游戏",
+  "source": "search",
+  "source_detail": "假516样例文本假数据测试内容样例文",
+  "manual": false,
+  "discovery_mode": "interest",
+  "recommend_reason": "假517样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样"
+ },
+ {
+  "time": "2026-10-09 18:32",
+  "bvid": "BV18HenEfBY3",
+  "title": "假497样例文本假数据测试内容",
+  "up_name": "假408",
+  "up_mid": "711741232",
+  "score": 6.7,
+  "score_reason": "假518样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
+  "mood": "平静",
+  "comment": "假519样例文本假数据测试内容样例文本假数",
+  "review": "假520样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
+  "preference_signals": [
+   {
+    "type": "theme",
+    "value": "假521样例文本假数",
+    "polarity": "like",
+    "strength": 0.5,
+    "evidence": "假522样例文本假数据测试内容样例文本假数"
+   },
+   {
+    "type": "music",
+    "value": "假523样例文本",
+    "polarity": "curious",
+    "strength": 0.3,
+    "evidence": "假524样例文本假数据测试内容样例文本假数据测试内"
+   }
+  ],
+  "search_keywords": [
+   "假525样例文本假",
+   "假526样例文本假",
+   "假527样例文本假"
+  ],
+  "actions": [
+   "👍点赞"
+  ],
+  "pic": "https://example.invalid/527.jpg",
+  "tname": "音乐",
+  "source": "special_follow"
+ },
+ {
+  "time": "2026-10-22 11:21",
+  "bvid": "BV1Vdb6bT3H0",
+  "title": "假530样例文本假数据测试内容样例文本",
+  "up_name": "假531样例文本",
+  "score": 0,
+  "mood": "未知",
+  "comment": "假532",
+  "review": "",
+  "actions": [],
+  "pic": "",
+  "tname": "",
+  "source": "search",
+  "source_detail": "假533样例文",
+  "manual": false,
+  "evaluation_status": "failed",
+  "diagnostic": {
+   "time": "2026-10-22T11:21:39",
+   "stage": "model_request",
+   "reason": "假534样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
+   "analysis_basis": "video_media",
+   "from_cache": false,
+   "elapsed_seconds": 0.95,
+   "media_errors": [
+    {
+     "stage": "subtitles",
+     "reason": "假535样例文本假数据测试内容样例文本假数据测试内容"
+    }
+   ],
+   "model_call": {
+    "reason": "假534样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
+    "route": "astrbot_provider",
+    "provider": "假536样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容"
+   }
+  },
+  "content_analyzed": true,
+  "analysis_basis": "video_media",
+  "discovery_mode": "explore"
+ },
+ {
+  "time": "2026-10-25 11:04",
+  "bvid": "BV1UJUjw9BbP",
+  "title": "假295样例文本假数据测试内",
+  "up_name": "假294",
+  "up_mid": "8708692",
+  "score": 6.0,
+  "score_reason": "假296样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例",
+  "mood": "平静",
+  "comment": "假537样例文本假数据测试内容样例文",
+  "review": "假297样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
+  "preference_signals": [
+   {
+    "type": "up",
+    "value": "假294",
+    "polarity": "curious",
+    "strength": 0.3,
+    "evidence": "假298样例文本假数据测试内容样例文本假数据测"
+   }
+  ],
+  "search_keywords": [
+   "假299样例",
+   "假300样例"
+  ],
+  "actions": [
+   "👍点赞"
+  ],
+  "pic": "https://example.invalid/537.jpg",
+  "tname": "美食",
+  "source": "pool",
+  "source_detail": "",
+  "manual": false,
+  "want_dynamic": false,
+  "dynamic_angle": "",
+  "discovery_mode": "interest",
+  "recommend_reason": "",
+  "recommended_at": "",
+  "content_summary": "假539样例文本假数据测试内容样例文本假数据测试内容",
+  "analysis_basis": "subtitles"
+ }
+]

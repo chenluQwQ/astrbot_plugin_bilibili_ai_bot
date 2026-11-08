@@ -29,9 +29,9 @@ class Tier(str, Enum):
     PERSONA_ADMIN = "persona_admin"  # 记忆/人格/画像管理，永不对外
 
 
-#: 各层级要求的最低角色。
+#: 各层级要求的最低角色。公开读取开了 SECURITY_ALLOW_NON_ADMIN_READ_TOOLS 才降到陌生人。
 _MIN_ROLE: dict[Tier, Role] = {
-    Tier.PUBLIC_READ: Role.STRANGER,
+    Tier.PUBLIC_READ: Role.ADMIN,
     Tier.PRIVATE_READ: Role.ADMIN,
     Tier.WRITE: Role.ADMIN,
     Tier.PERSONA_ADMIN: Role.ADMIN,
@@ -106,6 +106,9 @@ class ToolGate:
     def _private_read_enabled(self) -> bool:
         return bool(self._get("SECURITY_ENABLE_PRIVATE_READ_TOOLS", False))
 
+    def _non_admin_read_enabled(self) -> bool:
+        return bool(self._get("SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", False))
+
     def _external_allowlist(self) -> set[str]:
         raw = self._get("SECURITY_EXTERNAL_TOOL_ALLOWLIST", []) or []
         if isinstance(raw, str):
@@ -151,7 +154,9 @@ class ToolGate:
                 return Decision(False, "权限不足")
             return Decision(True)
 
-        # PUBLIC_READ：不可信通道默认关闭，只放开显式 allowlist 中的工具。
+        # PUBLIC_READ：默认只有管理员能用；放开给别人以后，不可信通道仍只放开显式 allowlist 中的工具。
+        if caller.role < _MIN_ROLE[Tier.PUBLIC_READ] and not self._non_admin_read_enabled():
+            return Decision(False, "工具默认只有管理员能用（SECURITY_ALLOW_NON_ADMIN_READ_TOOLS）")
         if spec.allowed_scopes and caller.scope not in spec.allowed_scopes:
             return Decision(False, f"该工具未对通道 {caller.scope.value} 开放")
         if not policy.allow_tools:

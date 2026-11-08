@@ -1,9 +1,11 @@
+from base_parts import BaseParts
 import asyncio
 import json
 import unittest
 from datetime import datetime, timedelta
 
 from test_video_memory_lifecycle import _load_consolidation_module
+from itself import itself
 
 
 def _chat(rpid, when, text="用户1(甲)说：哈哈 | Bot回复：哈哈"):
@@ -11,11 +13,30 @@ def _chat(rpid, when, text="用户1(甲)说：哈哈 | Bot回复：哈哈"):
             "text": text, "memory_type": "chat", "level": "today", "importance": 5}
 
 
-class _Bot:
+class _Bot(BaseParts):
+    models = itself
+
     def __init__(self, memories, reply):
         self._memory = memories
         self.reply = reply
         self.prompts = []
+        self.memories = self
+        self.memory_entry = self  # 假的 MemoryEntry：规则就写在下面
+
+    # 假的 Memories：records 就是 _memory
+    @property
+    def records(self):
+        return self._memory
+
+    @records.setter
+    def records(self, value):
+        self._memory = value
+
+    def write_backup(self):
+        pass
+
+    async def find(self, types=None, where=None, **_filters):
+        return [m for m in self._memory if (types is None or self._match_memory_type(m, types)) and (where is None or where(m))]
 
     @staticmethod
     def _match_memory_type(memory, types):
@@ -53,7 +74,7 @@ class MemoryEvaluationTests(unittest.TestCase):
         self._run(bot)
         self.assertEqual(bot.prompts, [])
         self.assertEqual(bot._memory[0]["level"], "recent")
-        self.assertEqual(bot._memory[0]["importance"], 7)
+        self.assertEqual(bot._memory[0]["importance"], 5)
 
     def test_malformed_scores_keep_the_batch_for_next_time(self):
         bot = _Bot([_chat("a", datetime.now())], '[{"rpid": "a", "importance": 1}]')
@@ -74,13 +95,14 @@ class MemoryEvaluationTests(unittest.TestCase):
         self.assertEqual([m["rpid"] for m in bot._memory], ["b"])
 
 
-class _CleanupBot(_Bot):
+class _CleanupBot(_Bot, BaseParts):
     def __init__(self, memories, reply):
         super().__init__(memories, reply)
-        self._memory_write_lock = asyncio.Lock()
+        self.lock = asyncio.Lock()
         self.saved = {}
         self.snapshots = 0
         self.profile_refs_removed = set()
+        self.user_profiles = self
 
     @staticmethod
     def _is_derived_memory(record):
@@ -89,10 +111,10 @@ class _CleanupBot(_Bot):
     def _save_json(self, path, data):
         self.saved[path] = data
 
-    async def _replace_memory_snapshot(self, assume_locked=False):
+    async def sync(self, assume_locked=False):
         self.snapshots += 1
 
-    def _remove_profile_memory_refs(self, rpids):
+    def remove_memory_refs(self, rpids):
         self.profile_refs_removed |= set(rpids)
 
 

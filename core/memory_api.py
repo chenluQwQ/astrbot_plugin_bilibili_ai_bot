@@ -19,16 +19,12 @@ from datetime import datetime
 import uuid
 from astrbot.api import logger
 from .security import readable_scopes
-from .config import (
-    USER_PROFILE_FILE, WATCH_LOG_FILE, BANGUMI_WATCH_LOG_FILE,
-    REPLY_LOG_FILE, PROACTIVE_LOG_FILE, DYNAMIC_LOG_FILE,
-)
 
 
 class BiliBotMemoryAPI:
     """暴露给外部插件的记忆读写接口。
 
-    持有 bot 主实例引用，通过 mixin 方法操作底层数据。
+    持有 bot 主实例引用，通过各模块操作底层数据。
     所有方法都是安全的、不会破坏内部状态。
     """
 
@@ -69,7 +65,7 @@ class BiliBotMemoryAPI:
             [{"rpid", "text", "time", "user_id", "username",
               "memory_type", "level", "importance", "score"}, ...]
         """
-        raw = await self.bot._search_memories_raw(
+        raw = await self.bot.memory_recall._search_memories_raw(
             query,
             limit=limit,
             source=source,
@@ -128,15 +124,11 @@ class BiliBotMemoryAPI:
         from datetime import timedelta
         cutoff = datetime.now() - timedelta(hours=hours)
         results = []
-        for m in reversed(self.bot._memory):
-            if not self.bot._memory_visible_to(m, reader_scope, str(user_id or "")):
-                continue
-            if user_id and m.get("user_id") != str(user_id):
-                continue
-            if source and m.get("source") != source:
-                continue
-            if memory_types and not self.bot._match_memory_type(m, memory_types):
-                continue
+        for m in self.bot.memories.find_sync(
+            user_id=user_id or None, source=source or None, types=set(memory_types) if memory_types else None,
+            where=lambda m: self.bot.memory_recall._memory_visible_to(m, reader_scope, str(user_id or "")),
+            newest_first=True,
+        ):
             t = m.get("time", "")
             try:
                 mt = datetime.strptime(t[:16], "%Y-%m-%d %H:%M")
@@ -160,17 +152,13 @@ class BiliBotMemoryAPI:
 
     def get_user_profile(self, user_id: str) -> dict | None:
         """获取用户画像。"""
-        profiles = self.bot._load_json(USER_PROFILE_FILE, {})
-        profile = profiles.get(str(user_id))
-        if not isinstance(profile, dict):
-            return None
-        return deepcopy(self.bot._normalize_user_profile(profile))
+        return self.bot.user_profiles.get(user_id)
 
     def activity_overview(self, date: str = "") -> str:
         """Return the bot's activity overview without requiring an LLM tool loop."""
         target_date = date or datetime.now().strftime("%Y-%m-%d")
         parts = []
-        watch = [item for item in self.bot._load_json(WATCH_LOG_FILE, []) if item.get("time", "").startswith(target_date)]
+        watch = self.bot.activity_logs.watch.on_day(target_date)
         if watch:
             lines = [f"🎬 看了 {len(watch)} 个视频:"]
             for item in watch:
@@ -179,7 +167,10 @@ class BiliBotMemoryAPI:
                     f"{item.get('score', '?')}分 {item.get('mood', '?')} {item.get('review', '')}"
                 )
             parts.append("\n".join(lines))
-        bangumi = [item for item in self.bot._load_json(BANGUMI_WATCH_LOG_FILE, []) if item.get("time", "").startswith(target_date)]
+        bangumi = [
+            item for item in self.bot.activity_logs.bangumi.on_day(target_date)
+            if item.get("evaluation_status") != "failed"
+        ]
         if bangumi:
             lines = [f"📺 看了 {len(bangumi)} 集番剧:"]
             for item in bangumi:
@@ -188,7 +179,7 @@ class BiliBotMemoryAPI:
                     f"第{item.get('ep_index', '?')}话 {item.get('score', '?')}分 {item.get('mood', '?')}"
                 )
             parts.append("\n".join(lines))
-        replies = [item for item in self.bot._load_json(REPLY_LOG_FILE, []) if item.get("time", "").startswith(target_date)]
+        replies = self.bot.activity_logs.reply.on_day(target_date)
         if replies:
             lines = [f"💬 回复了 {len(replies)} 条评论:"]
             for item in replies[-10:]:
@@ -197,7 +188,7 @@ class BiliBotMemoryAPI:
                     f"{item.get('content', '')[:30]} → {item.get('reply', '')[:30]}"
                 )
             parts.append("\n".join(lines))
-        comments = [item for item in self.bot._load_json(PROACTIVE_LOG_FILE, []) if item.get("time", "").startswith(target_date)]
+        comments = self.bot.activity_logs.proactive.on_day(target_date)
         if comments:
             lines = [f"📝 发了 {len(comments)} 条主动评论:"]
             for item in comments[-10:]:
@@ -206,7 +197,7 @@ class BiliBotMemoryAPI:
                     f"{item.get('comment', '')}"
                 )
             parts.append("\n".join(lines))
-        dynamics = [item for item in self.bot._load_json(DYNAMIC_LOG_FILE, []) if item.get("time", "").startswith(target_date)]
+        dynamics = self.bot.activity_logs.dynamic.on_day(target_date)
         if dynamics:
             lines = [f"📢 发了 {len(dynamics)} 条动态:"]
             for item in dynamics[-10:]:
@@ -256,21 +247,22 @@ class BiliBotMemoryAPI:
         }
         video_memories = []
         if linked_bvids and video_limit > 0:
-            query_embedding = await self.bot._get_embedding(query)
+            query_embedding = await self.bot.vision._get_embedding(query)
             if query_embedding:
-                candidates = [
-                    item for item in self.bot._memory
-                    if str(item.get("bvid", "")) in linked_bvids
-                    and self.bot._match_memory_type(item, {"video"})
-                    and self.bot._memory_visible_to(item, reader_scope, uid)
-                    and item.get("embedding")
-                ]
+                candidates = await self.bot.memories.find(
+                    types={"video"},
+                    where=lambda item: (
+                        str(item.get("bvid", "")) in linked_bvids
+                        and self.bot.memory_recall._memory_visible_to(item, reader_scope, uid)
+                        and bool(item.get("embedding"))
+                    ),
+                )
                 scored = sorted(
                     (
                         (
-                            self.bot._cosine_similarity(
+                            self.bot.vision._cosine_similarity(
                                 query_embedding, item["embedding"]
-                            ) * self.bot._memory_recall_weight(item),
+                            ) * self.bot.memory_entry._memory_recall_weight(item),
                             item,
                         )
                         for item in candidates
@@ -303,7 +295,7 @@ class BiliBotMemoryAPI:
         """在用户画像中记录轻量视频关系，不复制视频总结正文。"""
         allowed_relations = {"commented_under", "uploaded_by", "about_user", "related"}
         normalized_relation = relation if relation in allowed_relations else "related"
-        self.bot._update_user_profile(
+        self.bot.user_profiles.update(
             str(user_id),
             username=username or None,
             video_ref={
@@ -348,10 +340,10 @@ class BiliBotMemoryAPI:
         }
         if extra:
             rec.update(extra)
-        emb = await self.bot._get_embedding(text)
+        emb = await self.bot.vision._get_embedding(text)
         if emb:
             rec["embedding"] = emb
-        await self.bot._save_memory_entry(rec)
+        await self.bot.memories.save(rec)
         logger.debug(f"[MemoryAPI] 记录: [{level}] {text[:60]}...")
         return rpid
 
@@ -375,12 +367,12 @@ class BiliBotMemoryAPI:
 
         external_event_id = str(event_id or "").strip()
         if external_event_id:
-            for item in reversed(self.bot._memory):
-                if (
-                    item.get("memory_type") == "live"
-                    and str(item.get("external_event_id", "")) == external_event_id
-                ):
-                    return str(item.get("rpid", ""))
+            for item in await self.bot.memories.find(
+                where=lambda item: item.get("memory_type") == "live"
+                and str(item.get("external_event_id", "")) == external_event_id,
+                newest_first=True, limit=1,
+            ):
+                return str(item.get("rpid", ""))
 
         normalized_type = str(event_type or "interaction").strip().lower()
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -413,7 +405,7 @@ class BiliBotMemoryAPI:
             importance=importance,
             extra=record_extra,
         )
-        self.bot._update_user_profile(
+        self.bot.user_profiles.update(
             uid,
             username=username or None,
             live_event={
@@ -432,17 +424,15 @@ class BiliBotMemoryAPI:
 
     def stats(self) -> dict:
         """返回记忆统计信息。"""
-        s = {"total": len(self.bot._memory)}
+        memories = self.bot.memories
+        s = {"total": memories.count_sync()}
         for key in ("today", "recent", "long_term"):
-            s[key] = sum(1 for m in self.bot._memory if m.get("level") == key)
-        s["aged"] = sum(1 for m in self.bot._memory if m.get("aged"))
+            s[key] = memories.count_sync(where=lambda m, key=key: m.get("level") == key)
+        s["aged"] = memories.count_sync(where=lambda m: bool(m.get("aged")))
         for key in ("chat", "video", "dynamic", "live", "user_summary"):
-            s[f"type_{key}"] = sum(
-                1 for m in self.bot._memory
-                if self.bot._match_memory_type(m, {key})
-            )
+            s[f"type_{key}"] = memories.count_sync(types={key})
         return s
 
     def count_user_memories(self, user_id: str) -> int:
         """返回指定用户的记忆总条数。"""
-        return sum(1 for m in self.bot._memory if m.get("user_id") == str(user_id))
+        return self.bot.memories.count_sync(user_id=user_id)

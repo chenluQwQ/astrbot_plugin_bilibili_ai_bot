@@ -43,6 +43,15 @@ class ReplyOutputProtocolTests(unittest.TestCase):
                 with self.assertRaises(ReplyProtocolError):
                     self.parse(raw)
 
+    def test_duplicate_fields_are_rejected_not_resolved(self):
+        raw = json.dumps(valid_payload(), ensure_ascii=False)
+        for duplicated in (raw[:-1] + ', "reply": "第二句"}',
+                           raw.replace('"confidence"', '"attack_level": 0, "confidence"')):
+            with self.subTest(raw=duplicated[-40:]):
+                with self.assertRaises(ReplyProtocolError) as caught:
+                    self.parse(duplicated)
+                self.assertEqual(str(caught.exception), "duplicate_keys")
+
     def test_unknown_fields_and_internal_field_leak_are_rejected(self):
         extra = valid_payload(secret_analysis="不要泄漏")
         with self.assertRaises(ReplyProtocolError):

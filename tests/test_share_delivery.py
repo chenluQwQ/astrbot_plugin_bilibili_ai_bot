@@ -1,35 +1,13 @@
 """A parsed share must send its card first, then standalone media messages."""
 import asyncio
-import importlib.util
-from pathlib import Path
 import sys
 import types
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
-def load_share_module():
-    root = Path(__file__).resolve().parents[1] / "core"
-    package = types.ModuleType("share_delivery_core")
-    package.__path__ = [str(root)]
-    config = types.ModuleType("share_delivery_core.config")
-    config.TEMP_VIDEO_DIR = "unused"
-    config.VIDEO_MEMORY_FILE = "unused"
-    api = types.ModuleType("astrbot.api")
-    api.logger = MagicMock()
-    astrbot = types.ModuleType("astrbot")
-    astrbot.api = api
-    spec = importlib.util.spec_from_file_location("share_delivery_core.share", root / "share.py")
-    module = importlib.util.module_from_spec(spec)
-    with patch.dict(sys.modules, {
-        "share_delivery_core": package, "share_delivery_core.config": config,
-        "astrbot": astrbot, "astrbot.api": api,
-    }):
-        spec.loader.exec_module(module)
-    return module
-
-
-ShareMixin = load_share_module().ShareMixin
+from share_parts import ShareParts
+from itself import itself
 
 
 class Event:
@@ -50,22 +28,25 @@ class Event:
         return chain
 
 
-class ShareProbe(ShareMixin):
+class ShareProbe(ShareParts):
+    models = itself
+
     def __init__(self, paths, component_type="video"):
         self.config = {"ENABLE_BILI_SHARE_PARSE": True, "BILI_SHARE_PARSE_AUTO_WATCH": False}
-        self._extract_bili_share_target = AsyncMock(return_value={"bvid": "BV1udYT69EUv"})
-        self._get_video_info_by_share_target = AsyncMock(return_value={
+        self.share_links._extract_bili_share_target = AsyncMock(return_value={"bvid": "BV1udYT69EUv"})
+        self.share._get_video_info_by_share_target = AsyncMock(return_value={
             "bvid": "BV1udYT69EUv", "title": "测试视频", "duration": 77,
         })
-        self._save_self_memory_record = AsyncMock()
-        self._find_command = lambda _name: "fake-yt-dlp"
-        self._download_video = AsyncMock(return_value="/fake/original.mp4")
-        self._split_share_video_for_chat = AsyncMock(return_value=(paths, False))
-        self._prepare_share_send_files = lambda raw, _bvid: list(raw)
-        self._share_video_component = lambda path: (
+        self.memory_writer._save_self_memory_record = AsyncMock()
+        self.processes._find_command = lambda _name: "fake-yt-dlp"
+        self.video_files._download_video = AsyncMock(return_value="/fake/original.mp4")
+        delivery = self.share_delivery
+        delivery._split_share_video_for_chat = AsyncMock(return_value=(paths, False))
+        delivery._prepare_share_send_files = lambda raw, _bvid: list(raw)
+        delivery._cleanup_share_video_files_later = AsyncMock()
+        self.qq_chat._share_video_component = lambda path: (
             types.SimpleNamespace(type=component_type, path=path) if component_type else None
         )
-        self._cleanup_share_video_files_later = AsyncMock()
 
 
 class ShareDeliveryTests(unittest.IsolatedAsyncioTestCase):
@@ -86,10 +67,10 @@ class ShareDeliveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def collect(self, probe, scene="FriendMessage", mode="auto"):
         event = Event(scene)
-        messages = [message async for message in probe._handle_bili_share(
+        messages = [message async for message in probe.share._handle_bili_share(
             event, text_override=event.message_str, trigger_mode=mode,
         )]
-        tasks = list(getattr(probe, "_share_cleanup_tasks", ()))
+        tasks = list(probe.share_delivery._share_cleanup_tasks)
         if tasks:
             await asyncio.gather(*tasks)
         return messages
@@ -105,7 +86,7 @@ class ShareDeliveryTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(messages[1]), 1)
                     self.assertEqual(messages[1][0].path, "/fake/video.mp4")
                     self.assertNotIn("回放切片", messages[0][0].text)
-                    probe._cleanup_share_video_files_later.assert_awaited_once_with(
+                    probe.share_delivery._cleanup_share_video_files_later.assert_awaited_once_with(
                         ["/fake/video.mp4", "/fake/original.mp4"], delay=1200,
                     )
 
@@ -124,7 +105,7 @@ class ShareDeliveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unavailable_forward_component_falls_back_to_pure_video(self):
         probe = ShareProbe(["/fake/part1.mp4", "/fake/part2.mp4"])
-        probe._share_forward_component = lambda _event, _components: None
+        probe.qq_chat._share_forward_component = lambda _event, _components: None
         messages = await self.collect(probe)
         self.assertEqual([item[0].type for item in messages], ["plain", "plain", "video", "video"])
         self.assertIn("改为逐段发送", messages[1][0].text)
@@ -147,7 +128,7 @@ class ShareDeliveryTests(unittest.IsolatedAsyncioTestCase):
         messages = await self.collect(probe)
         self.assertEqual(len(messages), 1)
         self.assertNotIn("请稍等", messages[0][0].text)
-        probe._download_video.assert_not_awaited()
+        probe.video_files._download_video.assert_not_awaited()
 
 
 class OneBotEvent(Event):
@@ -174,28 +155,28 @@ class ReactionProbe(ShareProbe):
         super().__init__(["/fake/video.mp4"])
         self.config["BILI_SHARE_PARSE_AUTO_WATCH"] = True
         self._llm_call = AsyncMock(side_effect=list(llm_replies))
-        self._qq_session_provider_id = AsyncMock(return_value="qq-provider")
-        self._qq_session_persona_prompt = AsyncMock(return_value="QQ人格")
+        self.qq_chat._qq_session_provider_id = AsyncMock(return_value="qq-provider")
+        self.qq_chat._qq_session_persona_prompt = AsyncMock(return_value="QQ人格")
         self._cache = cached
-        self._cached_video_memory = lambda _bvid: self._cache
-        self._has_seen_video = AsyncMock(return_value=seen)
+        self.video_watch._cached_video_memory = lambda _bvid: self._cache
+        self.seen_videos.has_seen = AsyncMock(return_value=seen)
 
         async def watch(bvid, memory_source):
             self._cache = {"summary": "一只猫在弹钢琴"}
             return {"ok": True, "message": "内容详情：一只猫在弹钢琴", "bvid": bvid}
 
-        self._watch_video_and_save_memory = AsyncMock(side_effect=watch)
-        self._send_share_reaction = AsyncMock()
-        self._share_video_component = lambda path: types.SimpleNamespace(
+        self.watch_on_request._watch_video_and_save_memory = AsyncMock(side_effect=watch)
+        self.qq_chat._send_share_reaction = AsyncMock()
+        self.qq_chat._share_video_component = lambda path: types.SimpleNamespace(
             type="video", path=path,
             to_dict=lambda: {"type": "video", "data": {"file": f"file://{path}"}},
         )
 
     async def run(self, event):
-        messages = [m async for m in self._handle_bili_share(
+        messages = [m async for m in self.share._handle_bili_share(
             event, text_override=event.message_str, trigger_mode="auto",
         )]
-        await asyncio.gather(*getattr(self, "_share_reaction_tasks", ()))
+        await asyncio.gather(*self.share_reaction._share_reaction_tasks)
         return messages
 
 
@@ -212,32 +193,32 @@ class ShareReactionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(action, "send_group_msg")
         self.assertEqual(params["group_id"], 777)
         self.assertEqual(params["message"][0]["data"]["file"], "file:///fake/video.mp4")
-        probe._watch_video_and_save_memory.assert_awaited_once_with(
+        probe.watch_on_request._watch_video_and_save_memory.assert_awaited_once_with(
             "BV1udYT69EUv", memory_source="qq_share"
         )
-        probe._send_share_reaction.assert_awaited_once_with(
+        probe.qq_chat._send_share_reaction.assert_awaited_once_with(
             "aiocqhttp:GroupMessage:777", "这猫弹得比我好", "4242"
         )
         for call in probe._llm_call.await_args_list:
             self.assertEqual(call.kwargs["provider_id"], "qq-provider")
             self.assertEqual(call.kwargs["system_prompt"], "QQ人格")
         # Follow-up chat now knows the bot has watched it.
-        self.assertIn("一只猫在弹钢琴", probe._get_recent_group_share_prompt(event))
+        self.assertIn("一只猫在弹钢琴", probe.share_session._get_recent_group_share_prompt(event))
 
     async def test_skip_decision_does_not_watch_and_prompt_says_unwatched(self):
         probe = ReactionProbe(['{"decision":"skip"}'])
         event = OneBotEvent()
         await probe.run(event)
-        probe._watch_video_and_save_memory.assert_not_awaited()
-        probe._send_share_reaction.assert_not_awaited()
-        prompt = probe._get_recent_group_share_prompt(event)
+        probe.watch_on_request._watch_video_and_save_memory.assert_not_awaited()
+        probe.qq_chat._send_share_reaction.assert_not_awaited()
+        prompt = probe.share_session._get_recent_group_share_prompt(event)
         self.assertIn("还没看过", prompt)
         self.assertIn('trust="untrusted"', prompt)
 
     async def test_invalid_decision_json_means_no_watch(self):
         probe = ReactionProbe(["好啊我去看看"])
         await probe.run(OneBotEvent())
-        probe._watch_video_and_save_memory.assert_not_awaited()
+        probe.watch_on_request._watch_video_and_save_memory.assert_not_awaited()
 
     async def test_remembered_video_skips_decision_and_still_comments(self):
         probe = ReactionProbe(
@@ -246,13 +227,13 @@ class ShareReactionTests(unittest.IsolatedAsyncioTestCase):
         )
         await probe.run(OneBotEvent())
         self.assertEqual(probe._llm_call.await_count, 1)
-        probe._send_share_reaction.assert_awaited_once()
+        probe.qq_chat._send_share_reaction.assert_awaited_once()
 
     async def test_faded_seen_trace_neither_rewatches_nor_comments(self):
         probe = ReactionProbe([], seen=True)
         await probe.run(OneBotEvent())
         probe._llm_call.assert_not_awaited()
-        probe._watch_video_and_save_memory.assert_not_awaited()
+        probe.watch_on_request._watch_video_and_save_memory.assert_not_awaited()
 
     async def test_plain_adapter_quotes_the_original_message_without_video(self):
         probe = ReactionProbe([
@@ -263,7 +244,7 @@ class ShareReactionTests(unittest.IsolatedAsyncioTestCase):
         event = OneBotEvent()
         await probe.run(event)
         event.bot.call_action.assert_not_awaited()
-        self.assertEqual(probe._send_share_reaction.await_args.args[2], "111")
+        self.assertEqual(probe.qq_chat._send_share_reaction.await_args.args[2], "111")
 
     async def test_failed_onebot_send_is_not_retried(self):
         probe = ReactionProbe(['{"decision":"skip"}'])
@@ -277,7 +258,7 @@ class ShareReactionTests(unittest.IsolatedAsyncioTestCase):
 
 class SessionLookupTests(unittest.IsolatedAsyncioTestCase):
     def probe(self, persona_id, *, provider_getter=True):
-        probe = ShareMixin()
+        probe = ShareParts()
         conversation = types.SimpleNamespace(persona_id=persona_id)
         context = types.SimpleNamespace(
             conversation_manager=types.SimpleNamespace(
@@ -299,16 +280,16 @@ class SessionLookupTests(unittest.IsolatedAsyncioTestCase):
         return probe
 
     async def test_persona_follows_the_current_conversation(self):
-        self.assertEqual(await self.probe("p1")._qq_session_persona_prompt("umo"), "会话人格")
-        self.assertEqual(await self.probe(None)._qq_session_persona_prompt("umo"), "默认人格")
-        self.assertEqual(await self.probe("[%None]")._qq_session_persona_prompt("umo"), "")
+        self.assertEqual(await self.probe("p1").qq_chat._qq_session_persona_prompt("umo"), "会话人格")
+        self.assertEqual(await self.probe(None).qq_chat._qq_session_persona_prompt("umo"), "默认人格")
+        self.assertEqual(await self.probe("[%None]").qq_chat._qq_session_persona_prompt("umo"), "")
 
     async def test_provider_is_the_one_this_session_uses(self):
         probe = self.probe(None)
-        self.assertEqual(await probe._qq_session_provider_id("umo"), "qq-model")
+        self.assertEqual(await probe.qq_chat._qq_session_provider_id("umo"), "qq-model")
         probe.context.get_current_chat_provider_id.assert_awaited_once_with(umo="umo")
         self.assertEqual(
-            await self.probe(None, provider_getter=False)._qq_session_provider_id("umo"),
+            await self.probe(None, provider_getter=False).qq_chat._qq_session_provider_id("umo"),
             "using:umo",
         )
 

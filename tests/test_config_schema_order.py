@@ -1,6 +1,7 @@
 """Regression tests for the administrator-facing configuration layout."""
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -27,11 +28,11 @@ class ConfigSchemaOrderTests(unittest.TestCase):
             "LLM_CIRCUIT_COOLDOWN_SECONDS",
         ])
 
-    def test_optional_proxy_is_near_account_and_model_settings(self):
+    def test_optional_proxy_is_in_system_section(self):
         self.assertEqual(self.schema["PROXY_URL"]["default"], "")
-        self.assert_contiguous(["PROXY_URL", "LLM_PROVIDER_ID"])
         self.assertEqual(self.schema["LLM_CIRCUIT_FAILURE_THRESHOLD"]["default"], 5)
         self.assertEqual(self.schema["LLM_CIRCUIT_COOLDOWN_SECONDS"]["default"], 120)
+        self.assertIn("【系统】", self.schema["PROXY_URL"]["description"])
 
     def test_private_message_settings_are_one_contiguous_section(self):
         self.assert_contiguous([
@@ -39,21 +40,18 @@ class ConfigSchemaOrderTests(unittest.TestCase):
             "PRIVATE_MESSAGE_REPLY_SCOPE",
             "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS",
             "PRIVATE_MESSAGE_AUTO_REPLY",
+            "ENABLE_PRIVATE_PSEUDO_STREAM",
+            "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION",
             "PRIVATE_MESSAGE_POLL_INTERVAL",
             "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL",
             "PRIVATE_MESSAGE_ACTIVE_WINDOW",
             "PRIVATE_MESSAGE_MAX_PER_POLL",
             "PRIVATE_MESSAGE_MAX_MESSAGE_AGE",
-            "INTEREST_APPLY_TO_PRIVATE",
             "PRIVATE_MESSAGE_AUTO_WATCH_VIDEO",
             "PRIVATE_MESSAGE_BILI_SEARCH_ENABLED",
             "PRIVATE_MESSAGE_BILI_SEARCH_LIMIT",
             "BILI_PRIVATE_SHARE_TOOL_ENABLED",
             "BILI_PRIVATE_SHARE_COOLDOWN",
-            "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION",
-            "PRIVATE_MESSAGE_AUTO_BLOCK",
-            "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS",
-            "PRIVATE_MESSAGE_TRUSTED_DOMAINS",
         ])
 
     def test_share_parser_settings_are_one_contiguous_section(self):
@@ -78,12 +76,44 @@ class ConfigSchemaOrderTests(unittest.TestCase):
             "ENABLE_VIDEO_LONG_TERM_MEMORY",
             "VIDEO_MEMORY_DETAIL_DAYS",
             "VIDEO_MEMORY_FADE_DAYS",
-            "VIDEO_SEGMENT_MINUTES",
-            "VIDEO_SEGMENT_MAX_COUNT",
+            "VIDEO_LOW_SCORE_FORGET_BELOW",
+            "VIDEO_LOW_SCORE_FORGET_DAYS",
         ])
         self.assertTrue(self.schema["ENABLE_VIDEO_LONG_TERM_MEMORY"]["default"])
         self.assertEqual(self.schema["VIDEO_MEMORY_DETAIL_DAYS"]["default"], 15)
         self.assertEqual(self.schema["VIDEO_MEMORY_FADE_DAYS"]["default"], 90)
+        self.assertEqual(self.schema["VIDEO_LOW_SCORE_FORGET_BELOW"]["default"], 5)
+        self.assertEqual(self.schema["VIDEO_LOW_SCORE_FORGET_DAYS"]["default"], 30)
+
+    def test_sections_follow_webui_categories(self):
+        # 管理页「全部配置」按 ALL_CONFIG_GROUPS 的顺序分组；schema 也按同样的分类、同样的顺序排，
+        # 每个分类的项连在一起（AstrBot 自带的配置页是平铺的，顺序就看这里）。
+        app_js = (SCHEMA_PATH.parent / "pages" / "bilibot" / "app.js").read_text(encoding="utf-8")
+        groups = re.findall(r'"([^"]+)"', re.search(r"const ALL_CONFIG_GROUPS = \[(.*?)\];", app_js).group(1))
+        seen = []
+        for key in self.keys:
+            field = self.schema[key]
+            if field.get("deprecated"):
+                continue
+            tag = re.match(r"【([^】]+)】", field["description"]).group(1)
+            self.assertIn(tag, groups, key)
+            if not seen or seen[-1] != tag:
+                self.assertNotIn(tag, seen, f"{key}: {tag} 被别的分类隔开了")
+                seen.append(tag)
+        self.assertEqual(seen, [group for group in groups if group in seen])
+        self.assertEqual(seen[:3], ["账号与主人", "人设与模型", "评论回复"])
+
+    def test_hidden_legacy_keys_come_last(self):
+        hidden = [key for key in self.keys if self.schema[key].get("invisible")]
+        self.assertEqual(self.keys[-len(hidden):], hidden)
+
+    def test_no_key_is_removed_or_renamed(self):
+        # AstrBot drops config keys that are missing from the schema when it loads
+        # the plugin config, so removing or renaming a key wipes the user's value.
+        # Retire a key by marking it deprecated and invisible instead.
+        frozen = (Path(__file__).with_name("schema_keys.txt")).read_text(encoding="utf-8").split()
+        missing = sorted(set(frozen) - set(self.keys))
+        self.assertEqual(missing, [])
 
 
 if __name__ == "__main__":

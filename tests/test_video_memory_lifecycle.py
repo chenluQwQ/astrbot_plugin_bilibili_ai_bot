@@ -27,10 +27,12 @@ def _load_consolidation_module():
     config_name = f"{package_name}.config"
     config = types.ModuleType(config_name)
     config.MEMORY_FILE = "memory.json"
+    config.MEMORY_SYNC_STATE_FILE = "memory_sync_state.json"
     config.CONSOLIDATION_DISCARD_THRESHOLD = 3
     config.CONSOLIDATION_BATCH_SIZE = 20
     config.RECENT_PROMOTE_DAYS = 14
     config.LONG_TERM_AGE_DAYS = 180
+    config.LONG_TERM_MIN_IMPORTANCE = 6
     config.CONSOLIDATION_STATE_FILE = "consolidation.json"
     sys.modules[config_name] = config
 
@@ -47,6 +49,20 @@ def _load_consolidation_module():
 class _Bot:
     def __init__(self, memories):
         self._memory = memories
+        self.memories = self
+        self.memory_entry = self  # 假的 MemoryEntry：规则就写在下面
+
+    # 假的 Memories：records 就是 _memory
+    @property
+    def records(self):
+        return self._memory
+
+    @records.setter
+    def records(self, value):
+        self._memory = value
+
+    def write_backup(self):
+        pass
 
     @staticmethod
     def _video_memory_windows():
@@ -114,7 +130,8 @@ class VideoMemoryLifecycleTests(unittest.TestCase):
         self.assertEqual(memories[0]["video_memory_stage"], "detail")
         self.assertIn("embedding", memories[0])
         self.assertEqual(memories[1]["video_memory_stage"], "long_term")
-        self.assertEqual(memories[1]["level"], "long_term")
+        self.assertEqual(memories[1]["level"], "recent")  # 视频阶段另记，层级不算长期
+        self.assertEqual(memories[2]["level"], "recent")
         self.assertEqual(memories[1]["importance"], 4)
         self.assertIn("embedding", memories[1])
         self.assertEqual(memories[2]["video_memory_stage"], "faded")

@@ -18,8 +18,8 @@ from pathlib import Path
 
 from test_autonomous_ranges import _install_astrbot_stub  # noqa: F401  (installs the AstrBot stub)
 
-from core.video import VideoMixin
-from core.vision import VisionMixin, classify_vision_rejection
+from video_parts import VideoParts
+from core.infra.vision import Vision, classify_vision_rejection
 
 # 线上实测（astrbot.log 2026-10-29 14:31:52，payload 是一段 2.5 MB 的 mp4）
 ASTRBOT_IMAGE_ONLY = "Invalid image file: data URI mime='video/mp4' payload_len=2530484"
@@ -27,7 +27,7 @@ ASTRBOT_IMAGE_ONLY = "Invalid image file: data URI mime='video/mp4' payload_len=
 ASTRBOT_PART_CRASH = "KeyError: 'audio_url'"
 
 
-class Probe(VideoMixin, VisionMixin):
+class Probe(VideoParts):
     """只走 AstrBot provider、没有插件自有视觉 API 的最小替身。"""
 
     def __init__(self, error=ASTRBOT_IMAGE_ONLY):
@@ -43,14 +43,15 @@ class Probe(VideoMixin, VisionMixin):
                 raise ValueError(owner.error)
 
         self.context = _Context()
+        self.vision = Vision(self)
 
     async def direct(self, seg, fmt, client=None, model=""):
-        return await self._try_video_direct(
+        return await self.video_watch._try_video_direct(
             str(seg), "描述这一段", fmt, "p/vision", client, model, {}, ""
         )
 
     def skip_key(self, fmt, model=""):
-        return self._video_direct_key("p/vision", model, fmt)
+        return self.video_watch._video_direct_key("p/vision", model, fmt)
 
 
 class VisionRejectionClassifyTests(unittest.TestCase):
@@ -88,7 +89,7 @@ class VideoDirectRejectionTests(unittest.IsolatedAsyncioTestCase):
         bot = Probe(error=ASTRBOT_IMAGE_ONLY)
         self.assertIsNone(await bot.direct(self.segment, "qwen"))
         self.assertEqual(len(bot.uploads), 1)
-        self.assertIn(bot.skip_key("qwen"), bot._video_direct_skip_set())
+        self.assertIn(bot.skip_key("qwen"), bot.video_watch._video_direct_skip_set())
         # 同一视频的下一段：不再上传整段视频
         self.assertIsNone(await bot.direct(self.segment, "qwen"))
         self.assertEqual(len(bot.uploads), 1)
@@ -99,7 +100,7 @@ class VideoDirectRejectionTests(unittest.IsolatedAsyncioTestCase):
         bot = Probe(error=ASTRBOT_IMAGE_ONLY)
         self.assertIsNone(await bot.direct(self.segment, "gemini"))
         self.assertEqual(bot.uploads, [["image_url", "text"]])
-        self.assertIn(bot.skip_key("gemini"), bot._video_direct_skip_set())
+        self.assertIn(bot.skip_key("gemini"), bot.video_watch._video_direct_skip_set())
         await bot.direct(self.segment, "gemini")
         self.assertEqual(len(bot.uploads), 1)
 
@@ -109,7 +110,7 @@ class VideoDirectRejectionTests(unittest.IsolatedAsyncioTestCase):
         shapes = sorted({part_type for parts in bot.uploads for part_type in parts})
         self.assertEqual(shapes, ["file", "image_url", "text", "video_url"])
         self.assertEqual(len(bot.uploads), 4)
-        self.assertIn(bot.skip_key("auto"), bot._video_direct_skip_set())
+        self.assertIn(bot.skip_key("auto"), bot.video_watch._video_direct_skip_set())
         # 下一段不再重复探测
         await bot.direct(self.segment, "auto")
         self.assertEqual(len(bot.uploads), 4)
@@ -117,7 +118,7 @@ class VideoDirectRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_transient_failure_keeps_retrying(self):
         bot = Probe(error="502 Bad Gateway")
         await bot.direct(self.segment, "qwen")
-        self.assertNotIn(bot.skip_key("qwen"), bot._video_direct_skip_set())
+        self.assertNotIn(bot.skip_key("qwen"), bot.video_watch._video_direct_skip_set())
         await bot.direct(self.segment, "qwen")
         self.assertEqual(len(bot.uploads), 2)
 

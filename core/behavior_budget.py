@@ -96,10 +96,6 @@ class BehaviorBudget:
             limit = self._int("AUTONOMOUS_PRIVATE_DAILY_LIMIT", 30)
             if limit:
                 rules.append(("behavior:private_reply:day", day_key, limit))
-        elif kind == "live_reply":
-            limit = self._int("LIVE_DANMAKU_MAX_PER_MINUTE", 4)
-            if limit:
-                rules.append(("behavior:live_reply:minute", minute_key, limit))
         elif kind == "post_dynamic":
             limit = self._effective_limit(
                 self._int("DYNAMIC_DAILY_COUNT", 1),

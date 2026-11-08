@@ -10,12 +10,16 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
 
-from core.affection import AffectionMixin
-from core.bangumi import BangumiMixin
-from core.bilibili import BilibiliAPIMixin
+from core.infra.bili.users import BiliUsers
+from core.settings import Settings
+from core.domain.affection import Affection
+from core.domain.blocklist import BlockList
+from core.domain.user_profiles import UserProfiles
+from core.storage.json_file import JsonFile
+from core.infra.bili.bangumi import BiliBangumi
+from bili_parts import BiliParts, attach_bili_groups
 from core.layered_runtime import LayeredRuntime
-from core.live_danmaku import LiveDanmakuMixin
-from core.private_messages import PrivateMessageMixin
+from private_parts import PrivateParts
 from core.runtime import (
     ActionRequest,
     ActionOutcome,
@@ -23,8 +27,9 @@ from core.runtime import (
     WriteResultUnknownError,
 )
 from core.tools import create_tools
-from core.utils import UtilsMixin
-from core.weekly import WeeklySummaryMixin
+from base_parts import BaseParts
+from core.infra.bili.http import BiliHttp
+from summary_parts import SummaryParts
 
 
 class FakeResponse:
@@ -71,7 +76,7 @@ def fake_session_factory(session):
     return factory
 
 
-class WriteProbe(BilibiliAPIMixin, UtilsMixin, AffectionMixin, BangumiMixin):
+class WriteProbe(BiliParts):
     def __init__(self):
         self.config = {
             "SESSDATA": "session",
@@ -84,15 +89,15 @@ class WriteProbe(BilibiliAPIMixin, UtilsMixin, AffectionMixin, BangumiMixin):
 class HttpWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
     async def test_post_defaults_to_one_attempt_and_preserves_unknown(self):
         self.assertEqual(
-            inspect.signature(UtilsMixin._http_post).parameters["retries"].default,
+            inspect.signature(BiliHttp._http_post).parameters["retries"].default,
             0,
         )
-        probe = UtilsMixin()
+        probe = BaseParts()
         probe.config = {}
         session = FakeSession(enter_error=aiohttp.ClientConnectionError("lost"))
-        with patch("core.utils.plugin_http_session", fake_session_factory(session)):
+        with patch("core.infra.bili.http.plugin_http_session", fake_session_factory(session)):
             with self.assertRaises(WriteResultUnknownError):
-                await probe._http_post("https://example.invalid/write", data={"x": 1})
+                await probe.bili_http._http_post("https://example.invalid/write", data={"x": 1})
         self.assertEqual(len(session.post_calls), 1)
 
     async def test_post_decode_and_shape_errors_are_unknown_without_retry(self):
@@ -101,104 +106,96 @@ class HttpWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
             FakeResponse(payload=[{"code": 0}]),
         ):
             with self.subTest(response=response):
-                probe = UtilsMixin()
+                probe = BaseParts()
                 probe.config = {}
                 session = FakeSession(response=response)
-                with patch("core.utils.plugin_http_session", fake_session_factory(session)):
+                with patch("core.infra.bili.http.plugin_http_session", fake_session_factory(session)):
                     with self.assertRaises(WriteResultUnknownError):
-                        await probe._http_post("https://example.invalid/write")
+                        await probe.bili_http._http_post("https://example.invalid/write")
                 self.assertEqual(len(session.post_calls), 1)
 
     async def test_all_bilibili_write_wrappers_propagate_unknown(self):
         calls = (
-            ("reply", lambda bot: bot._send_reply(1, 2, 1, "hello")),
-            ("comment", lambda bot: bot._send_comment(1, "hello")),
-            ("private", lambda bot: bot._send_bili_private_payload(1, 1, {"content": "hello"})),
-            ("like", lambda bot: bot._like_video(1)),
-            ("coin", lambda bot: bot._coin_video(1)),
-            ("favorite", lambda bot: bot._fav_video(1)),
-            ("follow", lambda bot: bot._follow_user(1)),
-            ("block", lambda bot: bot._block_user(1)),
-            ("bangumi", lambda bot: bot._follow_bangumi(1)),
-            ("dynamic", lambda bot: bot._post_dynamic_text("hello")),
+            ("reply", lambda bot: bot.bili_comments._send_reply(1, 2, 1, "hello")),
+            ("comment", lambda bot: bot.bili_comments._send_comment(1, "hello")),
+            ("private", lambda bot: bot.bili_messages._send_bili_private_payload(1, 1, {"content": "hello"})),
+            ("like", lambda bot: bot.bili_videos._like_video(1)),
+            ("coin", lambda bot: bot.bili_videos._coin_video(1)),
+            ("favorite", lambda bot: bot.bili_videos._fav_video(1)),
+            ("follow", lambda bot: bot.bili_users._follow_user(1)),
+            ("block", lambda bot: BiliUsers(bot)._block_user(1)),
+            ("bangumi", lambda bot: BiliBangumi(bot)._follow_bangumi(1)),
+            ("dynamic", lambda bot: bot.bili_dynamics._post_dynamic_text("hello")),
         )
         for name, call in calls:
             with self.subTest(name=name):
                 bot = WriteProbe()
-                bot._http_post = AsyncMock(
+                bot.bili_http._http_post = AsyncMock(
                     side_effect=WriteResultUnknownError("ambiguous")
                 )
-                bot._http_get = AsyncMock(
+                bot.bili_http._http_get = AsyncMock(
                     return_value=({"code": 0, "data": {"list": [{"id": 10}]}}, None)
                 )
                 with self.assertRaises(WriteResultUnknownError):
                     await call(bot)
-                self.assertEqual(bot._http_post.await_count, 1)
+                self.assertEqual(bot.bili_http._http_post.await_count, 1)
 
     async def test_definite_api_rejection_remains_a_normal_false(self):
         bot = WriteProbe()
-        bot._http_post = AsyncMock(return_value=({"code": -101, "message": "no"}, None))
-        self.assertFalse(await bot._send_comment(1, "hello"))
-        self.assertEqual(bot._http_post.await_count, 1)
+        bot.bili_http._http_post = AsyncMock(return_value=({"code": -101, "message": "no"}, None))
+        self.assertFalse(await bot.bili_comments._send_comment(1, "hello"))
+        self.assertEqual(bot.bili_http._http_post.await_count, 1)
 
-    async def test_live_danmaku_propagates_unknown(self):
-        bot = LiveDanmakuMixin()
-        bot.config = {
-            "LIVE_DANMAKU_ROOM_ID": "123",
-            "SESSDATA": "session",
-            "BILI_JCT": "csrf",
-            "DEDE_USER_ID": "999",
-        }
-        bot._headers = lambda: {}
-        bot._has_cookie = lambda: True
-        bot._http_post = AsyncMock(side_effect=WriteResultUnknownError("lost"))
-        bot._record_live_error = Mock()
-        bot._live_send_backoff_until = 0.0
-        with self.assertRaises(WriteResultUnknownError):
-            await bot._send_live_danmaku_chunk("hello")
-        self.assertEqual(bot._http_post.await_count, 1)
-        self.assertIn("结果未知", bot._record_live_error.call_args.args[1])
+    async def test_comment_sync_to_dynamic_only_when_asked(self):
+        """PR #50：开了才带 ``sync_to_dynamic=1``，关着时请求和原来一样。"""
+        bot = WriteProbe()
+        bot.bili_http._http_post = AsyncMock(return_value=({"code": 0}, None))
+        await bot.bili_comments._send_comment(1, "hello")
+        self.assertNotIn("sync_to_dynamic", bot.bili_http._http_post.await_args.kwargs["data"])
+        await bot.bili_comments._send_comment(1, "hello", sync_to_dynamic=True)
+        self.assertEqual(bot.bili_http._http_post.await_args.kwargs["data"]["sync_to_dynamic"], 1)
 
 
 class DynamicFallbackSafetyTests(unittest.IsolatedAsyncioTestCase):
     async def test_image_dynamic_unknown_never_falls_back_to_text(self):
         bot = WriteProbe()
-        bot._post_dynamic_text = AsyncMock(return_value=True)
+        bot.bili_http._http_post = AsyncMock(return_value=({"code": 0}, None))
         session = FakeSession(enter_error=asyncio.TimeoutError())
-        with patch("core.bilibili.plugin_http_session", fake_session_factory(session)):
+        with patch("core.infra.bili.dynamics.plugin_http_session", fake_session_factory(session)):
             with self.assertRaises(WriteResultUnknownError):
-                await bot._post_dynamic_with_image("caption", {"url": "image"})
+                await bot.bili_dynamics._post_dynamic_with_image("caption", {"url": "image"})
         self.assertEqual(len(session.post_calls), 1)
-        bot._post_dynamic_text.assert_not_awaited()
+        bot.bili_http._http_post.assert_not_awaited()
 
     async def test_image_dynamic_definite_rejection_may_fall_back_once(self):
         bot = WriteProbe()
-        bot._post_dynamic_text = AsyncMock(return_value=True)
+        bot.bili_http._http_post = AsyncMock(return_value=({"code": 0}, None))
         session = FakeSession(response=FakeResponse({"code": -412, "message": "risk"}))
-        with patch("core.bilibili.plugin_http_session", fake_session_factory(session)):
-            self.assertTrue(await bot._post_dynamic_with_image("caption", {"url": "image"}))
+        with patch("core.infra.bili.dynamics.plugin_http_session", fake_session_factory(session)):
+            self.assertTrue(await bot.bili_dynamics._post_dynamic_with_image("caption", {"url": "image"}))
         self.assertEqual(len(session.post_calls), 1)
-        bot._post_dynamic_text.assert_awaited_once_with("caption")
+        bot.bili_http._http_post.assert_awaited_once()
+        self.assertEqual(bot.bili_http._http_post.call_args.kwargs["data"]["content"], "caption")
 
     async def test_weekly_and_daily_never_start_a_second_dynamic_after_an_outcome(self):
         for method_name in ("_deliver_weekly_summary", "_deliver_daily_summary"):
             for state in ("unknown", "failed"):
                 with self.subTest(method=method_name, state=state):
-                    bot = WeeklySummaryMixin()
+                    bot = SummaryParts()
                     bot.config = {
                         "WEEKLY_SUMMARY_MODE": "dynamic",
                         "DAILY_SUMMARY_MODE": "dynamic",
                     }
-                    bot._upload_image_to_bilibili = AsyncMock(return_value={"url": "image"})
-                    bot._queue_dynamic_post = AsyncMock(
+                    bot.bili_dynamics._upload_image_to_bilibili = AsyncMock(return_value={"url": "image"})
+                    bot.dynamic_post = types.SimpleNamespace(queue_post=AsyncMock(
                         return_value=ActionOutcome(False, "dynamic:1", state=state)
-                    )
-                    bot._post_dynamic_text = Mock()
-                    bot._load_json = Mock(return_value=[])
-                    bot._save_json = Mock()
-                    result = await getattr(bot, method_name)("summary", image_path="image.png")
-                    self.assertEqual(bot._queue_dynamic_post.await_count, 1)
-                    bot._post_dynamic_text.assert_not_called()
+                    ))
+                    bot.bili_dynamics._post_dynamic_text = Mock()
+                    bot.json_store._load_json = Mock(return_value=[])
+                    bot.json_store._save_json = Mock()
+                    result = await getattr(bot.summaries, method_name)("summary", image_path="image.png")
+                    self.assertEqual(bot.dynamic_post.queue_post.await_count, 1)
+                    bot.bili_dynamics._post_dynamic_text.assert_not_called()
                     if state == "unknown":
                         self.assertIn("B站动态结果未知", result)
 
@@ -276,14 +273,16 @@ class RuntimeAndToolSafetyTests(unittest.IsolatedAsyncioTestCase):
             ),
             _like_video=AsyncMock(side_effect=WriteResultUnknownError("lost")),
         )
+        plugin.settings = Settings(plugin.config)
+        attach_bili_groups(plugin)
         tools = {tool.name: tool for tool in create_tools(plugin)}
-        with patch("core.tools.random.uniform", return_value=0):
+        with patch("core.tools.actions.random.uniform", return_value=0):
             first = await tools["bili_action"].call(None, action="like", target="123")
             second = await tools["bili_action"].call(None, action="like", target="123")
         for text in (first, second):
             self.assertIn("结果未知", text)
             self.assertIn("请勿自动重试", text)
-        self.assertEqual(plugin._like_video.await_count, 1)
+        self.assertEqual(plugin.bili_videos._like_video.await_count, 1)
 
 
     async def test_block_tool_unknown_keeps_local_quarantine_and_no_retry(self):
@@ -299,23 +298,23 @@ class RuntimeAndToolSafetyTests(unittest.IsolatedAsyncioTestCase):
                         return_value=types.SimpleNamespace(allowed=True, reason="")
                     )
                 ),
-                _is_owner=Mock(return_value=False),
-                _block_user=AsyncMock(side_effect=WriteResultUnknownError("lost")),
+                roles=types.SimpleNamespace(is_owner=Mock(return_value=False)),
+                bili_users=types.SimpleNamespace(_block_user=AsyncMock(side_effect=WriteResultUnknownError("lost"))),
                 _load_json=Mock(return_value={}),
                 _save_json=Mock(),
             )
+            plugin.settings = Settings(plugin.config)
+            plugin.blocklist = BlockList(JsonFile(Path(directory) / "block_log.json"), JsonFile(Path(directory) / "block_count.json"))
+            plugin.user_profiles = UserProfiles(JsonFile(Path(directory) / "profiles.json"))
             tools = {tool.name: tool for tool in create_tools(plugin)}
-            with patch("core.tools.DATA_DIR", directory), patch(
-                "core.tools.USER_PROFILE_FILE", str(Path(directory) / "profiles.json")
-            ):
-                first = await tools["bili_block_user"].call(None, uid="123")
-                second = await tools["bili_block_user"].call(None, uid="123")
+            first = await tools["bili_block_user"].call(None, uid="123")
+            second = await tools["bili_block_user"].call(None, uid="123")
             for text in (first, second):
                 self.assertIsInstance(text, str)
                 self.assertIn("结果未知", text)
                 self.assertIn("本地黑名单", text)
-            self.assertEqual(plugin._block_user.await_count, 1)
-            self.assertEqual(plugin._save_json.call_count, 2)
+            self.assertEqual(plugin.bili_users._block_user.await_count, 1)
+            self.assertTrue(plugin.blocklist.contains("123"))
 
 class PrivateBlockResultTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_remote_block_is_not_persisted_as_definite_failure(self):
@@ -329,21 +328,22 @@ class PrivateBlockResultTests(unittest.IsolatedAsyncioTestCase):
             def save(path, value):
                 Path(path).write_text(json.dumps(value), encoding="utf-8")
 
-            bot = PrivateMessageMixin()
+            bot = PrivateParts()
             bot.config = {
                 "PRIVATE_MESSAGE_AUTO_BLOCK": True,
                 "DEDE_USER_ID": "999",
                 "OWNER_MID": "42",
             }
             bot.event_runtime = EventRuntime()
-            bot._is_owner = Mock(return_value=False)
-            bot._private_conversation_thread_id = Mock(return_value="private:123:test")
-            bot._private_sender_protected = Mock(return_value=False)
-            bot._block_user = AsyncMock(side_effect=WriteResultUnknownError("lost"))
-            bot._log_security_event = Mock()
-            bot._affection = {}
-            bot._load_json = load
-            bot._save_json = save
+            bot.roles = types.SimpleNamespace(is_owner=Mock(return_value=False))
+            bot.private_reply._private_conversation_thread_id = Mock(return_value="private:123:test")
+            bot.private_safety._private_sender_protected = Mock(return_value=False)
+            bot.bili_users = types.SimpleNamespace(_block_user=AsyncMock(side_effect=WriteResultUnknownError("lost")))
+            bot.security_log = types.SimpleNamespace(record=Mock())
+            bot.affection = Affection(JsonFile(Path(directory) / "affection.json"), lambda _uid: False)
+            bot.blocklist = BlockList(JsonFile(Path(directory) / "block_log.json"), JsonFile(Path(directory) / "block_count.json"))
+            bot.json_store._load_json = load
+            bot.json_store._save_json = save
             message = {
                 "sender_uid": "123",
                 "username": "unsafe",
@@ -353,12 +353,10 @@ class PrivateBlockResultTests(unittest.IsolatedAsyncioTestCase):
                 "timestamp": 1,
             }
             decision = types.SimpleNamespace(should_block=True, reason="test block")
-            with patch("core.private_messages.DATA_DIR", directory), patch(
-                "core.private_messages.assess_private_message", return_value=decision
-            ):
-                handled = await bot._handle_private_message(message, None)
+            with patch("core.features.private_reply.assess_private_message", return_value=decision):
+                handled = await bot.private_reply._handle_private_message(message, None)
             self.assertTrue(handled)
-            bot._block_user.assert_awaited_once_with(123)
+            bot.bili_users._block_user.assert_awaited_once_with(123)
             record = json.loads(
                 (Path(directory) / "block_log.json").read_text(encoding="utf-8")
             )["123"]

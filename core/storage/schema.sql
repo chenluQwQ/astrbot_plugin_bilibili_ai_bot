@@ -70,6 +70,21 @@ CREATE TABLE IF NOT EXISTS actions (
 );
 CREATE INDEX IF NOT EXISTS idx_actions_state ON actions (state, created_at);
 
+-- Bot 自己发出去的评论：B站回的 rpid 和删它要的 oid/type（WebUI 删评论）。
+-- 删了只标 deleted_at，不抹掉；delete_state 是最后一次删的结果（succeeded / failed / unknown）。
+CREATE TABLE IF NOT EXISTS own_comments (
+    rpid         TEXT PRIMARY KEY,
+    oid          TEXT NOT NULL,
+    type         INTEGER NOT NULL DEFAULT 1,
+    action_key   TEXT NOT NULL DEFAULT '',
+    kind         TEXT NOT NULL DEFAULT '',
+    text         TEXT NOT NULL DEFAULT '',
+    created_at   REAL NOT NULL,
+    delete_state TEXT NOT NULL DEFAULT '',
+    deleted_at   REAL
+);
+CREATE INDEX IF NOT EXISTS idx_own_comments_action ON own_comments (action_key);
+
 -- ---------------------------------------------------------------- 存储层
 -- 记忆主表。正文与向量分离：embedding 单独一张表，避免读记忆时把
 -- 1024 维 float 一起载入（旧实现把 embedding 存在 memory.json 里整文件重写）。
@@ -108,6 +123,14 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
 -- 旧版 memory.json 与统一记忆表之间的稳定映射。旧字段保存在 memories.meta
 -- 的 legacy 对象中；映射表只负责幂等迁移、兼容导出和按 rpid 精确删除。
 -- 单独建表而不是给 memories 直接加列，可让已有 v1 数据库无损升级。
+-- 记忆标签：「种类:值」，比如 视频:BV号、UP:UID、用户:UID、番剧:ss号；跟着记忆删
+CREATE TABLE IF NOT EXISTS memory_tags (
+    memory_id INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    tag       TEXT NOT NULL,
+    PRIMARY KEY (memory_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_memory_tags_tag ON memory_tags (tag, memory_id);
+
 CREATE TABLE IF NOT EXISTS legacy_memory_map (
     memory_id  INTEGER PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
     legacy_key TEXT NOT NULL UNIQUE
@@ -368,6 +391,33 @@ CREATE TABLE IF NOT EXISTS model_usage (
 );
 CREATE INDEX IF NOT EXISTS idx_usage_time    ON model_usage (at);
 CREATE INDEX IF NOT EXISTS idx_usage_purpose ON model_usage (purpose, at);
+
+-- ---------------------------------------------------------------- 旧 json 导入记录
+-- 每个模块的每个旧 json 文件一行：导入时的文件指纹。指纹变了说明中间用旧版本跑过，
+-- 需要再合并导入一次。见 core/storage/migration.py。
+CREATE TABLE IF NOT EXISTS json_imports (
+    module      TEXT NOT NULL,
+    source      TEXT NOT NULL,          -- 相对数据目录的文件名
+    fingerprint TEXT NOT NULL,          -- 文件内容 sha256；文件不存在为 'missing'
+    imported_at REAL NOT NULL,
+    PRIMARY KEY (module, source)
+);
+
+-- ---------------------------------------------------------------- 生命周期
+-- 每天每个活动的每个时刻一行，状态只能按 core/lifecycle/activities.py 的规则推进：
+-- planned → running → done / failed / interrupted；planned → skipped。
+CREATE TABLE IF NOT EXISTS activity_runs (
+    day         TEXT NOT NULL,          -- YYYY-MM-DD
+    kind        TEXT NOT NULL,          -- proactive / dynamic / bangumi / ...
+    slot        TEXT NOT NULL,          -- HH:MM
+    state       TEXT NOT NULL,
+    reason      TEXT NOT NULL DEFAULT '',
+    planned_at  REAL NOT NULL,
+    started_at  REAL,
+    finished_at REAL,
+    PRIMARY KEY (day, kind, slot)
+);
+CREATE INDEX IF NOT EXISTS idx_activity_state ON activity_runs (state);
 
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,

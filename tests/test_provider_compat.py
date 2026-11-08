@@ -1,13 +1,9 @@
-import asyncio
-import base64
+import importlib
 import importlib.util
-import io
 import json
 import sys
-import tempfile
 import types
 import unittest
-import zipfile
 from pathlib import Path
 
 
@@ -61,7 +57,7 @@ def _load_module(name):
 class SearchProviderCompatibilityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.module = _load_module("search")
+        cls.module = importlib.import_module(f"{_prepare_package()}.infra.search")
 
     def test_firecrawl_v2_response_is_formatted_with_sources(self):
         data = {
@@ -76,7 +72,7 @@ class SearchProviderCompatibilityTests(unittest.TestCase):
                 ]
             },
         }
-        result = self.module.WebSearchMixin._format_firecrawl_results(data, 5)
+        result = self.module.WebSearch._format_firecrawl_results(data, 5)
         self.assertIn("[示例页面](https://example.com/page)", result)
         self.assertIn("第一行 第二行", result)
 
@@ -99,170 +95,9 @@ class SearchProviderCompatibilityTests(unittest.TestCase):
                 },
             ]
         }
-        result = self.module.WebSearchMixin._format_grok_response(data)
+        result = self.module.WebSearch._format_grok_response(data)
         self.assertIn("这是搜索结论。", result)
         self.assertEqual(result.count("https://example.com/a"), 1)
-
-
-class NovelAICompatibilityTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.module = _load_module("dynamic")
-
-    def test_novelai_json_image_response_is_decoded(self):
-        expected = b"\x89PNG\r\n\x1a\nimage"
-        body = json.dumps({"images": [{"image": base64.b64encode(expected).decode("ascii")}]}).encode("utf-8")
-        actual = self.module.DynamicMixin._decode_novelai_image(body, "application/json")
-        self.assertEqual(actual, expected)
-
-    def test_novelai_zip_image_response_is_decoded(self):
-        expected = b"\x89PNG\r\n\x1a\nzip-image"
-        stream = io.BytesIO()
-        with zipfile.ZipFile(stream, "w") as archive:
-            archive.writestr("image_0.png", expected)
-        actual = self.module.DynamicMixin._decode_novelai_image(stream.getvalue(), "application/zip")
-        self.assertEqual(actual, expected)
-
-    def test_novelai_is_not_called_by_automatic_dynamic_task(self):
-        module = self.module
-
-        class Bot(module.DynamicMixin):
-            def __init__(self):
-                self.config = {
-                    "IMAGE_GEN_BACKEND": "novelai",
-                    "IMAGE_GEN_API_KEY": "token",
-                }
-                self.called = False
-
-            async def _generate_novelai_image(self, *_args):
-                self.called = True
-                return "unexpected"
-
-        bot = Bot()
-        result = asyncio.run(bot._generate_image("test", human_initiated=False))
-        self.assertIsNone(result)
-        self.assertFalse(bot.called)
-
-    def test_novelai_is_available_for_manual_dynamic_command(self):
-        module = self.module
-
-        class Bot(module.DynamicMixin):
-            def __init__(self):
-                self.config = {
-                    "IMAGE_GEN_BACKEND": "novelai",
-                    "IMAGE_GEN_API_KEY": "token",
-                }
-
-            async def _generate_novelai_image(self, prompt, api_key, base_url, model):
-                self.received = (prompt, api_key, base_url, model)
-                return "generated.png"
-
-        bot = Bot()
-        result = asyncio.run(bot._generate_image("test", human_initiated=True))
-        self.assertEqual(result, "generated.png")
-        self.assertEqual(bot.received[1:], ("token", "https://image.novelai.net", "nai-diffusion-4-5-full"))
-
-    def test_automatic_dynamic_can_explicitly_choose_silence(self):
-        module = self.module
-
-        class Bot(module.DynamicMixin):
-            def __init__(self):
-                self.config = {}
-                self.prompt = ""
-
-            def _load_json(self, _path, default=None):
-                return default
-
-            def _get_today_mood(self):
-                return "平静", ""
-
-            async def _get_system_prompt(self):
-                return "测试人设"
-
-            async def _llm_call(self, prompt, **_kwargs):
-                self.prompt = prompt
-                return '{"decision":"skip","text":"","need_image":false,"image_prompt":""}'
-
-        bot = Bot()
-        result = asyncio.run(bot._generate_dynamic_content(human_initiated=False))
-        self.assertEqual(result["decision"], "skip")
-        self.assertIn("定时时刻本身不是发布理由", bot.prompt)
-        self.assertIn("近期没有足够具体", bot.prompt)
-
-
-    def _dynamic_bot(self, replies, config=None):
-        module = self.module
-
-        class Bot(module.DynamicMixin):
-            def __init__(self):
-                self.config = dict(config or {})
-                self.prompts = []
-                self.queries = []
-
-            def _load_json(self, _path, default=None):
-                return default
-
-            def _get_today_mood(self):
-                return "平静", ""
-
-            async def _get_system_prompt(self):
-                return "测试人设"
-
-            async def _web_search(self, query):
-                self.queries.append(query)
-                return "某作品第二季定于十月播出"
-
-            async def _llm_call(self, prompt, **_kwargs):
-                self.prompts.append(prompt)
-                return replies.pop(0)
-
-        return Bot()
-
-    def test_dynamic_can_search_before_posting(self):
-        bot = self._dynamic_bot([
-            '{"decision":"search","text":"","search_query":"某作品 第二季","image":"none","image_prompt":""}',
-            '{"decision":"post","text":"第二季十月见，先把第一季结尾再看一遍。","search_query":"","image":"none","image_prompt":""}',
-        ], {"ENABLE_WEB_SEARCH": True, "WEB_SEARCH_API_KEY": "k"})
-        result = asyncio.run(bot._generate_dynamic_content())
-        self.assertEqual(result["decision"], "post")
-        self.assertEqual(bot.queries, ["某作品 第二季"])
-        self.assertIn("某作品第二季定于十月播出", bot.prompts[1])
-
-    def test_dynamic_search_rounds_are_capped(self):
-        search = '{"decision":"search","text":"","search_query":"再查一次","image":"none","image_prompt":""}'
-        bot = self._dynamic_bot([search, search], {
-            "ENABLE_WEB_SEARCH": True, "WEB_SEARCH_API_KEY": "k", "DYNAMIC_WEB_SEARCH_MAX": 1,
-        })
-        self.assertIsNone(asyncio.run(bot._generate_dynamic_content()))
-        self.assertEqual(len(bot.queries), 1)
-        self.assertIn("本次不能再搜索", bot.prompts[1])
-
-    def test_dynamic_without_web_search_never_offers_search(self):
-        bot = self._dynamic_bot([
-            '{"decision":"search","text":"","search_query":"x","image":"none","image_prompt":""}',
-        ])
-        self.assertIsNone(asyncio.run(bot._generate_dynamic_content()))
-        self.assertEqual(bot.queries, [])
-        self.assertNotIn("联网查资料", bot.prompts[0])
-
-    def test_video_dynamic_offers_cover_and_custom_prompt(self):
-        bot = self._dynamic_bot([
-            '{"decision":"post","text":"这期结尾的反转第一分钟就埋了。","search_query":"","image":"video_cover","image_prompt":""}',
-        ], {"DYNAMIC_PROMPT": "自定义风格：短句"})
-        video = {"bvid": "BV1xx", "title": "测试视频", "pic": "https://i0.hdslb.com/a.jpg",
-                 "angle": "结尾反转早有伏笔", "review": "好看", "score": 8}
-        result = asyncio.run(bot._generate_dynamic_content(video=video))
-        self.assertEqual(result["image"], "video_cover")
-        self.assertIn("结尾反转早有伏笔", bot.prompts[0])
-        self.assertIn("自定义风格：短句", bot.prompts[0])
-        self.assertNotIn("B站动态的感觉", bot.prompts[0])
-        self.assertIn("不能编造外出", bot.prompts[0])
-
-    def test_scheduled_dynamic_respects_post_chance(self):
-        bot = self._dynamic_bot([], {"DYNAMIC_POST_CHANCE": 0})
-        bot._dynamic_post_due = lambda _log=None: True
-        asyncio.run(bot._run_dynamic_inner())
-        self.assertEqual(bot.prompts, [])
 
 
 class ProviderConfigSchemaTests(unittest.TestCase):

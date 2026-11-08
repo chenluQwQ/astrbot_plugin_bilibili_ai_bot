@@ -1,0 +1,751 @@
+{
+ "_block_user/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 5,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_block_user/garbage": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 5,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_block_user/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 5,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_block_user/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 5,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_follow_bangumi/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/pgc/web/follow/add",
+    {
+     "csrf": "jct",
+     "season_id": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_follow_bangumi/garbage": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/pgc/web/follow/add",
+    {
+     "csrf": "jct",
+     "season_id": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_follow_bangumi/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/pgc/web/follow/add",
+    {
+     "csrf": "jct",
+     "season_id": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_follow_bangumi/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/pgc/web/follow/add",
+    {
+     "csrf": "jct",
+     "season_id": 1
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_get_bangumi_timeline_v1/fail": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 2,
+     "before": 1,
+     "types": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "_get_bangumi_timeline_v1/garbage": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 2,
+     "before": 1,
+     "types": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "_get_bangumi_timeline_v1/network": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 2,
+     "before": 1,
+     "types": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "_get_bangumi_timeline_v1/ok": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 2,
+     "before": 1,
+     "types": 1
+    }
+   ]
+  ],
+  "result": [
+   {
+    "cover": "c",
+    "date": "10-30",
+    "day_of_week": 5,
+    "ep_id": 5,
+    "ep_index": "第1话",
+    "pub_ts": 100,
+    "published": false,
+    "season_id": 1,
+    "title": "番"
+   }
+  ]
+ },
+ "_get_bangumi_timeline_v2/fail": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 2,
+     "day_before": 1,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "_get_bangumi_timeline_v2/garbage": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 2,
+     "day_before": 1,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "_get_bangumi_timeline_v2/network": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 2,
+     "day_before": 1,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "_get_bangumi_timeline_v2/ok": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 2,
+     "day_before": 1,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": [
+   {
+    "cover": "c",
+    "date": "10-30",
+    "day_of_week": 5,
+    "ep_id": 5,
+    "ep_index": "第1话",
+    "pub_ts": 100,
+    "published": false,
+    "season_id": 1,
+    "title": "番"
+   }
+  ]
+ },
+ "_get_followed_bangumi/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/bangumi/follow/list",
+    {
+     "follow_status": 0,
+     "pn": 1,
+     "ps": 30,
+     "type": 1,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_followed_bangumi/garbage": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/bangumi/follow/list",
+    {
+     "follow_status": 0,
+     "pn": 1,
+     "ps": 30,
+     "type": 1,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_followed_bangumi/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/bangumi/follow/list",
+    {
+     "follow_status": 0,
+     "pn": 1,
+     "ps": 30,
+     "type": 1,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_followed_bangumi/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/bangumi/follow/list",
+    {
+     "follow_status": 0,
+     "pn": 1,
+     "ps": 30,
+     "type": 1,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": [
+   {
+    "media_id": 2,
+    "new_ep_id": 5,
+    "new_ep_index": "全12话",
+    "progress": "",
+    "season_id": 1,
+    "title": "<em>番</em>",
+    "total_count": 0
+   }
+  ]
+ },
+ "detail_by_episode": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/view/web/season",
+    {
+     "ep_id": 5
+    }
+   ]
+  ],
+  "result": {
+   "areas": "日本",
+   "count": 7,
+   "cover": "c",
+   "episodes": [
+    {
+     "aid": 9,
+     "badge": "",
+     "cid": 8,
+     "duration": 20,
+     "ep_id": 5,
+     "ep_index": "1",
+     "long_title": "开始",
+     "title": "第1话"
+    }
+   ],
+   "evaluate": "简介",
+   "link": "",
+   "media_id": 2,
+   "new_ep_desc": "全12话",
+   "score": 9.9,
+   "season_id": 1,
+   "seasons": [],
+   "stat_danmakus": 0,
+   "stat_favorites": 4,
+   "stat_views": 3,
+   "styles": "热血",
+   "title": "番",
+   "total_ep": 12
+  }
+ },
+ "detail_without_id": {
+  "calls": [],
+  "result": null
+ },
+ "get_bangumi_detail/fail": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/view/web/season",
+    {
+     "season_id": 1
+    }
+   ]
+  ],
+  "result": null
+ },
+ "get_bangumi_detail/garbage": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/view/web/season",
+    {
+     "season_id": 1
+    }
+   ]
+  ],
+  "result": null
+ },
+ "get_bangumi_detail/network": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/view/web/season",
+    {
+     "season_id": 1
+    }
+   ]
+  ],
+  "result": null
+ },
+ "get_bangumi_detail/ok": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/view/web/season",
+    {
+     "season_id": 1
+    }
+   ]
+  ],
+  "result": {
+   "areas": "日本",
+   "count": 7,
+   "cover": "c",
+   "episodes": [
+    {
+     "aid": 9,
+     "badge": "",
+     "cid": 8,
+     "duration": 20,
+     "ep_id": 5,
+     "ep_index": "1",
+     "long_title": "开始",
+     "title": "第1话"
+    }
+   ],
+   "evaluate": "简介",
+   "link": "",
+   "media_id": 2,
+   "new_ep_desc": "全12话",
+   "score": 9.9,
+   "season_id": 1,
+   "seasons": [],
+   "stat_danmakus": 0,
+   "stat_favorites": 4,
+   "stat_views": 3,
+   "styles": "热血",
+   "title": "番",
+   "total_ep": 12
+  }
+ },
+ "get_bangumi_timeline/fail": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 6,
+     "before": 0,
+     "types": 1
+    }
+   ],
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 6,
+     "day_before": 0,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "get_bangumi_timeline/garbage": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 6,
+     "before": 0,
+     "types": 1
+    }
+   ],
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 6,
+     "day_before": 0,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "get_bangumi_timeline/network": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 6,
+     "before": 0,
+     "types": 1
+    }
+   ],
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline/v2",
+    {
+     "day_after": 6,
+     "day_before": 0,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "get_bangumi_timeline/ok": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/timeline",
+    {
+     "after": 6,
+     "before": 0,
+     "types": 1
+    }
+   ]
+  ],
+  "result": [
+   {
+    "cover": "c",
+    "date": "10-30",
+    "day_of_week": 5,
+    "ep_id": 5,
+    "ep_index": "第1话",
+    "pub_ts": 100,
+    "published": false,
+    "season_id": 1,
+    "title": "番"
+   }
+  ]
+ },
+ "get_bangumi_trending/fail": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/rank/list",
+    {
+     "day": 3,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "get_bangumi_trending/garbage": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/rank/list",
+    {
+     "day": 3,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "get_bangumi_trending/network": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/rank/list",
+    {
+     "day": 3,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": []
+ },
+ "get_bangumi_trending/ok": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/web/rank/list",
+    {
+     "day": 3,
+     "season_type": 1
+    }
+   ]
+  ],
+  "result": [
+   {
+    "badge": "独家",
+    "cover": "c",
+    "new_ep_desc": "全12话",
+    "score": 9.9,
+    "season_id": 1,
+    "stat_danmaku": 0,
+    "stat_follow": 4,
+    "stat_view": 3,
+    "title": "<em>番</em>",
+    "url": "https://b/1"
+   }
+  ]
+ },
+ "search_bilibili_bangumi/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "media_bangumi"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_bangumi/garbage": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "media_bangumi"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_bangumi/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "media_bangumi"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_bangumi/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "media_bangumi"
+    },
+    false
+   ]
+  ],
+  "result": [
+   {
+    "areas": "",
+    "cover": "c",
+    "cv": "",
+    "desc": "简介",
+    "ep_size": 12,
+    "media_id": 2,
+    "org_title": "原名",
+    "pubtime": 0,
+    "score": 9.9,
+    "season_id": 1,
+    "season_type_name": "番剧",
+    "staff": "",
+    "styles": "",
+    "title": "番",
+    "url": "https://b/1",
+    "user_count": 7
+   }
+  ]
+ },
+ "trending_other_type": {
+  "calls": [
+   [
+    "GET_TEXT",
+    "https://api.bilibili.com/pgc/season/rank/web/list",
+    {
+     "day": 3,
+     "season_type": 4
+    }
+   ]
+  ],
+  "result": [
+   {
+    "badge": "独家",
+    "cover": "c",
+    "new_ep_desc": "全12话",
+    "score": 9.9,
+    "season_id": 1,
+    "stat_danmaku": 0,
+    "stat_follow": 4,
+    "stat_view": 3,
+    "title": "<em>番</em>",
+    "url": "https://b/1"
+   }
+  ]
+ }
+}

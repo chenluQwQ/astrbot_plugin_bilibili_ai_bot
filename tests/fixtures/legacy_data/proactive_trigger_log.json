@@ -1,0 +1,75 @@
+[
+ {
+  "time": "2026-08-20 23:04:21",
+  "type": "proactive_video",
+  "scheduled": "9:45",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:04:24",
+  "type": "special_follow",
+  "scheduled": "19:00",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:04:39",
+  "type": "proactive_video",
+  "scheduled": "12:00",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:05:18",
+  "type": "bangumi_update_check",
+  "scheduled": "16:00",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:06:25",
+  "type": "proactive_video",
+  "scheduled": "9:45",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:06:28",
+  "type": "special_follow",
+  "scheduled": "19:00",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:21:38",
+  "type": "proactive_video",
+  "scheduled": "10:30",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:21:40",
+  "type": "bangumi_update_check",
+  "scheduled": "14:00",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:21:40",
+  "type": "dynamic_watch",
+  "scheduled": "12:30",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:21:40",
+  "type": "special_follow",
+  "scheduled": "11:30",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-20 23:21:55",
+  "type": "proactive_video",
+  "scheduled": "11:00",
+  "status": "triggered"
+ },
+ {
+  "time": "2026-08-22 02:11:17",
+  "type": "manual_proactive_request",
+  "scheduled": "llm_request",
+  "status": "triggered",
+  "content": "假1079样例文本假数据测试内容"
+ }
+]

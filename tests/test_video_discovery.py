@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from core.video_discovery import (
+from core.domain.video_discovery import (
     EXPLORATION_QUERIES, prepare_discovery_queries, similar_topic,
 )
 
@@ -19,7 +19,7 @@ class VideoDiscoveryTests(unittest.TestCase):
         self.assertTrue(any(query in EXPLORATION_QUERIES for query in result))
         self.assertLess(sum(similar_topic(query, "深海白噪音") for query in result), 3)
 
-    @patch("core.video_discovery.random.random", return_value=0.2)
+    @patch("core.domain.video_discovery.random.random", return_value=0.2)
     def test_exploration_can_move_forward_based_on_persisted_history(self, _random):
         history = [{"source": "search", "source_detail": "冷门语言学"}] * 200
         modes = []
@@ -35,7 +35,7 @@ class VideoDiscoveryTests(unittest.TestCase):
         for start in range(len(modes) - 2):
             self.assertIn("explore", modes[start:start + 3])
 
-    @patch("core.video_discovery.random.random", return_value=0.9)
+    @patch("core.domain.video_discovery.random.random", return_value=0.9)
     def test_exploration_is_not_a_mandatory_quota(self, _random):
         history = [{"source": "search", "source_detail": "深海生物"}] * 12
         result = prepare_discovery_queries(["深海白噪音", "极光"], history)

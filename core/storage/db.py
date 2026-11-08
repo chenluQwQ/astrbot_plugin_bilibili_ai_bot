@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 SCHEMA_FILE = Path(__file__).resolve().parent / "schema.sql"
-SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "9"
 
 
 def now() -> float:

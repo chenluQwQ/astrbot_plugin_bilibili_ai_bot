@@ -1,12 +1,12 @@
 import unittest
 
 from test_autonomous_ranges import _install_astrbot_stub  # noqa: F401  (installs the AstrBot stub)
-from core.utils import UtilsMixin
+from core.infra.text import normalize_openai_base_url
 
 
 class NormalizeOpenAIBaseUrlTest(unittest.TestCase):
     def normalize(self, value):
-        return UtilsMixin._normalize_openai_base_url(value)
+        return normalize_openai_base_url(value)
 
     def test_bare_host_gets_v1(self):
         self.assertEqual(self.normalize("https://example.com"), "https://example.com/v1")

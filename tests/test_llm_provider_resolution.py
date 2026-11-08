@@ -53,7 +53,7 @@ _install_astrbot_stub()
 import asyncio
 from types import SimpleNamespace
 
-from core.llm import LLMMixin
+from llm_fakes import LegacyModels
 
 
 class FakeProvider:
@@ -100,7 +100,7 @@ class BlockingContext(FakeContext):
         return FakeResponse()
 
 
-class FakeBot(LLMMixin):
+class FakeBot(LegacyModels):
     def __init__(self, config, context):
         self.config = config
         self.context = context
@@ -153,15 +153,16 @@ def _check_half_open_allows_only_one_concurrent_probe():
             "LLM_CIRCUIT_FAILURE_THRESHOLD": 2,
             "LLM_CIRCUIT_COOLDOWN_SECONDS": 300,
         }, context)
-        bot._llm_circuit_open_until = 1.0
+        circuit = bot._llm_gateway().circuit
+        circuit.open_until = 1.0
         first = asyncio.create_task(bot._llm_call("probe"))
         await context.started.wait()
         assert await bot._llm_call("concurrent probe") is None
         context.release.set()
         assert await first == "generated"
         assert len(context.calls) == 1
-        assert bot._consecutive_llm_failures == 0
-        assert bot._llm_circuit_open_until == 0.0
+        assert circuit.failures == 0
+        assert circuit.open_until == 0.0
 
     asyncio.run(run())
 

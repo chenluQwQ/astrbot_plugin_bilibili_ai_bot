@@ -1,0 +1,10615 @@
+{
+ "run/all_watched_marks_completed": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "completed": true,
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "description": "内容2",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "感想2",
+       "score": 7,
+       "title": "2"
+      }
+     ],
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2
+    }
+   }
+  },
+  "result": null
+ },
+ "run/analysis_raises_uses_title": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：番剧《番7》第1话\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "番剧《番7》第1话",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/bad_json_retries_next_time": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "评价失败",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "evaluation_status": "failed",
+     "fail_reason": "评价格式校验没过：invalid_json",
+     "mood": "",
+     "review": "",
+     "score": 0,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/blank_reply": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_watch_log.json": [
+    {
+     "comment": "评价失败",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "evaluation_status": "failed",
+     "fail_reason": "模型返回空内容",
+     "mood": "",
+     "review": "",
+     "score": 0,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/bvid_lookup_failure_ignored": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/coin_and_favorite_refused_keep_going": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_coin:101",
+    "coin",
+    "101",
+    null
+   ],
+   [
+    "action",
+    "bangumi_favorite:101",
+    "favorite",
+    "101",
+    null
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/comment_count_zero": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/comment_limit_reached": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "watch_log.json": [
+    {
+     "x": 1
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/comment_raises_is_swallowed": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_coin:101",
+    "coin",
+    "101",
+    null
+   ],
+   [
+    "coin",
+    1
+   ],
+   [
+    "action",
+    "bangumi_favorite:101",
+    "favorite",
+    "101",
+    null
+   ],
+   [
+    "fav",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/comment_switch_off": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/completed_is_not_picked": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "detail",
+    9,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番9"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番9"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番9 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番9\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:9",
+    "[<TIME>] Bot看了番剧《番9》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "9",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番9》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:9",
+    "follow_bangumi",
+    9,
+    null
+   ],
+   [
+    "follow",
+    9
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    56
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番9"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番9 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番9\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:9",
+    "[<TIME>] Bot看了番剧《番9》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "9",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番9》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:9",
+    "follow_bangumi",
+    9,
+    null
+   ],
+   [
+    "follow",
+    9
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "completed": true,
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "description": "内容1",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "感想1",
+       "score": 7,
+       "title": "1"
+      }
+     ],
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1
+    },
+    "9": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 9,
+     "title": "番9",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 9,
+     "time": "<TIME>",
+     "title": "番9"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 9,
+     "time": "<TIME>",
+     "title": "番9"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番9》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番9》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/context_lists_few_episodes": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 2 集】\n[第1话] 1 评分:7/10 心情:开心 感想:感想1\n[第3话] 3 评分:7/10 心情:开心 感想:感想3\n【未看的集】第2话\n\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102,
+      103
+     ],
+     "episodes": [
+      {
+       "description": "内容3",
+       "ep_id": 103,
+       "ep_index": "3",
+       "mood": "开心",
+       "review": "感想3",
+       "score": 7,
+       "title": "3"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 3,
+     "watched_ep_ids": [
+      101,
+      102,
+      103
+     ],
+     "watched_eps": [
+      "1",
+      "2",
+      "3"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/context_summarizes_many": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第6话",
+     "title": "番7"
+    }
+   ],
+   [
+    "summarize",
+    "你之前追过番剧《番7》，以下是你看过的各集内容和感想，请用200字以内总结前情提要（重点剧情线和关键人物）：\n\n第1话: 内容1 感想:感想1\n第2话: 内容2 感想:感想2\n第3话: 内容3 感想:感想3\n\n直接输出总结，不加前缀。",
+    300
+   ],
+   [
+    "action",
+    "bangumi_watch:106",
+    "bangumi_watch",
+    "106",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    6
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV6",
+     "cid": 506,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 6,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第6话 第6个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第6话 第6个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【前3集总结】前情提要\n【最近几集】\n[第4话] 4 评分:7/10 心情:开心 感想:感想4\n[第5话] 5 评分:7/10 心情:开心 感想:感想5\n[第7话] 7 评分:7/10 心情:开心 感想:感想7\n\n【未看的集】第6话\n\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第6话第6个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "106",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:106",
+    "like",
+    "106",
+    null
+   ],
+   [
+    "like",
+    6
+   ],
+   [
+    "action",
+    "bangumi_comment:106",
+    "proactive_comment",
+    "106",
+    {
+     "text": "这集不错",
+     "title": "《番7》第6话"
+    }
+   ],
+   [
+    "comment",
+    6,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107
+     ],
+     "episodes": [
+      {
+       "description": "内容7",
+       "ep_id": 107,
+       "ep_index": "7",
+       "mood": "开心",
+       "review": "感想7",
+       "score": 7,
+       "title": "7"
+      }
+     ],
+     "last_ep_index": "6",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 7,
+     "watched_ep_ids": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107
+     ],
+     "watched_eps": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "6",
+     "ep_title": "第6个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第6话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/continues_after_watched": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:感想1\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第3话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:103",
+    "bangumi_watch",
+    "103",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    3
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV3",
+     "cid": 503,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 3,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第3话 第3个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第3话 第3个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 2 集】\n[第1话] 1 评分:7/10 心情:开心 感想:感想1\n[第2话] 2 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第3话第3个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "103",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:103",
+    "like",
+    "103",
+    null
+   ],
+   [
+    "like",
+    3
+   ],
+   [
+    "action",
+    "bangumi_comment:103",
+    "proactive_comment",
+    "103",
+    {
+     "text": "这集不错",
+     "title": "《番7》第3话"
+    }
+   ],
+   [
+    "comment",
+    3,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102,
+      103
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 103,
+       "ep_index": "3",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "3",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "3",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 3,
+     "watched_ep_ids": [
+      101,
+      102,
+      103
+     ],
+     "watched_eps": [
+      "1",
+      "2",
+      "3"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "3",
+     "ep_title": "第3个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第3话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/cookie_expired_no_interactions": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/custom_instruction": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。\n\n【补充提示词】多吐槽",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/detail_raises_is_swallowed": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/empty_comment": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/follow_raises_is_swallowed": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_coin:101",
+    "coin",
+    "101",
+    null
+   ],
+   [
+    "coin",
+    1
+   ],
+   [
+    "action",
+    "bangumi_favorite:101",
+    "favorite",
+    "101",
+    null
+   ],
+   [
+    "fav",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/interaction_switches_off": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/like_raises_stops_interactions": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/like_refused_stops_interactions": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/low_score_stops": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:4/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 4,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 4,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 4,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/low_score_wants_more": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:4/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:4/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:4/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 4,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 4,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 4,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 4,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/max_episodes_argument": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/memory_keeps_last_fifty": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第51话",
+     "title": "番7"
+    }
+   ],
+   [
+    "summarize",
+    "你之前追过番剧《番7》，以下是你看过的各集内容和感想，请用200字以内总结前情提要（重点剧情线和关键人物）：\n\n第1话: 内容1 感想:感想1\n第2话: 内容2 感想:感想2\n第3话: 内容3 感想:感想3\n第4话: 内容4 感想:感想4\n第5话: 内容5 感想:感想5\n第6话: 内容6 感想:感想6\n第7话: 内容7 感想:感想7\n第8话: 内容8 感想:感想8\n第9话: 内容9 感想:感想9\n第10话: 内容10 感想:感想10\n第11话: 内容11 感想:感想11\n第12话: 内容12 感想:感想12\n第13话: 内容13 感想:感想13\n第14话: 内容14 感想:感想14\n第15话: 内容15 感想:感想15\n第16话: 内容16 感想:感想16\n第17话: 内容17 感想:感想17\n第18话: 内容18 感想:感想18\n第19话: 内容19 感想:感想19\n第20话: 内容20 感想:感想20\n第21话: 内容21 感想:感想21\n第22话: 内容22 感想:感想22\n第23话: 内容23 感想:感想23\n第24话: 内容24 感想:感想24\n第25话: 内容25 感想:感想25\n第26话: 内容26 感想:感想26\n第27话: 内容27 感想:感想27\n第28话: 内容28 感想:感想28\n第29话: 内容29 感想:感想29\n第30话: 内容30 感想:感想30\n第31话: 内容31 感想:感想31\n第32话: 内容32 感想:感想32\n第33话: 内容33 感想:感想33\n第34话: 内容34 感想:感想34\n第35话: 内容35 感想:感想35\n第36话: 内容36 感想:感想36\n第37话: 内容37 感想:感想37\n第38话: 内容38 感想:感想38\n第39话: 内容39 感想:感想39\n第40话: 内容40 感想:感想40\n第41话: 内容41 感想:感想41\n第42话: 内容42 感想:感想42\n第43话: 内容43 感想:感想43\n第44话: 内容44 感想:感想44\n第45话: 内容45 感想:感想45\n第46话: 内容46 感想:感想46\n第47话: 内容47 感想:感想47\n\n直接输出总结，不加前缀。",
+    300
+   ],
+   [
+    "action",
+    "bangumi_watch:151",
+    "bangumi_watch",
+    "151",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    51
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV51",
+     "cid": 551,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 51,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第51话 第51个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第51话 第51个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【前47集总结】前情提要\n【最近几集】\n[第48话] 48 评分:7/10 心情:开心 感想:感想48\n[第49话] 49 评分:7/10 心情:开心 感想:感想49\n[第50话] 50 评分:7/10 心情:开心 感想:感想50\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第51话第51个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "151",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:151",
+    "like",
+    "151",
+    null
+   ],
+   [
+    "like",
+    51
+   ],
+   [
+    "action",
+    "bangumi_comment:151",
+    "proactive_comment",
+    "151",
+    {
+     "text": "这集不错",
+     "title": "《番7》第51话"
+    }
+   ],
+   [
+    "comment",
+    51,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149,
+      150,
+      151
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 151,
+       "ep_index": "51",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "51",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "51",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 51,
+     "watched_ep_ids": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149,
+      150,
+      151
+     ],
+     "watched_eps": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28",
+      "29",
+      "30",
+      "31",
+      "32",
+      "33",
+      "34",
+      "35",
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44",
+      "45",
+      "46",
+      "47",
+      "48",
+      "49",
+      "50",
+      "51"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "51",
+     "ep_title": "第51个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第51话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/model_raises": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_watch_log.json": [
+    {
+     "comment": "评价失败",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "evaluation_status": "failed",
+     "fail_reason": "评价出错：RuntimeError: 炸了",
+     "mood": "",
+     "review": "",
+     "score": 0,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/no_aid_no_interactions": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 0,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/no_candidates": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/no_detail": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/no_episodes": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/no_pools_means_trending": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    56
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/no_quota": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/non_numeric_index_sorted_last": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第PV话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第PV话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第PV话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第PV话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第PV话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第PV话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      102,
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "PV",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "2",
+      "PV"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "PV",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第PV话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/nothing_to_watch_and_no_record": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/only_completed_picks_nothing": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "completed": true,
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "description": "内容1",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "感想1",
+       "score": 7,
+       "title": "1"
+      }
+     ],
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1
+    }
+   }
+  },
+  "result": null
+ },
+ "run/only_followed_ones_are_candidates": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:感想1\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    56
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第3话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:103",
+    "bangumi_watch",
+    "103",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    3
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV3",
+     "cid": 503,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 3,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第3话 第3个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第3话 第3个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 2 集】\n[第1话] 1 评分:7/10 心情:开心 感想:感想1\n[第2话] 2 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第3话第3个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "103",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:103",
+    "like",
+    "103",
+    null
+   ],
+   [
+    "like",
+    3
+   ],
+   [
+    "action",
+    "bangumi_comment:103",
+    "proactive_comment",
+    "103",
+    {
+     "text": "这集不错",
+     "title": "《番7》第3话"
+    }
+   ],
+   [
+    "comment",
+    3,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102,
+      103
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 103,
+       "ep_index": "3",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "3",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "3",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 3,
+     "watched_ep_ids": [
+      101,
+      102,
+      103
+     ],
+     "watched_eps": [
+      "1",
+      "2",
+      "3"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "3",
+     "ep_title": "第3个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第3话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/picks_from_trending": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    56
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/pool_error_falls_back": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "run/proactive_log_is_capped": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": {
+    "size": 100,
+    "tail": [
+     {
+      "i": 99
+     },
+     {
+      "comment": "这集不错",
+      "time": "<TIME>",
+      "title": "《番7》第1话",
+      "type": "bangumi"
+     }
+    ]
+   }
+  },
+  "result": null
+ },
+ "run/score_six_likes_only": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:6/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 6,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 6,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 6,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/short_analysis_uses_introduction": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：番剧简介：一部番的简介\n番剧《番7》第1话 第1个故事\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "番剧简介：一部番的简介\n番剧《番7》第1话 第1个故事",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/start_episode": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第3话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:103",
+    "bangumi_watch",
+    "103",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    3
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV3",
+     "cid": 503,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 3,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第3话 第3个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第3话 第3个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第2话] 2 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第3话第3个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "103",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:103",
+    "like",
+    "103",
+    null
+   ],
+   [
+    "like",
+    3
+   ],
+   [
+    "action",
+    "bangumi_comment:103",
+    "proactive_comment",
+    "103",
+    {
+     "text": "这集不错",
+     "title": "《番7》第3话"
+    }
+   ],
+   [
+    "comment",
+    3,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      102,
+      103
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 103,
+       "ep_index": "3",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "3",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "3",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      102,
+      103
+     ],
+     "watched_eps": [
+      "2",
+      "3"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "3",
+     "ep_title": "第3个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第3话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/start_episode_missing": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/start_episode_rewatch_skips_later_watched": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 2 集】\n[第2话] 2 评分:7/10 心情:开心 感想:感想2\n[第3话] 3 评分:7/10 心情:开心 感想:感想3\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      102,
+      103
+     ],
+     "episodes": [
+      {
+       "description": "内容3",
+       "ep_id": 103,
+       "ep_index": "3",
+       "mood": "开心",
+       "review": "感想3",
+       "score": 7,
+       "title": "3"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      102,
+      103
+     ],
+     "watched_eps": [
+      "2",
+      "3"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/stops_at_episode_count": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    28
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/summary_fails": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第7话",
+     "title": "番7"
+    }
+   ],
+   [
+    "summarize",
+    "你之前追过番剧《番7》，以下是你看过的各集内容和感想，请用200字以内总结前情提要（重点剧情线和关键人物）：\n\n第1话: 内容1 感想:感想1\n第2话: 内容2 感想:感想2\n第3话: 内容3 感想:感想3\n\n直接输出总结，不加前缀。",
+    300
+   ],
+   [
+    "action",
+    "bangumi_watch:107",
+    "bangumi_watch",
+    "107",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    7
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV7",
+     "cid": 507,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 7,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第7话 第7个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第7话 第7个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【最近几集】\n[第4话] 4 评分:7/10 心情:开心 感想:感想4\n[第5话] 5 评分:7/10 心情:开心 感想:感想5\n[第6话] 6 评分:7/10 心情:开心 感想:感想6\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第7话第7个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "107",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:107",
+    "like",
+    "107",
+    null
+   ],
+   [
+    "like",
+    7
+   ],
+   [
+    "action",
+    "bangumi_comment:107",
+    "proactive_comment",
+    "107",
+    {
+     "text": "这集不错",
+     "title": "《番7》第7话"
+    }
+   ],
+   [
+    "comment",
+    7,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 107,
+       "ep_index": "7",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "7",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "7",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 7,
+     "watched_ep_ids": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107
+     ],
+     "watched_eps": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "7",
+     "ep_title": "第7个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第7话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/timeline_pool_only_published": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "timeline",
+    2,
+    0
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    56
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/top_score_does_everything": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:9/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_coin:101",
+    "coin",
+    "101",
+    null
+   ],
+   [
+    "coin",
+    1
+   ],
+   [
+    "action",
+    "bangumi_favorite:101",
+    "favorite",
+    "101",
+    null
+   ],
+   [
+    "fav",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 9,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 9,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 9,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/unknown_pool_falls_back": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "sleep",
+    56
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:挺好看\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    },
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    },
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/wants_dynamic_goes_to_pool": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:好笑 感想:反派又输了",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "collect_dynamic_idea",
+    {
+     "angle": "反派每集都输得很有创意",
+     "key": "ep:101",
+     "kind": "段子",
+     "review": "反派又输了",
+     "score": 7,
+     "source": "bangumi",
+     "summary": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+     "title": "《番7》第1话 第1个故事"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "好笑",
+       "review": "反派又输了",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "好笑",
+     "review": "反派又输了",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ]
+  },
+  "result": null
+ },
+ "run/watch_log_is_capped": {
+  "calls": [
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "tool/busy": {
+  "calls": [],
+  "files": {},
+  "result": "已经在看番了，等这轮看完吧。"
+ },
+ "tool/disabled": {
+  "calls": [],
+  "files": {},
+  "result": "番剧功能未开启（ENABLE_BANGUMI）。"
+ },
+ "tool/episode_lookup_fails": {
+  "calls": [
+   [
+    "detail",
+    null,
+    101
+   ],
+   [
+    "run_now",
+    "bangumi",
+    {
+     "max_episodes": 1,
+     "season_id": null,
+     "start_ep_id": 101
+    }
+   ]
+  ],
+  "files": {},
+  "result": "好的，开始看番了！看完会记录感想。"
+ },
+ "tool/logged_out": {
+  "calls": [],
+  "files": {},
+  "result": "未登录B站，无法看番。"
+ },
+ "tool/looks_up_season_from_episode": {
+  "calls": [
+   [
+    "detail",
+    null,
+    101
+   ],
+   [
+    "run_now",
+    "bangumi",
+    {
+     "max_episodes": 1,
+     "season_id": 7,
+     "start_ep_id": 101
+    }
+   ]
+  ],
+  "files": {},
+  "result": "好的，开始看番了！看完会记录感想。"
+ },
+ "tool/loses_the_race": {
+  "calls": [
+   [
+    "run_now",
+    "bangumi",
+    {
+     "max_episodes": 1,
+     "season_id": 7,
+     "start_ep_id": null
+    }
+   ]
+  ],
+  "files": {},
+  "result": "已经在看番了，等这轮看完吧。"
+ },
+ "tool/starts": {
+  "calls": [
+   [
+    "run_now",
+    "bangumi",
+    {
+     "max_episodes": 1,
+     "season_id": 7,
+     "start_ep_id": null
+    }
+   ]
+  ],
+  "files": {},
+  "result": "好的，开始看番了！看完会记录感想。"
+ },
+ "update/disabled": {
+  "calls": [],
+  "files": {},
+  "result": null
+ },
+ "update/followed_detail_missing": {
+  "calls": [
+   [
+    "followed",
+    2
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "description": "内容1",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "感想1",
+       "score": 7,
+       "title": "1"
+      }
+     ],
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1
+    }
+   }
+  },
+  "result": null
+ },
+ "update/followed_has_new_episode": {
+  "calls": [
+   [
+    "followed",
+    2
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "sleep",
+    1
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第2话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:102",
+    "bangumi_watch",
+    "102",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    2
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV2",
+     "cid": 502,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 2,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第2话 第2个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第2话 第2个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n【你之前看过的进度】\n【已看 1 集】\n[第1话] 1 评分:7/10 心情:开心 感想:感想1\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第2话第2个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "102",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:102",
+    "like",
+    "102",
+    null
+   ],
+   [
+    "like",
+    2
+   ],
+   [
+    "action",
+    "bangumi_comment:102",
+    "proactive_comment",
+    "102",
+    {
+     "text": "这集不错",
+     "title": "《番7》第2话"
+    }
+   ],
+   [
+    "comment",
+    2,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101,
+      102
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 102,
+       "ep_index": "2",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "2",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "2",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 2,
+     "watched_ep_ids": [
+      101,
+      102
+     ],
+     "watched_eps": [
+      "1",
+      "2"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "2",
+     "ep_title": "第2个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第2话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "update/followed_never_watched": {
+  "calls": [
+   [
+    "followed",
+    2
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "update/followed_raises": {
+  "calls": [
+   [
+    "followed",
+    2
+   ]
+  ],
+  "files": {},
+  "result": null
+ },
+ "update/logged_out": {
+  "calls": [],
+  "files": {},
+  "result": null
+ },
+ "update/nothing_followed_watches_anyway": {
+  "calls": [
+   [
+    "followed",
+    2
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在分析内容",
+    {
+     "episode": "第1话",
+     "title": "番7"
+    }
+   ],
+   [
+    "action",
+    "bangumi_watch:101",
+    "bangumi_watch",
+    "101",
+    {
+     "reservation_only": true,
+     "source": "bangumi"
+    }
+   ],
+   [
+    "oid_to_bvid",
+    1
+   ],
+   [
+    "analyze",
+    {
+     "bvid": "BV1",
+     "cid": 501,
+     "desc": "一部番的简介",
+     "duration": 1440,
+     "oid": 1,
+     "owner_name": "",
+     "pic": "cover.png",
+     "title": "番7 第1话 第1个故事",
+     "tname": "番剧",
+     "up_name": ""
+    }
+   ],
+   [
+    "evaluate",
+    "你刚看完一集番剧：\n- 番名：番7\n- 类型：日常 | 地区：日本\n- B站评分：9.1\n- 本集：第1话 第1个故事\n- 内容分析：这一集讲了一个很长的故事，主角终于和朋友和好了。\n\n以JSON格式回复你的观后感：\n{\"score\": 1到10的整数评分, \"comment\": \"评论区留言（15-30字）\", \"mood\": \"看完的心情（开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 选一个）\", \"review\": \"本集感想（50字以内）\", \"want_continue\": true或false, \"want_dynamic\": false, \"dynamic_angle\": \"\", \"dynamic_kind\": \"\"}\n\ncomment要求：像追番观众会打的弹幕或评论，可以对剧情发展发表看法、吐槽角色行为、或者表达情绪。\nwant_continue：是否值得继续追，烂番可以果断弃。\nwant_dynamic：看完这集是否真有话想在自己的B站动态里说，大多数时候填false；为true时dynamic_angle写想说的具体角度（80字以内），dynamic_kind填吐槽|段子|分享之一，否则两项都留空。想发的不一定马上发，会先攒着。\n评分：大部分正常番应该在5-7分，不要动不动就8分以上。1-3烂片、4-5凑合、6-7还行、8-9好看、10封神。\n直接输出JSON。",
+    "系统提示词",
+    350
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "memory",
+    "bangumi:7",
+    "[<TIME>] Bot看了番剧《番7》第1话第1个故事 评分:7/10 心情:开心 感想:挺好看",
+    "bangumi",
+    {
+     "ep_id": "101",
+     "season_id": "7",
+     "tname": "番剧"
+    }
+   ],
+   [
+    "check_cookie"
+   ],
+   [
+    "action",
+    "bangumi_like:101",
+    "like",
+    "101",
+    null
+   ],
+   [
+    "like",
+    1
+   ],
+   [
+    "action",
+    "bangumi_comment:101",
+    "proactive_comment",
+    "101",
+    {
+     "text": "这集不错",
+     "title": "《番7》第1话"
+    }
+   ],
+   [
+    "comment",
+    1,
+    "这集不错",
+    1
+   ],
+   [
+    "save",
+    "proactive_log.json"
+   ],
+   [
+    "action",
+    "bangumi_follow:7",
+    "follow_bangumi",
+    7,
+    null
+   ],
+   [
+    "follow",
+    7
+   ],
+   [
+    "save",
+    "bangumi_watch_log.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "comment": "这集不错",
+       "description": "这一集讲了一个很长的故事，主角终于和朋友和好了。",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "挺好看",
+       "score": 7,
+       "title": "1",
+       "watched_at": "<TIME>"
+      }
+     ],
+     "last_ep_index": "1",
+     "last_score": 7,
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1,
+     "watched_ep_ids": [
+      101
+     ],
+     "watched_eps": [
+      "1"
+     ]
+    }
+   },
+   "bangumi_watch_log.json": [
+    {
+     "comment": "这集不错",
+     "ep_index": "1",
+     "ep_title": "第1个故事",
+     "mood": "开心",
+     "review": "挺好看",
+     "score": 7,
+     "season_id": 7,
+     "time": "<TIME>",
+     "title": "番7"
+    }
+   ],
+   "proactive_log.json": [
+    {
+     "comment": "这集不错",
+     "time": "<TIME>",
+     "title": "《番7》第1话",
+     "type": "bangumi"
+    }
+   ]
+  },
+  "result": null
+ },
+ "update/up_to_date_watches_anyway": {
+  "calls": [
+   [
+    "followed",
+    2
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "sleep",
+    1
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在挑选番剧",
+    {}
+   ],
+   [
+    "trending",
+    1
+   ],
+   [
+    "trending",
+    4
+   ],
+   [
+    "detail",
+    7,
+    null
+   ],
+   [
+    "doing",
+    "bangumi",
+    "正在准备观看",
+    {
+     "title": "番7"
+    }
+   ],
+   [
+    "save",
+    "bangumi_memory.json"
+   ],
+   [
+    "done",
+    "bangumi"
+   ]
+  ],
+  "files": {
+   "bangumi_memory.json": {
+    "7": {
+     "completed": true,
+     "episode_ids": [
+      101
+     ],
+     "episodes": [
+      {
+       "description": "内容1",
+       "ep_id": 101,
+       "ep_index": "1",
+       "mood": "开心",
+       "review": "感想1",
+       "score": 7,
+       "title": "1"
+      }
+     ],
+     "season_id": 7,
+     "title": "番7",
+     "total_watched": 1
+    }
+   }
+  },
+  "result": null
+ }
+}

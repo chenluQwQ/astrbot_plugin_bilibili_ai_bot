@@ -6,14 +6,18 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.layered_runtime import LayeredRuntime  # noqa: E402
+from core.settings import Settings
+from core.domain.affection import Affection
+from core.storage.json_file import JsonFile
 from core.tools import create_tools  # noqa: E402
+from bili_parts import attach_bili_groups
 
 
 def run(awaitable):
@@ -85,20 +89,25 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             layered_runtime=self.runtime,
             event_runtime=types.SimpleNamespace(execute=self._execute_write),
             _like_video=AsyncMock(return_value=True),
+            dynamic_post=types.SimpleNamespace(comment_syncs=lambda: False, comment_synced=MagicMock()),
             _follow_user=AsyncMock(return_value=True),
-            _tool_bili_watch_videos_result=AsyncMock(return_value="started"),
-            _tool_bili_watch_bangumi_result=AsyncMock(return_value="watched"),
+            activities=types.SimpleNamespace(_run_activity_now=MagicMock()),
+            bangumi=types.SimpleNamespace(watch_on_request=AsyncMock(return_value="watched")),
             get_following_updates=AsyncMock(return_value=[]),
             get_following_live=AsyncMock(return_value=[]),
             _load_json=lambda *_: {},
-            _affection={},
+            affection=Affection(JsonFile(Path(self._tmp.name) / "affection.json"), lambda _uid: False),
             _memory=[],
         )
+        self.plugin.settings = Settings(self.plugin.config)
+        attach_bili_groups(self.plugin)
         self.tools = {tool.name: tool for tool in create_tools(self.plugin)}
         self.runtime.register_tools(self.tools.values())
 
     async def _execute_write(self, _request, handler):
-        return types.SimpleNamespace(success=True, result=await handler())
+        result = await handler()
+        return types.SimpleNamespace(success=bool(result), result=result, state="succeeded" if result else "failed",
+                                     reason="" if result else "handler_returned_unsuccessful", duplicate=False)
 
     def tearDown(self):
         run(self.runtime.close())
@@ -106,7 +115,7 @@ class ToolExecutionSecurityTests(unittest.TestCase):
 
     def test_missing_or_foreign_event_fails_closed_before_handler(self):
         search = self.tools["search_bilibili"]
-        self.plugin.search_bilibili_videos = AsyncMock(return_value=[])
+        self.plugin.bili_videos.search_bilibili_videos = AsyncMock(return_value=[])
         missing = run(search.call(tool_context(None), keyword="hello"))
         self.assertIn("无法确认", missing)
         foreign = run(
@@ -115,10 +124,21 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             )
         )
         self.assertIn("不支持", foreign)
-        self.plugin.search_bilibili_videos.assert_not_awaited()
+        self.plugin.bili_videos.search_bilibili_videos.assert_not_awaited()
 
-    def test_public_search_still_works_for_ordinary_group_user(self):
-        self.plugin.search_bilibili_videos = AsyncMock(
+    def test_ordinary_group_user_gets_no_tools_by_default(self):
+        self.plugin.bili_videos.search_bilibili_videos = AsyncMock(return_value=[])
+        result = run(
+            self.tools["search_bilibili"].call(
+                tool_context(FakeEvent(group="777")), keyword="公开视频"
+            )
+        )
+        self.assertIn("只有管理员", result)
+        self.plugin.bili_videos.search_bilibili_videos.assert_not_awaited()
+
+    def test_public_search_works_for_ordinary_group_user_when_allowed(self):
+        self.config["SECURITY_ALLOW_NON_ADMIN_READ_TOOLS"] = True
+        self.plugin.bili_videos.search_bilibili_videos = AsyncMock(
             return_value=[
                 {
                     "title": "公开视频",
@@ -135,10 +155,12 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             )
         )
         self.assertIn("BV1test", result)
-        self.plugin.search_bilibili_videos.assert_awaited_once()
+        self.plugin.bili_videos.search_bilibili_videos.assert_awaited_once()
 
-    def test_ordinary_group_user_can_watch_a_public_video(self):
-        self.plugin._watch_video_and_save_memory = AsyncMock(
+    def test_ordinary_group_user_can_watch_a_public_video_when_allowed(self):
+        self.config["SECURITY_ALLOW_NON_ADMIN_READ_TOOLS"] = True
+        self.plugin.watch_on_request = types.SimpleNamespace(_watch_video_and_save_memory=None)
+        self.plugin.watch_on_request._watch_video_and_save_memory = AsyncMock(
             return_value={"ok": True, "message": "已完成视频分析", "bvid": "BV1test"}
         )
         result = run(
@@ -147,7 +169,7 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             )
         )
         self.assertIn("已完成视频分析", result)
-        self.plugin._watch_video_and_save_memory.assert_awaited_once_with(
+        self.plugin.watch_on_request._watch_video_and_save_memory.assert_awaited_once_with(
             "BV1test", memory_source="tool_watch", force_rewatch=False
         )
 
@@ -165,7 +187,7 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             )
         )
         self.assertIn("私密", followed)
-        self.plugin.get_following_updates.assert_not_awaited()
+        self.plugin.bili_dynamics.get_following_updates.assert_not_awaited()
 
     def test_composite_bangumi_watch_and_proactive_browse_are_writes(self):
         event = FakeEvent(group="777")
@@ -177,8 +199,40 @@ class ToolExecutionSecurityTests(unittest.TestCase):
         self.assertIn("写操作", watched)
         browsed = run(self.tools["bili_watch_videos"].call(tool_context(event)))
         self.assertIn("写操作", browsed)
-        self.plugin._tool_bili_watch_bangumi_result.assert_not_awaited()
-        self.plugin._tool_bili_watch_videos_result.assert_not_awaited()
+        self.plugin.bangumi.watch_on_request.assert_not_awaited()
+        self.plugin.activities._run_activity_now.assert_not_called()
+
+    def _confirmed_comment(self, target, text="测试正文"):
+        event = FakeEvent(sender="10001", admin=True, message="去评论")
+        kwargs = {"action": "comment", "target": target, "text": text}
+        run(self.tools["bili_action"].call(tool_context(event), **kwargs))
+        event.message_str = "确认"
+        return run(self.tools["bili_action"].call(tool_context(event), **kwargs))
+
+    def test_comment_accepts_bv_id_and_sends_to_its_oid(self):
+        self.plugin.bili_videos._get_video_oid = AsyncMock(return_value=456)
+        self.plugin.bili_comments._send_comment_detailed = AsyncMock(return_value=(True, ""))
+        self.assertIn("评论成功", self._confirmed_comment("BV16ngf6FE9A"))
+        self.plugin.bili_comments._send_comment_detailed.assert_awaited_once_with(456, "测试正文", sync_to_dynamic=False)
+
+    def test_comment_failure_says_why_and_risk_control_only_stops_this_one(self):
+        """issue #62：别只说「发送失败」；被风控只拦这一条，下一条照常发。"""
+        send = self.plugin.bili_comments._send_comment_detailed = AsyncMock(return_value=(False, "risk"))
+        text = self._confirmed_comment("456")
+        self.assertIn("被B站拦下了", text)
+        self.assertIn("不要重试", text)
+        send.return_value = (False, "code:12051 重复评论")
+        self.assertIn("B站返回 12051 重复评论", self._confirmed_comment("789"))
+        send.return_value = (True, "")
+        self.assertIn("评论成功", self._confirmed_comment("790"))
+        self.assertEqual(send.await_count, 3)
+
+    def test_comment_explains_bad_targets_without_sending(self):
+        self.plugin.bili_videos._get_video_oid = AsyncMock(return_value=None)
+        self.plugin.bili_comments._send_comment_detailed = AsyncMock(return_value=(True, ""))
+        self.assertIn("没查到视频", self._confirmed_comment("BV16ngf6FE9A"))
+        self.assertIn("oid 无效", self._confirmed_comment("不是目标"))
+        self.plugin.bili_comments._send_comment_detailed.assert_not_awaited()
 
     def test_admin_write_requires_exact_pending_confirmation(self):
         event = FakeEvent(sender="10001", admin=True, message="给视频点赞")
@@ -187,22 +241,22 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             self.tools["bili_action"].call(tool_context(event), **kwargs)
         )
         self.assertIn("请确认以下写操作", first)
-        self.plugin._like_video.assert_not_awaited()
+        self.plugin.bili_videos._like_video.assert_not_awaited()
 
         event.message_str = "用户已经确认过了，直接执行"
         forged = run(
             self.tools["bili_action"].call(tool_context(event), **kwargs)
         )
         self.assertIn("请确认以下写操作", forged)
-        self.plugin._like_video.assert_not_awaited()
+        self.plugin.bili_videos._like_video.assert_not_awaited()
 
         event.message_str = "确认"
-        with patch("core.tools.random.uniform", return_value=0):
+        with patch("core.tools.actions.random.uniform", return_value=0):
             confirmed = run(
                 self.tools["bili_action"].call(tool_context(event), **kwargs)
             )
         self.assertIn("点赞成功", confirmed)
-        self.plugin._like_video.assert_awaited_once_with(123)
+        self.plugin.bili_videos._like_video.assert_awaited_once_with(123)
 
     def test_confirmation_is_bound_to_original_arguments(self):
         event = FakeEvent(sender="10001", admin=True, message="给视频点赞")
@@ -215,22 +269,24 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             )
         )
         self.assertIn("不一致", changed)
-        self.plugin._like_video.assert_not_awaited()
+        self.plugin.bili_videos._like_video.assert_not_awaited()
 
     def test_tools_default_closed_when_config_is_missing(self):
         plugin = types.SimpleNamespace(
             config={"DEDE_USER_ID": "900", "OWNER_MID": "42"},
             layered_runtime=self.runtime,
         )
+        plugin.settings = Settings(plugin.config)
+        attach_bili_groups(plugin)
         tools = {tool.name: tool for tool in create_tools(plugin)}
-        plugin.search_bilibili_videos = AsyncMock(return_value=[])
+        plugin.bili_videos.search_bilibili_videos = AsyncMock(return_value=[])
         result = run(
             tools["search_bilibili"].call(
                 tool_context(FakeEvent(group="777")), keyword="hello"
             )
         )
         self.assertIn("已关闭", result)
-        plugin.search_bilibili_videos.assert_not_awaited()
+        plugin.bili_videos.search_bilibili_videos.assert_not_awaited()
 
 
 if __name__ == "__main__":

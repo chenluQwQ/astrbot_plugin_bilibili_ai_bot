@@ -9,6 +9,7 @@ Regenerate after an intended behaviour change with:
     BILIBOT_UPDATE_SNAPSHOTS=1 python -m pytest tests/test_proactive_flow_snapshot.py
 """
 
+import asyncio
 import copy
 import json
 import os
@@ -17,16 +18,21 @@ import types
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock
 
 from test_autonomous_ranges import _install_astrbot_stub
 
 _install_astrbot_stub()
 
-import core.proactive as proactive_module
-from core.proactive import ProactiveMixin
-from core.utils import UtilsMixin
-from core.video import VideoMixin
+from proactive_modules import patched_in_proactive_modules
+from dynamic_fakes import HostRecordedPost
+from parts import part
+from schedule_parts import LegacyNowDoing, ScheduleParts
+from core.features.special_follow import SpecialFollow
+from proactive_parts import ProactiveParts
+from core.activities import Activities
+from video_parts import VideoParts
+from itself import itself
 
 
 SNAPSHOT_FILE = Path(__file__).parent / "snapshots" / "proactive_flows.json"
@@ -50,7 +56,10 @@ def video(bvid, mid, up_name, title, **extra):
 
 
 def evaluation(score, **extra):
+    # B5 起互动由模型选；这里照原来的分数线选（6 点赞、7 评论、8 投币收藏、9 关注），快照不变
+    interactions = [name for name, line in (("like", 6), ("coin", 8), ("favorite", 8), ("comment", 7)) if score >= line]
     return {
+        "interactions": interactions,
         "score": score,
         "score_reason": f"评分理由{score}",
         "preference_signals": [{"polarity": "like", "value": "手绘"}],
@@ -58,7 +67,7 @@ def evaluation(score, **extra):
         "comment": f"短评{score}",
         "mood": "开心",
         "review": f"感想{score}",
-        "want_follow": False,
+        "want_follow": score >= 9,
         "recommend_owner": False,
         "recommend_reason": "",
         "want_dynamic": False,
@@ -68,11 +77,14 @@ def evaluation(score, **extra):
     }
 
 
-class FlowProbe(ProactiveMixin):
+class FlowProbe(ProactiveParts, VideoParts):
     """Fakes every collaborator of the two flows and records what they receive."""
+    models = itself
 
-    _append_json_list = UtilsMixin._append_json_list
-    _clip_media_text = staticmethod(VideoMixin._clip_media_text)
+    # 「看完想发动态」走主干的交接表，由发动态那边查开关后跑一轮（_run_dynamic，下面记录）。
+    activities = part(Activities)
+    schedule_rules = ScheduleParts.schedule_rules
+    dynamic_post = part(HostRecordedPost)
 
     def __init__(self, config, *, files=None, latest=None, followings=(), pool=(),
                  search=(), evaluations=None, analysis_basis=None, oids=None,
@@ -107,6 +119,8 @@ class FlowProbe(ProactiveMixin):
         self.files[name] = copy.deepcopy(data)
 
     # ── runtime ──
+    now_doing = part(LegacyNowDoing)
+
     def _set_cross_platform_activity(self, kind, text, **extra):
         self.record("activity_set", kind, text, extra)
 
@@ -138,7 +152,7 @@ class FlowProbe(ProactiveMixin):
         self.record("get_followings")
         return list(self.followings)
 
-    async def _get_pool_videos(self, min_pubdate=0):
+    async def _get_pool_videos(self, min_pubdate=0, pools=None):
         self.record("get_pool_videos", min_pubdate)
         return [dict(item) for item in self.pool]
 
@@ -224,8 +238,8 @@ class FlowProbe(ProactiveMixin):
         self.record("fav_video", oid)
         return True
 
-    async def _send_comment(self, oid, text):
-        self.record("send_comment", oid, text)
+    async def _send_comment(self, oid, text, *, sync_to_dynamic=False):
+        self.record("send_comment", oid, text, *(["sync_to_dynamic"] if sync_to_dynamic else []))
         return True
 
     async def _follow_user(self, mid):
@@ -243,17 +257,31 @@ class FlowProbe(ProactiveMixin):
     async def _save_self_memory_record(self, key, text, memory_type=None, extra=None):
         self.record("save_self_memory", key, text, memory_type, extra)
 
-    async def _run_dynamic(self, video=None):
-        self.record("run_dynamic", video)
+    async def _run_dynamic(self, fresh=()):
+        self.record("run_dynamic", list(fresh))
+
+    def _collect_dynamic_idea(self, **idea):
+        self.record("collect_dynamic_idea", idea)
+        self._idea_count = getattr(self, "_idea_count", 0) + 1
+        return self._idea_count
 
 
 BASE_CONFIG = {
     "DEDE_USER_ID": "999",
     "OWNER_MID": "777",
     "OWNER_NAME": "小柠",
-    "OWNER_BILI_NAME": "柠弥",
+    "OWNER_BILI_NAME": "示例主人",
     "PROACTIVE_EXPLORATION_RATIO": 0,
     "RECOMMEND_OWNER_MIN_GAP_MINUTES": 0,
+    # The snapshot was recorded when the code carried its own defaults for these
+    # keys. core.settings now uses the schema defaults (what AstrBot fills in), so
+    # the old values are pinned here to keep the recorded flows unchanged.
+    "PROACTIVE_VIDEO_POOLS": ["popular"],
+    "PROACTIVE_SEARCH_QUERY_PROMPT": "",
+    "DYNAMIC_WATCH_INTEREST_PROMPT": "",
+    # The old code default for the autonomous proactive cap equalled
+    # PROACTIVE_DAILY_LIMIT, and 0 (no extra cap) reproduces that.
+    "AUTONOMOUS_PROACTIVE_DAILY_LIMIT": 0,
 }
 
 
@@ -287,7 +315,7 @@ def regular_round():
              "actions": ["💬评论"]},
         ]},
     )
-    return probe, probe._run_proactive_inner()
+    return probe, probe.proactive_browse._run_proactive_inner()
 
 
 def degraded_round():
@@ -317,7 +345,7 @@ def degraded_round():
             ],
         },
     )
-    return probe, probe._run_proactive_inner(max_watch=3)
+    return probe, probe.proactive_browse._run_proactive_inner(max_watch=3)
 
 
 def daily_limit_round():
@@ -325,7 +353,7 @@ def daily_limit_round():
         {**BASE_CONFIG, "PROACTIVE_DAILY_LIMIT": 1},
         files={"watch_log.json": [{"time": "2026-10-25 07:00", "bvid": "BV_A", "actions": []}]},
     )
-    return probe, probe._run_proactive_inner()
+    return probe, probe.proactive_browse._run_proactive_inner()
 
 
 def special_follow_round():
@@ -339,7 +367,9 @@ def special_follow_round():
             "400": video("BV_SP4", "400", "特关4", "评价失败的视频"),
             "999": video("BV_MINE", "999", "自己", "自己的视频"),
         },
-        evaluations={"BV_INFO_81": evaluation(9.4, recommend_owner=True, recommend_reason="很好")},
+        # 特别关注想发的也进动态池子，但不像主动看完一轮那样马上发（不该有 run_dynamic）。
+        evaluations={"BV_INFO_81": evaluation(9.4, recommend_owner=True, recommend_reason="很好",
+                                              want_dynamic=True, dynamic_angle="值得直接看", dynamic_kind="搬运")},
         analysis_basis={"BV_SP4": "metadata"},
         oids={"BV_SP1": 81},
         watched={"BV_SEEN"},
@@ -347,7 +377,7 @@ def special_follow_round():
             {"time": "2026-10-25 06:00", "bvid": "BV_EARLY", "comment": "早"},
         ]},
     )
-    return probe, probe._run_special_follow_inner()
+    return probe, SpecialFollow(probe)._patrol()
 
 
 def special_follow_cookie_round():
@@ -359,7 +389,7 @@ def special_follow_cookie_round():
         cookies=[False, True],
         failing_actions={"special_follow_like:BV_SP2"},
     )
-    return probe, probe._run_special_follow_inner()
+    return probe, SpecialFollow(probe)._patrol()
 
 
 SCENARIOS = {
@@ -368,7 +398,7 @@ SCENARIOS = {
     "daily_limit_round": daily_limit_round,
     "special_follow_round": special_follow_round,
     "special_follow_cookie_round": special_follow_cookie_round,
-    "special_follow_empty": lambda: (lambda p: (p, p._run_special_follow_inner()))(FlowProbe({})),
+    "special_follow_empty": lambda: (lambda p: (p, SpecialFollow(p)._patrol()))(FlowProbe({})),
 }
 
 
@@ -381,15 +411,35 @@ class ProactiveFlowSnapshotTests(unittest.IsolatedAsyncioTestCase):
             probe.record("sleep", seconds)
 
         fake_asyncio = types.SimpleNamespace(
-            sleep=sleep, CancelledError=proactive_module.asyncio.CancelledError
+            sleep=sleep, CancelledError=asyncio.CancelledError
         )
-        with patch.object(proactive_module, "datetime", FixedDatetime), \
-                patch.object(proactive_module, "random", rng), \
-                patch.object(proactive_module, "asyncio", fake_asyncio):
+        with patched_in_proactive_modules(datetime=FixedDatetime, random=rng, asyncio=fake_asyncio):
             await coroutine
         return json.loads(json.dumps(
             {"calls": probe.calls, "files": probe.files}, ensure_ascii=False, default=sorted
         ))
+
+    async def test_each_video_logs_the_path_it_took(self):
+        expected = {
+            "regular_round": [
+                "proactive BV_FOLLOW：分析:video_media → 评分9.6 → 互动:👍点赞 🪙投币 ⭐收藏 💬评论 "
+                "✉️私信推荐给主人 📢评论区推荐给主人 💬QQ推荐给主人 ➕关注",
+                "proactive BV_SEARCH：分析:metadata → 评价失败",
+                "proactive BV_TODAY：分析:video_media → 评分8.2 → 互动:👍点赞 🪙投币 ⭐收藏",
+            ],
+            "special_follow_cookie_round": [
+                "special_follow BV_SP1：分析:video_media → 评分9.4 → 跳过互动:Cookie失效",
+                "special_follow BV_SP2：分析:video_media → 评分9.4 → 跳过互动:Cookie失效",
+            ],
+        }
+        for name, paths in expected.items():
+            logger = MagicMock()
+            with self.subTest(scenario=name), patched_in_proactive_modules(logger=logger):
+                await self.run_scenario(name)
+                lines = [str(call.args[0]) for call in logger.info.call_args_list]
+                logged = [line.split("🧭 ", 1)[1] for line in lines
+                          if "🧭 proactive " in line or "🧭 special_follow " in line]
+                self.assertEqual(logged, paths)
 
     async def test_flows_match_snapshot(self):
         recorded = {name: await self.run_scenario(name) for name in SCENARIOS}
@@ -408,3 +458,82 @@ class ProactiveFlowSnapshotTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChosenInteractionTests(unittest.IsolatedAsyncioTestCase):
+    """B5：互动由评价里模型选的 ``interactions`` 定，分数只当管理员下限。"""
+
+    async def paths(self, evaluations, **config):
+        probe = FlowProbe(
+            {**BASE_CONFIG, "PROACTIVE_FOLLOW_UIDS": ["100", "200", "300", "400"], "PROACTIVE_COMMENT_DAILY_LIMIT": 5,
+             "PROACTIVE_COIN": True, "PROACTIVE_LIKE_MIN_SCORE": 0, "PROACTIVE_COMMENT_MIN_SCORE": 0, **config},
+            latest={uid: video(f"BV_C{uid}", uid, f"UP{uid}", "视频", oid=int(uid)) for uid in ("100", "200", "300", "400")},
+            evaluations={f"BV_INFO_{oid}": value for oid, value in evaluations.items()},
+            oids={f"BV_C{oid}": int(oid) for oid in evaluations},
+        )
+        logger = MagicMock()
+        with patched_in_proactive_modules(datetime=FixedDatetime, logger=logger,
+                                          asyncio=types.SimpleNamespace(sleep=AsyncMock(), CancelledError=asyncio.CancelledError)):
+            await SpecialFollow(probe)._patrol()
+        lines = [str(call.args[0]) for call in logger.info.call_args_list]
+        return {line.split("special_follow ", 1)[1].split("：", 1)[0]: line.rsplit("→ ", 1)[1]
+                for line in lines if "🧭 special_follow " in line}
+
+    async def test_low_score_can_comment_and_high_score_can_stay_quiet(self):
+        paths = await self.paths({
+            "100": evaluation(4.0, interactions=["comment"]),
+            "200": evaluation(9.6, interactions=[], want_follow=False),
+        })
+        self.assertEqual(paths["BV_C100"], "互动:💬评论")
+        self.assertEqual(paths["BV_C200"], "互动:（默默看完）")
+
+    async def test_coin_and_favorite_still_need_the_admin_floor(self):
+        paths = await self.paths({
+            "100": evaluation(6.0, interactions=["like", "coin", "favorite"]),
+            "200": evaluation(8.5, interactions=["coin", "favorite"]),
+        })
+        self.assertEqual(paths["BV_C100"], "互动:👍点赞")
+        self.assertEqual(paths["BV_C200"], "互动:🪙投币 ⭐收藏")
+
+    async def test_invalid_choice_means_no_interaction(self):
+        paths = await self.paths({"100": evaluation(9.0, interactions=[], interactions_error="invalid_interaction")})
+        self.assertEqual(paths["BV_C100"], "互动:（默默看完）")
+
+
+class CommentSyncFlowTests(unittest.IsolatedAsyncioTestCase):
+    """PR #50：开了 ``COMMENT_SYNC_DYNAMIC``，主动评论带着转发发出去，记进动态日志但不占条数，池子里这个视频的想法作废。"""
+
+    async def test_synced_comment_is_logged_without_using_the_daily_count(self):
+        probe = FlowProbe(
+            {**BASE_CONFIG, "PROACTIVE_FOLLOW_UIDS": ["100"], "PROACTIVE_COMMENT_DAILY_LIMIT": 5,
+             "COMMENT_SYNC_DYNAMIC": True, "ENABLE_DYNAMIC": True, "DYNAMIC_FROM_VIDEO": True},
+            latest={"100": video("BV_C100", "100", "UP100", "视频", oid=100)},
+            evaluations={"BV_INFO_100": evaluation(8.0, interactions=["comment"])},
+            oids={"BV_C100": 100},
+        )
+        from core.domain.dynamic_log import DynamicLog
+        from core.storage.activity_log import ActivityLog
+
+        class MemoryFile:
+            data = []
+
+            def read(self, default=None):
+                return self.data
+
+            def update(self, change, default=None):
+                self.data = change(self.data)
+                return self.data
+
+        probe.dynamic_log = DynamicLog(ActivityLog("dynamic", file=MemoryFile()))
+        idea = probe.dynamic_post.idea_pool().add(key="BV_C100", kind="分享", source="video", title="视频")
+        with patched_in_proactive_modules(datetime=FixedDatetime, logger=MagicMock(),
+                                          asyncio=types.SimpleNamespace(sleep=AsyncMock(), CancelledError=asyncio.CancelledError)):
+            await SpecialFollow(probe)._patrol()
+        sent = [call for call in probe.calls if call[0] == "send_comment"]
+        self.assertEqual(sent[0][-1], "sync_to_dynamic")
+        log = probe.dynamic_log
+        self.assertTrue(log.has_key("BV_C100"))
+        self.assertEqual(log.posts_today(), 0)
+        self.assertTrue(log.interval_passed(3))
+        self.assertNotIn(idea, [item["id"] for item in probe.dynamic_post.idea_pool().pending()])
+

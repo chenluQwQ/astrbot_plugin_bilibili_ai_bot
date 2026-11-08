@@ -3,7 +3,8 @@
 import types
 import unittest
 
-from test_webui_interest import webui_bridge
+import test_webui_interest  # noqa: F401  装假的 astrbot
+from core.web import config_page
 
 
 def provider(provider_id, model=""):
@@ -18,7 +19,7 @@ def plugin_with(*providers):
 
 class ProviderOptionTests(unittest.TestCase):
     def test_every_provider_field_lists_astrbot_providers(self):
-        schema = webui_bridge._schema_with_choices(
+        schema = config_page._schema_with_choices(
             plugin_with(provider("main", "gpt-x"), provider("vision", "vision"))
         )
         provider_keys = [k for k, f in schema.items() if f.get("_special") == "select_provider"]
@@ -30,12 +31,12 @@ class ProviderOptionTests(unittest.TestCase):
             self.assertEqual(schema[key]["option_labels"]["vision"], "vision")
 
     def test_without_providers_fields_stay_free_text(self):
-        schema = webui_bridge._schema_with_choices(plugin_with())
+        schema = config_page._schema_with_choices(plugin_with())
         self.assertNotIn("options", schema["LLM_PROVIDER_ID"])
 
     def test_saving_a_provider_missing_from_the_list_is_still_allowed(self):
         # Saves validate against the static schema, not the live provider list.
-        self.assertNotIn("options", webui_bridge._load_schema()["LLM_PROVIDER_ID"])
+        self.assertNotIn("options", config_page._load_schema()["LLM_PROVIDER_ID"])
 
 
 if __name__ == "__main__":

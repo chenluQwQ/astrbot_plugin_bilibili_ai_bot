@@ -1,0 +1,1549 @@
+{
+ "bocha/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "count": 2,
+     "query": "问题",
+     "summary": true
+    },
+    "timeout": 15,
+    "url": "https://api.bochaai.com/v1/web-search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "bocha/ok": {
+  "cache": {
+   "bocha:问题": {
+    "result": "总结\n\n相关来源：\n- n1: s1\n- n2: s2",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "count": 2,
+     "query": "问题",
+     "summary": true
+    },
+    "timeout": 15,
+    "url": "https://api.bochaai.com/v1/web-search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "总结\n\n相关来源：\n- n1: s1\n- n2: s2"
+ },
+ "bocha/results": {
+  "cache": {
+   "bocha:问题": {
+    "result": "- t: c",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "count": 2,
+     "query": "问题",
+     "summary": true
+    },
+    "timeout": 15,
+    "url": "https://api.bochaai.com/v1/web-search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- t: c"
+ },
+ "comment_images/fail": {
+  "cache": null,
+  "calls": [
+   {
+    "api": "https://api.bilibili.com/x/v2/reply/detail",
+    "params": {
+     "oid": 1,
+     "root": 2,
+     "type": 1
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": []
+ },
+ "comment_images/network": {
+  "cache": null,
+  "calls": [
+   {
+    "api": "https://api.bilibili.com/x/v2/reply/detail",
+    "params": {
+     "oid": 1,
+     "root": 2,
+     "type": 1
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": []
+ },
+ "comment_images/ok": {
+  "cache": null,
+  "calls": [
+   {
+    "api": "https://api.bilibili.com/x/v2/reply/detail",
+    "params": {
+     "oid": 1,
+     "root": 2,
+     "type": 1
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": [
+   "a",
+   "b"
+  ]
+ },
+ "custom/error": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://c.example/v1"
+    }
+   },
+   {
+    "chat": {
+     "max_tokens": 400,
+     "messages": [
+      {
+       "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。",
+       "role": "system"
+      },
+      {
+       "content": "问题",
+       "role": "user"
+      }
+     ],
+     "model": "m"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "custom/no_base": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "custom/no_model": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://c.example/v1"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "custom/ok": {
+  "cache": {
+   "custom:问题": {
+    "result": "模型回答",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://c.example/v1"
+    }
+   },
+   {
+    "chat": {
+     "max_tokens": 400,
+     "messages": [
+      {
+       "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。",
+       "role": "system"
+      },
+      {
+       "content": "问题",
+       "role": "user"
+      }
+     ],
+     "model": "m"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "模型回答"
+ },
+ "embed/bad_timeout": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "k",
+     "base_url": "https://api.siliconflow.cn/v1",
+     "max_retries": 0,
+     "timeout": 10
+    }
+   },
+   {
+    "embed": {
+     "input": "文本",
+     "model": "e"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": [
+   0.5,
+   0.5
+  ]
+ },
+ "embed/error": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "k",
+     "base_url": "https://api.siliconflow.cn/v1",
+     "max_retries": 0,
+     "timeout": 10
+    }
+   },
+   {
+    "embed": {
+     "input": "文本",
+     "model": "e"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": null
+ },
+ "embed/no_key": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": null
+ },
+ "embed/ok": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "k",
+     "base_url": "https://e.example/v1",
+     "max_retries": 0,
+     "timeout": 60
+    }
+   },
+   {
+    "embed": {
+     "input": "文本",
+     "model": "e"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": [
+   0.5,
+   0.5
+  ]
+ },
+ "fetch/404": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://i0.example/a.png"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": null
+ },
+ "fetch/https": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://i0.example/a.png"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "aW1hZ2UtYnl0ZXM="
+ },
+ "fetch/network": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://i0.example/a.png"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": null
+ },
+ "fetch/ok": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://i0.example/a.png"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "aW1hZ2UtYnl0ZXM="
+ },
+ "firecrawl/base_search": {
+  "cache": {
+   "firecrawl:问题": {
+    "result": "- [t1](https://a): d 1\n- [t2](https://b)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "limit": 2,
+     "query": "问题",
+     "safe": true,
+     "sources": [
+      "web"
+     ]
+    },
+    "timeout": 30,
+    "url": "https://f.example/v2/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [t1](https://a): d 1\n- [t2](https://b)"
+ },
+ "firecrawl/base_v2": {
+  "cache": {
+   "firecrawl:问题": {
+    "result": "- [t1](https://a): d 1\n- [t2](https://b)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "limit": 2,
+     "query": "问题",
+     "safe": true,
+     "sources": [
+      "web"
+     ]
+    },
+    "timeout": 30,
+    "url": "https://f.example/v2/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [t1](https://a): d 1\n- [t2](https://b)"
+ },
+ "firecrawl/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "limit": 2,
+     "query": "问题",
+     "safe": true,
+     "sources": [
+      "web"
+     ]
+    },
+    "timeout": 30,
+    "url": "https://api.firecrawl.dev/v2/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "firecrawl/ok": {
+  "cache": {
+   "firecrawl:问题": {
+    "result": "- [t1](https://a): d 1\n- [t2](https://b)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "limit": 2,
+     "query": "问题",
+     "safe": true,
+     "sources": [
+      "web"
+     ]
+    },
+    "timeout": 30,
+    "url": "https://api.firecrawl.dev/v2/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [t1](https://a): d 1\n- [t2](https://b)"
+ },
+ "grok/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "input": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "max_output_tokens": 600,
+     "model": "grok-4.6",
+     "tools": [
+      {
+       "type": "web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://api.x.ai/v1/responses"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "grok/ok": {
+  "cache": {
+   "grok:问题": {
+    "result": "回答\n回答二\n\n相关来源：\n- [来源](https://a)\n- [https://b](https://b)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "input": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "max_output_tokens": 600,
+     "model": "grok-4.6",
+     "tools": [
+      {
+       "type": "web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://api.x.ai/v1/responses"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "回答\n回答二\n\n相关来源：\n- [来源](https://a)\n- [https://b](https://b)"
+ },
+ "grok/responses_base": {
+  "cache": {
+   "grok:问题": {
+    "result": "- [https://b](https://b)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "input": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "max_output_tokens": 600,
+     "model": "grok-4.6",
+     "tools": [
+      {
+       "type": "web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://g.example/v1/responses"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [https://b](https://b)"
+ },
+ "grok/xai_base": {
+  "cache": {
+   "xai:问题": {
+    "result": "回答\n回答二\n\n相关来源：\n- [来源](https://a)\n- [https://b](https://b)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "input": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "max_output_tokens": 600,
+     "model": "m",
+     "tools": [
+      {
+       "type": "web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://g.example/v1/responses"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "回答\n回答二\n\n相关来源：\n- [来源](https://a)\n- [https://b](https://b)"
+ },
+ "image_client/no_key": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": null
+ },
+ "image_client/ok": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://img.example/v1"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "<FakeOpenAI>"
+ },
+ "judge_reply/disabled": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/error": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站用户评论是否需要联网搜索才能准确回复。\n\n用户最新评论：「这是什么东西呀」\n\n需要搜索的情况：用户提问了某个事实性问题、问了近期新闻/事件、提到了你可能不了解的专业知识/人物/产品/梗、要求你查某些信息。\n不需要搜索的情况：日常聊天、打招呼、表情、吐槽、纯情感表达、闲聊、你能凭自身知识回答的内容。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON，不要加任何其他内容。",
+    "max_tokens": 80,
+    "provider_id": null
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/no": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站用户评论是否需要联网搜索才能准确回复。\n\n用户最新评论：「这是什么东西呀」\n\n需要搜索的情况：用户提问了某个事实性问题、问了近期新闻/事件、提到了你可能不了解的专业知识/人物/产品/梗、要求你查某些信息。\n不需要搜索的情况：日常聊天、打招呼、表情、吐槽、纯情感表达、闲聊、你能凭自身知识回答的内容。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON，不要加任何其他内容。",
+    "max_tokens": 80,
+    "provider_id": null
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/no_key": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/only_laugh": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/short": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/skip_word": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_reply/yes": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站用户评论是否需要联网搜索才能准确回复。\n\n最近对话上下文：\n前文\n\n用户最新评论：「这是什么东西呀」\n\n需要搜索的情况：用户提问了某个事实性问题、问了近期新闻/事件、提到了你可能不了解的专业知识/人物/产品/梗、要求你查某些信息。\n不需要搜索的情况：日常聊天、打招呼、表情、吐槽、纯情感表达、闲聊、你能凭自身知识回答的内容。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON，不要加任何其他内容。",
+    "max_tokens": 80,
+    "provider_id": "j"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "查这个"
+ },
+ "judge_reply/yes_no_query": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站用户评论是否需要联网搜索才能准确回复。\n\n用户最新评论：「这是什么东西呀」\n\n需要搜索的情况：用户提问了某个事实性问题、问了近期新闻/事件、提到了你可能不了解的专业知识/人物/产品/梗、要求你查某些信息。\n不需要搜索的情况：日常聊天、打招呼、表情、吐槽、纯情感表达、闲聊、你能凭自身知识回答的内容。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON，不要加任何其他内容。",
+    "max_tokens": 80,
+    "provider_id": null
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_video/empty": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站视频是否需要联网搜索来补充背景知识，以便更好地理解视频内容。\n\n视频标题：标题\nUP主：UP\n分区：分区\n简介：简介\n\n\n以下情况需要搜索：涉及时事新闻、专业领域知识、特定人物/事件/产品、最新科技动态、争议性话题等。\n以下情况不需要搜索：日常vlog、搞笑视频、纯娱乐内容、游戏实况、个人分享等。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON。",
+    "max_tokens": 100
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_video/error": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站视频是否需要联网搜索来补充背景知识，以便更好地理解视频内容。\n\n视频标题：标题\nUP主：UP\n分区：分区\n简介：简介\n\n\n以下情况需要搜索：涉及时事新闻、专业领域知识、特定人物/事件/产品、最新科技动态、争议性话题等。\n以下情况不需要搜索：日常vlog、搞笑视频、纯娱乐内容、游戏实况、个人分享等。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON。",
+    "max_tokens": 100
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_video/no": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站视频是否需要联网搜索来补充背景知识，以便更好地理解视频内容。\n\n视频标题：标题\nUP主：UP\n分区：分区\n简介：简介\n\n\n以下情况需要搜索：涉及时事新闻、专业领域知识、特定人物/事件/产品、最新科技动态、争议性话题等。\n以下情况不需要搜索：日常vlog、搞笑视频、纯娱乐内容、游戏实况、个人分享等。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON。",
+    "max_tokens": 100
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "judge_video/yes": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站视频是否需要联网搜索来补充背景知识，以便更好地理解视频内容。\n\n视频标题：标题\nUP主：UP\n分区：分区\n简介：简介\n上下文\n\n以下情况需要搜索：涉及时事新闻、专业领域知识、特定人物/事件/产品、最新科技动态、争议性话题等。\n以下情况不需要搜索：日常vlog、搞笑视频、纯娱乐内容、游戏实况、个人分享等。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON。",
+    "max_tokens": 100
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "查这个"
+ },
+ "judge_video/yes_no_query": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站视频是否需要联网搜索来补充背景知识，以便更好地理解视频内容。\n\n视频标题：标题\nUP主：UP\n分区：分区\n简介：简介\n\n\n以下情况需要搜索：涉及时事新闻、专业领域知识、特定人物/事件/产品、最新科技动态、争议性话题等。\n以下情况不需要搜索：日常vlog、搞笑视频、纯娱乐内容、游戏实况、个人分享等。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON。",
+    "max_tokens": 100
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "标题"
+ },
+ "multimodal/empty": {
+  "cache": null,
+  "calls": [
+   {
+    "provider": {
+     "chat_provider_id": "p",
+     "max_tokens": 250,
+     "prompt": [
+      {
+       "text": "看图",
+       "type": "text"
+      }
+     ]
+    }
+   }
+  ],
+  "diagnostic": {
+   "provider": "p",
+   "reason": "视觉模型返回空内容"
+  },
+  "result": null
+ },
+ "multimodal/no_provider": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "provider": "",
+   "reason": "视觉提供商未配置"
+  },
+  "result": null
+ },
+ "multimodal/ok": {
+  "cache": null,
+  "calls": [
+   {
+    "provider": {
+     "chat_provider_id": "p",
+     "max_tokens": 50,
+     "prompt": [
+      {
+       "text": "看图",
+       "type": "text"
+      }
+     ]
+    }
+   }
+  ],
+  "diagnostic": {
+   "provider": "p",
+   "reason": "视觉模型返回空内容"
+  },
+  "result": "回答"
+ },
+ "multimodal/rejected": {
+  "cache": null,
+  "calls": [
+   {
+    "provider": {
+     "chat_provider_id": "p",
+     "max_tokens": 250,
+     "prompt": [
+      {
+       "text": "看图",
+       "type": "text"
+      }
+     ]
+    }
+   }
+  ],
+  "diagnostic": {
+   "provider": "p",
+   "reason": "Rejected HTTP 400: video content not support",
+   "rejection": "unsupported"
+  },
+  "result": null
+ },
+ "perplexity/empty": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://api.perplexity.ai"
+    }
+   },
+   {
+    "chat": {
+     "max_tokens": 400,
+     "messages": [
+      {
+       "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。",
+       "role": "system"
+      },
+      {
+       "content": "问题",
+       "role": "user"
+      }
+     ],
+     "model": "sonar"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "perplexity/error": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://api.perplexity.ai"
+    }
+   },
+   {
+    "chat": {
+     "max_tokens": 400,
+     "messages": [
+      {
+       "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。",
+       "role": "system"
+      },
+      {
+       "content": "问题",
+       "role": "user"
+      }
+     ],
+     "model": "sonar"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "perplexity/ok": {
+  "cache": {
+   "perplexity:问题": {
+    "result": "模型回答",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://api.perplexity.ai"
+    }
+   },
+   {
+    "chat": {
+     "max_tokens": 400,
+     "messages": [
+      {
+       "content": "你是一个搜索助手。请根据用户的问题，简洁地汇总相关信息，300字以内，用中文回答。",
+       "role": "system"
+      },
+      {
+       "content": "问题",
+       "role": "user"
+      }
+     ],
+     "model": "sonar"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "模型回答"
+ },
+ "recognize/client_only": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://img.example/v1"
+    }
+   },
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://a"
+   },
+   {
+    "chat": {
+     "max_tokens": 100,
+     "messages": [
+      {
+       "content": [
+        {
+         "image_url": {
+          "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+         },
+         "type": "image_url"
+        },
+        {
+         "text": "请用50字以内描述这些图片的内容。",
+         "type": "text"
+        }
+       ],
+       "role": "user"
+      }
+     ],
+     "model": "m"
+    }
+   }
+  ],
+  "diagnostic": {
+   "model": "m",
+   "reason": "视觉模型返回空内容"
+  },
+  "result": "模型回答"
+ },
+ "recognize/download_failed": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://img.example/v1"
+    }
+   },
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://a"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "recognize/empty": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "recognize/fallback_client": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://img.example/v1"
+    }
+   },
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://a"
+   },
+   {
+    "provider": {
+     "chat_provider_id": "p",
+     "max_tokens": 100,
+     "prompt": [
+      {
+       "image_url": {
+        "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+       },
+       "type": "image_url"
+      },
+      {
+       "text": "请用50字以内描述这些图片的内容。",
+       "type": "text"
+      }
+     ]
+    }
+   },
+   {
+    "chat": {
+     "max_tokens": 100,
+     "messages": [
+      {
+       "content": [
+        {
+         "image_url": {
+          "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+         },
+         "type": "image_url"
+        },
+        {
+         "text": "请用50字以内描述这些图片的内容。",
+         "type": "text"
+        }
+       ],
+       "role": "user"
+      }
+     ],
+     "model": "m"
+    }
+   }
+  ],
+  "diagnostic": {
+   "model": "m",
+   "reason": "视觉模型返回空内容"
+  },
+  "result": "模型回答"
+ },
+ "recognize/long": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "key",
+     "base_url": "https://img.example/v1"
+    }
+   },
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://a"
+   },
+   {
+    "chat": {
+     "max_tokens": 100,
+     "messages": [
+      {
+       "content": [
+        {
+         "image_url": {
+          "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+         },
+         "type": "image_url"
+        },
+        {
+         "text": "请用50字以内描述这些图片的内容。",
+         "type": "text"
+        }
+       ],
+       "role": "user"
+      }
+     ],
+     "model": "m"
+    }
+   }
+  ],
+  "diagnostic": {
+   "model": "m",
+   "reason": "视觉模型返回空内容"
+  },
+  "result": "长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长…"
+ },
+ "recognize/not_configured": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "recognize/provider": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://a"
+   },
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://b"
+   },
+   {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://c"
+   },
+   {
+    "provider": {
+     "chat_provider_id": "p",
+     "max_tokens": 100,
+     "prompt": [
+      {
+       "image_url": {
+        "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+       },
+       "type": "image_url"
+      },
+      {
+       "image_url": {
+        "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+       },
+       "type": "image_url"
+      },
+      {
+       "image_url": {
+        "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+       },
+       "type": "image_url"
+      },
+      {
+       "text": "请用50字以内描述这些图片的内容。",
+       "type": "text"
+      }
+     ]
+    }
+   }
+  ],
+  "diagnostic": {
+   "provider": "p",
+   "reason": "视觉模型返回空内容"
+  },
+  "result": "图里有猫"
+ },
+ "search/bad_max_results": {
+  "cache": {
+   "tavily:问题": {
+    "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2\n- t3: c3",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 5,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2\n- t3: c3"
+ },
+ "search/cache_evicts": {
+  "cache": {
+   "count": 200,
+   "first": "tavily:1",
+   "last": "tavily:问题"
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2"
+ },
+ "search/cache_expired": {
+  "cache": {
+   "tavily:问题": {
+    "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2"
+ },
+ "search/cache_hit": {
+  "cache": {
+   "tavily:问题": {
+    "result": "缓存的",
+    "ts": 1699999900.0
+   }
+  },
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "缓存的"
+ },
+ "search/disabled": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "search/empty_not_cached": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "search/network": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "search/no_key": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "search/unknown_backend": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "tavily/answer_only": {
+  "cache": {
+   "tavily:问题": {
+    "result": "答案",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "答案"
+ },
+ "tavily/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "tavily/ok": {
+  "cache": {
+   "tavily:问题": {
+    "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "include_answer": true,
+     "max_results": 2,
+     "query": "问题",
+     "search_depth": "basic"
+    },
+    "timeout": 15,
+    "url": "https://api.tavily.com/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "答案\n\n相关来源：\n- t1: c1\n- t2: c2"
+ },
+ "video_client/no_key": {
+  "cache": null,
+  "calls": [],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": null
+ },
+ "video_client/ok": {
+  "cache": null,
+  "calls": [
+   {
+    "openai_client": {
+     "api_key": "k",
+     "base_url": "https://v.example/v1"
+    }
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "<FakeOpenAI>"
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "date": "2026-11-02",
+ "config_fingerprint": "6bde16573425097d",
+ "activity_level": 58,
+ "activity_label": "活跃",
+ "dynamic_times": [],
+ "dynamic_watch_times": [
+  "14:20"
+ ],
+ "bangumi_times": [
+  "16:30"
+ ],
+ "special_follow_times": [],
+ "proactive_windows": [
+  {
+   "start_time": "10:07",
+   "end_time": "11:37",
+   "scheduled_time": "11:00",
+   "trigger_policy": "once_in_window"
+  }
+ ],
+ "proactive_times": [
+  "11:00"
+ ],
+ "reply_cap": 80,
+ "private_cap": 30,
+ "rationale": "假540样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
+ "generated_at": "2026-11-02 06:05:09",
+ "generation_status": "success",
+ "model_error": "",
+ "source": "model",
+ "model_attempts": 1,
+ "retry_exhausted": false
+}

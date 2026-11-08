@@ -1,10 +1,29 @@
 import asyncio
 import importlib.util
+import shutil
 import sys
 import tempfile
 import types
 import unittest
+from itself import itself
+from parts import part
+from people_fakes import LegacyProfiles, LegacyRoles, LegacySecurityLog, LegacyUsers
 from pathlib import Path
+
+from core.domain.affection import Affection, Milestones
+from core.domain.blocklist import BlockList
+from core.storage.json_file import JsonFile
+
+
+def affection_in(directory, scores):
+    """A real Affection backed by <directory>/affection.json."""
+    file = JsonFile(Path(directory) / "affection.json")
+    file.write(scores)
+    return Affection(file, lambda _uid: False)
+
+
+def stored_score(directory, uid):
+    return JsonFile(Path(directory) / "affection.json").read()[uid]
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "core" / "runtime.py"
@@ -17,7 +36,9 @@ SPEC.loader.exec_module(runtime)
 def load_private_message_module(data_dir):
     package_name = "bilibot_private_runtime_test"
     package = types.ModuleType(package_name)
-    package.__path__ = []
+    # Real core/ on the path so helper modules resolve; config and runtime
+    # below are injected and take precedence.
+    package.__path__ = [str(MODULE_PATH.parent)]
     sys.modules[package_name] = package
     sys.modules[f"{package_name}.runtime"] = runtime
 
@@ -25,12 +46,19 @@ def load_private_message_module(data_dir):
     constants = {
         "AFFECTION_FILE": str(Path(data_dir) / "affection.json"),
         "BILI_PRIVATE_MESSAGES_URL": "messages",
+        "BILI_PRIVATE_MSG_SEND_URL": "send",
         "BILI_PRIVATE_SESSIONS_URL": "sessions",
         "DATA_DIR": str(data_dir),
-        "LEVEL_NAMES": {"friend": "好友"},
+        "LEVEL_NAMES": {"special": "主人", "close": "好友", "friend": "熟人", "normal": "粉丝", "stranger": "陌生人", "cold": "厌恶"},
+        "BLOCK_KEYWORDS": [],
+        "INJECTION_PATTERNS": [],
         "PERMANENT_MEMORY_FILE": str(Path(data_dir) / "permanent.json"),
         "PRIVATE_MESSAGE_STATE_FILE": str(Path(data_dir) / "private_state.json"),
+        "PRIVATE_MESSAGE_MIN_INTERVAL": 120,
         "REPLY_LOG_FILE": str(Path(data_dir) / "reply_log.json"),
+        # 压缩搬进了 memory_compress，建它要读这几个常量（假插件上的压缩方法照样替掉它）
+        "OID_COMPRESS_THRESHOLD": 20, "OID_KEEP_RECENT": 8, "THREAD_COMPRESS_THRESHOLD": 8,
+        "USER_MEMORY_COMPRESS_THRESHOLD": 20, "USER_MEMORY_KEEP_RECENT": 5,
     }
     for key, value in constants.items():
         setattr(config, key, value)
@@ -50,14 +78,9 @@ def load_private_message_module(data_dir):
         sys.modules["astrbot"] = astrbot
         sys.modules["astrbot.api"] = astrbot_api
 
-    private_path = MODULE_PATH.with_name("private_messages.py")
-    private_spec = importlib.util.spec_from_file_location(
-        f"{package_name}.private_messages", private_path
-    )
-    private_module = importlib.util.module_from_spec(private_spec)
-    sys.modules[private_spec.name] = private_module
-    private_spec.loader.exec_module(private_module)
-    return private_module, constants
+    from private_parts import private_parts
+
+    return private_parts(package_name), constants
 
 
 def load_reply_module(data_dir):
@@ -71,7 +94,9 @@ def load_reply_module(data_dir):
     constants = {
         "AFFECTION_FILE": str(Path(data_dir) / "affection.json"),
         "DATA_DIR": str(data_dir),
-        "LEVEL_NAMES": {"friend": "好友"},
+        "LEVEL_NAMES": {"special": "主人", "close": "好友", "friend": "熟人", "normal": "粉丝", "stranger": "陌生人", "cold": "厌恶"},
+        "BLOCK_KEYWORDS": [],
+        "INJECTION_PATTERNS": [],
         "REPLIED_AT_FILE": str(Path(data_dir) / "replied_at.json"),
         "REPLIED_FILE": str(Path(data_dir) / "replied.json"),
         "REPLIED_CONTENT_KEYS_FILE": str(Path(data_dir) / "content_keys.json"),
@@ -80,6 +105,9 @@ def load_reply_module(data_dir):
         "BILI_AT_NOTIFY_URL": "at",
         "BILI_NOTIFY_URL": "notify",
         "VIDEO_MEMORY_FILE": str(Path(data_dir) / "video_memory.json"),
+        # 压缩搬进了 memory_compress，建它要读这几个常量（假插件上的压缩方法照样替掉它）
+        "OID_COMPRESS_THRESHOLD": 20, "OID_KEEP_RECENT": 8, "THREAD_COMPRESS_THRESHOLD": 8,
+        "USER_MEMORY_COMPRESS_THRESHOLD": 20, "USER_MEMORY_KEEP_RECENT": 5,
     }
     for key, value in constants.items():
         setattr(config, key, value)
@@ -98,15 +126,13 @@ def load_reply_module(data_dir):
         sys.modules["astrbot"] = astrbot
         sys.modules["astrbot.api"] = astrbot_api
 
-    reply_path = MODULE_PATH.with_name("reply.py")
-    reply_spec = importlib.util.spec_from_file_location(
-        f"{package_name}.reply", reply_path
-    )
-    reply_module = importlib.util.module_from_spec(reply_spec)
-    sys.modules[reply_spec.name] = reply_module
-    reply_spec.loader.exec_module(reply_module)
+    from reply_parts import reply_parts
+
+    reply_module = types.SimpleNamespace(ReplyParts=reply_parts(package_name), __name__=f"{package_name}.reply")
     return reply_module, constants
 
+
+from reply_owners import attach_reply_owners
 
 class EventRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def make_event(self, event_id="1"):
@@ -420,26 +446,29 @@ class EventRuntimeTests(unittest.IsolatedAsyncioTestCase):
 class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_send_does_not_commit_relationship_or_memory(self):
         with tempfile.TemporaryDirectory() as data_dir:
-            private_module, _ = load_private_message_module(data_dir)
+            PrivateParts, _ = load_private_message_module(data_dir)
 
-            class Bot(private_module.PrivateMessageMixin):
+            class Bot(PrivateParts):
                 def __init__(self):
                     self.config = {"ENABLE_AFFECTION": True}
                     self.event_runtime = runtime.EventRuntime()
-                    self._affection = {"42": 10}
+                    self.affection = affection_in(data_dir, {"42": 10})
+                    self.milestones = Milestones(JsonFile(Path(data_dir) / "milestones.json"))
                     self.profile_updates = 0
                     self.memory_writes = 0
                     self.saved_paths = []
                     self.relationship_records = 0
+                    attach_reply_owners(self)
+
+                roles = part(LegacyRoles)
+                bili_messages = itself
+                bili_comments = itself
+                user_profiles = part(LegacyProfiles)
+                bili_users = part(LegacyUsers)
+                security_log = part(LegacySecurityLog)
 
                 def _is_owner(self, _mid):
                     return False
-
-                def _peek_milestone(self, *_args):
-                    return None
-
-                def _commit_milestone(self, *_args):
-                    pass
 
                 def _record_relationship_interaction(self, *_args, **_kwargs):
                     self.relationship_records += 1
@@ -466,11 +495,8 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 async def _compress_user_memory(self, _mid, _username, _scope="bili_comment"):
                     pass
 
-                def _get_level(self, _score, _mid):
-                    return "friend"
-
             bot = Bot()
-            sent = await bot._apply_private_reply_result(
+            sent = await bot.private_reply._apply_private_reply_result(
                 {
                     "sender_uid": "42",
                     "username": "tester",
@@ -489,7 +515,7 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertFalse(sent)
-            self.assertEqual(bot._affection["42"], 10)
+            self.assertEqual(bot.affection.score("42"), 10)
             self.assertEqual(bot.profile_updates, 0)
             self.assertEqual(bot.memory_writes, 0)
             self.assertEqual(bot.saved_paths, [])
@@ -497,26 +523,29 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_successful_send_commits_side_effects(self):
         with tempfile.TemporaryDirectory() as data_dir:
-            private_module, constants = load_private_message_module(data_dir)
+            PrivateParts, constants = load_private_message_module(data_dir)
 
-            class Bot(private_module.PrivateMessageMixin):
+            class Bot(PrivateParts):
                 def __init__(self):
                     self.config = {"ENABLE_AFFECTION": True}
                     self.event_runtime = runtime.EventRuntime()
-                    self._affection = {"42": 10}
+                    self.affection = affection_in(data_dir, {"42": 10})
+                    self.milestones = Milestones(JsonFile(Path(data_dir) / "milestones.json"))
                     self.profile_updates = 0
                     self.memory_writes = 0
                     self.saved_paths = []
                     self.relationship_records = 0
+                    attach_reply_owners(self, constants)
+
+                roles = part(LegacyRoles)
+                bili_messages = itself
+                bili_comments = itself
+                user_profiles = part(LegacyProfiles)
+                bili_users = part(LegacyUsers)
+                security_log = part(LegacySecurityLog)
 
                 def _is_owner(self, _mid):
                     return False
-
-                def _peek_milestone(self, *_args):
-                    return None
-
-                def _commit_milestone(self, *_args):
-                    pass
 
                 def _record_relationship_interaction(self, *_args, **_kwargs):
                     self.relationship_records += 1
@@ -543,11 +572,8 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 async def _compress_user_memory(self, _mid, _username, _scope="bili_comment"):
                     pass
 
-                def _get_level(self, _score, _mid):
-                    return "friend"
-
             bot = Bot()
-            sent = await bot._apply_private_reply_result(
+            sent = await bot.private_reply._apply_private_reply_result(
                 {
                     "sender_uid": "42",
                     "username": "tester",
@@ -566,24 +592,32 @@ class PrivateReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertTrue(sent)
-            self.assertEqual(bot._affection["42"], 12)
-            self.assertEqual(bot.profile_updates, 1)
+            self.assertEqual(bot.affection.score("42"), 12)
+            self.assertEqual(bot.profile_updates, 0)  # 画像改由每晚清算整理（B4b）
+            self.assertEqual(bot.profile_candidates.notes, [("42", "bili_dm", "friendly", ["likes tests"])])
             self.assertEqual(bot.memory_writes, 1)
             self.assertEqual(bot.relationship_records, 1)
-            self.assertIn(constants["AFFECTION_FILE"], bot.saved_paths)
+            self.assertEqual(stored_score(data_dir, "42"), 12)
             self.assertIn(constants["REPLY_LOG_FILE"], bot.saved_paths)
 
 
 class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
     def make_bot(self, reply_module, send_ok):
-        class Bot(reply_module.ReplyMixin):
+        affection_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, affection_dir, True)
+
+        class Bot(reply_module.ReplyParts):
             def __init__(self):
                 self.config = {
                     "ENABLE_AFFECTION": True,
                     "ENABLE_AUTO_BLOCK": False,
                 }
                 self.event_runtime = runtime.EventRuntime()
-                self._affection = {"42": 10}
+                self.affection = affection_in(affection_dir, {"42": 10})
+                self.milestones = Milestones(JsonFile(Path(affection_dir) / "milestones.json"))
+                self.blocklist = BlockList(JsonFile(Path(affection_dir) / "block_log.json"), JsonFile(Path(affection_dir) / "block_count.json"))
+                self.affection_dir = affection_dir
+                attach_reply_owners(self, vars(sys.modules[reply_module.__name__.rsplit(".", 1)[0] + ".config"]))
                 self.profile_updates = 0
                 self.memory_writes = 0
                 self.saved_paths = []
@@ -592,17 +626,18 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             async def _oid_to_bvid(self, _oid):
                 return ""
 
+            roles = part(LegacyRoles)
+            bili_messages = itself
+            bili_comments = itself
+            user_profiles = part(LegacyProfiles)
+            bili_users = part(LegacyUsers)
+            security_log = part(LegacySecurityLog)
+
             def _is_owner(self, _mid):
                 return False
 
             def _is_block_whitelisted(self, _mid):
                 return False
-
-            def _peek_milestone(self, *_args):
-                return None
-
-            def _commit_milestone(self, *_args):
-                pass
 
             def _record_relationship_interaction(self, *_args, **_kwargs):
                 self.relationship_records += 1
@@ -638,16 +673,13 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
             def _log_security_event(self, *_args):
                 pass
 
-            def _get_level(self, _score, _mid):
-                return "friend"
-
         return Bot()
 
     async def test_failed_comment_send_does_not_commit_side_effects(self):
         with tempfile.TemporaryDirectory() as data_dir:
             reply_module, _ = load_reply_module(data_dir)
             bot = self.make_bot(reply_module, False)
-            sent = await bot._apply_reply_result(
+            sent = await bot.reply_aftermath._apply_reply_result(
                 mid="42",
                 username="tester",
                 content="hello",
@@ -666,7 +698,7 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
             self.assertFalse(sent)
-            self.assertEqual(bot._affection["42"], 10)
+            self.assertEqual(bot.affection.score("42"), 10)
             self.assertEqual(bot.profile_updates, 0)
             self.assertEqual(bot.memory_writes, 0)
             self.assertEqual(bot.saved_paths, [])
@@ -676,7 +708,7 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as data_dir:
             reply_module, constants = load_reply_module(data_dir)
             bot = self.make_bot(reply_module, True)
-            sent = await bot._apply_reply_result(
+            sent = await bot.reply_aftermath._apply_reply_result(
                 mid="42",
                 username="tester",
                 content="hello",
@@ -695,11 +727,12 @@ class CommentReplyCommitTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
             self.assertTrue(sent)
-            self.assertEqual(bot._affection["42"], 12)
-            self.assertEqual(bot.profile_updates, 1)
+            self.assertEqual(bot.affection.score("42"), 12)
+            self.assertEqual(bot.profile_updates, 0)  # 画像改由每晚清算整理（B4b）
+            self.assertEqual(bot.profile_candidates.notes, [("42", "bili_comment", "friendly", ["likes tests"])])
             self.assertEqual(bot.memory_writes, 1)
             self.assertEqual(bot.relationship_records, 1)
-            self.assertIn(constants["AFFECTION_FILE"], bot.saved_paths)
+            self.assertEqual(stored_score(bot.affection_dir, "42"), 12)
             self.assertIn(constants["REPLY_LOG_FILE"], bot.saved_paths)
 
 

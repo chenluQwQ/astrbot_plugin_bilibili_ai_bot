@@ -1,0 +1,1444 @@
+{
+ "artifacts/frames_only": {
+  "calls": [],
+  "diagnostic": null,
+  "files": [
+   "keep.mp4"
+  ],
+  "result": null
+ },
+ "artifacts/with_video": {
+  "calls": [],
+  "diagnostic": null,
+  "files": [
+   "keep.mp4"
+  ],
+  "result": null
+ },
+ "cleanup_partial": {
+  "calls": [],
+  "diagnostic": null,
+  "files": [
+   "BV1_cookies.txt",
+   "BV2.mp4"
+  ],
+  "result": null
+ },
+ "compress/empty_output": {
+  "calls": [
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_compressed.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v.mp4",
+   "v_compressed.mp4"
+  ],
+  "result": "<DIR>/v.mp4"
+ },
+ "compress/fail": {
+  "calls": [
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_compressed.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v.mp4"
+  ],
+  "result": "<DIR>/v.mp4"
+ },
+ "compress/ok": {
+  "calls": [
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_compressed.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_compressed.mp4"
+  ],
+  "result": "<DIR>/v_compressed.mp4"
+ },
+ "download/all_fail": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "bestvideo+bestaudio/best",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {
+   "reason": "格式不可用"
+  },
+  "files": [],
+  "result": null
+ },
+ "download/audio_only_then_ok": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/buvid_and_proxy": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "--proxy",
+     "http://127.0.0.1:7890",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbuvid3\tb3\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/clears_leftovers": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4",
+   "BV2.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/cookie_unwritable": {
+  "calls": [],
+  "diagnostic": {
+   "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<DIR>/BV1_cookies.txt'"
+  },
+  "files": null,
+  "result": null
+ },
+ "download/fail_then_ok": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/first_format": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/height": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/into_output_dir": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {},
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": "<DIR>/BV1.mp4"
+ },
+ "download/no_stderr": {
+  "calls": [
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "bestvideo+bestaudio/best",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   },
+   {
+    "command": [
+     "yt-dlp",
+     "-o",
+     "<DIR>/BV1.%(ext)s",
+     "--format",
+     "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
+     "--no-playlist",
+     "--merge-output-format",
+     "mp4",
+     "--recode-video",
+     "mp4",
+     "--cookies",
+     "<DIR>/BV1_cookies.txt",
+     "--add-header",
+     "Referer: https://www.bilibili.com",
+     "--limit-rate",
+     "2M",
+     "https://www.bilibili.com/video/BV1"
+    ],
+    "cookie_file": "# Netscape HTTP Cookie File\n.bilibili.com\tTRUE\t/\tFALSE\t0\tSESSDATA\tsess\n.bilibili.com\tTRUE\t/\tFALSE\t0\tbili_jct\tjct\n.bilibili.com\tTRUE\t/\tFALSE\t0\tDedeUserID\t1\n",
+    "cookie_mode": "0o600",
+    "timeout": 120
+   }
+  ],
+  "diagnostic": {
+   "reason": "unknown error"
+  },
+  "files": [],
+  "result": null
+ },
+ "duration/empty": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "v.mp4"
+    ],
+    "timeout": 60
+   }
+  ],
+  "diagnostic": null,
+  "files": [],
+  "result": 0.0
+ },
+ "duration/fail": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "v.mp4"
+    ],
+    "timeout": 60
+   }
+  ],
+  "diagnostic": null,
+  "files": [],
+  "result": 0.0
+ },
+ "duration/garbage": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "v.mp4"
+    ],
+    "timeout": 60
+   }
+  ],
+  "diagnostic": null,
+  "files": [],
+  "result": 0.0
+ },
+ "duration/ok": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "v.mp4"
+    ],
+    "timeout": 60
+   }
+  ],
+  "diagnostic": null,
+  "files": [],
+  "result": 12.5
+ },
+ "format_fallbacks": {
+  "0": [
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]/best[ext=mp4][vcodec!=none][acodec!=none][width<=480]/best[height<=480][vcodec!=none][acodec!=none]/best[width<=480][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/bestvideo[width<=480]+bestaudio/best[height<=480]/best[width<=480]",
+   "bestvideo+bestaudio/best",
+   "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]"
+  ],
+  "1080": [
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]/best[ext=mp4][vcodec!=none][acodec!=none][width<=480]/best[height<=480][vcodec!=none][acodec!=none]/best[width<=480][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/bestvideo[width<=480]+bestaudio/best[height<=480]/best[width<=480]",
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=720]/best[ext=mp4][vcodec!=none][acodec!=none][width<=720]/best[height<=720][vcodec!=none][acodec!=none]/best[width<=720][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/bestvideo[width<=720]+bestaudio/best[height<=720]/best[width<=720]",
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=1080]/best[ext=mp4][vcodec!=none][acodec!=none][width<=1080]/best[height<=1080][vcodec!=none][acodec!=none]/best[width<=1080][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=1080]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/bestvideo[width<=1080]+bestaudio/best[height<=1080]/best[width<=1080]",
+   "bestvideo+bestaudio/best",
+   "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]"
+  ],
+  "144": [
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=144]/best[ext=mp4][vcodec!=none][acodec!=none][width<=144]/best[height<=144][vcodec!=none][acodec!=none]/best[width<=144][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=144]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=144]+bestaudio[ext=m4a]/bestvideo[height<=144]+bestaudio/bestvideo[width<=144]+bestaudio/best[height<=144]/best[width<=144]",
+   "bestvideo+bestaudio/best",
+   "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]"
+  ],
+  "360": [
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+   "bestvideo+bestaudio/best",
+   "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]"
+  ],
+  "480": [
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]/best[ext=mp4][vcodec!=none][acodec!=none][width<=480]/best[height<=480][vcodec!=none][acodec!=none]/best[width<=480][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/bestvideo[width<=480]+bestaudio/best[height<=480]/best[width<=480]",
+   "bestvideo+bestaudio/best",
+   "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]"
+  ],
+  "坏": [
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=360]/best[ext=mp4][vcodec!=none][acodec!=none][width<=360]/best[height<=360][vcodec!=none][acodec!=none]/best[width<=360][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=360]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/bestvideo[width<=360]+bestaudio/best[height<=360]/best[width<=360]",
+   "best[ext=mp4][vcodec!=none][acodec!=none][height<=480]/best[ext=mp4][vcodec!=none][acodec!=none][width<=480]/best[height<=480][vcodec!=none][acodec!=none]/best[width<=480][vcodec!=none][acodec!=none]",
+   "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/bestvideo[ext=mp4][width<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/bestvideo[width<=480]+bestaudio/best[height<=480]/best[width<=480]",
+   "bestvideo+bestaudio/best",
+   "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]"
+  ]
+ },
+ "frames/garbage_duration": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "15.00",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vframes",
+     "1",
+     "-vf",
+     "scale=360:-2",
+     "-q:v",
+     "8",
+     "<DIR>/v_frames/frame_0.jpg"
+    ],
+    "timeout": 120
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v.mp4",
+   "v_frames/frame_0.jpg"
+  ],
+  "result": [
+   "<DIR>/v_frames/frame_0.jpg"
+  ]
+ },
+ "frames/no_duration": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "15.00",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vframes",
+     "1",
+     "-vf",
+     "scale=360:-2",
+     "-q:v",
+     "8",
+     "<DIR>/v_frames/frame_0.jpg"
+    ],
+    "timeout": 120
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v.mp4",
+   "v_frames/frame_0.jpg"
+  ],
+  "result": [
+   "<DIR>/v_frames/frame_0.jpg"
+  ]
+ },
+ "frames/ok": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "10.00",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vframes",
+     "1",
+     "-vf",
+     "scale=360:-2",
+     "-q:v",
+     "8",
+     "<DIR>/v_frames/frame_0.jpg"
+    ],
+    "timeout": 120
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "20.00",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vframes",
+     "1",
+     "-vf",
+     "scale=360:-2",
+     "-q:v",
+     "8",
+     "<DIR>/v_frames/frame_1.jpg"
+    ],
+    "timeout": 120
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v.mp4",
+   "v_frames/frame_0.jpg",
+   "v_frames/frame_1.jpg"
+  ],
+  "result": [
+   "<DIR>/v_frames/frame_0.jpg",
+   "<DIR>/v_frames/frame_1.jpg"
+  ]
+ },
+ "frames/one_fails": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "10.00",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vframes",
+     "1",
+     "-vf",
+     "scale=360:-2",
+     "-q:v",
+     "8",
+     "<DIR>/v_frames/frame_0.jpg"
+    ],
+    "timeout": 120
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "20.00",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vframes",
+     "1",
+     "-vf",
+     "scale=360:-2",
+     "-q:v",
+     "8",
+     "<DIR>/v_frames/frame_1.jpg"
+    ],
+    "timeout": 120
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v.mp4",
+   "v_frames/frame_1.jpg"
+  ],
+  "result": [
+   "<DIR>/v_frames/frame_1.jpg"
+  ]
+ },
+ "pick/empty_file": {
+  "calls": [],
+  "diagnostic": null,
+  "files": [
+   "BV1.mp4"
+  ],
+  "result": null
+ },
+ "pick/none": {
+  "calls": [],
+  "diagnostic": null,
+  "files": [],
+  "result": null
+ },
+ "pick/prefers_mp4_then_size": {
+  "calls": [],
+  "diagnostic": null,
+  "files": [
+   "BV1.m4a",
+   "BV1.mkv",
+   "BV1.mp4",
+   "BV1.part",
+   "BV1.txt",
+   "BV1_a.mp4",
+   "BV1_cookies.txt",
+   "BV2.mp4"
+  ],
+  "result": "<DIR>/BV1_a.mp4"
+ },
+ "slice/all_fail": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "0",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg0.mp4"
+    ],
+    "timeout": 300
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "100",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg1.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [],
+  "result": []
+ },
+ "slice/capped": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "0",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg0.mp4"
+    ],
+    "timeout": 300
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "100",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg1.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_seg0.mp4",
+   "v_seg1.mp4"
+  ],
+  "result": [
+   "<DIR>/v_seg0.mp4",
+   "<DIR>/v_seg1.mp4"
+  ]
+ },
+ "slice/long": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "0",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg0.mp4"
+    ],
+    "timeout": 300
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "100",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg1.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_seg0.mp4",
+   "v_seg1.mp4"
+  ],
+  "result": [
+   "<DIR>/v_seg0.mp4",
+   "<DIR>/v_seg1.mp4"
+  ]
+ },
+ "slice/one_fails": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "0",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg0.mp4"
+    ],
+    "timeout": 300
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "100",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg1.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_seg1.mp4"
+  ],
+  "result": [
+   "<DIR>/v_seg1.mp4"
+  ]
+ },
+ "slice/remainder_kept": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "0",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg0.mp4"
+    ],
+    "timeout": 300
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "100",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg1.mp4"
+    ],
+    "timeout": 300
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-ss",
+     "200",
+     "-i",
+     "<DIR>/v.mp4",
+     "-t",
+     "100",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_seg2.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_seg0.mp4",
+   "v_seg1.mp4",
+   "v_seg2.mp4"
+  ],
+  "result": [
+   "<DIR>/v_seg0.mp4",
+   "<DIR>/v_seg1.mp4",
+   "<DIR>/v_seg2.mp4"
+  ]
+ },
+ "slice/short": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_compressed.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_compressed.mp4"
+  ],
+  "result": [
+   "<DIR>/v_compressed.mp4"
+  ]
+ },
+ "slice/unknown_duration": {
+  "calls": [
+   {
+    "command": [
+     "ffprobe",
+     "-v",
+     "error",
+     "-show_entries",
+     "format=duration",
+     "-of",
+     "default=noprint_wrappers=1:nokey=1",
+     "<DIR>/v.mp4"
+    ],
+    "timeout": 60
+   },
+   {
+    "command": [
+     "ffmpeg",
+     "-y",
+     "-i",
+     "<DIR>/v.mp4",
+     "-vf",
+     "scale=360:-2",
+     "-an",
+     "-c:v",
+     "libx264",
+     "-preset",
+     "ultrafast",
+     "-crf",
+     "35",
+     "<DIR>/v_compressed.mp4"
+    ],
+    "timeout": 300
+   }
+  ],
+  "diagnostic": null,
+  "files": [
+   "v_compressed.mp4"
+  ],
+  "result": [
+   "<DIR>/v_compressed.mp4"
+  ]
+ }
+}

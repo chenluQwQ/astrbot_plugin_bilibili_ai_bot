@@ -1,0 +1,1509 @@
+{
+ "after": {
+  "10828451": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：新名字\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)\n事实15\n事实16\n事实17\n事实18\n事实19\n事实20\n事实21\n事实22\n事实23\n事实24\n标签：标签2、标签3、标签4、标签5、标签6、标签7、标签8、标签9、标签10、标签11\n印象：私信里很客气",
+    "bili_comment": "【对该用户的了解】\n昵称：新名字\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)\n事实15\n事实16\n事实17\n事实18\n事实19\n事实20\n事实21\n事实22\n事实23\n事实24\n标签：标签2、标签3、标签4、标签5、标签6、标签7、标签8、标签9、标签10、标签11",
+    "bili_dm": "【对该用户的了解】\n昵称：新名字\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)\n事实15\n事实16\n事实17\n事实18\n事实19\n事实20\n事实21\n事实22\n事实23\n事实24\n标签：标签2、标签3、标签4、标签5、标签6、标签7、标签8、标签9、标签10、标签11\n印象：私信里很客气",
+    "bili_live": "【对该用户的了解】\n昵称：新名字",
+    "proactive": "【对该用户的了解】\n昵称：新名字\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)\n事实15\n事实16\n事实17\n事实18\n事实19\n事实20\n事实21\n事实22\n事实23\n事实24\n标签：标签2、标签3、标签4、标签5、标签6、标签7、标签8、标签9、标签10、标签11",
+    "qq_group": "【对该用户的了解】\n昵称：新名字",
+    "qq_private": "【对该用户的了解】\n昵称：新名字"
+   },
+   "normalized": {
+    "fact_scopes": {
+     "事实10": "bili_comment",
+     "事实11": "bili_comment",
+     "事实12": "bili_comment",
+     "事实13": "bili_comment",
+     "事实14": "bili_comment",
+     "事实15": "bili_comment",
+     "事实16": "bili_comment",
+     "事实17": "bili_comment",
+     "事实18": "bili_comment",
+     "事实19": "bili_comment",
+     "事实20": "bili_comment",
+     "事实21": "bili_comment",
+     "事实22": "bili_comment",
+     "事实23": "bili_comment",
+     "事实24": "bili_comment",
+     "事实5": "bili_comment",
+     "事实6": "bili_comment",
+     "事实7": "bili_comment",
+     "事实8": "bili_comment",
+     "事实9": "bili_comment"
+    },
+    "facts": [
+     "事实5",
+     "事实6",
+     "事实7",
+     "事实8",
+     "事实9",
+     "事实10",
+     "事实11",
+     "事实12",
+     "事实13",
+     "事实14",
+     "事实15",
+     "事实16",
+     "事实17",
+     "事实18",
+     "事实19",
+     "事实20",
+     "事实21",
+     "事实22",
+     "事实23",
+     "事实24"
+    ],
+    "impression": "私信里很客气",
+    "impressions": {
+     "bili_dm": "私信里很客气"
+    },
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "relationship": {
+     "last_interaction_at": "2026-11-03 09:30",
+     "last_source": "comment",
+     "negative_interactions": 3,
+     "positive_interactions": 1,
+     "severe_negative_streak": 0
+    },
+    "tag_scopes": {
+     "标签10": "bili_comment",
+     "标签11": "bili_comment",
+     "标签2": "bili_comment",
+     "标签3": "bili_comment",
+     "标签4": "bili_comment",
+     "标签5": "bili_comment",
+     "标签6": "bili_comment",
+     "标签7": "bili_comment",
+     "标签8": "bili_comment",
+     "标签9": "bili_comment"
+    },
+    "tags": [
+     "标签2",
+     "标签3",
+     "标签4",
+     "标签5",
+     "标签6",
+     "标签7",
+     "标签8",
+     "标签9",
+     "标签10",
+     "标签11"
+    ],
+    "username": "新名字",
+    "video_refs": [
+     {
+      "bvid": "BV1atfv0CbEd",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-15",
+      "title": "假401样例文本假数据测试内容样例文本假"
+     },
+     {
+      "bvid": "BV1yrTgzZjp5",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-10",
+      "title": "假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+     },
+     {
+      "bvid": "BV1ANwBzxSTa",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-11",
+      "title": "假405样例文本假数据测试内容样例文本假数"
+     },
+     {
+      "bvid": "BV1FpwVut8m7",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-13",
+      "title": "假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+     }
+    ]
+   }
+  },
+  "345170725": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)；《又一次》(BV1aaaaaaaaa, 2026-11-03)\n直播互动：danmaku:9；最近出现：2026-07-16 18:13\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假333样例文本假数据",
+    "bili_comment": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)；《又一次》(BV1aaaaaaaaa, 2026-11-03)\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假352样例文本假数",
+    "bili_dm": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)；《又一次》(BV1aaaaaaaaa, 2026-11-03)\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假333样例文本假数据",
+    "bili_live": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n直播互动：danmaku:9；最近出现：2026-07-16 18:13",
+    "proactive": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)；《又一次》(BV1aaaaaaaaa, 2026-11-03)\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假352样例文本假数",
+    "qq_group": "【对该用户的了解】\n昵称：假46样例文本假数据测试内",
+    "qq_private": "【对该用户的了解】\n昵称：假46样例文本假数据测试内"
+   },
+   "normalized": {
+    "fact_scopes": {
+     "假334样例文本假数据测试内容样例文本假数": "bili_comment",
+     "假335样例文本假数据测试内": "bili_comment",
+     "假336样例文本假数据测试": "bili_comment",
+     "假337样例文本假数据测试内": "bili_comment",
+     "假353样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测": "bili_comment",
+     "假354样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+     "假355样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+     "假356样例文本假数据测试内容样例文本假数据测试内容样例文本": "bili_comment",
+     "假357样例文本假数据测试内容样例文本假": "bili_comment",
+     "假358样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+     "假359样例文本假数据测试内容样例文本假数据测试内容样例文本假数据": "bili_comment",
+     "假360样例文本假数据测试内容": "bili_comment",
+     "假361样例文本假数": "bili_comment",
+     "假362样例文本假数据测试": "bili_comment",
+     "假363样例文本假数": "bili_comment",
+     "假364样例文本假数据测试内容样例文本假数据": "bili_comment",
+     "假365样例文本假数据测试内容样例文本": "bili_comment",
+     "假366样例文本假数据测试内容样例文本假数": "bili_comment",
+     "假367:假368样": "bili_comment",
+     "假370样例文本假数据测试内容样例文": "bili_dm"
+    },
+    "facts": [
+     "假334样例文本假数据测试内容样例文本假数",
+     "假335样例文本假数据测试内",
+     "假336样例文本假数据测试",
+     "假337样例文本假数据测试内"
+    ],
+    "impression": "假333样例文本假数据",
+    "impressions": {
+     "bili_comment": "假352样例文本假数",
+     "bili_dm": "假333样例文本假数据"
+    },
+    "live": {
+     "event_counts": {
+      "danmaku": 9
+     },
+     "last_seen": "2026-07-16 18:13",
+     "last_session_id": "bili_live:3276055248:3549123754",
+     "memory_refs": [
+      "ext_92c2754cb9ba482eb5323da2217eb4db",
+      "ext_73d45ab9e8c44734a4ece07b7deb654d",
+      "ext_87d2f58b4c06445caaa525201c459aae",
+      "ext_23600e50f95b4355bc7903ba5424db62"
+     ]
+    },
+    "relationship": {
+     "last_interaction_at": "2026-08-28 12:36",
+     "last_source": "private",
+     "negative_interactions": 0,
+     "positive_interactions": 1,
+     "severe_negative_streak": 0
+    },
+    "tag_scopes": {
+     "假338样": "bili_comment",
+     "假339样例": "bili_comment",
+     "假340样例": "bili_comment",
+     "假341样例文": "bili_comment",
+     "假371": "bili_comment",
+     "假372": "bili_comment",
+     "假373样例文": "bili_comment",
+     "假374样例": "bili_comment",
+     "假375": "bili_comment",
+     "假376样例文本假数据测试内容样例文本假数": "bili_comment"
+    },
+    "tags": [
+     "假338样",
+     "假339样例",
+     "假340样例",
+     "假341样例文"
+    ],
+    "username": "假46样例文本假数据测试内",
+    "video_refs": [
+     {
+      "bvid": "BV1Z9UJwzZzs",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-12",
+      "title": "假343样例文本假数据测试内容样例文本假数据测试"
+     },
+     {
+      "bvid": "BV1pu1sraYru",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-14",
+      "title": "假345样例文本假数据测试内容样例文本假数据"
+     },
+     {
+      "bvid": "BV1KwP4jgU91",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-15",
+      "title": "假347样例文本假数据测试内容样例文本假数据测试内容样例文"
+     },
+     {
+      "bvid": "BV1fpvnbL5fN",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-18",
+      "title": "假349样例文本假数"
+     },
+     {
+      "bvid": "BV1aaaaaaaaa",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-11-03",
+      "title": "又一次"
+     },
+     {
+      "bvid": "BV1bbbbbbbbb",
+      "relation": "related",
+      "scope": "qq_group",
+      "time": "2026-11-03",
+      "title": ""
+     }
+    ]
+   }
+  },
+  "777": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：直播观众\n直播互动：danmaku:2、gift:1；最近出现：2026-11-03 09:30",
+    "bili_comment": "【对该用户的了解】\n昵称：直播观众",
+    "bili_dm": "【对该用户的了解】\n昵称：直播观众",
+    "bili_live": "【对该用户的了解】\n昵称：直播观众\n直播互动：danmaku:2、gift:1；最近出现：2026-11-03 09:30",
+    "proactive": "【对该用户的了解】\n昵称：直播观众",
+    "qq_group": "【对该用户的了解】\n昵称：直播观众",
+    "qq_private": "【对该用户的了解】\n昵称：直播观众"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {
+      "danmaku": 2,
+      "gift": 1
+     },
+     "last_seen": "2026-11-03 09:30",
+     "last_session_id": "s2",
+     "memory_refs": [
+      "ref-1"
+     ]
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "直播观众",
+    "video_refs": []
+   }
+  },
+  "888": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：UP主\n该用户发布的视频：《主动看到的》(BV1ccccccccc, 2026-11-03)",
+    "bili_comment": "【对该用户的了解】\n昵称：UP主\n该用户发布的视频：《主动看到的》(BV1ccccccccc, 2026-11-03)",
+    "bili_dm": "【对该用户的了解】\n昵称：UP主\n该用户发布的视频：《主动看到的》(BV1ccccccccc, 2026-11-03)",
+    "bili_live": "【对该用户的了解】\n昵称：UP主\n该用户发布的视频：《主动看到的》(BV1ccccccccc, 2026-11-03)",
+    "proactive": "【对该用户的了解】\n昵称：UP主\n该用户发布的视频：《主动看到的》(BV1ccccccccc, 2026-11-03)",
+    "qq_group": "【对该用户的了解】\n昵称：UP主",
+    "qq_private": "【对该用户的了解】\n昵称：UP主"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "UP主",
+    "video_refs": [
+     {
+      "bvid": "BV1ccccccccc",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-11-03",
+      "title": "主动看到的"
+     }
+    ]
+   }
+  }
+ },
+ "before": {
+  "0": {
+   "context": {
+    "admin": "",
+    "bili_comment": "",
+    "bili_dm": "",
+    "bili_live": "",
+    "proactive": "",
+    "qq_group": "",
+    "qq_private": ""
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "",
+    "video_refs": []
+   }
+  },
+  "10828451": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假283样例文本\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)",
+    "bili_comment": "【对该用户的了解】\n昵称：假283样例文本\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)",
+    "bili_dm": "【对该用户的了解】\n昵称：假283样例文本\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)",
+    "bili_live": "【对该用户的了解】\n昵称：假283样例文本",
+    "proactive": "【对该用户的了解】\n昵称：假283样例文本\n该用户发布的视频：《假401样例文本假数据测试内容样例文本假》(BV1atfv0CbEd, 2026-07-15)；《假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1yrTgzZjp5, 2026-08-10)；《假405样例文本假数据测试内容样例文本假数》(BV1ANwBzxSTa, 2026-08-11)；《假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1FpwVut8m7, 2026-08-13)",
+    "qq_group": "【对该用户的了解】\n昵称：假283样例文本",
+    "qq_private": "【对该用户的了解】\n昵称：假283样例文本"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假283样例文本",
+    "video_refs": [
+     {
+      "bvid": "BV1atfv0CbEd",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-15",
+      "title": "假401样例文本假数据测试内容样例文本假"
+     },
+     {
+      "bvid": "BV1yrTgzZjp5",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-10",
+      "title": "假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+     },
+     {
+      "bvid": "BV1ANwBzxSTa",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-11",
+      "title": "假405样例文本假数据测试内容样例文本假数"
+     },
+     {
+      "bvid": "BV1FpwVut8m7",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-13",
+      "title": "假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+     }
+    ]
+   }
+  },
+  "345170725": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)\n直播互动：danmaku:9；最近出现：2026-07-16 18:13\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假333样例文本假数据",
+    "bili_comment": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假352样例文本假数",
+    "bili_dm": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假333样例文本假数据",
+    "bili_live": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n直播互动：danmaku:9；最近出现：2026-07-16 18:13",
+    "proactive": "【对该用户的了解】\n昵称：假46样例文本假数据测试内\n曾在这些视频下交流：《假343样例文本假数据测试内容样例文本假数据测试》(BV1Z9UJwzZzs, 2026-06-12)；《假345样例文本假数据测试内容样例文本假数据》(BV1pu1sraYru, 2026-06-14)；《假347样例文本假数据测试内容样例文本假数据测试内容样例文》(BV1KwP4jgU91, 2026-06-15)；《假349样例文本假数》(BV1fpvnbL5fN, 2026-06-18)\n假334样例文本假数据测试内容样例文本假数\n假335样例文本假数据测试内\n假336样例文本假数据测试\n假337样例文本假数据测试内\n标签：假338样、假339样例、假340样例、假341样例文\n印象：假352样例文本假数",
+    "qq_group": "【对该用户的了解】\n昵称：假46样例文本假数据测试内",
+    "qq_private": "【对该用户的了解】\n昵称：假46样例文本假数据测试内"
+   },
+   "normalized": {
+    "fact_scopes": {
+     "假334样例文本假数据测试内容样例文本假数": "bili_comment",
+     "假335样例文本假数据测试内": "bili_comment",
+     "假336样例文本假数据测试": "bili_comment",
+     "假337样例文本假数据测试内": "bili_comment",
+     "假353样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测": "bili_comment",
+     "假354样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+     "假355样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+     "假356样例文本假数据测试内容样例文本假数据测试内容样例文本": "bili_comment",
+     "假357样例文本假数据测试内容样例文本假": "bili_comment",
+     "假358样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+     "假359样例文本假数据测试内容样例文本假数据测试内容样例文本假数据": "bili_comment",
+     "假360样例文本假数据测试内容": "bili_comment",
+     "假361样例文本假数": "bili_comment",
+     "假362样例文本假数据测试": "bili_comment",
+     "假363样例文本假数": "bili_comment",
+     "假364样例文本假数据测试内容样例文本假数据": "bili_comment",
+     "假365样例文本假数据测试内容样例文本": "bili_comment",
+     "假366样例文本假数据测试内容样例文本假数": "bili_comment",
+     "假367:假368样": "bili_comment",
+     "假370样例文本假数据测试内容样例文": "bili_dm"
+    },
+    "facts": [
+     "假334样例文本假数据测试内容样例文本假数",
+     "假335样例文本假数据测试内",
+     "假336样例文本假数据测试",
+     "假337样例文本假数据测试内"
+    ],
+    "impression": "假333样例文本假数据",
+    "impressions": {
+     "bili_comment": "假352样例文本假数",
+     "bili_dm": "假333样例文本假数据"
+    },
+    "live": {
+     "event_counts": {
+      "danmaku": 9
+     },
+     "last_seen": "2026-07-16 18:13",
+     "last_session_id": "bili_live:3276055248:3549123754",
+     "memory_refs": [
+      "ext_92c2754cb9ba482eb5323da2217eb4db",
+      "ext_73d45ab9e8c44734a4ece07b7deb654d",
+      "ext_87d2f58b4c06445caaa525201c459aae",
+      "ext_23600e50f95b4355bc7903ba5424db62"
+     ]
+    },
+    "relationship": {
+     "last_interaction_at": "2026-08-28 12:36",
+     "last_source": "private",
+     "negative_interactions": 0,
+     "positive_interactions": 1,
+     "severe_negative_streak": 0
+    },
+    "tag_scopes": {
+     "假338样": "bili_comment",
+     "假339样例": "bili_comment",
+     "假340样例": "bili_comment",
+     "假341样例文": "bili_comment",
+     "假371": "bili_comment",
+     "假372": "bili_comment",
+     "假373样例文": "bili_comment",
+     "假374样例": "bili_comment",
+     "假375": "bili_comment",
+     "假376样例文本假数据测试内容样例文本假数": "bili_comment"
+    },
+    "tags": [
+     "假338样",
+     "假339样例",
+     "假340样例",
+     "假341样例文"
+    ],
+    "username": "假46样例文本假数据测试内",
+    "video_refs": [
+     {
+      "bvid": "BV1Z9UJwzZzs",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-12",
+      "title": "假343样例文本假数据测试内容样例文本假数据测试"
+     },
+     {
+      "bvid": "BV1pu1sraYru",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-14",
+      "title": "假345样例文本假数据测试内容样例文本假数据"
+     },
+     {
+      "bvid": "BV1KwP4jgU91",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-15",
+      "title": "假347样例文本假数据测试内容样例文本假数据测试内容样例文"
+     },
+     {
+      "bvid": "BV1fpvnbL5fN",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-18",
+      "title": "假349样例文本假数"
+     }
+    ]
+   }
+  },
+  "5683571684": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假50样例文\n该用户发布的视频：《假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测》(BV1VGUpENJvp, 2026-08-21)",
+    "bili_comment": "【对该用户的了解】\n昵称：假50样例文\n该用户发布的视频：《假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测》(BV1VGUpENJvp, 2026-08-21)",
+    "bili_dm": "【对该用户的了解】\n昵称：假50样例文\n该用户发布的视频：《假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测》(BV1VGUpENJvp, 2026-08-21)",
+    "bili_live": "【对该用户的了解】\n昵称：假50样例文\n该用户发布的视频：《假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测》(BV1VGUpENJvp, 2026-08-21)",
+    "proactive": "【对该用户的了解】\n昵称：假50样例文\n该用户发布的视频：《假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测》(BV1VGUpENJvp, 2026-08-21)",
+    "qq_group": "【对该用户的了解】\n昵称：假50样例文",
+    "qq_private": "【对该用户的了解】\n昵称：假50样例文"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假50样例文",
+    "video_refs": [
+     {
+      "bvid": "BV1VGUpENJvp",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-08-21",
+      "title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测"
+     }
+    ]
+   }
+  },
+  "61920766": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假129\n该用户发布的视频：《假395样例文本假数据测试内》(BV1JgBC6ANrZ, 2026-07-14)；《假130样例文本假数据测试内容样例文本假数据测》(BV1X5f0vLKev, 2026-09-01)；《假397样例文本假数据测试内容样例文》(BV1uMCkeceUp, 2026-09-11)；《假399样例文本假数据测》(BV1VcWHRNEz5, 2026-10-16)",
+    "bili_comment": "【对该用户的了解】\n昵称：假129\n该用户发布的视频：《假395样例文本假数据测试内》(BV1JgBC6ANrZ, 2026-07-14)；《假130样例文本假数据测试内容样例文本假数据测》(BV1X5f0vLKev, 2026-09-01)；《假397样例文本假数据测试内容样例文》(BV1uMCkeceUp, 2026-09-11)；《假399样例文本假数据测》(BV1VcWHRNEz5, 2026-10-16)",
+    "bili_dm": "【对该用户的了解】\n昵称：假129\n该用户发布的视频：《假395样例文本假数据测试内》(BV1JgBC6ANrZ, 2026-07-14)；《假130样例文本假数据测试内容样例文本假数据测》(BV1X5f0vLKev, 2026-09-01)；《假397样例文本假数据测试内容样例文》(BV1uMCkeceUp, 2026-09-11)；《假399样例文本假数据测》(BV1VcWHRNEz5, 2026-10-16)",
+    "bili_live": "【对该用户的了解】\n昵称：假129\n该用户发布的视频：《假130样例文本假数据测试内容样例文本假数据测》(BV1X5f0vLKev, 2026-09-01)；《假397样例文本假数据测试内容样例文》(BV1uMCkeceUp, 2026-09-11)；《假399样例文本假数据测》(BV1VcWHRNEz5, 2026-10-16)",
+    "proactive": "【对该用户的了解】\n昵称：假129\n该用户发布的视频：《假395样例文本假数据测试内》(BV1JgBC6ANrZ, 2026-07-14)；《假130样例文本假数据测试内容样例文本假数据测》(BV1X5f0vLKev, 2026-09-01)；《假397样例文本假数据测试内容样例文》(BV1uMCkeceUp, 2026-09-11)；《假399样例文本假数据测》(BV1VcWHRNEz5, 2026-10-16)",
+    "qq_group": "【对该用户的了解】\n昵称：假129",
+    "qq_private": "【对该用户的了解】\n昵称：假129"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假129",
+    "video_refs": [
+     {
+      "bvid": "BV1JgBC6ANrZ",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-14",
+      "title": "假395样例文本假数据测试内"
+     },
+     {
+      "bvid": "BV1X5f0vLKev",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-09-01",
+      "title": "假130样例文本假数据测试内容样例文本假数据测"
+     },
+     {
+      "bvid": "BV1uMCkeceUp",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-09-11",
+      "title": "假397样例文本假数据测试内容样例文"
+     },
+     {
+      "bvid": "BV1VcWHRNEz5",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-10-16",
+      "title": "假399样例文本假数据测"
+     }
+    ]
+   }
+  },
+  "676010842": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假75样例文\n该用户发布的视频：《假387样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1f6GRu0vcV, 2026-07-12)；《假389样例文本假数据测试内容样例文本假数据测试内容样》(BV1LBHA1cRqU, 2026-08-05)；《假391样例文本假数据测试内容样例文本假数据测试》(BV1VW3M9MuCB, 2026-08-13)；《假393样例文本假数据测试内容》(BV1gZRr09SRq, 2026-08-14)",
+    "bili_comment": "【对该用户的了解】\n昵称：假75样例文\n该用户发布的视频：《假387样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1f6GRu0vcV, 2026-07-12)；《假389样例文本假数据测试内容样例文本假数据测试内容样》(BV1LBHA1cRqU, 2026-08-05)；《假391样例文本假数据测试内容样例文本假数据测试》(BV1VW3M9MuCB, 2026-08-13)；《假393样例文本假数据测试内容》(BV1gZRr09SRq, 2026-08-14)",
+    "bili_dm": "【对该用户的了解】\n昵称：假75样例文\n该用户发布的视频：《假387样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1f6GRu0vcV, 2026-07-12)；《假389样例文本假数据测试内容样例文本假数据测试内容样》(BV1LBHA1cRqU, 2026-08-05)；《假391样例文本假数据测试内容样例文本假数据测试》(BV1VW3M9MuCB, 2026-08-13)；《假393样例文本假数据测试内容》(BV1gZRr09SRq, 2026-08-14)",
+    "bili_live": "【对该用户的了解】\n昵称：假75样例文",
+    "proactive": "【对该用户的了解】\n昵称：假75样例文\n该用户发布的视频：《假387样例文本假数据测试内容样例文本假数据测试内容样例文本假数》(BV1f6GRu0vcV, 2026-07-12)；《假389样例文本假数据测试内容样例文本假数据测试内容样》(BV1LBHA1cRqU, 2026-08-05)；《假391样例文本假数据测试内容样例文本假数据测试》(BV1VW3M9MuCB, 2026-08-13)；《假393样例文本假数据测试内容》(BV1gZRr09SRq, 2026-08-14)",
+    "qq_group": "【对该用户的了解】\n昵称：假75样例文",
+    "qq_private": "【对该用户的了解】\n昵称：假75样例文"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假75样例文",
+    "video_refs": [
+     {
+      "bvid": "BV1f6GRu0vcV",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-12",
+      "title": "假387样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+     },
+     {
+      "bvid": "BV1LBHA1cRqU",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-05",
+      "title": "假389样例文本假数据测试内容样例文本假数据测试内容样"
+     },
+     {
+      "bvid": "BV1VW3M9MuCB",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-13",
+      "title": "假391样例文本假数据测试内容样例文本假数据测试"
+     },
+     {
+      "bvid": "BV1gZRr09SRq",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-14",
+      "title": "假393样例文本假数据测试内容"
+     }
+    ]
+   }
+  },
+  "711741232": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假408\n该用户发布的视频：《假410样例文本假数据测试内容样例文本假数据测试内容》(BV1Q2dzxAT1f, 2026-07-17)；《假412样例文本假数据测试内容样例文本假数据测试内》(BV197pH07nRS, 2026-07-18)；《假414样例文本假数据测试内容样例文本假数据》(BV1tU5T34BeZ, 2026-07-28)；《假416样例文本假数据测试内容样例文本假数据测试内》(BV1nbV2s9LqN, 2026-08-16)",
+    "bili_comment": "【对该用户的了解】\n昵称：假408\n该用户发布的视频：《假410样例文本假数据测试内容样例文本假数据测试内容》(BV1Q2dzxAT1f, 2026-07-17)；《假412样例文本假数据测试内容样例文本假数据测试内》(BV197pH07nRS, 2026-07-18)；《假414样例文本假数据测试内容样例文本假数据》(BV1tU5T34BeZ, 2026-07-28)；《假416样例文本假数据测试内容样例文本假数据测试内》(BV1nbV2s9LqN, 2026-08-16)",
+    "bili_dm": "【对该用户的了解】\n昵称：假408\n该用户发布的视频：《假410样例文本假数据测试内容样例文本假数据测试内容》(BV1Q2dzxAT1f, 2026-07-17)；《假412样例文本假数据测试内容样例文本假数据测试内》(BV197pH07nRS, 2026-07-18)；《假414样例文本假数据测试内容样例文本假数据》(BV1tU5T34BeZ, 2026-07-28)；《假416样例文本假数据测试内容样例文本假数据测试内》(BV1nbV2s9LqN, 2026-08-16)",
+    "bili_live": "【对该用户的了解】\n昵称：假408\n该用户发布的视频：《假416样例文本假数据测试内容样例文本假数据测试内》(BV1nbV2s9LqN, 2026-08-16)",
+    "proactive": "【对该用户的了解】\n昵称：假408\n该用户发布的视频：《假410样例文本假数据测试内容样例文本假数据测试内容》(BV1Q2dzxAT1f, 2026-07-17)；《假412样例文本假数据测试内容样例文本假数据测试内》(BV197pH07nRS, 2026-07-18)；《假414样例文本假数据测试内容样例文本假数据》(BV1tU5T34BeZ, 2026-07-28)；《假416样例文本假数据测试内容样例文本假数据测试内》(BV1nbV2s9LqN, 2026-08-16)",
+    "qq_group": "【对该用户的了解】\n昵称：假408",
+    "qq_private": "【对该用户的了解】\n昵称：假408"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假408",
+    "video_refs": [
+     {
+      "bvid": "BV1Q2dzxAT1f",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-17",
+      "title": "假410样例文本假数据测试内容样例文本假数据测试内容"
+     },
+     {
+      "bvid": "BV197pH07nRS",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-18",
+      "title": "假412样例文本假数据测试内容样例文本假数据测试内"
+     },
+     {
+      "bvid": "BV1tU5T34BeZ",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-28",
+      "title": "假414样例文本假数据测试内容样例文本假数据"
+     },
+     {
+      "bvid": "BV1nbV2s9LqN",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-08-16",
+      "title": "假416样例文本假数据测试内容样例文本假数据测试内"
+     }
+    ]
+   }
+  },
+  "745475490": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假378样\n曾在这些视频下交流：《假381》(BV1Jy6tR2tKA, 2026-06-09)\n印象：假379样例文本假数据",
+    "bili_comment": "【对该用户的了解】\n昵称：假378样\n曾在这些视频下交流：《假381》(BV1Jy6tR2tKA, 2026-06-09)\n印象：假379样例文本假数据",
+    "bili_dm": "【对该用户的了解】\n昵称：假378样\n曾在这些视频下交流：《假381》(BV1Jy6tR2tKA, 2026-06-09)\n印象：假379样例文本假数据",
+    "bili_live": "【对该用户的了解】\n昵称：假378样",
+    "proactive": "【对该用户的了解】\n昵称：假378样\n曾在这些视频下交流：《假381》(BV1Jy6tR2tKA, 2026-06-09)\n印象：假379样例文本假数据",
+    "qq_group": "【对该用户的了解】\n昵称：假378样",
+    "qq_private": "【对该用户的了解】\n昵称：假378样"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "假379样例文本假数据",
+    "impressions": {
+     "bili_comment": "假379样例文本假数据"
+    },
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假378样",
+    "video_refs": [
+     {
+      "bvid": "BV1Jy6tR2tKA",
+      "relation": "commented_under",
+      "scope": "bili_comment",
+      "time": "2026-06-09",
+      "title": "假381"
+     }
+    ]
+   }
+  },
+  "813620": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假268\n该用户发布的视频：《假426样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1mh36ueeVS, 2026-07-28)；《假269样例文本假数据测试内容样例文本假数据测试内容样例文本假》(BV1cZuLsuh1K, 2026-10-23)",
+    "bili_comment": "【对该用户的了解】\n昵称：假268\n该用户发布的视频：《假426样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1mh36ueeVS, 2026-07-28)；《假269样例文本假数据测试内容样例文本假数据测试内容样例文本假》(BV1cZuLsuh1K, 2026-10-23)",
+    "bili_dm": "【对该用户的了解】\n昵称：假268\n该用户发布的视频：《假426样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1mh36ueeVS, 2026-07-28)；《假269样例文本假数据测试内容样例文本假数据测试内容样例文本假》(BV1cZuLsuh1K, 2026-10-23)",
+    "bili_live": "【对该用户的了解】\n昵称：假268\n该用户发布的视频：《假269样例文本假数据测试内容样例文本假数据测试内容样例文本假》(BV1cZuLsuh1K, 2026-10-23)",
+    "proactive": "【对该用户的了解】\n昵称：假268\n该用户发布的视频：《假426样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1mh36ueeVS, 2026-07-28)；《假269样例文本假数据测试内容样例文本假数据测试内容样例文本假》(BV1cZuLsuh1K, 2026-10-23)",
+    "qq_group": "【对该用户的了解】\n昵称：假268",
+    "qq_private": "【对该用户的了解】\n昵称：假268"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假268",
+    "video_refs": [
+     {
+      "bvid": "BV1mh36ueeVS",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-28",
+      "title": "假426样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
+     },
+     {
+      "bvid": "BV1cZuLsuh1K",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-10-23",
+      "title": "假269样例文本假数据测试内容样例文本假数据测试内容样例文本假"
+     }
+    ]
+   }
+  },
+  "9338595": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假115\n该用户发布的视频：《假418样例文本假数据测试内容样例文本假数据测试内容样》(BV142Ch8q5PL, 2026-07-24)；《假420样例文本假数据测试内容样例文本假数据测试内容样例文本》(BV1qPuhRFVAh, 2026-08-04)；《假422样例文本假数据测试内容样例文本假数据测试内容》(BV144ZAFq1D2, 2026-08-08)；《假424样例文本假数据测试内容样例文本假》(BV1aKgc8HYeA, 2026-08-16)",
+    "bili_comment": "【对该用户的了解】\n昵称：假115\n该用户发布的视频：《假418样例文本假数据测试内容样例文本假数据测试内容样》(BV142Ch8q5PL, 2026-07-24)；《假420样例文本假数据测试内容样例文本假数据测试内容样例文本》(BV1qPuhRFVAh, 2026-08-04)；《假422样例文本假数据测试内容样例文本假数据测试内容》(BV144ZAFq1D2, 2026-08-08)；《假424样例文本假数据测试内容样例文本假》(BV1aKgc8HYeA, 2026-08-16)",
+    "bili_dm": "【对该用户的了解】\n昵称：假115\n该用户发布的视频：《假418样例文本假数据测试内容样例文本假数据测试内容样》(BV142Ch8q5PL, 2026-07-24)；《假420样例文本假数据测试内容样例文本假数据测试内容样例文本》(BV1qPuhRFVAh, 2026-08-04)；《假422样例文本假数据测试内容样例文本假数据测试内容》(BV144ZAFq1D2, 2026-08-08)；《假424样例文本假数据测试内容样例文本假》(BV1aKgc8HYeA, 2026-08-16)",
+    "bili_live": "【对该用户的了解】\n昵称：假115\n该用户发布的视频：《假424样例文本假数据测试内容样例文本假》(BV1aKgc8HYeA, 2026-08-16)",
+    "proactive": "【对该用户的了解】\n昵称：假115\n该用户发布的视频：《假418样例文本假数据测试内容样例文本假数据测试内容样》(BV142Ch8q5PL, 2026-07-24)；《假420样例文本假数据测试内容样例文本假数据测试内容样例文本》(BV1qPuhRFVAh, 2026-08-04)；《假422样例文本假数据测试内容样例文本假数据测试内容》(BV144ZAFq1D2, 2026-08-08)；《假424样例文本假数据测试内容样例文本假》(BV1aKgc8HYeA, 2026-08-16)",
+    "qq_group": "【对该用户的了解】\n昵称：假115",
+    "qq_private": "【对该用户的了解】\n昵称：假115"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假115",
+    "video_refs": [
+     {
+      "bvid": "BV142Ch8q5PL",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-24",
+      "title": "假418样例文本假数据测试内容样例文本假数据测试内容样"
+     },
+     {
+      "bvid": "BV1qPuhRFVAh",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-04",
+      "title": "假420样例文本假数据测试内容样例文本假数据测试内容样例文本"
+     },
+     {
+      "bvid": "BV144ZAFq1D2",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-08-08",
+      "title": "假422样例文本假数据测试内容样例文本假数据测试内容"
+     },
+     {
+      "bvid": "BV1aKgc8HYeA",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-08-16",
+      "title": "假424样例文本假数据测试内容样例文本假"
+     }
+    ]
+   }
+  },
+  "9657872625361064": {
+   "context": {
+    "admin": "【对该用户的了解】\n昵称：假183样\n该用户发布的视频：《假383样例文本假数据测试内容样例文本假数据测试内容样例文本假数据》(BV1CyK8u0jDC, 2026-07-12)；《假385样例文本假数据测试内容样例文本假数据测试内容样例》(BV1KHMyRQmaT, 2026-08-21)；《假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1jdeV5YAfv, 2026-09-20)",
+    "bili_comment": "【对该用户的了解】\n昵称：假183样\n该用户发布的视频：《假383样例文本假数据测试内容样例文本假数据测试内容样例文本假数据》(BV1CyK8u0jDC, 2026-07-12)；《假385样例文本假数据测试内容样例文本假数据测试内容样例》(BV1KHMyRQmaT, 2026-08-21)；《假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1jdeV5YAfv, 2026-09-20)",
+    "bili_dm": "【对该用户的了解】\n昵称：假183样\n该用户发布的视频：《假383样例文本假数据测试内容样例文本假数据测试内容样例文本假数据》(BV1CyK8u0jDC, 2026-07-12)；《假385样例文本假数据测试内容样例文本假数据测试内容样例》(BV1KHMyRQmaT, 2026-08-21)；《假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1jdeV5YAfv, 2026-09-20)",
+    "bili_live": "【对该用户的了解】\n昵称：假183样\n该用户发布的视频：《假385样例文本假数据测试内容样例文本假数据测试内容样例》(BV1KHMyRQmaT, 2026-08-21)；《假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1jdeV5YAfv, 2026-09-20)",
+    "proactive": "【对该用户的了解】\n昵称：假183样\n该用户发布的视频：《假383样例文本假数据测试内容样例文本假数据测试内容样例文本假数据》(BV1CyK8u0jDC, 2026-07-12)；《假385样例文本假数据测试内容样例文本假数据测试内容样例》(BV1KHMyRQmaT, 2026-08-21)；《假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试》(BV1jdeV5YAfv, 2026-09-20)",
+    "qq_group": "【对该用户的了解】\n昵称：假183样",
+    "qq_private": "【对该用户的了解】\n昵称：假183样"
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "假183样",
+    "video_refs": [
+     {
+      "bvid": "BV1CyK8u0jDC",
+      "relation": "uploaded_by",
+      "scope": "bili_comment",
+      "time": "2026-07-12",
+      "title": "假383样例文本假数据测试内容样例文本假数据测试内容样例文本假数据"
+     },
+     {
+      "bvid": "BV1KHMyRQmaT",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-08-21",
+      "title": "假385样例文本假数据测试内容样例文本假数据测试内容样例"
+     },
+     {
+      "bvid": "BV1jdeV5YAfv",
+      "relation": "uploaded_by",
+      "scope": "proactive",
+      "time": "2026-09-20",
+      "title": "假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
+     }
+    ]
+   }
+  },
+  "no-such-user": {
+   "context": {
+    "admin": "",
+    "bili_comment": "",
+    "bili_dm": "",
+    "bili_live": "",
+    "proactive": "",
+    "qq_group": "",
+    "qq_private": ""
+   },
+   "normalized": {
+    "fact_scopes": {},
+    "facts": [],
+    "impression": "",
+    "impressions": {},
+    "live": {
+     "event_counts": {},
+     "memory_refs": []
+    },
+    "tag_scopes": {},
+    "tags": [],
+    "username": "",
+    "video_refs": []
+   }
+  }
+ },
+ "file": {
+  "10828451": {
+   "fact_scopes": {
+    "事实10": "bili_comment",
+    "事实11": "bili_comment",
+    "事实12": "bili_comment",
+    "事实13": "bili_comment",
+    "事实14": "bili_comment",
+    "事实15": "bili_comment",
+    "事实16": "bili_comment",
+    "事实17": "bili_comment",
+    "事实18": "bili_comment",
+    "事实19": "bili_comment",
+    "事实20": "bili_comment",
+    "事实21": "bili_comment",
+    "事实22": "bili_comment",
+    "事实23": "bili_comment",
+    "事实24": "bili_comment",
+    "事实5": "bili_comment",
+    "事实6": "bili_comment",
+    "事实7": "bili_comment",
+    "事实8": "bili_comment",
+    "事实9": "bili_comment"
+   },
+   "facts": [
+    "事实5",
+    "事实6",
+    "事实7",
+    "事实8",
+    "事实9",
+    "事实10",
+    "事实11",
+    "事实12",
+    "事实13",
+    "事实14",
+    "事实15",
+    "事实16",
+    "事实17",
+    "事实18",
+    "事实19",
+    "事实20",
+    "事实21",
+    "事实22",
+    "事实23",
+    "事实24"
+   ],
+   "impression": "私信里很客气",
+   "impressions": {
+    "bili_dm": "私信里很客气"
+   },
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "relationship": {
+    "last_interaction_at": "2026-11-03 09:30",
+    "last_source": "comment",
+    "negative_interactions": 3,
+    "positive_interactions": 1,
+    "severe_negative_streak": 0
+   },
+   "tag_scopes": {
+    "标签10": "bili_comment",
+    "标签11": "bili_comment",
+    "标签2": "bili_comment",
+    "标签3": "bili_comment",
+    "标签4": "bili_comment",
+    "标签5": "bili_comment",
+    "标签6": "bili_comment",
+    "标签7": "bili_comment",
+    "标签8": "bili_comment",
+    "标签9": "bili_comment"
+   },
+   "tags": [
+    "标签2",
+    "标签3",
+    "标签4",
+    "标签5",
+    "标签6",
+    "标签7",
+    "标签8",
+    "标签9",
+    "标签10",
+    "标签11"
+   ],
+   "username": "新名字",
+   "video_refs": [
+    {
+     "bvid": "BV1atfv0CbEd",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-15",
+     "title": "假401样例文本假数据测试内容样例文本假"
+    },
+    {
+     "bvid": "BV1yrTgzZjp5",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-10",
+     "title": "假403样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+    },
+    {
+     "bvid": "BV1ANwBzxSTa",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-11",
+     "title": "假405样例文本假数据测试内容样例文本假数"
+    },
+    {
+     "bvid": "BV1FpwVut8m7",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-13",
+     "title": "假407样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+    }
+   ]
+  },
+  "345170725": {
+   "fact_scopes": {
+    "假334样例文本假数据测试内容样例文本假数": "bili_comment",
+    "假335样例文本假数据测试内": "bili_comment",
+    "假336样例文本假数据测试": "bili_comment",
+    "假337样例文本假数据测试内": "bili_comment",
+    "假353样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测": "bili_comment",
+    "假354样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+    "假355样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+    "假356样例文本假数据测试内容样例文本假数据测试内容样例文本": "bili_comment",
+    "假357样例文本假数据测试内容样例文本假": "bili_comment",
+    "假358样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内": "bili_comment",
+    "假359样例文本假数据测试内容样例文本假数据测试内容样例文本假数据": "bili_comment",
+    "假360样例文本假数据测试内容": "bili_comment",
+    "假361样例文本假数": "bili_comment",
+    "假362样例文本假数据测试": "bili_comment",
+    "假363样例文本假数": "bili_comment",
+    "假364样例文本假数据测试内容样例文本假数据": "bili_comment",
+    "假365样例文本假数据测试内容样例文本": "bili_comment",
+    "假366样例文本假数据测试内容样例文本假数": "bili_comment",
+    "假367:假368样": "bili_comment",
+    "假370样例文本假数据测试内容样例文": "bili_dm"
+   },
+   "facts": [
+    "假334样例文本假数据测试内容样例文本假数",
+    "假335样例文本假数据测试内",
+    "假336样例文本假数据测试",
+    "假337样例文本假数据测试内"
+   ],
+   "impression": "假333样例文本假数据",
+   "impressions": {
+    "bili_comment": "假352样例文本假数",
+    "bili_dm": "假333样例文本假数据"
+   },
+   "live": {
+    "event_counts": {
+     "danmaku": 9
+    },
+    "last_seen": "2026-07-16 18:13",
+    "last_session_id": "bili_live:3276055248:3549123754",
+    "memory_refs": [
+     "ext_92c2754cb9ba482eb5323da2217eb4db",
+     "ext_73d45ab9e8c44734a4ece07b7deb654d",
+     "ext_87d2f58b4c06445caaa525201c459aae",
+     "ext_23600e50f95b4355bc7903ba5424db62"
+    ]
+   },
+   "relationship": {
+    "last_interaction_at": "2026-08-28 12:36",
+    "last_source": "private",
+    "negative_interactions": 0,
+    "positive_interactions": 1,
+    "severe_negative_streak": 0
+   },
+   "tag_scopes": {
+    "假338样": "bili_comment",
+    "假339样例": "bili_comment",
+    "假340样例": "bili_comment",
+    "假341样例文": "bili_comment",
+    "假371": "bili_comment",
+    "假372": "bili_comment",
+    "假373样例文": "bili_comment",
+    "假374样例": "bili_comment",
+    "假375": "bili_comment",
+    "假376样例文本假数据测试内容样例文本假数": "bili_comment"
+   },
+   "tags": [
+    "假338样",
+    "假339样例",
+    "假340样例",
+    "假341样例文"
+   ],
+   "username": "假46样例文本假数据测试内",
+   "video_refs": [
+    {
+     "bvid": "BV1Z9UJwzZzs",
+     "relation": "commented_under",
+     "scope": "bili_comment",
+     "time": "2026-06-12",
+     "title": "假343样例文本假数据测试内容样例文本假数据测试"
+    },
+    {
+     "bvid": "BV1pu1sraYru",
+     "relation": "commented_under",
+     "scope": "bili_comment",
+     "time": "2026-06-14",
+     "title": "假345样例文本假数据测试内容样例文本假数据"
+    },
+    {
+     "bvid": "BV1KwP4jgU91",
+     "relation": "commented_under",
+     "scope": "bili_comment",
+     "time": "2026-06-15",
+     "title": "假347样例文本假数据测试内容样例文本假数据测试内容样例文"
+    },
+    {
+     "bvid": "BV1fpvnbL5fN",
+     "relation": "commented_under",
+     "scope": "bili_comment",
+     "time": "2026-06-18",
+     "title": "假349样例文本假数"
+    },
+    {
+     "bvid": "BV1aaaaaaaaa",
+     "relation": "commented_under",
+     "scope": "bili_comment",
+     "time": "2026-11-03",
+     "title": "又一次"
+    },
+    {
+     "bvid": "BV1bbbbbbbbb",
+     "relation": "related",
+     "scope": "qq_group",
+     "time": "2026-11-03",
+     "title": ""
+    }
+   ]
+  },
+  "5683571684": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假50样例文",
+   "video_refs": [
+    {
+     "bvid": "BV1VGUpENJvp",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-08-21",
+     "title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测"
+    }
+   ]
+  },
+  "61920766": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假129",
+   "video_refs": [
+    {
+     "bvid": "BV1JgBC6ANrZ",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-14",
+     "title": "假395样例文本假数据测试内"
+    },
+    {
+     "bvid": "BV1X5f0vLKev",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-09-01",
+     "title": "假130样例文本假数据测试内容样例文本假数据测"
+    },
+    {
+     "bvid": "BV1uMCkeceUp",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-09-11",
+     "title": "假397样例文本假数据测试内容样例文"
+    },
+    {
+     "bvid": "BV1VcWHRNEz5",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-10-16",
+     "title": "假399样例文本假数据测"
+    }
+   ]
+  },
+  "676010842": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假75样例文",
+   "video_refs": [
+    {
+     "bvid": "BV1f6GRu0vcV",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-12",
+     "title": "假387样例文本假数据测试内容样例文本假数据测试内容样例文本假数"
+    },
+    {
+     "bvid": "BV1LBHA1cRqU",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-05",
+     "title": "假389样例文本假数据测试内容样例文本假数据测试内容样"
+    },
+    {
+     "bvid": "BV1VW3M9MuCB",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-13",
+     "title": "假391样例文本假数据测试内容样例文本假数据测试"
+    },
+    {
+     "bvid": "BV1gZRr09SRq",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-14",
+     "title": "假393样例文本假数据测试内容"
+    }
+   ]
+  },
+  "711741232": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假408",
+   "video_refs": [
+    {
+     "bvid": "BV1Q2dzxAT1f",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-17",
+     "title": "假410样例文本假数据测试内容样例文本假数据测试内容"
+    },
+    {
+     "bvid": "BV197pH07nRS",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-18",
+     "title": "假412样例文本假数据测试内容样例文本假数据测试内"
+    },
+    {
+     "bvid": "BV1tU5T34BeZ",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-28",
+     "title": "假414样例文本假数据测试内容样例文本假数据"
+    },
+    {
+     "bvid": "BV1nbV2s9LqN",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-08-16",
+     "title": "假416样例文本假数据测试内容样例文本假数据测试内"
+    }
+   ]
+  },
+  "745475490": {
+   "facts": [],
+   "impression": "假379样例文本假数据",
+   "tags": [],
+   "username": "假378样",
+   "video_encounters": [
+    {
+     "bvid": "BV1Jy6tR2tKA",
+     "time": "2026-06-09",
+     "title": "假381"
+    }
+   ]
+  },
+  "777": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {
+     "danmaku": 2,
+     "gift": 1
+    },
+    "last_seen": "2026-11-03 09:30",
+    "last_session_id": "s2",
+    "memory_refs": [
+     "ref-1"
+    ]
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "直播观众",
+   "video_refs": []
+  },
+  "813620": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假268",
+   "video_refs": [
+    {
+     "bvid": "BV1mh36ueeVS",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-28",
+     "title": "假426样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
+    },
+    {
+     "bvid": "BV1cZuLsuh1K",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-10-23",
+     "title": "假269样例文本假数据测试内容样例文本假数据测试内容样例文本假"
+    }
+   ]
+  },
+  "888": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "UP主",
+   "video_refs": [
+    {
+     "bvid": "BV1ccccccccc",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-11-03",
+     "title": "主动看到的"
+    }
+   ]
+  },
+  "9338595": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假115",
+   "video_refs": [
+    {
+     "bvid": "BV142Ch8q5PL",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-24",
+     "title": "假418样例文本假数据测试内容样例文本假数据测试内容样"
+    },
+    {
+     "bvid": "BV1qPuhRFVAh",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-04",
+     "title": "假420样例文本假数据测试内容样例文本假数据测试内容样例文本"
+    },
+    {
+     "bvid": "BV144ZAFq1D2",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-08-08",
+     "title": "假422样例文本假数据测试内容样例文本假数据测试内容"
+    },
+    {
+     "bvid": "BV1aKgc8HYeA",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-08-16",
+     "title": "假424样例文本假数据测试内容样例文本假"
+    }
+   ]
+  },
+  "9657872625361064": {
+   "fact_scopes": {},
+   "facts": [],
+   "impression": "",
+   "impressions": {},
+   "live": {
+    "event_counts": {},
+    "memory_refs": []
+   },
+   "tag_scopes": {},
+   "tags": [],
+   "username": "假183样",
+   "video_refs": [
+    {
+     "bvid": "BV1CyK8u0jDC",
+     "relation": "uploaded_by",
+     "scope": "bili_comment",
+     "time": "2026-07-12",
+     "title": "假383样例文本假数据测试内容样例文本假数据测试内容样例文本假数据"
+    },
+    {
+     "bvid": "BV1KHMyRQmaT",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-08-21",
+     "title": "假385样例文本假数据测试内容样例文本假数据测试内容样例"
+    },
+    {
+     "bvid": "BV1jdeV5YAfv",
+     "relation": "uploaded_by",
+     "scope": "proactive",
+     "time": "2026-09-20",
+     "title": "假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
+    }
+   ]
+  }
+ },
+ "relations": [
+  {
+   "last_interaction_at": "2026-11-03 09:30",
+   "last_source": "comment",
+   "negative_interactions": 0,
+   "positive_interactions": 1,
+   "severe_negative_streak": 0
+  },
+  {
+   "last_interaction_at": "2026-11-03 09:30",
+   "last_source": "private",
+   "negative_interactions": 1,
+   "positive_interactions": 1,
+   "severe_negative_streak": 1
+  },
+  {
+   "last_interaction_at": "2026-11-03 09:30",
+   "last_source": "private",
+   "negative_interactions": 2,
+   "positive_interactions": 1,
+   "severe_negative_streak": 2
+  },
+  {
+   "last_interaction_at": "2026-11-03 09:30",
+   "last_source": "comment",
+   "negative_interactions": 3,
+   "positive_interactions": 1,
+   "severe_negative_streak": 0
+  },
+  {
+   "last_interaction_at": "2026-11-03 09:30",
+   "last_source": "comment",
+   "negative_interactions": 3,
+   "positive_interactions": 1,
+   "severe_negative_streak": 0
+  }
+ ],
+ "removed": [
+  1,
+  0
+ ]
+}

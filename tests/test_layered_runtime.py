@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from core.adapter.events import ActionRequest as StoredActionRequest
+from core.storage.event_log import StoredActionRequest
 from core.layered_runtime import LayeredRuntime
 from core.runtime import ActionRequest, EventRuntime, EventState, InboundEvent
 
@@ -213,7 +213,7 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
         snapshot = await self.layers.snapshot()
         self.assertTrue(snapshot["open"])
         self.assertGreaterEqual(snapshot["tables"]["events"], 1)
-        self.assertIn("energy", snapshot["persona"])
+        self.assertNotIn("persona", snapshot)
 
     async def test_preference_lifecycle_is_idempotent_and_supports_decay(self):
         at = datetime(2026, 8, 20, 12, tzinfo=timezone.utc).timestamp()
@@ -317,16 +317,6 @@ class LayeredRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "SELECT text FROM memories WHERE id=?", (native_id,)
         )
         self.assertEqual(native["text"], "native row")
-
-    async def test_persona_rest_gate_keeps_urgent_priority_direction(self):
-        self.layers.persona.current_segment = AsyncMock(
-            return_value=SimpleNamespace(activity="rest")
-        )
-        urgent, _ = await self.layers.persona.should_respond(0)
-        normal, reason = await self.layers.persona.should_respond(40)
-        self.assertTrue(urgent)
-        self.assertFalse(normal)
-        self.assertIn("休息", reason)
 
     async def test_schema_v2_database_adds_action_queue_columns(self):
         legacy_path = Path(self.temp_dir.name) / "legacy-v2.sqlite3"

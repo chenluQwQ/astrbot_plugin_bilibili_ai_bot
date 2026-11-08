@@ -1,3 +1,4 @@
+from base_parts import BaseParts
 import asyncio
 import json
 import sys
@@ -16,7 +17,7 @@ BASE_MANIFEST = {
     "name": "Creator",
     "version": "0.2.0",
     "extension_api": 1,
-    "host_requires": ">=1.5.0,<2.0.0",
+    "host_requires": ">=1.5.0,<3.0.0",
     "navigation": [{"page": "dashboard", "title": "创作总览"}],
     "pages": [{"id": "dashboard", "renderer": "bilibot-schema-v1"}],
     "actions": ["request-publish"],
@@ -43,6 +44,7 @@ def isolated_config(tmp_path, monkeypatch):
         path = tmp_path / (name.lower() + ".json")
         path.write_text("[]", encoding="utf-8")
         setattr(config, name, path)
+    config.CREATOR_ACTIVITY_FILE = tmp_path / "creator_extension_activity.json"
     monkeypatch.setitem(sys.modules, "core.config", config)
     monkeypatch.setattr(core, "config", config, raising=False)
     return config
@@ -81,7 +83,7 @@ class FakeMemoryAPI:
         return "m2"
 
 
-class HostPlugin:
+class HostPlugin(BaseParts):
     def __init__(self):
         self.config = Config(
             SESSDATA="top-secret-cookie",
@@ -494,10 +496,11 @@ def test_host_uses_plugin_relative_config_in_installed_namespace(tmp_path, monke
     module = importlib.import_module(package_name + ".core.extensions.host_api")
     permission_module = importlib.import_module(package_name + ".core.extensions.permissions")
     grant = permission_module.ExtensionGrant.create("creator", ["activity.write"])
-    host = module.BiliBotExtensionHostAPI(grant, HostPlugin(), reject_write)
+    plugin = HostPlugin()
+    host = module.BiliBotExtensionHostAPI(grant, plugin, reject_write)
     host.record_creator_activity({"title": "test"})
-    assert (config.DATA_DIR / "creator_extension_activity.json").is_file()
-    assert not (isolated_config.DATA_DIR / "creator_extension_activity.json").exists()
+    # 扩展动态记在插件自己的小状态里（数据库或 json 退路），不再按 config 拼路径
+    assert plugin.states.creator_activity.read([])[0]["title"] == "test"
 
 
 def test_link_previews_are_not_reported_as_watched_signals(isolated_config):

@@ -9,24 +9,29 @@ Covers:
 All tests are offline: no AstrBot instance, no network, fabricated config only.
 """
 import ast
-import importlib.util
 import json
-import os
-import sys
 import tempfile
 import types
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+from base_parts import attach_base
+from schedule_parts import ScheduleParts
 from core.runtime import WriteResultUnknownError
+from core.settings import Settings
+from core.domain.affection import Affection
+from core.domain.blocklist import BlockList
+from core.infra.bili.users import BiliUsers
+from core.infra.text import extract_json_object
+from core.storage.json_file import JsonFile
+from command_modules import app_for, load as load_command_module
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "main.py"
 
 ADMIN_COMMANDS = {
-    "cmd_login", "cmd_login_confirm", "cmd_live_danmaku", "cmd_start", "cmd_stop",
+    "cmd_login", "cmd_login_confirm", "cmd_start", "cmd_stop",
     "cmd_proactive", "cmd_toggle", "cmd_refresh_cookie", "cmd_consolidation",
     "cmd_weekly_summary", "cmd_cleanup_aged", "cmd_block", "cmd_unblock",
     "cmd_cleanup", "cmd_personality_edit", "cmd_personality_delete",
@@ -48,26 +53,6 @@ def _main_class_tree():
         node for node in tree.body
         if isinstance(node, ast.ClassDef) and node.name == "BiliBiliBot"
     )
-
-
-def _load_methods(names, namespace):
-    cls = _main_class_tree()
-    functions = [
-        node for node in cls.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names
-    ]
-    assert {n.name for n in functions} == set(names)
-    for node in functions:
-        node.decorator_list = []
-        node.returns = None
-        for arg in node.args.args + node.args.kwonlyargs:
-            arg.annotation = None
-    namespace.setdefault("__package__", "audit_plugin")
-    exec(
-        compile(ast.Module(body=functions, type_ignores=[]), str(MAIN), "exec"),
-        namespace,
-    )
-    return {name: namespace[name] for name in names}
 
 
 class AdminPermissionDecoratorTests(unittest.TestCase):
@@ -119,14 +104,15 @@ class Event:
 
 class BindSecurityTests(unittest.IsolatedAsyncioTestCase):
     def _bot(self, bindings_file, owner_mid="10001"):
-        namespace = {"BINDING_FILE": str(bindings_file)}
-        methods = _load_methods(["cmd_bind"], namespace)
         bot = types.SimpleNamespace(
             config={"OWNER_MID": owner_mid},
             _load_json=lambda path, default=None: default if default is not None else {},
             _save_json=MagicMock(),
         )
-        return methods["cmd_bind"], bot
+        attach_base(bot)
+        bot.settings = Settings(bot.config)
+        account = load_command_module("account")
+        return lambda bot, event: account.bind(app_for(bot), event), bot
 
     async def test_non_admin_cannot_bind_owner_uid(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -134,7 +120,7 @@ class BindSecurityTests(unittest.IsolatedAsyncioTestCase):
             event = Event("/bili绑定 10001", admin=False)
             replies = [item async for item in cmd_bind(bot, event)]
             self.assertIn("管理员", replies[-1])
-            bot._save_json.assert_not_called()
+            bot.json_store._save_json.assert_not_called()
 
     async def test_admin_can_bind_owner_uid(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -142,7 +128,7 @@ class BindSecurityTests(unittest.IsolatedAsyncioTestCase):
             event = Event("/bili绑定 10001", admin=True)
             replies = [item async for item in cmd_bind(bot, event)]
             self.assertIn("已绑定", replies[-1])
-            bot._save_json.assert_called_once()
+            bot.json_store._save_json.assert_called_once()
 
     async def test_normal_user_can_bind_own_uid(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -157,8 +143,7 @@ class OwnerInjectionGuardTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temp:
             bindings = Path(temp) / "bindings.json"
             bindings.write_text(json.dumps({"20002": "10001"}), encoding="utf-8")
-            namespace = {"BINDING_FILE": str(bindings)}
-            methods = _load_methods(["inject_bili_memory"], namespace)
+            qq_context = load_command_module("qq_context")
 
             bot = types.SimpleNamespace(
                 config={
@@ -168,94 +153,58 @@ class OwnerInjectionGuardTests(unittest.IsolatedAsyncioTestCase):
                     "ENABLE_SAFE_CROSS_PLATFORM_MEMORY": True,
                 },
                 _maybe_trigger_proactive_from_llm=AsyncMock(),
-                _inject_recent_group_share_into_request=MagicMock(return_value=False),
+                share_session=types.SimpleNamespace(_inject_recent_group_share_into_request=MagicMock(return_value=False)),
                 _load_json=lambda path, default=None: json.loads(bindings.read_text(encoding="utf-8")),
-                _cross_platform_activity_context=lambda: "OWNER_SECRET_ACTIVITY",
-                _inject_context_block_before_user=MagicMock(return_value=True),
+                now_doing=types.SimpleNamespace(prompt=lambda: "OWNER_SECRET_ACTIVITY"),
+                qq_chat=types.SimpleNamespace(_inject_context_block_before_user=MagicMock(return_value=True)),
                 memory_api=types.SimpleNamespace(
                     get_recent_memories=MagicMock(return_value=[
                         {"memory_type": "chat", "text": "OWNER_SECRET_MEMORY_TEXT"}
                     ])
                 ),
             )
+            bot.settings = Settings(bot.config)
             req = types.SimpleNamespace(prompt="今天做了什么", system_prompt="")
             event = Event("今天做了什么", admin=False)
-            await methods["inject_bili_memory"](bot, event, req)
+            await qq_context.inject_bili_memory(app_for(bot), event, req)
             self.assertNotIn("OWNER_SECRET", req.prompt)
             bot.memory_api.get_recent_memories.assert_not_called()
 
 
-def _load_schedule_mixin(temp_dir):
-    package = types.ModuleType("audit_sched_core")
-    package.__path__ = [str(ROOT / "core")]
-    astrbot = types.ModuleType("astrbot")
-    api = types.ModuleType("astrbot.api")
-    api.logger = MagicMock()
-    astrbot.api = api
-    config = types.ModuleType("audit_sched_core.config")
-    for name in (
-        "AUTONOMOUS_PLAN_FILE", "BANGUMI_SCHEDULE_FILE", "DYNAMIC_SCHEDULE_FILE",
-        "DYNAMIC_WATCH_SCHEDULE_FILE", "SCHEDULE_FILE", "SPECIAL_FOLLOW_SCHEDULE_FILE",
-    ):
-        setattr(config, name, str(Path(temp_dir) / f"{name.lower()}.json"))
-    with unittest.mock.patch.dict(sys.modules, {
-        "audit_sched_core": package,
-        "audit_sched_core.config": config,
-        "astrbot": astrbot,
-        "astrbot.api": api,
-    }):
-        spec = importlib.util.spec_from_file_location(
-            "audit_sched_core.schedule_mixin", ROOT / "core" / "schedule_mixin.py"
-        )
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
-    return module
+class _PlanProbe(ScheduleParts):
+    """原来这里把 schedule_mixin.py 单独加载，只为了把日程文件指到临时目录；每日计划现在是插件上的对象，
+    用不到文件的几项直接用真的，要写文件的那项把 json_store 换成假的。"""
 
 
 class SchedulePlanConfigTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.module = _load_schedule_mixin(self.temp.name)
-
     def test_max_attempts_respects_config(self):
-        mixin = self.module.ScheduleMixin()
+        mixin = _PlanProbe()
         mixin.config = {}
-        self.assertEqual(mixin._autonomous_plan_max_attempts(), 3)  # 1 + 2 retries
+        self.assertEqual(mixin.daily_plan._autonomous_plan_max_attempts(), 3)  # 1 + 2 retries
         mixin.config = {"AUTONOMOUS_PLAN_MAX_RETRIES": 0}
-        self.assertEqual(mixin._autonomous_plan_max_attempts(), 1)
+        self.assertEqual(mixin.daily_plan._autonomous_plan_max_attempts(), 1)
         mixin.config = {"AUTONOMOUS_PLAN_MAX_RETRIES": 5}
-        self.assertEqual(mixin._autonomous_plan_max_attempts(), 6)
+        self.assertEqual(mixin.daily_plan._autonomous_plan_max_attempts(), 6)
         mixin.config = {"AUTONOMOUS_PLAN_MAX_RETRIES": "junk"}
-        self.assertEqual(mixin._autonomous_plan_max_attempts(), 3)
+        self.assertEqual(mixin.daily_plan._autonomous_plan_max_attempts(), 3)
 
     def test_extract_plan_json_uses_repair_fallback(self):
-        mixin = self.module.ScheduleMixin()
-        mixin.config = {}
-        # Mimic UtilsMixin._repair_llm_json behaviour for fenced/trailing-comma JSON.
-        def repair(text):
-            text = text.replace("```json", "").replace("```", "").strip()
-            import re as _re
-            return _re.sub(r",\s*([}\]])", r"\1", text)
-        mixin._repair_llm_json = repair
+        # Fenced JSON with trailing commas goes through core.infra.text.repair_llm_json.
         raw = '```json\n{"proactive_windows": ["10:00-11:00",], "rationale": "ok",}\n```'
-        plan = mixin._extract_plan_json(raw)
+        plan = extract_json_object(raw)
         self.assertEqual(plan.get("rationale"), "ok")
         self.assertEqual(plan.get("proactive_windows"), ["10:00-11:00"])
 
-    def test_extract_plan_json_without_repair_still_works(self):
-        mixin = self.module.ScheduleMixin()
-        mixin.config = {}
-        plan = mixin._extract_plan_json('noise {"dynamic_times": ["20:00"]} tail')
+    def test_extract_plan_json_finds_object_inside_noise(self):
+        plan = extract_json_object('noise {"dynamic_times": ["20:00"]} tail')
         self.assertEqual(plan.get("dynamic_times"), ["20:00"])
 
 
 class ScheduleProviderPassthroughTests(unittest.IsolatedAsyncioTestCase):
     async def test_plan_llm_call_uses_configured_provider(self):
-        with tempfile.TemporaryDirectory() as temp:
-            module = _load_schedule_mixin(temp)
-            mixin = module.ScheduleMixin()
+        with tempfile.TemporaryDirectory():
+            mixin = _PlanProbe()
+            attach_base(mixin)
             captured = {}
 
             async def fake_llm(prompt, system_prompt="", max_tokens=300, provider_id=None):
@@ -277,21 +226,22 @@ class ScheduleProviderPassthroughTests(unittest.IsolatedAsyncioTestCase):
                 "DYNAMIC_WATCH_TIMES_COUNT": 2,
                 "AUTONOMOUS_PLAN_PROMPT": "",
             }
+            mixin.models = mixin  # 假插件自己写了 _llm_call，经 models 找回它
             mixin._llm_call = fake_llm
-            mixin._get_today_mood = lambda: ("平静", "")
+            mixin.mood = types.SimpleNamespace(today=lambda: ("平静", ""))
             mixin._get_system_prompt = AsyncMock(return_value="persona")
-            mixin._autonomous_generation_due = lambda: True
-            mixin._schedule_feature_enabled = lambda kind: True
-            mixin._load_json = lambda path, default=None: default if default is not None else {}
+            mixin.daily_plan._autonomous_generation_due = lambda: True
+            mixin.schedule_rules._schedule_feature_enabled = lambda kind: True
+            mixin.json_store._load_json = lambda path, default=None: default if default is not None else {}
             saved = {}
-            mixin._save_json = lambda path, data: saved.setdefault(str(path), data)
-            mixin._save_schedule_state = lambda *a, **k: None
-            mixin._save_dynamic_schedule_state = lambda *a, **k: None
-            mixin._save_bangumi_schedule_state = lambda *a, **k: None
-            mixin._save_special_follow_schedule_state = lambda *a, **k: None
-            mixin._save_dynamic_watch_schedule_state = lambda *a, **k: None
+            mixin.json_store._save_json = lambda path, data: saved.setdefault(str(path), data)
+            mixin.schedule_files._save_schedule_state = lambda *a, **k: None
+            mixin.schedule_files._save_dynamic_schedule_state = lambda *a, **k: None
+            mixin.schedule_files._save_bangumi_schedule_state = lambda *a, **k: None
+            mixin.schedule_files._save_special_follow_schedule_state = lambda *a, **k: None
+            mixin.schedule_files._save_dynamic_watch_schedule_state = lambda *a, **k: None
 
-            plan = await mixin._ensure_autonomous_daily_plan(force=True)
+            plan = await mixin.daily_plan._ensure_autonomous_daily_plan(force=True)
             self.assertEqual(captured.get("provider_id"), "plan-model-01")
             self.assertEqual(plan.get("generation_status"), "success")
 
@@ -313,43 +263,42 @@ class UnblockResultSafetyTests(unittest.IsolatedAsyncioTestCase):
         def save(path, value):
             Path(path).write_text(json.dumps(value), encoding="utf-8")
 
-        namespace = {
-            "os": os,
-            "datetime": datetime,
-            "DATA_DIR": str(directory),
-            "AFFECTION_FILE": str(affection_file),
-            "WriteResultUnknownError": WriteResultUnknownError,
-        }
-        command = _load_methods(["cmd_unblock"], namespace)["cmd_unblock"]
+        people = load_command_module("people")
         bot = types.SimpleNamespace(
             config={"BILI_JCT": "csrf"},
             _http_post=AsyncMock(),
             _load_json=load,
             _save_json=save,
-            _affection={"123": 42},
         )
+        attach_base(bot)
+        bot.settings = Settings(bot.config)
+        bot.affection = Affection(JsonFile(affection_file), lambda _uid: False)
+        bot.blocklist = BlockList(JsonFile(block_file), JsonFile(directory / "block_count.json"))
+        # 解黑走真正的B站接口那层，只把最底下的请求换成假的
+        bot.bili_users = BiliUsers(bot)
+        command = lambda bot, event: people.unblock(app_for(bot), event)
         return command, bot, block_file, affection_file
 
     async def test_unknown_unblock_preserves_local_state(self):
         with tempfile.TemporaryDirectory() as directory:
             command, bot, block_file, affection_file = self._command_and_bot(directory)
-            bot._http_post.side_effect = WriteResultUnknownError("response lost")
+            bot.bili_http._http_post.side_effect = WriteResultUnknownError("response lost")
             replies = [item async for item in command(bot, Event("/bili解黑 123"))]
             self.assertIn("结果未知", replies[-1])
             self.assertNotIn("✅ 已解除拉黑", replies[-1])
             self.assertIn("123", json.loads(block_file.read_text(encoding="utf-8")))
-            self.assertEqual(42, bot._affection["123"])
+            self.assertEqual(42, bot.affection.score("123"))
             self.assertEqual(42, json.loads(affection_file.read_text(encoding="utf-8"))["123"])
-            bot._http_post.assert_awaited_once()
+            bot.bili_http._http_post.assert_awaited_once()
 
     async def test_successful_unblock_still_commits_local_state(self):
         with tempfile.TemporaryDirectory() as directory:
             command, bot, block_file, affection_file = self._command_and_bot(directory)
-            bot._http_post.return_value = ({"code": 0}, None)
+            bot.bili_http._http_post.return_value = ({"code": 0}, None)
             replies = [item async for item in command(bot, Event("/bili解黑 123"))]
             self.assertIn("✅ 已解除拉黑", replies[-1])
             self.assertNotIn("123", json.loads(block_file.read_text(encoding="utf-8")))
-            self.assertEqual(0, bot._affection["123"])
+            self.assertEqual(0, bot.affection.score("123"))
             self.assertEqual(0, json.loads(affection_file.read_text(encoding="utf-8"))["123"])
 
 

@@ -677,7 +677,7 @@ class EventRuntime:
                 )
             self._prune_locked(now)
         await self._notify_observer(
-            "on_action_finished", request, state, record.reason
+            "on_action_finished", request, state, record.reason, value
         )
         if finished_event is not None:
             await self._notify_observer(

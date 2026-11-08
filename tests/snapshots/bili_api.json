@@ -1,0 +1,2046 @@
+{
+ "_coin_video/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/web-interface/coin/add",
+    {
+     "aid": 11,
+     "csrf": "jct",
+     "multiply": 1,
+     "select_like": 0
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_coin_video/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/web-interface/coin/add",
+    {
+     "aid": 11,
+     "csrf": "jct",
+     "multiply": 1,
+     "select_like": 0
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_coin_video/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/web-interface/coin/add",
+    {
+     "aid": 11,
+     "csrf": "jct",
+     "multiply": 1,
+     "select_like": 0
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_ensure_buvid/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/frontend/finger/spi",
+    null,
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_ensure_buvid/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/frontend/finger/spi",
+    null,
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_ensure_buvid/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/frontend/finger/spi",
+    null,
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_fav_video/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/v3/fav/folder/created/list-all",
+    {
+     "type": 2,
+     "up_mid": "1"
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_fav_video/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/v3/fav/folder/created/list-all",
+    {
+     "type": 2,
+     "up_mid": "1"
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_fav_video/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/v3/fav/folder/created/list-all",
+    {
+     "type": 2,
+     "up_mid": "1"
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_follow_user/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 1,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_follow_user/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 1,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_follow_user/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/relation/modify",
+    {
+     "act": 1,
+     "csrf": "jct",
+     "fid": 3,
+     "re_src": 11
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_get_hot_comments/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/v2/reply/main",
+    {
+     "mode": 3,
+     "oid": 11,
+     "ps": 10,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_hot_comments/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/v2/reply/main",
+    {
+     "mode": 3,
+     "oid": 11,
+     "ps": 10,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_hot_comments/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/v2/reply/main",
+    {
+     "mode": 3,
+     "oid": 11,
+     "ps": 10,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": [
+   "热评"
+  ]
+ },
+ "_get_up_latest_video/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/arc/search",
+    {
+     "mid": 3,
+     "order": "pubdate",
+     "pn": 1,
+     "ps": 1
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_up_latest_video/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/arc/search",
+    {
+     "mid": 3,
+     "order": "pubdate",
+     "pn": 1,
+     "ps": 1
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_up_latest_video/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/arc/search",
+    {
+     "mid": 3,
+     "order": "pubdate",
+     "pn": 1,
+     "ps": 1,
+     "w_rid": "2c1a73c4c05fc8589fcaf43dbe990eb4",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_video_info/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "aid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_video_info/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "aid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_video_info/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "aid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": {
+   "bvid": "BV1",
+   "cid": 22,
+   "desc": "简介",
+   "duration": 60,
+   "owner_mid": 3,
+   "owner_name": "UP",
+   "pic": "p",
+   "title": "标题",
+   "tname": "动画"
+  }
+ },
+ "_get_video_oid/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_video_oid/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "_get_video_oid/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": 11
+ },
+ "_get_video_subtitles/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": ""
+ },
+ "_get_video_subtitles/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": ""
+ },
+ "_get_video_subtitles/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/player/wbi/v2",
+    {
+     "aid": 11,
+     "cid": 22,
+     "w_rid": "fc6c331bdb575238cdf52bf10d47e362",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": ""
+ },
+ "_get_video_tags/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/tag/archive/tags",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_video_tags/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/tag/archive/tags",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_video_tags/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/tag/archive/tags",
+    {
+     "bvid": "BV1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "_get_wbi_keys/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "raises": "TypeError"
+ },
+ "_get_wbi_keys/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "raises": "ConnectionError"
+ },
+ "_get_wbi_keys/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": [
+   "a1b2a1b2a1b2a1b2a1b2a1b2a1b2a1b2",
+   "c3d4c3d4c3d4c3d4c3d4c3d4c3d4c3d4"
+  ]
+ },
+ "_like_video/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/web-interface/archive/like",
+    {
+     "aid": 11,
+     "csrf": "jct",
+     "like": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_like_video/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/web-interface/archive/like",
+    {
+     "aid": 11,
+     "csrf": "jct",
+     "like": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_like_video/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/web-interface/archive/like",
+    {
+     "aid": 11,
+     "csrf": "jct",
+     "like": 1
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_oid_to_bvid/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "aid": 11
+    },
+    false
+   ]
+  ],
+  "result": ""
+ },
+ "_oid_to_bvid/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "aid": 11
+    },
+    false
+   ]
+  ],
+  "result": ""
+ },
+ "_oid_to_bvid/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/view",
+    {
+     "aid": 11
+    },
+    false
+   ]
+  ],
+  "result": "BV1"
+ },
+ "_post_dynamic_text/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create",
+    {
+     "at_uids": "",
+     "content": "动态",
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "ctrl": "[]",
+     "dynamic_id": 0,
+     "extension": "{\"emoji_type\":1,\"from\":{\"emoji_type\":1},\"flag_cfg\":{}}",
+     "rid": 0,
+     "type": 4,
+     "up_choose_comment": 0,
+     "up_close_comment": 0
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_post_dynamic_text/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create",
+    {
+     "at_uids": "",
+     "content": "动态",
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "ctrl": "[]",
+     "dynamic_id": 0,
+     "extension": "{\"emoji_type\":1,\"from\":{\"emoji_type\":1},\"flag_cfg\":{}}",
+     "rid": 0,
+     "type": 4,
+     "up_choose_comment": 0,
+     "up_close_comment": 0
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_post_dynamic_text/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/create",
+    {
+     "at_uids": "",
+     "content": "动态",
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "ctrl": "[]",
+     "dynamic_id": 0,
+     "extension": "{\"emoji_type\":1,\"from\":{\"emoji_type\":1},\"flag_cfg\":{}}",
+     "rid": 0,
+     "type": 4,
+     "up_choose_comment": 0,
+     "up_close_comment": 0
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_qr_login_generate/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+    null,
+    true
+   ]
+  ],
+  "result": [
+   null,
+   null
+  ]
+ },
+ "_qr_login_generate/network": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+    null,
+    true
+   ]
+  ],
+  "result": [
+   null,
+   null
+  ]
+ },
+ "_qr_login_generate/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+    null,
+    true
+   ]
+  ],
+  "result": [
+   "https://passport.example/x?SESSDATA=s&bili_jct=j&DedeUserID=1",
+   "k"
+  ]
+ },
+ "_qr_login_poll/fail": {
+  "calls": [
+   [
+    "SESSION_GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+    {
+     "qrcode_key": "k"
+    },
+    null,
+    null
+   ]
+  ],
+  "result": [
+   -1,
+   "轮询失败: 'NoneType' object is not subscriptable",
+   {}
+  ]
+ },
+ "_qr_login_poll/network": {
+  "calls": [
+   [
+    "SESSION_GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+    {
+     "qrcode_key": "k"
+    },
+    null,
+    null
+   ]
+  ],
+  "result": [
+   -1,
+   "轮询失败: 断网",
+   {}
+  ]
+ },
+ "_qr_login_poll/ok": {
+  "calls": [
+   [
+    "SESSION_GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+    {
+     "qrcode_key": "k"
+    },
+    null,
+    null
+   ]
+  ],
+  "result": [
+   0,
+   "登录成功",
+   {
+    "DedeUserID": "1",
+    "REFRESH_TOKEN": "rt",
+    "SESSDATA": "s",
+    "bili_jct": "j"
+   }
+  ]
+ },
+ "_repost_video/fail": {
+  "calls": [
+   [
+    "SESSION_POST",
+    "https://api.bilibili.com/x/dynamic/feed/create/dyn",
+    {
+     "csrf": "jct"
+    },
+    {
+     "dyn_req": {
+      "attach_card": null,
+      "content": {
+       "contents": [
+        {
+         "biz_id": "",
+         "raw_text": "转发语",
+         "type": 1
+        }
+       ]
+      },
+      "meta": {
+       "app_meta": {
+        "from": "create.dynamic.web",
+        "mobi_app": "web"
+       }
+      },
+      "scene": 5,
+      "upload_id": "0_1700000000_1234"
+     },
+     "web_repost_src": {
+      "revs_id": {
+       "dyn_type": 8,
+       "rid": 11
+      }
+     }
+    },
+    null
+   ]
+  ],
+  "result": false
+ },
+ "_repost_video/network": {
+  "calls": [
+   [
+    "SESSION_POST",
+    "https://api.bilibili.com/x/dynamic/feed/create/dyn",
+    {
+     "csrf": "jct"
+    },
+    {
+     "dyn_req": {
+      "attach_card": null,
+      "content": {
+       "contents": [
+        {
+         "biz_id": "",
+         "raw_text": "转发语",
+         "type": 1
+        }
+       ]
+      },
+      "meta": {
+       "app_meta": {
+        "from": "create.dynamic.web",
+        "mobi_app": "web"
+       }
+      },
+      "scene": 5,
+      "upload_id": "0_1700000000_1234"
+     },
+     "web_repost_src": {
+      "revs_id": {
+       "dyn_type": 8,
+       "rid": 11
+      }
+     }
+    },
+    null
+   ]
+  ],
+  "raises": "WriteResultUnknownError"
+ },
+ "_repost_video/ok": {
+  "calls": [
+   [
+    "SESSION_POST",
+    "https://api.bilibili.com/x/dynamic/feed/create/dyn",
+    {
+     "csrf": "jct"
+    },
+    {
+     "dyn_req": {
+      "attach_card": null,
+      "content": {
+       "contents": [
+        {
+         "biz_id": "",
+         "raw_text": "转发语",
+         "type": 1
+        }
+       ]
+      },
+      "meta": {
+       "app_meta": {
+        "from": "create.dynamic.web",
+        "mobi_app": "web"
+       }
+      },
+      "scene": 5,
+      "upload_id": "0_1700000000_1234"
+     },
+     "web_repost_src": {
+      "revs_id": {
+       "dyn_type": 8,
+       "rid": 11
+      }
+     }
+    },
+    null
+   ]
+  ],
+  "result": true
+ },
+ "_send_bili_private_message/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg",
+    {
+     "build": 0,
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "from_firework": 0,
+     "mobi_app": "web",
+     "msg[content]": "{\"content\":\"你好\"}",
+     "msg[dev_id]": "00000000-0000-0000-0000-000000000000",
+     "msg[msg_status]": 0,
+     "msg[msg_type]": 1,
+     "msg[new_face_version]": 0,
+     "msg[receiver_id]": "2",
+     "msg[receiver_type]": 1,
+     "msg[sender_uid]": "1",
+     "msg[timestamp]": 1700000000
+    },
+    true
+   ]
+  ],
+  "result": false
+ },
+ "_send_bili_private_message/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg",
+    {
+     "build": 0,
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "from_firework": 0,
+     "mobi_app": "web",
+     "msg[content]": "{\"content\":\"你好\"}",
+     "msg[dev_id]": "00000000-0000-0000-0000-000000000000",
+     "msg[msg_status]": 0,
+     "msg[msg_type]": 1,
+     "msg[new_face_version]": 0,
+     "msg[receiver_id]": "2",
+     "msg[receiver_type]": 1,
+     "msg[sender_uid]": "1",
+     "msg[timestamp]": 1700000000
+    },
+    true
+   ]
+  ],
+  "result": false
+ },
+ "_send_bili_private_message/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg",
+    {
+     "build": 0,
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "from_firework": 0,
+     "mobi_app": "web",
+     "msg[content]": "{\"content\":\"你好\"}",
+     "msg[dev_id]": "00000000-0000-0000-0000-000000000000",
+     "msg[msg_status]": 0,
+     "msg[msg_type]": 1,
+     "msg[new_face_version]": 0,
+     "msg[receiver_id]": "2",
+     "msg[receiver_type]": 1,
+     "msg[sender_uid]": "1",
+     "msg[timestamp]": 1700000000
+    },
+    true
+   ]
+  ],
+  "result": true
+ },
+ "_send_bili_private_video_share/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg",
+    {
+     "build": 0,
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "from_firework": 0,
+     "mobi_app": "web",
+     "msg[content]": "{\"author\":\"\",\"headline\":\"\",\"id\":11,\"source\":5,\"thumb\":\"p\",\"title\":\"标题\",\"bvid\":\"BV1\"}",
+     "msg[dev_id]": "00000000-0000-0000-0000-000000000000",
+     "msg[msg_status]": 0,
+     "msg[msg_type]": 7,
+     "msg[new_face_version]": 0,
+     "msg[receiver_id]": "2",
+     "msg[receiver_type]": 1,
+     "msg[sender_uid]": "1",
+     "msg[timestamp]": 1700000000
+    },
+    true
+   ]
+  ],
+  "result": false
+ },
+ "_send_bili_private_video_share/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg",
+    {
+     "build": 0,
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "from_firework": 0,
+     "mobi_app": "web",
+     "msg[content]": "{\"author\":\"\",\"headline\":\"\",\"id\":11,\"source\":5,\"thumb\":\"p\",\"title\":\"标题\",\"bvid\":\"BV1\"}",
+     "msg[dev_id]": "00000000-0000-0000-0000-000000000000",
+     "msg[msg_status]": 0,
+     "msg[msg_type]": 7,
+     "msg[new_face_version]": 0,
+     "msg[receiver_id]": "2",
+     "msg[receiver_type]": 1,
+     "msg[sender_uid]": "1",
+     "msg[timestamp]": 1700000000
+    },
+    true
+   ]
+  ],
+  "result": false
+ },
+ "_send_bili_private_video_share/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.vc.bilibili.com/web_im/v1/web_im/send_msg",
+    {
+     "build": 0,
+     "csrf": "jct",
+     "csrf_token": "jct",
+     "from_firework": 0,
+     "mobi_app": "web",
+     "msg[content]": "{\"author\":\"\",\"headline\":\"\",\"id\":11,\"source\":5,\"thumb\":\"p\",\"title\":\"标题\",\"bvid\":\"BV1\"}",
+     "msg[dev_id]": "00000000-0000-0000-0000-000000000000",
+     "msg[msg_status]": 0,
+     "msg[msg_type]": 7,
+     "msg[new_face_version]": 0,
+     "msg[receiver_id]": "2",
+     "msg[receiver_type]": 1,
+     "msg[sender_uid]": "1",
+     "msg[timestamp]": 1700000000
+    },
+    true
+   ]
+  ],
+  "result": true
+ },
+ "_send_comment/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/v2/reply/add",
+    {
+     "csrf": "jct",
+     "message": "评论",
+     "oid": 11,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_send_comment/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/v2/reply/add",
+    {
+     "csrf": "jct",
+     "message": "评论",
+     "oid": 11,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_send_comment/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/v2/reply/add",
+    {
+     "csrf": "jct",
+     "message": "评论",
+     "oid": 11,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_send_reply/fail": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/v2/reply/add",
+    {
+     "csrf": "jct",
+     "message": "回复",
+     "oid": 11,
+     "parent": 22,
+     "root": 22,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_send_reply/network": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/v2/reply/add",
+    {
+     "csrf": "jct",
+     "message": "回复",
+     "oid": 11,
+     "parent": 22,
+     "root": 22,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": false
+ },
+ "_send_reply/ok": {
+  "calls": [
+   [
+    "POST",
+    "https://api.bilibili.com/x/v2/reply/add",
+    {
+     "csrf": "jct",
+     "message": "回复",
+     "oid": 11,
+     "parent": 22,
+     "root": 22,
+     "type": 1
+    },
+    false
+   ]
+  ],
+  "result": true
+ },
+ "_wbi_get/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api/x",
+    {
+     "a": 1
+    },
+    false
+   ]
+  ],
+  "result": [
+   {
+    "code": -101,
+    "data": null,
+    "message": "账号未登录"
+   },
+   "<FakeResponse>"
+  ]
+ },
+ "_wbi_get/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api/x",
+    {
+     "a": 1
+    },
+    false
+   ]
+  ],
+  "raises": "ConnectionError"
+ },
+ "_wbi_get/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api/x",
+    {
+     "a": 1,
+     "w_rid": "494dc351e0e039bfbc3bb2b03c40ea25",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": [
+   {
+    "code": 0,
+    "data": {
+     "aid": 11,
+     "b_3": "b3",
+     "b_4": "b4",
+     "bvid": "BV1",
+     "cid": 22,
+     "code": 0,
+     "desc": "简介",
+     "duration": 60,
+     "dyn_id_str": "77",
+     "dynamic_id": 77,
+     "folders": [],
+     "follower": 7,
+     "image_height": 1,
+     "image_url": "https://i/up.png",
+     "image_width": 1,
+     "info": {
+      "face": "f"
+     },
+     "is_favorite": false,
+     "items": [],
+     "level_info": {
+      "current_level": 6
+     },
+     "list": [
+      {
+       "mid": 5,
+       "uname": "乙"
+      }
+     ],
+     "mid": 1,
+     "name": "UP",
+     "owner": {
+      "mid": 3,
+      "name": "UP"
+     },
+     "pages": [
+      {
+       "cid": 22
+      }
+     ],
+     "pic": "p",
+     "pubdate": 100,
+     "qrcode_key": "k",
+     "refresh": true,
+     "refresh_token": "rt",
+     "replies": [
+      {
+       "content": {
+        "message": "热评"
+       },
+       "like": 5,
+       "member": {
+        "uname": "甲"
+       }
+      }
+     ],
+     "result": [],
+     "sign": "签名",
+     "stat": {
+      "view": 9
+     },
+     "subtitle": {
+      "subtitles": []
+     },
+     "timestamp": 1,
+     "title": "标题",
+     "tname": "动画",
+     "uname": "柠",
+     "url": "https://passport.example/x?SESSDATA=s&bili_jct=j&DedeUserID=1",
+     "wbi_img": {
+      "img_url": "https://i/a1b2a1b2a1b2a1b2a1b2a1b2a1b2a1b2.png",
+      "sub_url": "https://i/c3d4c3d4c3d4c3d4c3d4c3d4c3d4c3d4.png"
+     }
+    },
+    "message": "0"
+   },
+   "<FakeResponse>"
+  ]
+ },
+ "check_cookie/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": [
+   false,
+   "❌ Cookie 已失效 (code:-101)"
+  ]
+ },
+ "check_cookie/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": [
+   false,
+   "❌ 检查失败: 断网"
+  ]
+ },
+ "check_cookie/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": [
+   true,
+   "✅ 柠 (UID:1) LV6"
+  ]
+ },
+ "check_need_refresh/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+    {
+     "csrf": "jct"
+    },
+    false
+   ]
+  ],
+  "result": [
+   null,
+   "检查失败: 账号未登录"
+  ]
+ },
+ "check_need_refresh/network": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+    {
+     "csrf": "jct"
+    },
+    false
+   ]
+  ],
+  "result": [
+   null,
+   "检查出错: 断网"
+  ]
+ },
+ "check_need_refresh/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+    {
+     "csrf": "jct"
+    },
+    false
+   ]
+  ],
+  "result": [
+   true,
+   "需要刷新"
+  ]
+ },
+ "generate_qr/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+    null,
+    false
+   ]
+  ],
+  "raises": "Exception"
+ },
+ "generate_qr/network": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+    null,
+    false
+   ]
+  ],
+  "raises": "ConnectionError"
+ },
+ "generate_qr/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate",
+    null,
+    false
+   ]
+  ],
+  "result": {
+   "key": "k",
+   "url": "https://passport.example/x?SESSDATA=s&bili_jct=j&DedeUserID=1"
+  }
+ },
+ "get_following_live/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/FeedList",
+    {
+     "page": 1,
+     "pagesize": 20
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_following_live/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/FeedList",
+    {
+     "page": 1,
+     "pagesize": 20
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_following_live/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.live.bilibili.com/xlive/web-ucenter/v1/xfetter/FeedList",
+    {
+     "page": 1,
+     "pagesize": 20
+    },
+    false
+   ]
+  ],
+  "result": [
+   {
+    "area_name": "",
+    "link": "https://live.bilibili.com/",
+    "mid": "",
+    "online": 0,
+    "room_id": "",
+    "title": "",
+    "uname": "乙"
+   }
+  ]
+ },
+ "get_following_updates/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all",
+    {
+     "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
+     "offset": "",
+     "timezone_offset": -480,
+     "type": "all"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_following_updates/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all",
+    {
+     "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
+     "offset": "",
+     "timezone_offset": -480,
+     "type": "all"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_following_updates/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all",
+    {
+     "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
+     "offset": "",
+     "timezone_offset": -480,
+     "type": "all"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_followings/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/relation/followings",
+    {
+     "pn": 1,
+     "ps": 50,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_followings/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/relation/followings",
+    {
+     "pn": 1,
+     "ps": 50,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_followings/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/relation/followings",
+    {
+     "pn": 1,
+     "ps": 50,
+     "vmid": "1"
+    },
+    false
+   ]
+  ],
+  "result": [
+   5
+  ]
+ },
+ "get_up_info/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/acc/info",
+    {
+     "mid": 3
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "get_up_info/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/acc/info",
+    {
+     "mid": 3
+    },
+    false
+   ]
+  ],
+  "result": null
+ },
+ "get_up_info/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/acc/info",
+    {
+     "mid": 3,
+     "w_rid": "716fd52a972afe518931a8d471bfe8dd",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": {
+   "fans_badge": false,
+   "level": 0,
+   "live_status": 0,
+   "live_title": "",
+   "live_url": "",
+   "mid": 1,
+   "name": "UP",
+   "official_title": "",
+   "sign": "签名",
+   "vip_label": ""
+  }
+ },
+ "get_up_recent_dynamics/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space",
+    {
+     "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
+     "host_mid": 3,
+     "offset": "",
+     "timezone_offset": -480
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_up_recent_dynamics/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space",
+    {
+     "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
+     "host_mid": 3,
+     "offset": "",
+     "timezone_offset": -480
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_up_recent_dynamics/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space",
+    {
+     "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
+     "host_mid": 3,
+     "offset": "",
+     "timezone_offset": -480
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_up_recent_videos/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/arc/search",
+    {
+     "mid": 3,
+     "order": "pubdate",
+     "pn": 1,
+     "ps": 5
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_up_recent_videos/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/arc/search",
+    {
+     "mid": 3,
+     "order": "pubdate",
+     "pn": 1,
+     "ps": 5
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "get_up_recent_videos/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/space/wbi/arc/search",
+    {
+     "mid": 3,
+     "order": "pubdate",
+     "pn": 1,
+     "ps": 5,
+     "w_rid": "d02418d553af15257ccfacc414ed0ccc",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "poll_qr_status/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+    {
+     "qrcode_key": "k"
+    },
+    false
+   ]
+  ],
+  "result": {
+   "message": "'NoneType' object has no attribute 'get'",
+   "status": "error"
+  }
+ },
+ "poll_qr_status/network": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+    {
+     "qrcode_key": "k"
+    },
+    false
+   ]
+  ],
+  "result": {
+   "message": "断网",
+   "status": "error"
+  }
+ },
+ "poll_qr_status/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+    {
+     "qrcode_key": "k"
+    },
+    false
+   ]
+  ],
+  "result": {
+   "message": "'dict' object has no attribute 'jar'",
+   "status": "error"
+  }
+ },
+ "refresh_cookie/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+    {
+     "csrf": "jct"
+    },
+    false
+   ]
+  ],
+  "result": [
+   false,
+   "无法确认是否需要刷新（检查失败: 账号未登录），本次跳过"
+  ]
+ },
+ "refresh_cookie/network": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+    {
+     "csrf": "jct"
+    },
+    false
+   ]
+  ],
+  "result": [
+   false,
+   "无法确认是否需要刷新（检查出错: 断网），本次跳过"
+  ]
+ },
+ "refresh_cookie/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+    {
+     "csrf": "jct"
+    },
+    false
+   ],
+   [
+    "GET_TEXT",
+    "https://www.bilibili.com/",
+    null
+   ],
+   [
+    "SESSION_POST",
+    "https://passport.bilibili.com/x/passport-login/web/cookie/refresh",
+    null,
+    null,
+    {
+     "csrf": "jct",
+     "refresh_csrf": "csrf",
+     "refresh_token": "rt",
+     "source": "main_web"
+    }
+   ]
+  ],
+  "result": [
+   false,
+   "刷新响应中未找到新 SESSDATA"
+  ]
+ },
+ "search_bilibili_users/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 3,
+     "search_type": "bili_user"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_users/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 3,
+     "search_type": "bili_user"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_users/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "page": 1,
+     "page_size": 3,
+     "search_type": "bili_user",
+     "w_rid": "ef2963ff8b4b5eec6a7ccd3c442abda5",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_videos/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "order": "totalrank",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "video"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_videos/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "order": "totalrank",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "video"
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "search_bilibili_videos/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ],
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/wbi/search/type",
+    {
+     "keyword": "关键词",
+     "order": "totalrank",
+     "page": 1,
+     "page_size": 5,
+     "search_type": "video",
+     "w_rid": "2f66c63d13bc9b0d5dee1d3882f2a027",
+     "wts": 1700000000
+    },
+    false
+   ]
+  ],
+  "result": []
+ },
+ "sign_wbi_params/fail": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": {
+   "a": 1,
+   "wts": 1700000000
+  }
+ },
+ "sign_wbi_params/network": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": {
+   "a": 1,
+   "wts": 1700000000
+  }
+ },
+ "sign_wbi_params/ok": {
+  "calls": [
+   [
+    "GET",
+    "https://api.bilibili.com/x/web-interface/nav",
+    null,
+    false
+   ]
+  ],
+  "result": {
+   "a": 1,
+   "w_rid": "494dc351e0e039bfbc3bb2b03c40ea25",
+   "wts": 1700000000
+  }
+ }
+}

@@ -1,34 +1,39 @@
 """Exercise diagnostic capture, disk persistence, rendering and task isolation offline."""
-import ast
 import asyncio
 import json
 from pathlib import Path
 import tempfile
 import types
 import unittest
+
+from schedule_parts import ScheduleParts
 from unittest.mock import AsyncMock, patch
 
 from test_autonomous_ranges import ProactiveProbe
 from test_video_evaluation import payload
-from core.llm import LLMMixin
-from core.proactive import ProactiveMixin
-from core.utils import UtilsMixin
-from core.video import VideoMixin
+from llm_fakes import LegacyModels
+from core.settings import Settings
+from core.features.special_follow import SpecialFollow
+from proactive_parts import ProactiveParts
+from base_parts import BaseParts
+from core.domain.video_watch import VideoWatch
+from video_parts import VideoParts
 from core.video_diagnostics import (
     get_call_diagnostic, set_call_diagnostic, safe_detail, media_failure,
 )
-import core.proactive as proactive_module
+from proactive_modules import patched_in_proactive_modules
+from command_modules import app_for, load
 
 
-class EvaluationBot(ProactiveProbe, LLMMixin):
+class EvaluationBot(ProactiveProbe, LegacyModels):
     def __init__(self):
         super().__init__({"LLM_PROVIDER_ID": "test-provider", "LLM_CIRCUIT_FAILURE_THRESHOLD": 0})
         self._get_system_prompt = AsyncMock(return_value="private persona")
-        self._load_json = lambda path, default: default
-        self._get_today_mood = lambda: ("平静", "")
-        self._owner_recommendation_context = AsyncMock(return_value="")
-        self._format_recent_taste_summary = lambda _: ""
-        self._format_recent_preference_summary = lambda _: ""
+        self.json_store._load_json = lambda path, default: default
+        self.mood = types.SimpleNamespace(today=lambda: ("平静", ""))
+        self.video_evaluate._owner_recommendation_context = AsyncMock(return_value="")
+        self.taste._format_recent_taste_summary = lambda _: ""
+        self.taste._format_recent_preference_summary = lambda _: ""
         self.context = types.SimpleNamespace(llm_generate=AsyncMock())
 
     def response(self, text):
@@ -40,7 +45,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         bot = EvaluationBot()
         bot.response('{"score": 9, "private": "DO_NOT_STORE_MODEL_TEXT"}')
         info = {"bvid": "BVtest", "analysis_basis": "video_media"}
-        self.assertIsNone(await bot._evaluate_video(info, "content"))
+        self.assertIsNone(await bot.video_evaluate._evaluate_video(info, "content"))
         detail = info["_evaluation_diagnostic"]
         self.assertEqual(detail["stage"], "evaluation_schema")
         self.assertEqual(detail["reason"], "evaluation_schema_mismatch")
@@ -52,7 +57,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_json_records_length_and_error_position(self):
         bot = EvaluationBot(); bot.response('{"score":')
         info = {}
-        await bot._evaluate_video(info, "content")
+        await bot.video_evaluate._evaluate_video(info, "content")
         detail = info["_evaluation_diagnostic"]
         self.assertEqual(detail["reason"], "invalid_json")
         self.assertEqual(detail["response_chars"], 9)
@@ -66,7 +71,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         exc.status_code = 429
         bot.context.llm_generate.side_effect = exc
         info = {}
-        await bot._evaluate_video(info, "content")
+        await bot.video_evaluate._evaluate_video(info, "content")
         detail = info["_evaluation_diagnostic"]
         self.assertEqual(detail["stage"], "model_request")
         self.assertIn("HTTP 429", detail["reason"])
@@ -76,16 +81,16 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_circuit_and_success_do_not_reuse_previous_error(self):
         bot = EvaluationBot(); bot.response("")
         info = {}
-        await bot._evaluate_video(info, "content")
+        await bot.video_evaluate._evaluate_video(info, "content")
         self.assertEqual(info["_evaluation_diagnostic"]["reason"], "模型返回空内容")
         bot.config["LLM_CIRCUIT_FAILURE_THRESHOLD"] = 1
-        bot._enter_llm_circuit = AsyncMock(return_value=None)
+        bot._llm_gateway().circuit.enter = AsyncMock(return_value=None)
         bot._last_llm_error = ""
-        await bot._evaluate_video(info, "content")
+        await bot.video_evaluate._evaluate_video(info, "content")
         self.assertEqual(info["_evaluation_diagnostic"]["model_call"]["stage"], "circuit")
-        bot._enter_llm_circuit = AsyncMock(return_value="disabled")
+        bot._llm_gateway().circuit.enter = AsyncMock(return_value="disabled")
         bot.response(json.dumps(payload()))
-        result = await bot._evaluate_video(info, "content")
+        result = await bot.video_evaluate._evaluate_video(info, "content")
         self.assertEqual(result["score"], 8.6)
         self.assertNotIn("_evaluation_diagnostic", info)
 
@@ -93,7 +98,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         bot = EvaluationBot()
         info = {"analysis_basis": "metadata"}
         media_failure(info, "download", "HTTP 403", {})
-        await bot._evaluate_video(info, "content")
+        await bot.video_evaluate._evaluate_video(info, "content")
         self.assertEqual(info["_evaluation_diagnostic"]["stage"], "content")
         self.assertEqual(info["_evaluation_diagnostic"]["media_errors"][0]["reason"], "HTTP 403")
         bot.context.llm_generate.assert_not_awaited()
@@ -102,7 +107,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         bot = EvaluationBot()
         bot._get_system_prompt.side_effect = RuntimeError("persona unavailable")
         info = {}
-        self.assertIsNone(await bot._evaluate_video(info, "content"))
+        self.assertIsNone(await bot.video_evaluate._evaluate_video(info, "content"))
         self.assertIn("persona unavailable", info["_evaluation_diagnostic"]["reason"])
 
     async def test_concurrent_calls_do_not_exchange_error_reasons(self):
@@ -113,7 +118,7 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
             raise TimeoutError(marker)
         bot.context.llm_generate.side_effect = generate
         one, two = {}, {}
-        await asyncio.gather(bot._evaluate_video(one, "FIRST_VIDEO"), bot._evaluate_video(two, "SECOND_VIDEO"))
+        await asyncio.gather(bot.video_evaluate._evaluate_video(one, "FIRST_VIDEO"), bot.video_evaluate._evaluate_video(two, "SECOND_VIDEO"))
         self.assertEqual(one["_evaluation_diagnostic"]["reason"], "TimeoutError: first")
         self.assertEqual(two["_evaluation_diagnostic"]["reason"], "TimeoutError: second")
 
@@ -122,13 +127,14 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         bot.context.llm_generate.side_effect = asyncio.CancelledError()
         info = {}
         with self.assertRaises(asyncio.CancelledError):
-            await bot._evaluate_video(info, "content")
+            await bot.video_evaluate._evaluate_video(info, "content")
         self.assertNotIn("_evaluation_diagnostic", info)
 
     async def test_missing_vision_configuration_records_cause(self):
-        bot = types.SimpleNamespace(config={}, _get_video_vision_client=lambda: None)
+        bot = types.SimpleNamespace(config={}, settings=Settings({}),
+                                    vision=types.SimpleNamespace(_get_video_vision_client=lambda: None))
         info = {"bvid": "BVtest"}
-        self.assertIsNone(await VideoMixin._analyze_video_media(bot, info))
+        self.assertIsNone(await VideoWatch(bot)._analyze_video_media(info))
         self.assertEqual(info["_media_diagnostics"][0]["stage"], "vision_config")
 
     async def test_failed_download_records_underlying_reason(self):
@@ -137,14 +143,12 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
             return None
         bot = types.SimpleNamespace(
             config={"VIDEO_VISION_PROVIDER_ID": "vision"},
-            _get_video_vision_client=lambda: None,
-            _detect_video_format=lambda _: "none",
-            _video_direct_key=lambda *_: "vision:none",
-            _video_vision_dead_reason=lambda _: None,
-            _download_video=download,
+            settings=Settings({"VIDEO_VISION_PROVIDER_ID": "vision"}),
+            vision=types.SimpleNamespace(_get_video_vision_client=lambda: None),
+            video_files=types.SimpleNamespace(_download_video=download),
         )
         info = {"bvid": "BVtest"}
-        await VideoMixin._analyze_video_media(bot, info)
+        await VideoWatch(bot)._analyze_video_media(info)
         self.assertEqual(info["_media_diagnostics"][0]["reason"], "HTTP 403")
 
     async def test_special_follow_persists_and_renderer_reads_after_reload(self):
@@ -154,49 +158,52 @@ class VideoDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
         await self.check_persistence("regular")
 
     async def check_persistence(self, flow):
-        class DiskBot(ProactiveMixin, UtilsMixin):
-            pass
+        class DiskBot(ProactiveParts):
+            schedule_rules = ScheduleParts.schedule_rules
         bot = DiskBot()
         bot.config = {"PROACTIVE_FOLLOW_UIDS": ["42"]}
-        bot._seen_video_bvids = AsyncMock(return_value=set())
-        bot._get_up_latest_video = AsyncMock(return_value={"bvid": "BVtest", "title": "test", "up_name": "UP", "oid": 1, "up_mid": "42"})
-        bot._reserve_proactive_watch = AsyncMock(return_value=types.SimpleNamespace(success=True))
-        bot._get_video_info = AsyncMock(return_value={})
+        bot.seen_videos.bvids = AsyncMock(return_value=set())
+        bot.bili_users._get_up_latest_video = AsyncMock(return_value={"bvid": "BVtest", "title": "test", "up_name": "UP", "oid": 1, "up_mid": "42"})
+        bot.watch_video._reserve_proactive_watch = AsyncMock(return_value=types.SimpleNamespace(success=True))
+        bot.bili_videos._get_video_info = AsyncMock(return_value={})
         async def analyze(info):
             info["analysis_basis"] = "metadata"
             media_failure(info, "download", "HTTP 403", {})
             return "metadata only"
-        bot._analyze_video_with_vision = analyze
-        bot._get_environment_status = lambda: {"features": {"proactive_video_media": True}}
-        bot.get_followings = AsyncMock(return_value=[])
-        bot._get_pool_videos = AsyncMock(return_value=[])
-        bot._decide_proactive_search_queries = AsyncMock(return_value=[])
-        bot._get_proactive_search_videos = AsyncMock(return_value=[])
-        bot._get_taste_tids = lambda: []
-        bot._should_watch_video_before_download = AsyncMock(return_value=(True, ""))
+        bot.video_watch._analyze_video_with_vision = analyze
+        bot.environment._get_environment_status = lambda: {"features": {"proactive_video_media": True}}
+        bot.bili_users.get_followings = AsyncMock(return_value=[])
+        bot.video_pools._get_pool_videos = AsyncMock(return_value=[])
+        bot.video_discovery._decide_proactive_search_queries = AsyncMock(return_value=[])
+        bot.video_discovery._get_proactive_search_videos = AsyncMock(return_value=[])
+        bot.taste._get_taste_tids = lambda: []
+        bot.video_discovery._should_watch_video_before_download = AsyncMock(return_value=(True, ""))
+        bot.now_doing = types.SimpleNamespace(report=lambda *_a, **_k: None, finish=lambda *_a: None)
         with tempfile.TemporaryDirectory() as directory:
             names = ("WATCH_LOG_FILE", "COMMENTED_FILE", "EXTERNAL_MEMORY_FILE", "PROACTIVE_LOG_FILE", "OWNER_RECOMMEND_LOG_FILE")
             paths = {name: str(Path(directory) / (name + ".json")) for name in names}
-            with patch.multiple(proactive_module, **paths):
+            with patched_in_proactive_modules(**paths):
                 if flow == "special":
-                    await bot._run_special_follow_inner()
+                    await SpecialFollow(bot)._patrol()
                 else:
-                    await bot._run_proactive_inner(max_watch=1)
+                    await bot.proactive_browse._run_proactive_inner(max_watch=1)
             stored = json.loads(Path(paths["WATCH_LOG_FILE"]).read_text(encoding="utf-8"))
             self.assertEqual(stored[0]["evaluation_status"], "failed")
             self.assertEqual(stored[0]["diagnostic"]["media_errors"][0]["reason"], "HTTP 403")
-            # Load the real renderer without starting AstrBot or calling any API.
-            tree = ast.parse((Path(__file__).parents[1] / "main.py").read_text(encoding="utf-8"))
-            method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_render_video_log")
-            scope = dict(paths)
-            exec(compile(ast.Module(body=[method], type_ignores=[]), "main.py", "exec"), scope)
-            text = scope["_render_video_log"](UtilsMixin(), stored[0]["time"][:10], True)
+            # The real /bili日志 renderer, reading the same files, without AstrBot or any API.
+            render = load("logs")._render_video_log
+            app = app_for(BaseParts())
+            logs_at = patch.multiple("core.config", WATCH_LOG_FILE=paths["WATCH_LOG_FILE"],
+                                     PROACTIVE_LOG_FILE=paths["PROACTIVE_LOG_FILE"])
+            with logs_at:
+                text = render(app, stored[0]["time"][:10], True)
             self.assertIn("未评分", text)
             self.assertIn("HTTP 403", text)
             self.assertNotIn("0分", text)
             stored[0].pop("diagnostic"); stored[0].pop("evaluation_status")
             Path(paths["WATCH_LOG_FILE"]).write_text(json.dumps(stored), encoding="utf-8")
-            text = scope["_render_video_log"](UtilsMixin(), stored[0]["time"][:10], True)
+            with logs_at:
+                text = render(app, stored[0]["time"][:10], True)
             self.assertIn("旧记录未保存原因", text)
 
     def test_bounds_and_redaction(self):

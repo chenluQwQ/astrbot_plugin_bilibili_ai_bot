@@ -21,39 +21,52 @@ if "astrbot.api.star" not in sys.modules:
     astrbot = sys.modules.setdefault("astrbot", types.ModuleType("astrbot"))
     astrbot.api = api
 
+from core.domain.dynamic_log import DynamicLog
+from core.storage.activity_log import ActivityLog
 from core import config
-from core.dynamic import DynamicMixin
-from core.llm import LLMMixin
-from core.memory import MemoryMixin
-from core.proactive import ProactiveMixin
-from core.share import ShareMixin
-from core.video import VideoMixin
+from core.infra.bili.share_links import ShareLinks
+from core.features.dynamic_post import DynamicPost
+from parts import part
+from llm_fakes import LegacyModels
+from proactive_parts import ProactiveParts
+from core.features._video_evaluate import VideoEvaluate
+from share_parts import ShareParts
+from core.infra.bili.share_links import ShareLinks
+from core.domain.video_watch import VideoWatch
+from video_parts import VideoParts
 from core.storage import Database
 from core.storage.stores import PreferenceStore
+from itself import itself
 
 
 BV = "BV1xx411c7mD"
 
 
-class Bot(VideoMixin, ShareMixin, ProactiveMixin, DynamicMixin, MemoryMixin):
+class Bot(VideoParts, ShareParts, ProactiveParts):
+    models = itself
+    dynamic_post = part(DynamicPost)
+
     def __init__(self):
         self.config = {"ENABLE_VIDEO_LONG_TERM_MEMORY": False}
         self.files = {}
         self._memory = []
-        self._get_video_oid = AsyncMock(return_value=123)
-        self._oid_to_bvid = AsyncMock(return_value=BV)
-        self._get_video_info = AsyncMock(return_value={
+        self.dynamic_log = DynamicLog(ActivityLog("dynamic", file=types.SimpleNamespace(read=lambda default: self.files.get(config.DYNAMIC_LOG_FILE, default))))
+        self.bili_videos._get_video_oid = AsyncMock(return_value=123)
+        self.bili_videos._oid_to_bvid = AsyncMock(return_value=BV)
+        self.bili_videos._get_video_info = AsyncMock(return_value={
             "bvid": BV, "title": "木工抽屉", "owner_name": "工匠", "owner_mid": "42",
             "tname": "手工", "desc": "制作抽屉", "duration": 90,
         })
-        self._get_video_tags = AsyncMock(return_value=[])
-        self._get_hot_comments = AsyncMock(return_value=[])
-        self._save_self_memory_record = AsyncMock()
-        self._evaluate_video = AsyncMock(return_value={
+        self.bili_videos._get_video_tags = AsyncMock(return_value=[])
+        self.bili_comments._get_hot_comments = AsyncMock(return_value=[])
+        self.memory_writer._save_self_memory_record = AsyncMock()
+        self.video_evaluate._evaluate_video = AsyncMock(return_value={
             "score": 8.3, "score_reason": "清楚演示榫卯结构", "mood": "开心",
             "review": "最后抽屉合拢时才发现榫头的作用", "preference_signals": [], "search_keywords": [],
         })
         self.analysis_calls = 0
+        # 分析本身是假的，其余（缓存、锁、看过记录）都是真代码。
+        self.video_watch._analyze_video_with_vision_inner = self._analyze_video_with_vision_inner
 
     def _load_json(self, key, default):
         return copy.deepcopy(self.files.get(key, default))
@@ -71,57 +84,59 @@ class Bot(VideoMixin, ShareMixin, ProactiveMixin, DynamicMixin, MemoryMixin):
 class VideoRecallTests(unittest.IsolatedAsyncioTestCase):
     async def test_private_then_qq_then_comment_share_one_analysis(self):
         bot = Bot()
-        first = await bot._watch_video_and_save_memory(BV, "private_message")
-        qq = await bot._summarize_shared_video({"bvid": BV})
-        comment, cached = await bot._get_video_context(123, 1)
+        first = await bot.watch_on_request._watch_video_and_save_memory(BV, "private_message")
+        # QQ 分享看过且记得就不再决定、不重看，直接用这份记忆评价。
+        qq = bot.video_watch._cached_video_memory(BV)
+        comment, cached = await bot.video_context._get_video_context(123, 1)
         self.assertFalse(first["from_cache"])
-        self.assertIn("从观看记忆读取", qq)
+        self.assertIn("榫卯", qq.get("analysis") or qq.get("summary", ""))
         self.assertIn("从观看记忆读取", comment)
         self.assertIn("8.3", comment)
         self.assertEqual(cached["score"], 8.3)
         self.assertEqual(bot.analysis_calls, 1)
-        bot._evaluate_video.assert_awaited_once()
+        bot.video_evaluate._evaluate_video.assert_awaited_once()
 
     async def test_expired_detail_keeps_score_and_feelings_on_every_entry(self):
         bot = Bot()
-        await bot._watch_video_and_save_memory(BV)
+        await bot.watch_on_request._watch_video_and_save_memory(BV)
         original = (datetime.now() - timedelta(days=100)).strftime("%Y-%m-%d %H:%M")
         bot.files[config.VIDEO_MEMORY_FILE][BV]["time"] = original
-        again = await bot._watch_video_and_save_memory(BV)
-        qq = await bot._summarize_shared_video({"bvid": BV})
-        comment, cached = await bot._get_video_context(123, 1)
+        again = await bot.watch_on_request._watch_video_and_save_memory(BV)
+        qq = bot.video_watch._cached_video_memory(BV)
+        comment, cached = await bot.video_context._get_video_context(123, 1)
         self.assertTrue(again["from_cache"])
         self.assertEqual(bot.analysis_calls, 1)
-        self.assertIn("榫头", qq)
+        self.assertIn("榫头", qq.get("review", ""))
         self.assertIn("8.3", comment)
         self.assertEqual(cached["memory_stage"], "faded")
         self.assertEqual(cached["time"], original)
 
     async def test_ledger_only_never_rewatches(self):
         bot = Bot()
-        await bot._watch_video_and_save_memory(BV)
+        await bot.watch_on_request._watch_video_and_save_memory(BV)
         bot.files[config.VIDEO_MEMORY_FILE] = {}
-        result = await bot._watch_video_and_save_memory(BV)
-        qq = await bot._summarize_shared_video({"bvid": BV})
+        result = await bot.watch_on_request._watch_video_and_save_memory(BV)
         self.assertTrue(result["seen_only"])
-        self.assertIn("淡忘", qq)
+        # QQ 分享遇到只剩「看过」痕迹的：不记得内容，但看过，所以不重看也不评价。
+        self.assertIsNone(bot.video_watch._cached_video_memory(BV))
+        self.assertTrue(await bot.seen_videos.has_seen(BV))
         self.assertEqual(bot.analysis_calls, 1)
 
     async def test_explicit_rewatch_bypasses_all_content_caches(self):
         bot = Bot()
-        await bot._watch_video_and_save_memory(BV)
-        second = await bot._watch_video_and_save_memory(BV, force_rewatch=True)
+        await bot.watch_on_request._watch_video_and_save_memory(BV)
+        second = await bot.watch_on_request._watch_video_and_save_memory(BV, force_rewatch=True)
         self.assertFalse(second["from_cache"])
         self.assertEqual(bot.analysis_calls, 2)
-        self.assertEqual(bot._evaluate_video.await_count, 2)
+        self.assertEqual(bot.video_evaluate._evaluate_video.await_count, 2)
 
     async def test_old_qq_metadata_preview_does_not_claim_watched(self):
         bot = Bot()
         bot.files[config.VIDEO_MEMORY_FILE] = {BV: {
             "source": "group_share", "analysis": "根据标题猜测", "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
         }}
-        self.assertFalse(await bot._has_seen_video(BV))
-        result = await bot._watch_video_and_save_memory(BV)
+        self.assertFalse(await bot.seen_videos.has_seen(BV))
+        result = await bot.watch_on_request._watch_video_and_save_memory(BV)
         self.assertFalse(result["from_cache"])
         self.assertEqual(bot.analysis_calls, 1)
 
@@ -131,7 +146,7 @@ class VideoRecallTests(unittest.IsolatedAsyncioTestCase):
             "description": "旧分析榫卯结构", "score": 7.8, "review": "讲解很细",
             "watched_at": (datetime.now() - timedelta(days=20)).strftime("%Y-%m-%d %H:%M"),
         }}
-        result = await bot._watch_video_and_save_memory(BV)
+        result = await bot.watch_on_request._watch_video_and_save_memory(BV)
         self.assertTrue(result["from_cache"])
         self.assertIn("7.8", result["message"])
         self.assertEqual(bot.analysis_calls, 0)
@@ -139,35 +154,52 @@ class VideoRecallTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_video_entries_do_not_duplicate_analysis(self):
         bot = Bot()
         infos = [{"bvid": BV, "title": "木工"} for _ in range(3)]
-        results = await asyncio.gather(*(bot._analyze_video_with_vision(info) for info in infos))
+        results = await asyncio.gather(*(bot.video_watch._analyze_video_with_vision(info) for info in infos))
         self.assertEqual(len(set(results)), 1)
         self.assertEqual(bot.analysis_calls, 1)
 
     async def test_failed_rating_does_not_invent_five_out_of_ten(self):
         bot = Bot()
-        bot._evaluate_video = AsyncMock(return_value=None)
-        result = await bot._watch_video_and_save_memory(BV)
+        bot.video_evaluate._evaluate_video = AsyncMock(return_value=None)
+        result = await bot.watch_on_request._watch_video_and_save_memory(BV)
         self.assertIn("未评分", result["message"])
         self.assertIsNone(bot.files[config.VIDEO_MEMORY_FILE][BV]["score"])
-        self.assertTrue((await bot._watch_video_and_save_memory(BV))["from_cache"])
+        self.assertTrue((await bot.watch_on_request._watch_video_and_save_memory(BV))["from_cache"])
         self.assertEqual(bot.analysis_calls, 1)
+
+    async def test_failed_rating_writes_no_long_term_memory(self):
+        bot = Bot()
+        bot.config["ENABLE_VIDEO_LONG_TERM_MEMORY"] = True
+        bot.video_evaluate._evaluate_video = AsyncMock(return_value=None)
+        await bot.watch_on_request._watch_video_and_save_memory(BV)
+        # 视频内容照样缓存，但不留一条没有感想的长期记忆。
+        self.assertIn(BV, bot.files[config.VIDEO_MEMORY_FILE])
+        bot.memory_writer._save_self_memory_record.assert_not_awaited()
+
+    async def test_rated_video_still_writes_long_term_memory(self):
+        bot = Bot()
+        bot.config["ENABLE_VIDEO_LONG_TERM_MEMORY"] = True
+        bot.video_evaluate._evaluate_video = AsyncMock(return_value={"score": 7, "mood": "开心", "review": "做得很细"})
+        await bot.watch_on_request._watch_video_and_save_memory(BV)
+        bot.memory_writer._save_self_memory_record.assert_awaited_once()
 
     async def test_different_videos_do_not_overwrite_each_others_cache(self):
         bot = Bot()
         infos = [{"bvid": BV, "title": "木工"}, {"bvid": "BV2xx411c7mD", "title": "实验"}]
-        await asyncio.gather(*(bot._analyze_video_with_vision(info) for info in infos))
+        await asyncio.gather(*(bot.video_watch._analyze_video_with_vision(info) for info in infos))
         self.assertEqual(set(bot.files[config.VIDEO_MEMORY_FILE]), {BV, "BV2xx411c7mD"})
 
     async def test_hot_comments_alone_do_not_skip_video_media(self):
         bot = Bot()
         joint = {"has_signal": True, "subtitle": "", "extra": "热门评论：精彩", "joint_hint": ""}
-        bot._build_joint_context = AsyncMock(return_value=joint)
-        bot._analyze_video_media = AsyncMock(return_value="画面里先切木板，再安装榫头")
+        watch = bot.video_watch
+        watch._build_joint_context = AsyncMock(return_value=joint)
+        watch._analyze_video_media = AsyncMock(return_value="画面里先切木板，再安装榫头")
         bot._summary_llm_call = AsyncMock(return_value="具体摘要：制作抽屉并演示榫卯连接")
         bot._llm_call = AsyncMock()
         info = {"bvid": BV, "title": "木工"}
-        result = await VideoMixin._analyze_video_with_vision_inner(bot, info)
-        bot._analyze_video_media.assert_awaited_once()
+        result = await VideoWatch._analyze_video_with_vision_inner(watch, info)
+        watch._analyze_video_media.assert_awaited_once()
         bot._summary_llm_call.assert_awaited_once()
         bot._llm_call.assert_not_awaited()
         self.assertIn("具体摘要", result)
@@ -180,11 +212,11 @@ class VideoRecallTests(unittest.IsolatedAsyncioTestCase):
             info["analysis_basis"] = "metadata"
             return "仅有标题和简介，尚未确认视频内容"
 
-        bot._analyze_video_with_vision_inner = metadata
-        bot._evaluate_video = AsyncMock(return_value=None)
-        await bot._watch_video_and_save_memory(BV)
+        bot.video_watch._analyze_video_with_vision_inner = metadata
+        bot.video_evaluate._evaluate_video = AsyncMock(return_value=None)
+        await bot.watch_on_request._watch_video_and_save_memory(BV)
         self.assertFalse(bot.files[config.VIDEO_MEMORY_FILE][BV]["content_analyzed"])
-        self.assertFalse(await bot._has_seen_video(BV))
+        self.assertFalse(await bot.seen_videos.has_seen(BV))
 
 
 class PostingAndRatingTests(unittest.IsolatedAsyncioTestCase):
@@ -197,7 +229,7 @@ class PostingAndRatingTests(unittest.IsolatedAsyncioTestCase):
             {"time": now, "user_id": "42", "memory_type": "chat", "text": "主人秘密"},
             {"time": now, "user_id": "self", "memory_type": "video", "source": "private_message", "text": "私信秘密"},
         ]
-        material = "\n".join(bot._dynamic_grounding_context())
+        material = "\n".join(await bot.dynamic_post.grounding_context())
         self.assertIn("榫头", material)
         self.assertIn("公开视频观点", material)
         self.assertNotIn("秘密", material)
@@ -208,26 +240,26 @@ class PostingAndRatingTests(unittest.IsolatedAsyncioTestCase):
         now = datetime.now()
         history = [{"time": (now - timedelta(days=2)).strftime("%Y-%m-%d %H:%M")}]
         bot.files[config.DYNAMIC_LOG_FILE] = history
-        self.assertFalse(bot._dynamic_post_due())
+        self.assertFalse(bot.dynamic_post.post_due())
         history[0]["time"] = (now - timedelta(days=3)).strftime("%Y-%m-%d %H:%M")
-        self.assertTrue(bot._dynamic_post_due(history))
+        self.assertTrue(bot.dynamic_post.post_due())
 
     async def test_recommendation_gap_and_limit(self):
         bot = Bot()
         valid = {"recommend_owner": True, "recommend_reason": "榫头设计有意思"}
-        self.assertTrue(bot._can_recommend_owner(valid, 7.2, 0))
-        self.assertFalse(bot._can_recommend_owner(valid, 7.2, 3))
+        self.assertTrue(bot.owner_recommend._can_recommend_owner(valid, 7.2, 0))
+        self.assertFalse(bot.owner_recommend._can_recommend_owner(valid, 7.2, 3))
         bot._owner_last_recommended_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-        self.assertFalse(bot._can_recommend_owner(valid, 8.9, 1))
+        self.assertFalse(bot.owner_recommend._can_recommend_owner(valid, 8.9, 1))
         bot._owner_last_recommended_at = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")
-        self.assertTrue(bot._can_recommend_owner(valid, 7.2, 1))
+        self.assertTrue(bot.owner_recommend._can_recommend_owner(valid, 7.2, 1))
 
     async def test_successful_share_migration_survives_empty_watch_log(self):
         bot = Bot()
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         history = [{"bvid": BV, "time": now, "actions": ["✉️私信推荐给主人"]}]
-        _, first_count = bot._load_owner_recommendation_state(history)
-        ledger, second_count = bot._load_owner_recommendation_state([])
+        _, first_count = bot.owner_recommend._load_owner_recommendation_state(history)
+        ledger, second_count = bot.owner_recommend._load_owner_recommendation_state([])
         self.assertIn(BV, ledger)
         self.assertIn(BV, bot._owner_recommended_bvids)
         self.assertEqual((first_count, second_count), (1, 1))
@@ -236,26 +268,30 @@ class PostingAndRatingTests(unittest.IsolatedAsyncioTestCase):
         bot = Bot()
         bot._llm_call = AsyncMock()
         for basis in ("metadata", "seen_only"):
-            self.assertIsNone(await ProactiveMixin._evaluate_video(bot, {"analysis_basis": basis}, "只有简介"))
+            self.assertIsNone(await VideoEvaluate(bot)._evaluate_video({"analysis_basis": basis}, "只有简介"))
         bot._llm_call.assert_not_awaited()
 
     async def test_rating_requires_details_without_forcing_a_distribution(self):
         bot = Bot()
         bot._get_system_prompt = AsyncMock(return_value="人设")
-        bot._get_today_mood = lambda: ("平静", "正常")
-        bot._owner_recommendation_context = AsyncMock(return_value="")
-        bot._lifecycle_preference_items = lambda: []
+        bot.mood = types.SimpleNamespace(today=lambda: ("平静", "正常"))
+        bot.video_evaluate._owner_recommendation_context = AsyncMock(return_value="")
+        bot.preferences.cached = lambda: []
         bot._llm_call = AsyncMock(return_value=None)
-        await ProactiveMixin._evaluate_video(bot, {"title": "木工"}, "具体内容")
+        await VideoEvaluate(bot)._evaluate_video({"title": "木工"}, "具体内容")
         prompt = bot._llm_call.call_args.args[0]
         self.assertNotIn("大部分视频应该落在5-7分", prompt)
-        self.assertIn("相邻档位", prompt)
+        self.assertNotIn("相邻档位", prompt)
+        self.assertIn("一两句话", prompt)
+        self.assertIn("一律用「」", prompt)
+        self.assertIn("说话方式", prompt)
+        self.assertIn("写给自己的观后感", prompt)
         self.assertIn("具体亮点或问题", prompt)
 
 
 class ModelRoutingTests(unittest.IsolatedAsyncioTestCase):
     async def test_summary_outage_does_not_block_separate_generation_provider(self):
-        bot = LLMMixin()
+        bot = LegacyModels()
         bot.config = {"SUMMARY_PROVIDER_ID": "summary", "GENERATION_PROVIDER_ID": "write",
                       "LLM_CIRCUIT_FAILURE_THRESHOLD": 2, "LLM_CIRCUIT_COOLDOWN_SECONDS": 120}
 
@@ -272,30 +308,31 @@ class ModelRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bot.context.llm_generate.await_count, 3)
 
     async def test_summary_and_generation_use_distinct_providers(self):
-        bot = LLMMixin()
+        bot = LegacyModels()
         bot.config = {"SUMMARY_PROVIDER_ID": "summary-id", "GENERATION_PROVIDER_ID": "write-id"}
-        bot._llm_call = AsyncMock(return_value="result")
+        generate = AsyncMock(return_value=types.SimpleNamespace(completion_text="result"))
+        bot.context = types.SimpleNamespace(llm_generate=generate)
         await bot._summary_llm_call("facts")
         await bot._generation_llm_call("write", system_prompt="persona")
-        calls = bot._llm_call.call_args_list
-        self.assertEqual(calls[0].kwargs["provider_id"], "summary-id")
-        self.assertEqual(calls[1].kwargs["provider_id"], "write-id")
+        calls = generate.call_args_list
+        self.assertEqual(calls[0].kwargs["chat_provider_id"], "summary-id")
+        self.assertEqual(calls[1].kwargs["chat_provider_id"], "write-id")
         self.assertEqual(calls[1].kwargs["system_prompt"], "persona")
 
     async def test_blank_models_inherit_without_additional_requests(self):
-        bot = LLMMixin()
-        bot.config = {}
-        bot._llm_call = AsyncMock(return_value="old provider")
+        bot = LegacyModels()
+        bot.config = {"LLM_PROVIDER_ID": "chat-id"}
+        generate = AsyncMock(return_value=types.SimpleNamespace(completion_text="old provider"))
+        bot.context = types.SimpleNamespace(llm_generate=generate)
         self.assertEqual(await bot._summary_llm_call("facts"), "old provider")
-        self.assertEqual(bot._llm_call.await_count, 1)
-        self.assertNotIn("provider_id", bot._llm_call.call_args.kwargs)
+        self.assertEqual(generate.await_count, 1)
+        self.assertEqual(generate.call_args.kwargs["chat_provider_id"], "chat-id")
 
     async def test_independent_api_uses_correct_key_model_and_closes_client(self):
-        bot = LLMMixin()
+        bot = LegacyModels()
         bot.config = {"LLM_CIRCUIT_FAILURE_THRESHOLD": 0,
                       "SUMMARY_API_KEY": "fake-summary-key", "SUMMARY_MODEL": "summary-model",
                       "GENERATION_API_KEY": "fake-write-key", "GENERATION_MODEL": "write-model"}
-        bot._normalize_openai_base_url = lambda value: value
         observed = []
 
         class Client:
@@ -322,11 +359,12 @@ class ModelRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(item["closed"] and item["max_retries"] == 0 for item in observed))
 
     async def test_partial_independent_api_configuration_does_not_silently_switch(self):
-        bot = LLMMixin()
+        bot = LegacyModels()
         bot.config = {"SUMMARY_API_KEY": "fake-key"}
-        bot._llm_call = AsyncMock()
+        generate = AsyncMock()
+        bot.context = types.SimpleNamespace(llm_generate=generate)
         self.assertIsNone(await bot._summary_llm_call("facts"))
-        bot._llm_call.assert_not_awaited()
+        generate.assert_not_awaited()
 
 
 class PreferenceChangeTests(unittest.IsolatedAsyncioTestCase):
@@ -394,14 +432,14 @@ class ShareRedirectTests(unittest.IsolatedAsyncioTestCase):
                     raise AssertionError("shortlinks must not carry credentials")
                 return Response()
 
-        with patch("core.share.plugin_http_session", return_value=Session()):
-            result = await bot._resolve_share_url("https://b23.tv/test")
+        with patch("core.infra.bili.share_links.plugin_http_session", return_value=Session()):
+            result = await ShareLinks(bot)._resolve_share_url("https://b23.tv/test")
         self.assertEqual(urls, ["https://b23.tv/test"])
         self.assertEqual(result, "https://b23.tv/test")
 
     def test_non_http_and_credential_bearing_links_are_rejected(self):
         for url in ("file://bilibili.com/a", "https://user:pass@b23.tv/x", "https://b23.tv:123/x"):
-            self.assertFalse(ShareMixin._is_allowed_share_host(url))
+            self.assertFalse(ShareLinks._is_allowed_share_host(url))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,123 @@
+"""动态池子：看完视频、番剧时「想在动态里说说」的想法，攒在这里等发。
+
+``dynamic_ideas`` 表只由这里读写，和四层服务同一个 sqlite 文件、单独一个连接（同 ``activity_runs``）。
+状态只往前走：待发 → 已发 / 作废 / 过期，只改状态不删行。
+
+规则：
+
+- 3 天没发就过期；待发最多 10 条，满了挤掉最旧的
+- 同一个视频（``key``）同时只有一条待发，后来的不进
+- 类型是吐槽、段子、搬运、分享；搬运是转发这个视频配一句话，只有 B站视频能搬运
+"""
+from __future__ import annotations
+
+import sqlite3
+import time
+
+KINDS = ("吐槽", "段子", "搬运", "分享")
+DEFAULT_KIND = "分享"
+EXPIRE_SECONDS = 3 * 24 * 3600
+MAX_PENDING = 10
+
+PENDING, POSTED, DROPPED, EXPIRED = "pending", "posted", "dropped", "expired"
+
+_DDL = (
+    "CREATE TABLE IF NOT EXISTS dynamic_ideas ("
+    " id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL,"
+    " title TEXT NOT NULL DEFAULT '', up_name TEXT NOT NULL DEFAULT '', pic TEXT NOT NULL DEFAULT '',"
+    " score REAL, review TEXT NOT NULL DEFAULT '', angle TEXT NOT NULL DEFAULT '',"
+    " summary TEXT NOT NULL DEFAULT '', state TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',"
+    " created_at REAL NOT NULL, state_at REAL NOT NULL)"
+)
+_COLUMNS = ("id", "key", "kind", "source", "title", "up_name", "pic", "score", "review", "angle",
+            "summary", "state", "reason", "created_at", "state_at")
+
+
+class DynamicIdeas:
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+        self._conn.execute(_DDL)
+        self._conn.commit()
+
+    @classmethod
+    def open(cls, path: str) -> "DynamicIdeas":
+        return cls(sqlite3.connect(path, check_same_thread=False))
+
+    @classmethod
+    def in_memory(cls) -> "DynamicIdeas":
+        """sqlite 打不开时用；重启就没了，和丢掉标注的旧行为一样。"""
+        return cls(sqlite3.connect(":memory:", check_same_thread=False))
+
+    def close(self) -> None:
+        self._conn.close()
+
+    # ── 读 ──
+    def pending(self, now: float | None = None) -> list[dict]:
+        """待发的，最新的在前；顺手把过期的标掉。"""
+        now = time.time() if now is None else now
+        self._expire(now)
+        rows = self._conn.execute(
+            f"SELECT {', '.join(_COLUMNS)} FROM dynamic_ideas WHERE state=? ORDER BY created_at DESC, id DESC",
+            (PENDING,),
+        ).fetchall()
+        return [dict(zip(_COLUMNS, row)) for row in rows]
+
+    def all(self) -> list[dict]:
+        rows = self._conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM dynamic_ideas ORDER BY id").fetchall()
+        return [dict(zip(_COLUMNS, row)) for row in rows]
+
+    # ── 写 ──
+    def add(self, *, key: str, kind: str, source: str, title: str = "", up_name: str = "", pic: str = "",
+            score=None, review: str = "", angle: str = "", summary: str = "",
+            now: float | None = None) -> int | None:
+        """放进池子，返回编号；同一个 key 已经在等着发了就不进，返回 None。"""
+        key = str(key or "").strip()
+        if not key:
+            return None
+        if kind not in KINDS:
+            raise ValueError(f"动态类型不对: {kind}")
+        now = time.time() if now is None else now
+        self._expire(now)
+        if self._conn.execute(
+            "SELECT 1 FROM dynamic_ideas WHERE key=? AND state=? LIMIT 1", (key, PENDING)
+        ).fetchone():
+            return None
+        cursor = self._conn.execute(
+            "INSERT INTO dynamic_ideas (key, kind, source, title, up_name, pic, score, review, angle, summary,"
+            " state, created_at, state_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (key, kind, source, str(title or ""), str(up_name or ""), str(pic or ""),
+             None if score is None else float(score), str(review or ""), str(angle or ""),
+             str(summary or ""), PENDING, now, now),
+        )
+        idea_id = cursor.lastrowid
+        overflow = self._conn.execute(
+            "SELECT id FROM dynamic_ideas WHERE state=? ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?",
+            (PENDING, MAX_PENDING),
+        ).fetchall()
+        for (old_id,) in overflow:
+            self._move(old_id, EXPIRED, "池子满了，挤掉最旧的", now)
+        self._conn.commit()
+        return idea_id
+
+    def mark_posted(self, idea_id: int, now: float | None = None) -> None:
+        self._move(idea_id, POSTED, "", time.time() if now is None else now)
+        self._conn.commit()
+
+    def drop(self, idea_id: int, reason: str, now: float | None = None) -> None:
+        self._move(idea_id, DROPPED, reason, time.time() if now is None else now)
+        self._conn.commit()
+
+    def _expire(self, now: float) -> None:
+        cursor = self._conn.execute(
+            "UPDATE dynamic_ideas SET state=?, reason=?, state_at=? WHERE state=? AND created_at<?",
+            (EXPIRED, "3 天没发", now, PENDING, now - EXPIRE_SECONDS),
+        )
+        if cursor.rowcount:
+            self._conn.commit()
+
+    def _move(self, idea_id: int, state: str, reason: str, now: float) -> None:
+        # 只有待发的能走：发过、作废、过期的不会再变回来。
+        self._conn.execute(
+            "UPDATE dynamic_ideas SET state=?, reason=?, state_at=? WHERE id=? AND state=?",
+            (state, reason, now, idea_id, PENDING),
+        )

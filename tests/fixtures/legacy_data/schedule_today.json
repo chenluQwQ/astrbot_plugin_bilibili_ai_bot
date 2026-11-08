@@ -1,0 +1,17 @@
+{
+ "date": "2026-11-02",
+ "proactive_times": [
+  "11:00"
+ ],
+ "proactive_windows": [
+  {
+   "start_time": "10:07",
+   "end_time": "11:37",
+   "scheduled_time": "11:00",
+   "trigger_policy": "once_in_window"
+  }
+ ],
+ "proactive_triggered": [
+  "11:00"
+ ]
+}

@@ -66,14 +66,33 @@ class ContentProtocolTests(unittest.TestCase):
                 '"image":"none","image_prompt":""}', allow_search=True,
             )
 
-    def test_dynamic_video_cover_only_with_video(self):
+    def test_dynamic_video_cover_only_with_an_idea_that_has_one(self):
         raw = ('{"decision":"post","text":"这期结尾的反转其实第一分钟就埋了。",'
                '"search_query":"","image":"video_cover","image_prompt":""}')
         with self.assertRaises(ContentProtocolError):
             parse_dynamic_content(raw)
-        result = parse_dynamic_content(raw, allow_video_cover=True)
+        with_idea = raw[:-1] + ',"idea":2}'
+        with self.assertRaises(ContentProtocolError):
+            parse_dynamic_content(with_idea, idea_ids=[2, 3], cover_idea_ids=[3])
+        result = parse_dynamic_content(with_idea, idea_ids=[2, 3], cover_idea_ids=[2])
         self.assertEqual(result["image"], "video_cover")
+        self.assertEqual(result["idea"], 2)
         self.assertTrue(result["need_image"])
+
+    def test_dynamic_idea_must_be_offered(self):
+        raw = ('{"decision":"post","text":"这期结尾的反转其实第一分钟就埋了。",'
+               '"search_query":"","image":"none","image_prompt":"","idea":%s}')
+        self.assertEqual(parse_dynamic_content(raw % 0, idea_ids=[2])["idea"], 0)
+        for bad in ("9", "true", '"2"'):
+            with self.assertRaises(ContentProtocolError):
+                parse_dynamic_content(raw % bad, idea_ids=[2])
+        with self.assertRaises(ContentProtocolError):  # 给了想法就必须带 idea
+            parse_dynamic_content(raw.replace(',"idea":%s', ""), idea_ids=[2])
+        with self.assertRaises(ContentProtocolError):  # 没给想法就不能带
+            parse_dynamic_content(raw % 0)
+        skip = '{"decision":"skip","text":"","search_query":"","image":"none","image_prompt":"","idea":2}'
+        with self.assertRaises(ContentProtocolError):
+            parse_dynamic_content(skip, idea_ids=[2])
 
     def test_dynamic_generate_image_needs_prompt(self):
         with self.assertRaises(ContentProtocolError):
@@ -101,6 +120,20 @@ class ContentProtocolTests(unittest.TestCase):
                 '"mood":"感动","review":"不错","want_continue":true}'
             )
 
+
+    def test_bangumi_dynamic_wish(self):
+        base = '{"score":7,"comment":"","mood":"感动","review":"不错","want_continue":true%s}'
+        self.assertFalse(parse_bangumi_evaluation(base % "")["want_dynamic"])
+        wish = parse_bangumi_evaluation(base % ',"want_dynamic":true,"dynamic_angle":"这集的停顿","dynamic_kind":"吐槽"')
+        self.assertEqual((wish["dynamic_angle"], wish["dynamic_kind"]), ("这集的停顿", "吐槽"))
+        for bad in (
+            ',"want_dynamic":true,"dynamic_angle":"","dynamic_kind":"吐槽"',
+            ',"want_dynamic":true,"dynamic_angle":"x","dynamic_kind":"搬运"',  # 番剧不能搬运
+            ',"want_dynamic":false,"dynamic_angle":"x","dynamic_kind":""',
+            ',"want_dynamic":true',  # 三个字段要么都有要么都没有
+        ):
+            with self.subTest(bad=bad), self.assertRaises(ContentProtocolError):
+                parse_bangumi_evaluation(base % bad)
 
 class ShareProtocolTests(unittest.TestCase):
     def test_watch_decision_is_watch_or_skip_only(self):

@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import importlib.util
 import sys
 import tempfile
@@ -6,6 +7,8 @@ import types
 import unittest
 from pathlib import Path
 from unittest import mock
+from itself import itself
+from summary_parts import summary_parts
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,30 +39,33 @@ def _load_weekly_module(temp_dir):
         "WEEKLY_SUMMARY_FILE",
         "DAILY_SUMMARY_FILE",
         "PREFERENCE_STATE_FILE",
+        "MEMORY_FILE",
+        "MEMORY_SYNC_STATE_FILE",
     ):
         setattr(config, name, str(Path(temp_dir) / f"{name.lower()}.json"))
     config.TEMP_IMAGE_DIR = str(Path(temp_dir) / "images")
     sys.modules[config_name] = config
 
-    module_name = f"{package_name}.weekly"
-    spec = importlib.util.spec_from_file_location(module_name, ROOT / "core" / "weekly.py")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    # 上一个测试临时目录里的路径不能留着
+    for name in [n for n in sys.modules if n.startswith((f"{package_name}.features", f"{package_name}.infra", f"{package_name}.domain"))]:
+        del sys.modules[name]
+    return types.SimpleNamespace(
+        SummaryParts=summary_parts(package_name),
+        SummaryImage=importlib.import_module(f"{package_name}.infra.summary_image").SummaryImage,
+    )
 
 
 class WeeklySummaryTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.module = _load_weekly_module(self.temp_dir.name)
-        self.bot = self.module.WeeklySummaryMixin()
+        self.bot = self.module.SummaryParts()
 
     def tearDown(self):
         self.temp_dir.cleanup()
 
     def test_excerpt_removes_account_identifiers_and_urls(self):
-        excerpt = self.bot._weekly_excerpt(
+        excerpt = self.bot.activity_digest._weekly_excerpt(
             "[2026-08-16 12:00] 用户123456(小明)说：看看这个 https://example.com/a | Bot回复：好 UID:9988"
         )
         self.assertNotIn("123456", excerpt)
@@ -80,12 +86,12 @@ class WeeklySummaryTests(unittest.TestCase):
 
 ✍️ 碎碎念
 这周留下来的都是小片段。"""
-        stats, sections = self.bot._parse_weekly_sections(summary)
+        stats, sections = self.bot.summary_image._parse_weekly_sections(summary)
         self.assertEqual(stats, "视频2个 · 直播1场")
         self.assertEqual([title for title, _body in sections], ["视频", "直播", "碎碎念"])
 
     def test_long_report_renders_without_exceeding_canvas_limit(self):
-        if not self.bot._find_weekly_font():
+        if not self.bot.summary_image._find_weekly_font():
             self.skipTest("系统未安装可渲染中文的字体")
         body = "这是用于检查自动换行和极端长文本裁切的内容。" * 80
         sections = "\n\n".join(
@@ -93,7 +99,7 @@ class WeeklySummaryTests(unittest.TestCase):
             for heading in ("📺 视频", "🎬 追番", "🎙️ 直播", "💬 评论区", "📢 动态", "✍️ 碎碎念")
         )
         summary = f"📅 周报 | 08.09 ~ 08.16\n━━━━━━━━━━━━\n视频30个 · 番剧11集 · 动态3条 · 互动7次 · 直播2场\n\n{sections}"
-        path = self.bot._render_weekly_summary_image(summary)
+        path = self.bot.summary_image._render_weekly_summary_image(summary)
         self.assertIsNotNone(path)
         self.assertTrue(Path(path).exists())
 
@@ -104,9 +110,9 @@ class WeeklySummaryTests(unittest.TestCase):
             self.assertLess(image.height, 4000)
 
     def test_daily_render_uses_daily_filename(self):
-        if not self.bot._find_weekly_font():
+        if not self.bot.summary_image._find_weekly_font():
             self.skipTest("系统未安装可渲染中文的字体")
-        path = self.bot._render_weekly_summary_image("今天看了一段轻松的动画，记住了结尾那句台词。", report_kind="daily")
+        path = self.bot.summary_image._render_weekly_summary_image("今天看了一段轻松的动画，记住了结尾那句台词。", report_kind="daily")
         self.assertIsNotNone(path)
         self.assertTrue(Path(path).name.startswith("daily_summary_"))
         from PIL import Image
@@ -117,7 +123,9 @@ class WeeklySummaryTests(unittest.TestCase):
     def test_prompt_requires_selection_instead_of_recounting(self):
         module = self.module
 
-        class Bot(module.WeeklySummaryMixin):
+        class Bot(module.SummaryParts):
+            models = itself
+
             def __init__(self):
                 self.config = {}
                 self.prompt = ""
@@ -142,13 +150,16 @@ class WeeklySummaryTests(unittest.TestCase):
                 return "📅 周报 | 08.09 ~ 08.16\n视频1个 · 互动1次\n\n📺 视频\n记住了灯塔结尾的雾号。\n\n✍️ 碎碎念\n这一周很安静。"
 
         bot = Bot()
-        result = asyncio.run(bot._generate_weekly_summary())
+        bot.activity_digest._collect_weekly_data = bot._collect_weekly_data
+        result = asyncio.run(bot.summaries._generate_weekly_summary())
         self.assertIsNotNone(result)
         self.assertIn("找出2-4个最有具体信息的片段", bot.prompt)
         self.assertIn("具体锚点", bot.prompt)
         self.assertIn("📌 本周切片", bot.prompt)
         self.assertIn("🎢 意外与反差", bot.prompt)
-        self.assertIn("不能全篇中性概括", bot.prompt)
+        self.assertIn("不要每件都四平八稳", bot.prompt)
+        self.assertIn("说话方式", bot.prompt)
+        self.assertNotIn("微叙事", bot.prompt)
         self.assertIn("不能充当正文", bot.prompt)
         self.assertIn("疑似错配字幕", bot.prompt)
         self.assertNotIn("123456", bot.prompt)
@@ -166,7 +177,7 @@ class WeeklySummaryTests(unittest.TestCase):
 
 🧭 兴趣坐标
 还不能算稳定偏好，但废墟与老建筑值得继续找。"""
-        stats, sections = self.bot._parse_weekly_sections(summary)
+        stats, sections = self.bot.summary_image._parse_weekly_sections(summary)
         self.assertEqual(stats, "视频3个 · 互动1次")
         self.assertEqual(
             [title for title, _body in sections],
@@ -174,26 +185,26 @@ class WeeklySummaryTests(unittest.TestCase):
         )
 
     def test_missing_cjk_font_falls_back_to_text_delivery(self):
-        with mock.patch.object(self.bot, "_find_weekly_font", return_value=None):
-            path = self.bot._render_weekly_summary_image("📌 本周切片\n这里应该显示中文。")
+        with mock.patch.object(self.module.SummaryImage, "_find_weekly_font", return_value=None):
+            path = self.bot.summary_image._render_weekly_summary_image("📌 本周切片\n这里应该显示中文。")
         self.assertIsNone(path)
 
     def test_bundled_cjk_font_is_a_valid_fallback(self):
         bundled = ROOT / "assets" / "fonts" / "NotoSansSC-VF.otf"
         self.assertTrue(bundled.is_file())
-        self.assertTrue(self.bot._weekly_font_has_chinese(str(bundled)))
+        self.assertTrue(self.bot.summary_image._weekly_font_has_chinese(str(bundled)))
 
         self.bot.config = {}
         with mock.patch.object(
-            self.bot,
+            self.bot.summary_image,
             "_weekly_font_has_chinese",
             side_effect=lambda path: Path(path) == bundled,
         ):
-            selected = self.bot._find_weekly_font()
+            selected = self.bot.summary_image._find_weekly_font()
         self.assertEqual(Path(selected), bundled)
 
     def test_structured_daily_summary_keeps_video_signals_without_private_text(self):
-        data = self.bot._empty_activity_data()
+        data = self.bot.activity_digest._empty_activity_data()
         data["videos"] = [{
             "time": "2026-08-20 20:00",
             "bvid": "BV-test",
@@ -212,7 +223,7 @@ class WeeklySummaryTests(unittest.TestCase):
         }]
         data["chat_count"] = 1
         data["chat_highlights"] = []
-        structured = self.bot._build_structured_activity_summary(
+        structured = self.bot.activity_digest._build_structured_activity_summary(
             data,
             period_key="2026-08-20",
             preferences=[],
@@ -229,13 +240,13 @@ class WeeklySummaryTests(unittest.TestCase):
         self.assertNotIn("user_id", encoded)
 
     def test_private_chat_text_is_not_used_as_weekly_highlight(self):
-        now = self.module.datetime.now().strftime("%Y-%m-%d %H:%M")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
         self.bot._memory = [{
             "memory_type": "chat", "time": now, "user_id": "42",
             "source": "bilibili_private", "text": "这是一段私信原文",
         }]
-        self.bot._load_json = lambda _path, default: default
-        data = self.bot._collect_weekly_data()
+        self.bot.json_store._load_json = lambda _path, default: default
+        data = self.bot.activity_digest._collect_weekly_data()
         self.assertEqual(data["chat_count"], 1)
         self.assertEqual(data["chat_highlights"], [])
 

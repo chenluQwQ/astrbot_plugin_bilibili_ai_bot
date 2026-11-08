@@ -56,17 +56,11 @@ def _load_module(alias, filename, config_values):
 
 
 class ShareHostValidationTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.module = _load_module(
-            "share",
-            "share.py",
-            {"TEMP_VIDEO_DIR": "unused", "VIDEO_MEMORY_FILE": "unused"},
-        )
-
     def setUp(self):
-        self.mixin = self.module.ShareMixin()
-        self.mixin.config = {}
+        from core.infra.bili import share_links
+
+        self.module = share_links
+        self.links = share_links.ShareLinks(types.SimpleNamespace(config={}))
 
     def test_allowed_hosts(self):
         for url in (
@@ -76,7 +70,7 @@ class ShareHostValidationTests(unittest.TestCase):
             "http://bili2233.cn/xyz",
         ):
             with self.subTest(url=url):
-                self.assertTrue(self.module.ShareMixin._is_allowed_share_host(url))
+                self.assertTrue(self.module.ShareLinks._is_allowed_share_host(url))
 
     def test_spoofed_hosts_rejected(self):
         for url in (
@@ -89,18 +83,18 @@ class ShareHostValidationTests(unittest.TestCase):
             "",
         ):
             with self.subTest(url=url):
-                self.assertFalse(self.module.ShareMixin._is_allowed_share_host(url))
+                self.assertFalse(self.module.ShareLinks._is_allowed_share_host(url))
 
     def test_extract_target_never_requests_spoofed_shortlink(self):
         async def run():
             # 伪造主机：路径里含 b23.tv，旧子串判断会误放行并发起请求。
-            target = await self.mixin._extract_bili_share_target(
+            target = await self.links._extract_bili_share_target(
                 "http://127.0.0.1:9/b23.tv/abc123"
             )
             return target
 
         with patch.object(
-            self.mixin, "_resolve_share_url", new=AsyncMock()
+            self.links, "_resolve_share_url", new=AsyncMock()
         ) as resolver:
             result = asyncio.run(run())
         self.assertIsNone(result)
@@ -133,7 +127,7 @@ class ShareHostValidationTests(unittest.TestCase):
             with patch.object(
                 self.module, "plugin_http_session", return_value=FakeSession()
             ):
-                return await self.mixin._resolve_share_url("https://b23.tv/abc")
+                return await self.links._resolve_share_url("https://b23.tv/abc")
 
         result = asyncio.run(run())
         self.assertIn("bilibili.com/video/BV1xx411c7mD", result)
@@ -144,11 +138,11 @@ class ShareHostValidationTests(unittest.TestCase):
     def test_redirect_to_offsite_is_not_followed_for_target(self):
         async def run():
             with patch.object(
-                self.mixin,
+                self.links,
                 "_resolve_share_url",
                 new=AsyncMock(return_value="https://evil.com/video/BV1xx411c7mD"),
             ):
-                return await self.mixin._extract_bili_share_target("https://b23.tv/abc")
+                return await self.links._extract_bili_share_target("https://b23.tv/abc")
 
         self.assertIsNone(asyncio.run(run()))
 
@@ -156,16 +150,8 @@ class ShareHostValidationTests(unittest.TestCase):
 class ShareSendCleanupTests(unittest.TestCase):
     """F5: finally 分支必须把 send_paths（发送副本）并入延迟清理列表。"""
 
-    @classmethod
-    def setUpClass(cls):
-        cls.module = _load_module(
-            "share",
-            "share.py",
-            {"TEMP_VIDEO_DIR": "unused", "VIDEO_MEMORY_FILE": "unused"},
-        )
-
     def test_cleanup_includes_send_copies(self):
-        source = (CORE / "share.py").read_text(encoding="utf-8")
+        source = (CORE / "features" / "_share_delivery.py").read_text(encoding="utf-8")
         finally_idx = source.index("finally:", source.index("async def _send_shared_video"))
         tail = source[finally_idx : finally_idx + 900]
         self.assertIn("list(send_paths)", tail)
@@ -176,10 +162,12 @@ class ShareSendCleanupTests(unittest.TestCase):
 class LLMCircuitProbeTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
-        cls.module = _load_module("llm", "llm.py", {})
+        import test_autonomous_ranges  # noqa: F401  装上假的 astrbot
+        import llm_fakes
+        cls.module = llm_fakes
 
     async def test_cancelled_probe_releases_half_open_slot(self):
-        bot = self.module.LLMMixin()
+        bot = self.module.LegacyModels()
         bot.config = {
             "LLM_CIRCUIT_FAILURE_THRESHOLD": 1,
             "LLM_CIRCUIT_COOLDOWN_SECONDS": 0.01,
@@ -208,20 +196,21 @@ class LLMCircuitProbeTests(unittest.IsolatedAsyncioTestCase):
 
         # 1) failure opens the circuit (threshold=1)
         self.assertIsNone(await bot._llm_call("x"))
-        self.assertGreater(bot._llm_circuit_open_until, 0)
+        circuit = bot._llm_gateway().circuit
+        self.assertGreater(circuit.open_until, 0)
 
         # 2) cooldown 最小被钳到 1s，直接手动把冷却时间挪到过去，
         #    然后启动探测并在其挂起期间取消它
-        bot._llm_circuit_open_until = 0.001  # 已过期的冷却（time.monotonic() 起点之后）
+        circuit.open_until = 0.001  # 已过期的冷却（time.monotonic() 起点之后）
         probe_task = asyncio.create_task(bot._llm_call("x"))
         await asyncio.sleep(0.1)  # let the probe claim the half-open slot
-        self.assertTrue(bot._llm_circuit_half_open)
+        self.assertTrue(circuit.probing)
         probe_task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await probe_task
 
         # 3) the half-open flag must be released, next call probes again
-        self.assertFalse(bot._llm_circuit_half_open)
+        self.assertFalse(circuit.probing)
         result = await bot._llm_call("x")
         self.assertEqual(result, "ok")
         self.assertEqual(calls["n"], 3)

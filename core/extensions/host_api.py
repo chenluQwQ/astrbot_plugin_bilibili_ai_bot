@@ -117,9 +117,8 @@ class BiliBotExtensionHostAPI:
 
     def record_creator_activity(self, event: dict[str, Any]) -> dict[str, Any]:
         self._require("activity.write")
-        from ..config import DATA_DIR
-        target = Path(DATA_DIR) / "creator_extension_activity.json"
-        rows = _read_json(target, [])
+        store = self._plugin.states.creator_activity
+        rows = store.read([])
         if not isinstance(rows, list): rows = []
         safe = {
             "extension_id": self.extension_id,
@@ -131,29 +130,31 @@ class BiliBotExtensionHostAPI:
         from datetime import datetime, timezone
         safe["created_at"] = datetime.now(timezone.utc).isoformat()
         rows.append(safe); rows = rows[-1000:]
-        temporary = target.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(target)
+        store.write(rows)
         return {"recorded": True}
 
     def list_creator_signals(self, *, limit: int = 20) -> list[dict[str, Any]]:
         self._require("memory.creator.read")
-        from ..config import BANGUMI_WATCH_LOG_FILE, DYNAMIC_LOG_FILE, VIDEO_MEMORY_FILE, WATCH_LOG_FILE
         rows: list[dict[str, Any]] = []
         # video_memory holds the long `analysis` text; watch_log holds the score and
         # the interactions.  Both describe the same bvid, so they are merged below
         # rather than surfaced as two signals for one video.
-        sources = ((WATCH_LOG_FILE, "watch", "bvid"), (VIDEO_MEMORY_FILE, "watch", "bvid"), (BANGUMI_WATCH_LOG_FILE, "bangumi", "episode_id"), (DYNAMIC_LOG_FILE, "dynamic", "dynamic_id"))
-        for path, source, ref_key in sources:
-            data = _read_json(path, [])
+        logs = self._plugin.activity_logs
+        sources = (
+            (logs.watch.recent, "watch", "bvid"), (lambda: self._plugin.memory_docs.video_memory.read({}), "watch", "bvid"),
+            (logs.bangumi.recent, "bangumi", "episode_id"), (logs.dynamic.recent, "dynamic", "dynamic_id"),
+        )
+        for read, source, ref_key in sources:
+            data = read()
+            is_video_memory = isinstance(data, dict)
             if isinstance(data, dict):
                 data = [
-                    {**item, "bvid": item.get("bvid") or key} if path == VIDEO_MEMORY_FILE else item
+                    {**item, "bvid": item.get("bvid") or key} if is_video_memory else item
                     for key, item in data.items() if isinstance(item, dict)
                 ]
             for item in data if isinstance(data, list) else []:
                 if not isinstance(item, dict): continue
-                if path == VIDEO_MEMORY_FILE and (
+                if is_video_memory and (
                     item.get("content_analyzed") is False
                     or (item.get("source") == "group_share" and not item.get("content_analyzed"))
                 ):
@@ -220,7 +221,7 @@ class BiliBotExtensionHostAPI:
         bvid, aid = str(bvid).strip(), str(aid).strip()
         if not bvid and not aid:
             raise ValueError("bvid or aid is required")
-        getter = getattr(self._plugin, "_http_get", None)
+        getter = getattr(getattr(self._plugin, "bili_http", None), "_http_get", None)
         if not callable(getter):
             raise RuntimeError("BiliBot public API client is unavailable")
         endpoint = "https://api.bilibili.com/x/web-interface/view"
