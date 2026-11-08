@@ -92,8 +92,6 @@ def patched(host):
         backup_data_dir=lambda *a: log.append("backup_data_dir"),
         DynamicIdeas=types.SimpleNamespace(open=lambda path: (log.append("dynamic_ideas.open"),
                                                               _Closable(log, "dynamic_ideas"))[1]),
-        problem_log=types.SimpleNamespace(attach=lambda *a: (log.append("problem_log.attach"), "handler")[1],
-                                          detach=lambda _logger, handler: log.append(f"problem_log.detach:{handler}")),
     )
 
 
@@ -121,7 +119,7 @@ async def lifecycle_trace(host, runner):
 
 
 EXPECTED = [
-    "problem_log.attach", "backup_data_dir", "open_activity_runs", "dynamic_ideas.open",
+    "backup_data_dir", "open_activity_runs", "dynamic_ideas.open",
     "layered_runtime.open", "init_memory", "init_seen_videos", "check_cookie",
     "ensure_buvid", "mark_overdue", "main_loop", "running=True",
     "cancel_comment_inspections", "share_session.reset", "private_poll.reset",
@@ -129,7 +127,7 @@ EXPECTED = [
     "ensure_buvid", "mark_overdue", "main_loop",
     "cancel_comment_inspections", "share_session.reset", "private_poll.reset",
     "yt_dlp.cancel", "extensions.close", "event_runtime.close", "layered_runtime.close",
-    "close_activity_runs", "dynamic_ideas.close", "problem_log.detach:handler", "cleanup_temp_files",
+    "close_activity_runs", "dynamic_ideas.close", "cleanup_temp_files",
     "running=False",
 ]
 
@@ -143,7 +141,6 @@ class RunnerLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(log, EXPECTED)
         self.assertIsNone(runner.task)
         self.assertIsNone(host.dynamic_ideas)
-        self.assertIsNone(runner.problem_log_handler)
 
     async def test_private_poll_waits_after_start(self):
         host = fake_host()
