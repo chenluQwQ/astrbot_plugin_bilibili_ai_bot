@@ -7,8 +7,6 @@ PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 PLUGIN_VERSION = "2.0.1"
 DATA_DIR = str(StarTools.get_data_dir(PLUGIN_NAME))
 LAYERED_DB_FILE = os.path.join(DATA_DIR, "bilibot.sqlite3")
-# 只记本插件警告和错误的日志（core/infra/problem_log.py），查问题时发这个文件就行。
-PROBLEM_LOG_FILE = os.path.join(DATA_DIR, "logs", "problems.log")
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
 AFFECTION_FILE = os.path.join(DATA_DIR, "affection.json")
 SCHEDULE_FILE = os.path.join(DATA_DIR, "schedule_today.json")
