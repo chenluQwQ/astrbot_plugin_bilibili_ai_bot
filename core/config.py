@@ -4,7 +4,7 @@ from astrbot.api.star import StarTools
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 # 和 metadata.yaml 的 version 保持一致（tests/test_plugin_version.py 检查）
-PLUGIN_VERSION = "2.0.2"
+PLUGIN_VERSION = "2.0.3"
 DATA_DIR = str(StarTools.get_data_dir(PLUGIN_NAME))
 LAYERED_DB_FILE = os.path.join(DATA_DIR, "bilibot.sqlite3")
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
