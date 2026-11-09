@@ -238,12 +238,11 @@ class Memos:
             self._move(row[0], EXPIRED, "待办满了，挤掉最旧的", now, commit=False)
 
     def _expire(self, now: float) -> None:
-        cursor = self._conn.execute(
-            "UPDATE memos SET state=?, reason=?, state_at=? WHERE state=? AND created_at<?",
-            (EXPIRED, "3 天没做", now, PENDING, now - EXPIRE_SECONDS),
-        )
-        if cursor.rowcount:
-            self._conn.commit()
+        with self._conn:
+            self._conn.execute(
+                "UPDATE memos SET state=?, reason=?, state_at=? WHERE state=? AND created_at<?",
+                (EXPIRED, "3 天没做", now, PENDING, now - EXPIRE_SECONDS),
+            )
 
     def _move(self, memo_id: int, state: str, reason: str, now: float, *, commit: bool = True) -> bool:
         # 只有还开着的能走：做完、作废、过期的不会再变回来。

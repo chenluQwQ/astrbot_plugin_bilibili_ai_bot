@@ -108,12 +108,11 @@ class DynamicIdeas:
         self._conn.commit()
 
     def _expire(self, now: float) -> None:
-        cursor = self._conn.execute(
-            "UPDATE dynamic_ideas SET state=?, reason=?, state_at=? WHERE state=? AND created_at<?",
-            (EXPIRED, "3 天没发", now, PENDING, now - EXPIRE_SECONDS),
-        )
-        if cursor.rowcount:
-            self._conn.commit()
+        with self._conn:
+            self._conn.execute(
+                "UPDATE dynamic_ideas SET state=?, reason=?, state_at=? WHERE state=? AND created_at<?",
+                (EXPIRED, "3 天没发", now, PENDING, now - EXPIRE_SECONDS),
+            )
 
     def _move(self, idea_id: int, state: str, reason: str, now: float) -> None:
         # 只有待发的能走：发过、作废、过期的不会再变回来。
