@@ -1,4 +1,4 @@
-"""用户页：画像加好感度，按好感排前 50。"""
+"""用户页：只列真实存在的画像及其好感度，按好感排前 50。"""
 from __future__ import annotations
 
 from typing import Any
@@ -37,10 +37,9 @@ async def handle_get_profiles(plugin: Any):
                 "has_profile": True,
                 "below_line": None if app.affection.reached_profile_line(uid) else pending_delete,
             })
-        known = {item["user_id"] for item in data}
-        for uid, score in affection.items() if isinstance(affection, dict) else []:
-            if str(uid) not in known:
-                data.append({"user_id": str(uid), "name": f"UID {uid}", "affection": int(score or 0), "relationship": app_of(plugin).relationship_level(score, uid), "impression": "", "tags": [], "facts_count": 0, "video_refs_count": 0, "last_interaction": "", "has_profile": False})
+        # 好感度账本里还有大量没到画像门槛、从未生成画像的用户。
+        # 他们不是“空画像”，不能补进这个列表，否则已清理的人仍会显示并被计数。
+        # 纯好感排行由 /bili好感 查看；这里只展示 user_profiles 中真实存在的画像。
         data.sort(key=lambda item: (item["affection"], item["last_interaction"]), reverse=True)
         return _response(data[:50])
     except Exception as exc:

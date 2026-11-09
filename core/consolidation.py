@@ -12,10 +12,11 @@
      低于 5 分的 30 天后整条删（「看过」账本不动）；没有印象的旧记忆到期前每晚补几条
   4. 其他记忆时效升级：recent 超 14 天 → long_term
   4.1 画像：回复时攒下的画像候选（只给好感到过门槛的人存）由总结模型挑着写进画像；没到门槛的人清掉画像笔记
-  5. 其他长期记忆超 6 月 → aged: true；aged 的低分（≤5）原始闲聊删掉，删前留备份
-  6. 别人的动态（关注动态巡视、评论区动态图片记的）是一次性的，90 天删（留备份）；
+  5. 今晚新对话总结全部评分；历史长期对话与总结另按旧到新每晚重评 15 条
+  6. 其他长期记忆超 6 月 → aged: true；aged 的低分（≤5）原始闲聊删掉，删前留备份
+  7. 别人的动态（关注动态巡视、评论区动态图片记的）是一次性的，90 天删（留备份）；
      直播里的普通事件 180 天删，SC、舰长留着；Bot 自己发的动态一直留着
-  7. 收尾：删 30 天前的清算备份文件；删 30 天前的活动日志；每周 VACUUM 一次 sqlite（删了东西文件才会变小）
+  8. 收尾：删 30 天前的清算备份文件；删 30 天前的活动日志；每周 VACUUM 一次 sqlite（删了东西文件才会变小）
   召回时 aged 的再降权（见 MemoryEntry._memory_recall_weight）
 """
 
@@ -48,6 +49,8 @@ FORGET_MAX_IMPORTANCE = 5
 FADED_KEEP_REVIEW_SCORE = 8
 # 没有一句话印象的旧视频记忆，每晚最多补这么多条（一次模型调用），不一次性全改。
 IMPRESSION_BACKFILL_PER_NIGHT = 10
+# 长期聊天/对话总结的历史积压，每晚最多重评这么多条；评完全部后不再调用模型。
+LONG_TERM_REVIEW_PER_NIGHT = 15
 # 别人的动态记下满这么多天删。
 OTHERS_DYNAMIC_KEEP_DAYS = 90
 # 直播事件记下满这么多天、分数不超过 LIVE_FORGET_MAX_IMPORTANCE 的删（普通弹幕礼物 6 分，SC、舰长 8 分留着）。
@@ -180,6 +183,14 @@ class ConsolidationEngine:
         auto_promoted = self._auto_promote_non_chat()
         if auto_promoted:
             lines.append(f"🎬 {auto_promoted} 条视频/动态/直播 → recent")
+
+        # 5. 今晚新产生的总结全部评分；历史积压另走每天 15 条，互不占用额度。
+        new_summary_result = await self._review_new_summaries()
+        if new_summary_result:
+            lines.append(f"🌙 {new_summary_result}")
+        review_result = await self._review_long_term_backlog()
+        if review_result:
+            lines.append(f"🗂️ {review_result}")
 
         await self.bot.memories.sync(assume_locked=True)
         # 清算期间 json 是带向量的恢复点；做完换回不带向量的导出，文件小几十倍
@@ -829,6 +840,152 @@ class ConsolidationEngine:
         if count:
             self.bot.memories.write_backup()
         return count
+
+    # ══════════════════════════════════════
+    #  今晚新总结：全部评分，与历史积压分开
+    # ══════════════════════════════════════
+
+    def _new_summary_review_candidates(self) -> list[dict]:
+        """本次运行后新压缩、尚未完成夜间评分的总结。
+
+        evaluation_pending 在生成时明确写入，因此即使日终跨过零点，也不会把
+        傍晚生成的总结误归入每天 15 条的历史队列。失败或漏评时标记保留，
+        下一晚仍优先按新总结处理。
+        """
+        candidates = [
+            m for m in self.bot.memories.records
+            if m.get("evaluation_pending")
+            and m.get("level") == "long_term"
+            and self.bot.memory_entry._match_memory_type(m, {"chat", "user_summary"})
+            and bool(m.get("rpid"))
+        ]
+        candidates.sort(key=lambda m: (
+            str(m.get("time") or m.get("promoted_at") or ""),
+            str(m.get("rpid") or ""),
+        ))
+        return candidates
+
+    async def _review_new_summaries(self) -> str:
+        """今晚生成的新总结全部评分；仅按普通批大小拆分模型请求，不限 15 条。"""
+        pending = self._new_summary_review_candidates()
+        if not pending:
+            return ""
+        scored = discarded = failed = 0
+        for i in range(0, len(pending), CONSOLIDATION_BATCH_SIZE):
+            batch = pending[i:i + CONSOLIDATION_BATCH_SIZE]
+            try:
+                scores = await self._evaluate_batch(batch)
+            except Exception as exc:
+                logger.error(f"[BiliBot] 新对话总结夜间评分失败，本批保留: {exc}")
+                scores = None
+            if scores is None:
+                failed += len(batch)
+                continue
+
+            scored += len(scores)
+            discard_ids = {
+                rpid for rpid, score in scores.items()
+                if score <= CONSOLIDATION_DISCARD_THRESHOLD
+            }
+            for m in self.bot.memories.records:
+                rpid = str(m.get("rpid") or "")
+                if rpid in scores and rpid not in discard_ids:
+                    m["importance"] = scores[rpid]
+                    m["evaluation_version"] = EVALUATION_VERSION
+                    m.pop("evaluation_pending", None)
+            discard = [
+                m for m in batch
+                if str(m.get("rpid") or "") in discard_ids
+            ]
+            if discard:
+                discarded += len(discard)
+                backup = self._drop_with_backup(discard)
+                logger.info(
+                    f"[BiliBot] 新总结夜间评分：删掉 {len(discard)} 条低分总结，"
+                    f"备份在 {os.path.basename(backup)}"
+                )
+
+        self.bot.memories.write_backup()
+        remaining = len(pending) - scored
+        return (
+            f"今晚新对话总结 {len(pending)} 条 | 已评分 {scored} | "
+            f"丢弃 {discarded} | 待下晚重试 {remaining} | 请求失败 {failed}"
+        )
+
+    # ══════════════════════════════════════
+    #  长期记忆历史积压：每晚最多重评 15 条
+    # ══════════════════════════════════════
+
+    def _long_term_review_candidates(self) -> list[dict]:
+        """返回尚未按当前标准评估的长期对话/总结，最旧的优先。
+
+        importance 可能只是迁移或压缩时填的默认值，不能据此认为已经评过；
+        evaluation_version 才表示这条已通过当前评分标准。没有 rpid 的旧数据
+        无法安全地按 ID 回写或删除，因此保留原样，不进入自动清理。
+        """
+        candidates = [
+            m for m in self.bot.memories.records
+            if m.get("level") == "long_term"
+            and self.bot.memory_entry._match_memory_type(m, {"chat", "user_summary"})
+            and m.get("evaluation_version") != EVALUATION_VERSION
+            and not m.get("evaluation_pending")
+            and bool(m.get("rpid"))
+        ]
+        candidates.sort(key=lambda m: (
+            str(m.get("promoted_at") or m.get("time") or ""),
+            float(self._number(m.get("created_at"), 0)),
+            str(m.get("rpid") or ""),
+        ))
+        return candidates
+
+    async def _review_long_term_backlog(self) -> str:
+        """重评一小批长期对话/总结；低分备份后删除，其余记录可靠评分。
+
+        模型整批失败或漏评时不猜分、不删除，未评记录留到后续晚上。
+        返回空字符串表示没有积压，调用方因此不会留下无意义的日终日志。
+        """
+        pending = self._long_term_review_candidates()
+        if not pending:
+            return ""
+        batch = pending[:LONG_TERM_REVIEW_PER_NIGHT]
+        try:
+            scores = await self._evaluate_batch(batch)
+        except Exception as exc:
+            logger.error(f"[BiliBot] 长期记忆重评失败，本批保留待下晚重试: {exc}")
+            scores = None
+        if scores is None:
+            return (
+                f"长期记忆待重评 {len(pending)} 条 | 本批 {len(batch)} 条失败，"
+                "已保留下晚重试"
+            )
+
+        scored_ids = set(scores)
+        discard_ids = {
+            rpid for rpid, score in scores.items()
+            if score <= CONSOLIDATION_DISCARD_THRESHOLD
+        }
+        for m in self.bot.memories.records:
+            rpid = str(m.get("rpid") or "")
+            if rpid in scored_ids and rpid not in discard_ids:
+                m["importance"] = scores[rpid]
+                m["evaluation_version"] = EVALUATION_VERSION
+
+        discard = [
+            m for m in batch
+            if str(m.get("rpid") or "") in discard_ids
+        ]
+        if discard:
+            backup = self._drop_with_backup(discard)
+            logger.info(
+                f"[BiliBot] 长期记忆重评：删掉 {len(discard)} 条低分对话/总结，"
+                f"备份在 {os.path.basename(backup)}"
+            )
+        self.bot.memories.write_backup()
+        remaining = len(pending) - len(scored_ids)
+        return (
+            f"长期记忆待重评 {len(pending)} 条 | 本次评分 {len(scored_ids)} | "
+            f"丢弃 {len(discard)} | 剩余 {remaining}"
+        )
 
     # ══════════════════════════════════════
     #  用户命令：清理 aged 记忆

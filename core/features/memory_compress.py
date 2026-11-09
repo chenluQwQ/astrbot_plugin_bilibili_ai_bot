@@ -69,7 +69,7 @@ class MemoryCompress(HostView):
                 "memory_type": "user_summary",
                 "summary_kind": "oid",
                 "derived_from_rpids": sorted({str(m["rpid"]) for m in old}),
-                "level": "long_term", "importance": 7, "promoted_at": now,
+                "level": "long_term", "evaluation_pending": True, "promoted_at": now,
             }
             # 保留视频元数据（从被压缩的记录中提取）
             for m in old:
@@ -123,7 +123,7 @@ class MemoryCompress(HostView):
                 "memory_type": "chat",
                 "summary_kind": "thread",
                 "derived_from_rpids": sorted({str(m["rpid"]) for m in old}),
-                "level": "long_term", "importance": 6, "promoted_at": now,
+                "level": "long_term", "evaluation_pending": True, "promoted_at": now,
             }
             if old_oid:
                 comp["oid"] = str(old_oid)
@@ -189,7 +189,7 @@ class MemoryCompress(HostView):
                 "scope": str(memory_scope),
                 "summary_kind": "user",
                 "derived_from_rpids": sorted({str(m["rpid"]) for m in old}),
-                "level": "long_term", "importance": 7, "promoted_at": now,
+                "level": "long_term", "evaluation_pending": True, "promoted_at": now,
             }
             # 保留元数据（用户可能在多个视频下互动，取最近的）
             for m in reversed(old):
