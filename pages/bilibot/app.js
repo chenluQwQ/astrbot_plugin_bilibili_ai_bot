@@ -291,6 +291,7 @@ const MOCK_FIELDS = {
   EVOLVE_HOUR: ["【性格演化】触发时间（0-23点）", "int", 1],
   EMBED_MODEL: ["【高级·记忆】Embedding 模型名称", "string", "text-embedding-3-small"],
   VIDEO_VISION_PROVIDER_ID: ["【高级·视觉】视频分析模型提供商", "string", "default"],
+  VIDEO_VISUAL_ANALYSIS_POLICY: ["【主动看视频】什么时候看画面", "string", "when_text_insufficient", ["when_text_insufficient", "always"]],
   ENABLE_WEB_SEARCH: ["【高级·联网搜索】启用联网搜索", "bool", true],
   WEB_SEARCH_BACKEND: ["【高级·联网搜索】搜索后端", "string", "builtin", ["builtin", "custom", "perplexity"]],
   COOKIE_AUTO_REFRESH: ["【系统】Cookie过期自动刷新", "bool", true],
@@ -1060,6 +1061,7 @@ const UI_COPY = {
   AUTONOMOUS_PLAN_GENERATION_MODE: { hint: "睡醒后过一会儿生成，或者每天固定时刻生成" },
   WEEKLY_SUMMARY_MODE: { hint: "也可以用 /bili周总结 手动发" },
   VIDEO_VISUAL_ANALYSIS_POLICY: { hint: "先看标题、简介、字幕、标签和热评，不够再截帧看画面；每次都看画面更费钱" },
+  VIDEO_VISION_PROVIDER_ID: { hint: "选一个能看图的 AstrBot 模型（如 GLM-4.5V）。留空只用文字信息；和独立 API 同时填时优先用这里" },
   VIDEO_VISION_FORMAT: { hint: "按你的模型或网关支持的选。不确定就选「自动探测」：挨个试，第一个成功的记下来。选错也不会坏，会自动改用截帧" },
   IMAGE_GEN_BACKEND: { hint: "NovelAI 只在手动 /bili动态 时能生图" },
 };
@@ -1914,7 +1916,7 @@ const EVENT_STYLES = {
 };
 
 const AUTONOMY_CAPABILITIES = [
-  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"] },
+  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_PROVIDER_ID", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"] },
   { id: "prefilter", title: "视频来源与标题筛选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "开关控制看之前是否先按标题筛一遍；视频从哪里来（关注、视频池、搜索、口味）也在这里设置。", dependency: "需要先开主动看视频", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS"] },
   { id: "bangumi", title: "追番", icon: "video", toggle: "ENABLE_BANGUMI", description: "按日程看番剧、写评价、按评分评论和追番。要同时打开「主动追番」才会排进日程。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
   { id: "dynamic", title: "发动态", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按日程发 B站动态，内容来自看过的视频、番剧、站外订阅和搜索攒下的想法。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },
