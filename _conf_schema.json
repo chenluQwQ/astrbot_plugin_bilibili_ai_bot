@@ -2586,6 +2586,28 @@
     "max": 60,
     "hint": "每次同步回看最近几天的记录；范围 1-60。"
   },
+  "FUSION_GALLERY_ENABLED": {
+    "description": "【融合插件】配图库自动采集",
+    "type": "bool",
+    "default": true,
+    "hint": "浏览视频时收藏评论区和动态里的图片，并按下面的上限识图；重复图片直接复用已有结果。设置位置：AstrBot 管理面板 → 插件 → BiliBot → 配置（本页）。关闭后不再采集新图，已有图库保留。"
+  },
+  "GALLERY_COLLECT_PER_BROWSE": {
+    "description": "【融合插件】每次浏览的新图处理上限",
+    "type": "int",
+    "default": 2,
+    "min": 0,
+    "max": 2,
+    "hint": "每浏览一个视频最多处理几张新图；0 表示只入库不识别。"
+  },
+  "GALLERY_CAPTION_DAILY_MAX": {
+    "description": "【融合插件】每日识图尝试上限",
+    "type": "int",
+    "default": 12,
+    "min": 0,
+    "max": 12,
+    "hint": "每天最多调用几次视觉模型识别新图；0 表示当天不识别。"
+  },
   "PROXY_URL": {
     "description": "【系统】代理地址（可选）",
     "type": "string",
