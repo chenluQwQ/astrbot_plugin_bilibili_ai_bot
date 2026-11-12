@@ -23,6 +23,9 @@ CODE_ONLY_DEFAULTS: dict[str, Any] = {
     "BUVID3": "",
     "BUVID4": "",
     "VIDEO_SEGMENT_SEC": 300,
+    # 服务器版早期用对象分组保存融合开关；现在是平铺的 FUSION_* 键，
+    # 这里保留默认值只为让 compat.config_value 的旧配置回退路径可读。
+    "FUSION_PLUGINS": {},
 }
 
 
