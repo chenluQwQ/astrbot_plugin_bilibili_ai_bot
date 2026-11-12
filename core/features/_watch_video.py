@@ -74,6 +74,12 @@ class WatchVideo(HostView):
         video_description = await self.video_watch._analyze_video_with_vision(analysis_info)
         path.append(f"分析:{analysis_info.get('analysis_basis', 'legacy')}")
         logger.info(f"[BiliBot] {watch_round.icon} 分析：{video_description[:60]}...")
+        # 配图库：顺手采集评论区图片；失败只记 debug，不影响看片主流程。
+        try:
+            from ..server_ext import gallery_workflow
+            await gallery_workflow.collect_video(self._host, oid, bvid)
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 配图采集跳过: {exc}")
         # 分析完成即算“看过”；即使后续评价或互动失败，也不能在旧流水
         # 超过 200 条后被再次当成新视频下载分析。
         if analysis_info.get("analysis_basis") != "metadata":
