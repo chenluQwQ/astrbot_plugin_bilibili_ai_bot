@@ -2199,6 +2199,12 @@
     "default": 10,
     "hint": "超出的部分跳过，建议不超过 10。"
   },
+  "VIDEO_STORYBOARD_ENABLED": {
+    "description": "【视觉模型】用分镜宫格图代替逐帧截图",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后把每个片段压成一张 3×3 分镜宫格图并附时间码，让模型一次看清镜头顺序；比均匀截 5 帧更连贯。设置位置：AstrBot 管理面板 → 插件 → BiliBot → 配置（本页）。关闭后恢复逐帧截图；没装 ffmpeg 或生成失败时也会自动退回逐帧。"
+  },
   "IMAGE_VISION_PROVIDER_ID": {
     "description": "【视觉模型】图片识别：AstrBot 模型提供商",
     "type": "string",
