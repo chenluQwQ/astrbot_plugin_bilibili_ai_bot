@@ -2171,7 +2171,13 @@ function renderPlanModeCard(plan, autonomous, events) {
 function capabilitySummary(item) {
   if (!currentValue(item.toggle)) return "总开关已关闭，不会生成相关事件";
   if (item.id === "plan-generation") return currentValue("ENABLE_AUTONOMOUS_DAILY_PLAN") ? `每日计划：${currentValue("AUTONOMOUS_PLAN_GENERATION_MODE") === "fixed_time" ? currentValue("AUTONOMOUS_PLAN_GENERATION_TIME") : `休眠后 ${fmt(currentValue("AUTONOMOUS_PLAN_AFTER_SLEEP_MINUTES"))} 分钟`}` : "当前使用固定计划";
-  if (item.id === "proactive") return `每天最多 ${fmt(currentValue("PROACTIVE_TIMES_COUNT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个 · 全天视频上限 ${num(currentValue("PROACTIVE_DAILY_LIMIT"), 0) > 0 ? fmt(currentValue("PROACTIVE_DAILY_LIMIT")) : "不限"}`;
+  if (item.id === "proactive") {
+    // 卡面直接露出真正在用的视频分析模型，不用打开抽屉或设置页确认
+    const provider = String(currentValue("VIDEO_VISION_PROVIDER_ID") ?? "").trim();
+    const apiModel = String(currentValue("VIDEO_VISION_MODEL") ?? "").trim();
+    const vision = provider ? `视频分析：${optionLabel("VIDEO_VISION_PROVIDER_ID", provider)}` : apiModel ? `视频分析：${apiModel}（独立 API）` : "视频分析：未配置，只看文字";
+    return `每天最多 ${fmt(currentValue("PROACTIVE_TIMES_COUNT"))} 轮 · 每轮 ${fmt(currentValue("PROACTIVE_VIDEO_COUNT"))} 个 · 全天视频上限 ${num(currentValue("PROACTIVE_DAILY_LIMIT"), 0) > 0 ? fmt(currentValue("PROACTIVE_DAILY_LIMIT")) : "不限"} · ${vision}`;
+  }
   if (item.id === "owner-share") return `个人喜好 ≥ ${fmt(currentValue("RECOMMEND_OWNER_MIN_SCORE"))} 分 · 每天最多 ${fmt(currentValue("RECOMMEND_OWNER_DAILY_LIMIT"))} 次`;
   if (item.id === "dynamic") return `每天 ${fmt(currentValue("DYNAMIC_TIMES_COUNT"))} 次机会 · 最多发 ${fmt(currentValue("DYNAMIC_DAILY_COUNT"))} 条`;
   if (item.id === "dynamic-watch") return `每天最多 ${fmt(currentValue("DYNAMIC_WATCH_DAILY_LIMIT"))} 次 · 包含视频投稿 ${currentValue("DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS") ? "开启" : "关闭"}`;
