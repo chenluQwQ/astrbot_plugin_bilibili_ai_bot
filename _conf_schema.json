@@ -2592,6 +2592,12 @@
     "default": true,
     "hint": "浏览视频时收藏评论区和动态里的图片，并按下面的上限识图；重复图片直接复用已有结果。设置位置：AstrBot 管理面板 → 插件 → BiliBot → 配置（本页）。关闭后不再采集新图，已有图库保留。"
   },
+  "FUSION_GALLERY_COMMENT_ENABLED": {
+    "description": "【融合插件】评论自动配图",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后看完视频发主评论时，从配图库挑一张语义合适的图随评论一起发送；挑不到、上传失败或没有配置记忆目标会话时自动退回纯文字评论。设置位置：AstrBot 管理面板 → 插件 → BiliBot → 配置（本页）。默认关闭；发送结果未知时不会自动重试。"
+  },
   "GALLERY_COLLECT_PER_BROWSE": {
     "description": "【融合插件】每次浏览的新图处理上限",
     "type": "int",

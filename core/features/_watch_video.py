@@ -232,11 +232,23 @@ class WatchVideo(HostView):
         sync = self.dynamic_post.comment_syncs()
         if not proactive_comment:
             return False
+        # 评论附图：开关关闭时 gallery_workflow.send 直接发纯文字，行为与原来一致。
+        from ..server_ext import gallery_workflow
+        sink = {}
         sent = await self.outward_actions._execute_proactive_action(
             f"{watch_round.action_key_prefix}_comment:{bvid}",
             "proactive_comment",
             bvid,
-            lambda: self.bili_comments._send_comment(oid, proactive_comment, sync_to_dynamic=sync),
+            lambda: gallery_workflow.send(
+                self._host,
+                oid,
+                proactive_comment,
+                bvid=bvid,
+                title=video.get("title", ""),
+                at_names=None,
+                result_sink=sink,
+                sync_to_dynamic=sync,
+            ),
             metadata={"text": proactive_comment[:200], "title": video.get("title", "")[:80]},
         )
         if not sent.success:
@@ -252,7 +264,7 @@ class WatchVideo(HostView):
         entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "bvid": bvid, "title": video.get("title", ""), "comment": proactive_comment}
         if watch_round.policy.tags_comment_log:
             entry["type"] = watch_round.policy.name
-        own_rpid = getattr(getattr(sent, "value", None), "rpid", 0)
+        own_rpid = getattr(getattr(sent, "value", None), "rpid", 0) or sink.get("rpid") or 0
         if own_rpid:
             entry["own_rpid"] = str(own_rpid)
         self.activity_logs.proactive.append(entry)

@@ -1,6 +1,7 @@
 """评论：发回复、发评论、删自己的评论、读热评。"""
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
@@ -70,22 +71,61 @@ class BiliComments(BiliApi):
         content = re.sub(r'^@[^ \t\n\r]+\s*', '', content)
         return content.strip()
 
-    async def _send_comment(self, oid, comment_text, oid_type=1, *, sync_to_dynamic=False):
-        ok, _reason = await self._send_comment_detailed(oid, comment_text, oid_type, sync_to_dynamic=sync_to_dynamic)
+    async def _send_comment(
+        self, oid, comment_text, oid_type=1, *, sync_to_dynamic=False,
+        pictures=None, at_names=None, result_sink=None,
+    ):
+        ok, _reason = await self._send_comment_detailed(
+            oid, comment_text, oid_type, sync_to_dynamic=sync_to_dynamic,
+            pictures=pictures, at_names=at_names, result_sink=result_sink,
+        )
         return ok
 
-    async def _send_comment_detailed(self, oid, comment_text, oid_type=1, *, sync_to_dynamic=False):
+    async def _send_comment_detailed(
+        self, oid, comment_text, oid_type=1, *, sync_to_dynamic=False,
+        pictures=None, at_names=None, result_sink=None,
+    ):
         """发评论，返回 ``(成功, 原因)``；原因是 ``cookie`` / ``risk`` / ``closed`` / ``sensitive`` / ``error``，
         别的返回码是 ``code:<码> <说明>``。被风控只拦这一次，不重试也不停后面的（issue #62）。
-        ``sync_to_dynamic`` 是B站网页上的「同时转发到我的动态」（PR #50 的思路）；关着时请求和原来一模一样。"""
-        data = {"oid": oid, "type": oid_type, "message": comment_text, "csrf": self.settings.get("BILI_JCT")}
+        ``sync_to_dynamic`` 是B站网页上的「同时转发到我的动态」（PR #50 的思路）；关着时请求和原来一模一样。
+
+        ``pictures`` 是配图（上传接口返回的 img_src/img_width/img_height/img_size），
+        B站要求按 JSON 字符串放进 ``pictures`` 表单字段；``at_names`` 只能作为正文前缀，
+        评论接口没有结构化的 @ 字段。``result_sink`` 只在图文评论链路里用，用来把
+        「已发布 / 明确失败 / 结果未知」和 rpid 带回调用方。"""
+        message = str(comment_text or "")
+        names = [str(name).strip() for name in (at_names or ()) if str(name or "").strip()]
+        if names:
+            message = " ".join(f"@{name}" for name in names) + " " + message
+        data = {"oid": oid, "type": oid_type, "message": message, "csrf": self.settings.get("BILI_JCT")}
         if sync_to_dynamic:
             data["sync_to_dynamic"] = 1
+        payload = [
+            {
+                "img_src": picture["img_src"],
+                "img_width": picture["img_width"],
+                "img_height": picture["img_height"],
+                "img_size": picture.get("img_size", 0),
+            }
+            for picture in (pictures or ())
+            if isinstance(picture, dict) and picture.get("img_src")
+        ]
+        if payload:
+            # 必须是 JSON 字符串，不能直接传 list：B站按表单字段解析。
+            data["pictures"] = json.dumps(payload, ensure_ascii=False)
         try:
             d, _ = await self._http_post(BILI_REPLY_URL, data=data)
             code = d.get("code", -1)
             if code == 0:
-                return _posted(d, oid, oid_type, comment_text), ""
+                posted = _posted(d, oid, oid_type, message)
+                if result_sink is not None:
+                    result_sink.update(
+                        send_status="published",
+                        rpid=str(getattr(posted, "rpid", "") or ""),
+                    )
+                return posted, ""
+            if result_sink is not None:
+                result_sink.update(send_status="failed", rpid="")
             if code == -101:
                 logger.warning("[BiliBot] 发评论失败：Cookie 已失效")
                 return False, "cookie"
@@ -102,8 +142,12 @@ class BiliComments(BiliApi):
             return False, f"code:{code} {str(d.get('message', ''))[:60]}".strip()
         except WriteResultUnknownError:
             # 请求可能已经到达B站；交给统一运行时记录 unknown，禁止自动重试。
+            if result_sink is not None:
+                result_sink.update(send_status="unknown", rpid="")
             raise
         except Exception as e:
+            if result_sink is not None:
+                result_sink.update(send_status="failed", rpid="")
             logger.error(f"[BiliBot] 发送评论异常: {e}")
             return False, "error"
 
