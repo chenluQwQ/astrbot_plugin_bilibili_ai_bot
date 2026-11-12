@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 from datetime import datetime
 import hashlib
@@ -17,6 +18,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import tempfile
 
 from astrbot.api import logger
@@ -573,9 +575,69 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         media_failure(video_info, "video_model", last_reason or "视频直读返回空内容", self.config)
         return None
 
+    async def _storyboard_content(self, seg_path, text_prompt):
+        """把整段压成一张分镜宫格图，返回 ``(content, board)``；不可用时返回 None。
+
+        宫格图 + 时间码让视觉模型一次看完整段的镜头顺序，比均匀截 5 帧更能说明前后关系；
+        没装 ffmpeg、缺 numpy/Pillow 或抽帧失败时返回 None，由调用方退回逐帧。
+        调用方必须在 finally 里用 ``_cleanup_storyboard`` 清理临时文件。
+        """
+        if not self.settings.bool("VIDEO_STORYBOARD_ENABLED"):
+            return None
+        try:
+            # 空文件或明显损坏的片段不启动 ffmpeg，直接走逐帧（那里会给出缺帧诊断）。
+            if os.path.getsize(seg_path) < 1024:
+                return None
+            from ..server_ext.media.storyboard import build_storyboard
+            board = await asyncio.to_thread(build_storyboard, seg_path)
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 📹 分镜生成跳过，改用逐帧: {type(exc).__name__}")
+            return None
+        grid_path = board.get("grid_path") if isinstance(board, dict) else None
+        if not grid_path or not os.path.exists(grid_path):
+            self._cleanup_storyboard(board)
+            return None
+        try:
+            with open(grid_path, "rb") as f:
+                grid_b64 = base64.b64encode(f.read()).decode()
+        except OSError:
+            self._cleanup_storyboard(board)
+            return None
+        manifest = str(board.get("manifest") or "").strip()
+        prompt = text_prompt
+        if manifest:
+            prompt += f"\n\n分镜时间码（宫格按从左到右、从上到下）：\n{manifest}"
+        content = [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{grid_b64}"}},
+            {"type": "text", "text": prompt},
+        ]
+        return content, board
+
+    @staticmethod
+    def _cleanup_storyboard(board):
+        """清理分镜产生的密集帧、宫格图与临时目录；目录只删 build_storyboard 自己建的那个。"""
+        if not isinstance(board, dict):
+            return
+        for path in board.get("frames") or ():
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        grid_path = str(board.get("grid_path") or "")
+        if grid_path:
+            try:
+                os.unlink(grid_path)
+            except OSError:
+                pass
+        tmp_dir = str(board.get("tmp_dir") or "")
+        # 防止调用方把临时目录指到视频目录时误删整段视频。
+        if tmp_dir and os.path.basename(tmp_dir).endswith("_storyboard") and os.path.isdir(tmp_dir):
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
     async def _analyze_single_segment(self, seg_path, video_info, fmt, provider_id, client, model, label=""):
         """分析单个视频片段，返回文本结果。"""
         frames = []
+        board = None
         try:
             segment_note = (
                 f"这是按 {self.settings.get('VIDEO_SEGMENT_MINUTES')} 分钟左右切片后的{label}。"
@@ -599,21 +661,25 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
                 if self._video_vision_dead_reason(self._video_direct_key(provider_id, model, fmt)):
                     # 鉴权失败、模型不存在：换成截帧也是同一个模型，不再多调一次。
                     return None
-            # 回退：截帧分析
+            # 回退：先尝试分镜宫格图；不可用或关闭时退回逐帧截图
             if not os.path.exists(seg_path):
                 media_failure(video_info, "frames", "片段文件不存在，无法截帧", self.config)
                 logger.warning(f"[BiliBot] 片段文件不存在，无法截帧{label}: {seg_path}")
                 return None
-            frames = await self.video_files._extract_video_frames(seg_path, count=5)
-            if not frames:
-                media_failure(video_info, "frames", "没有提取到视频画面", self.config)
-                return None
-            frame_content = []
-            for frame_path in frames:
-                with open(frame_path, "rb") as f:
-                    img_b64 = base64.b64encode(f.read()).decode()
-                frame_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})
-            frame_content.append({"type": "text", "text": text_prompt})
+            storyboard = await self._storyboard_content(seg_path, text_prompt)
+            if storyboard:
+                frame_content, board = storyboard
+            else:
+                frames = await self.video_files._extract_video_frames(seg_path, count=5)
+                if not frames:
+                    media_failure(video_info, "frames", "没有提取到视频画面", self.config)
+                    return None
+                frame_content = []
+                for frame_path in frames:
+                    with open(frame_path, "rb") as f:
+                        img_b64 = base64.b64encode(f.read()).decode()
+                    frame_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})
+                frame_content.append({"type": "text", "text": text_prompt})
             result = await self.vision._astrbot_multimodal_generate(provider_id, frame_content, max_tokens=450)
             if not result and client and model:
                 result = await self.vision._vision_call(client, model, frame_content, max_tokens=450)
@@ -633,6 +699,7 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             return None
         finally:
             self.video_files._cleanup_video_artifacts(None, frames)
+            self._cleanup_storyboard(board)
 
     async def _consolidate_segment_analyses(self, video_info, segment_analyses):
         """多段分析结果整合为一段完整概括。"""
