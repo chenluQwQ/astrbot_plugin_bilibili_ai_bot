@@ -281,6 +281,14 @@ class Runner(HostView):
         except Exception as e:
             logger.error(f"[BiliBot] 日终清算异常: {e}", exc_info=True)
 
+    async def _server_ext_tick(self):
+        """server_ext 的节流任务：LivingMemory 长期记忆联动。"""
+        try:
+            from .server_ext import livingmemory_bridge
+            await livingmemory_bridge.maybe_sync(self._host)
+        except Exception as e:
+            logger.warning(f"[BiliBot] 记忆联动调度异常: {e}")
+
     async def main_loop(self):
         """走一轮主干（例行检查和定时活动都在 activities._scheduler 里），睡一会，再走。"""
         logger.info("[BiliBot] 主循环开始")
@@ -288,6 +296,8 @@ class Runner(HostView):
             try:
                 scheduler, now = self.activities._scheduler(), datetime.now()
                 await scheduler.tick(now)
+                # server_ext：记忆联动自己按分钟节流，这里只是给它一个心跳。
+                await self._server_ext_tick()
                 await asyncio.sleep(60 if scheduler.phase(now) == "asleep" else self.settings.get("POLL_INTERVAL"))
             except asyncio.CancelledError:
                 break
