@@ -45,9 +45,15 @@ class VideoContext(HostView):
                         f"[{mem_time}] 视频摘要：标题《{c.get('title', '')}》 "
                         f"UP主:{c.get('owner_name', '')} 内容:{self.video_watch._clip_media_text(cached_summary, 180)}"
                     )
+                    # 以前看过、缓存里有评分的直接用；没有的（以前也是评论区顺带看的）现在补打
+                    cached_score = c.get("score")
+                    if isinstance(cached_score, (int, float)) and not isinstance(cached_score, bool):
+                        scored = {"score": cached_score}
+                    else:
+                        scored = await self.memory_writer._score_video_memory(memory_text)
                     await self.memory_writer._save_self_memory_record(
                         f"video:{bvid}", memory_text, memory_type="video",
-                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c.get("title", ""), "time": mem_time},
+                        extra={"bvid": bvid, "owner_mid": str(c.get("owner_mid", "")), "owner_name": c.get("owner_name", ""), "video_title": c.get("title", ""), "time": mem_time, **scored},
                     )
                 ctx = f"【当前视频·从观看记忆读取】\n标题：{c.get('title', '')}\nUP主：{c.get('owner_name', '')}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{self.video_watch._clip_media_text(cached_summary, 240)}"
                 if c.get("score") is not None:
@@ -92,9 +98,10 @@ class VideoContext(HostView):
             f"简介:{vi.get('desc', '')[:120]} 内容概括:{analysis[:200]}"
         )
         if self.settings.get("ENABLE_VIDEO_LONG_TERM_MEMORY") and vi.get("analysis_basis") != "metadata":
+            scored = await self.memory_writer._score_video_memory(memory_text)
             await self.memory_writer._save_self_memory_record(
                 f"video:{bvid}", memory_text, memory_type="video",
-                extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"], "analysis_basis": vi.get("analysis_basis", "legacy"), "content_analyzed": vi.get("analysis_basis") != "metadata"},
+                extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"], "analysis_basis": vi.get("analysis_basis", "legacy"), "content_analyzed": vi.get("analysis_basis") != "metadata", **scored},
             )
         ctx = f"【当前视频】\n标题：{vi['title']}\nUP主：{vi['owner_name']}（UID:{vi['owner_mid']}）\n分区：{vi['tname']}\n简介：{vi.get('desc', '')[:150]}\n内容概括：{analysis}"
         tags = await self.bili_videos._get_video_tags(bvid)

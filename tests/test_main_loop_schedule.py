@@ -76,6 +76,7 @@ def _bot(config, files=None):
         personality_evolution=types.SimpleNamespace(maybe_evolve=AsyncMock()),
         memo_review=types.SimpleNamespace(maybe_review=AsyncMock()),
         favorite_digest=types.SimpleNamespace(maybe_run=AsyncMock()),
+        dynamic_sources=types.SimpleNamespace(maybe_refresh=AsyncMock()),
         daily_plan=types.SimpleNamespace(_ensure_autonomous_daily_plan=AsyncMock()),
         private_poll=types.SimpleNamespace(_poll_private_messages=AsyncMock()),
         comment_reply=types.SimpleNamespace(_poll_unified=AsyncMock()),

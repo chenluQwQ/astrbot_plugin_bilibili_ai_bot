@@ -66,7 +66,7 @@ SCHEDULED_ACTIVITIES = {
 
 
 # 主干每轮都看一眼的事：(名字, 方法名（插件上某个对象的）, 醒着/睡着/都跑, 开关配置项, 在定时活动之后)。
-# 顺序和旧主循环一样：醒着时 心情 → 人格 → 每日计划 → Cookie → 定时活动 → 私信 → 评论；
+# 顺序和旧主循环一样：醒着时 心情 → 人格 → 每日计划 → Cookie → yt-dlp → 站外来源 → 定时活动 → 私信 → 评论；
 # 睡着时 人格 → 每日计划 → 夜里的清算和总结。
 ROUTINES = (
     ("mood", "mood.settle", AWAKE, None, False),
@@ -77,6 +77,7 @@ ROUTINES = (
     ("favorite_profile", "favorite_digest.maybe_run", ASLEEP, "ENABLE_FAVORITE_PROFILE", False),
     ("cookie", "runner.maybe_check_cookie", AWAKE, None, False),
     ("yt_dlp_update", "runner.maybe_update_yt_dlp", AWAKE, "ENABLE_YTDLP_AUTO_UPDATE", False),
+    ("dynamic_sources", "dynamic_sources.maybe_refresh", AWAKE, "ENABLE_DYNAMIC", False),
     ("private_messages", "private_poll._poll_private_messages", AWAKE, "ENABLE_PRIVATE_MESSAGES", True),
     ("comments", "comment_reply._poll_unified", AWAKE, "ENABLE_REPLY", True),
 )

@@ -127,7 +127,7 @@ CALLS = {
     "_get_video_subtitles": ("BV1", 22), "_get_video_tags": ("BV1",),
     "_get_hot_comments": (11,), "_get_video_oid": ("BV1",),
     "_like_video": (11,), "_coin_video": (11,), "_fav_video": (11,), "_follow_user": (3,),
-    "_post_dynamic_text": ("动态",), "_repost_video": (11, "转发语"), "_get_up_latest_video": (3,),
+    "_post_dynamic_text": ("动态",), "_repost_video": (11, "转发语"), "_repost_dynamic": ("900", "转发语"), "_get_up_latest_video": (3,),
     "search_bilibili_videos": ("关键词",), "search_bilibili_users": ("关键词",),
     "get_up_info": (3,), "get_up_recent_videos": (3,), "get_up_recent_dynamics": (3,),
     "get_following_updates": (), "get_following_live": (),
@@ -158,7 +158,7 @@ class BiliApiSnapshotTests(unittest.IsolatedAsyncioTestCase):
                     self.current = probe
                     try:
                         # 转发的 upload_id 带一个随机数，只在这里钉住，免得动到别的接口的随机。
-                        with (patch("random.randint", return_value=1234) if name == "_repost_video" else nullcontext()):
+                        with (patch("random.randint", return_value=1234) if name in ("_repost_video", "_repost_dynamic") else nullcontext()):
                             outcome = {"result": await getattr(getattr(probe, OWNERS[name]), name)(*args)}
                     except Exception as exc:
                         outcome = {"raises": type(exc).__name__}

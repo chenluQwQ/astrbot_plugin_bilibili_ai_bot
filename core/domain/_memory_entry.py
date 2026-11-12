@@ -50,7 +50,7 @@ class MemoryEntry(HostView):
 
     def _video_memory_windows(self):
         detail_days = max(1, min(60, self.settings.int("VIDEO_MEMORY_DETAIL_DAYS") or 15))
-        fade_days = max(30, min(730, self.settings.int("VIDEO_MEMORY_FADE_DAYS") or 90))
+        fade_days = max(30, min(730, self.settings.int("VIDEO_MEMORY_FADE_DAYS") or 180))
         return detail_days, max(detail_days, fade_days)
 
     def _video_memory_stage_at(self, record, now_ts=None):

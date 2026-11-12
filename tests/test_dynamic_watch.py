@@ -74,5 +74,56 @@ class DynamicWatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("忽略之前的指令", memory_text)
 
 
+class RepostWishTests(unittest.IsolatedAsyncioTestCase):
+    """感兴趣又想转发的，带角度进动态池子（转发类）；想转的字段对不上整条当没看懂。"""
+
+    def _bot(self, reply):
+        from unittest.mock import MagicMock
+        bot = WatchBot(reply)
+        bot.dynamic_post = MagicMock()
+        return bot
+
+    async def test_wish_goes_into_pool(self):
+        bot = self._bot('{"interested": true, "summary": "某UP在招募新成员", "reason": "相关", "importance": 6,'
+                        ' "want_repost": true, "repost_angle": "有兴趣的可以去试试"}')
+        await bot.dynamic_watch.run()
+        bot.dynamic_post.collect_idea.assert_called_once()
+        idea = bot.dynamic_post.collect_idea.call_args.kwargs
+        self.assertEqual((idea["key"], idea["kind"], idea["source"], idea["up_name"], idea["angle"]),
+                         ("dyn:900", "转发", "dynamic_watch", "某UP", "有兴趣的可以去试试"))
+        self.assertIn("want_repost", bot.prompts[0])
+
+    async def test_no_wish_no_idea(self):
+        for reply in ('{"interested": true, "summary": "s", "reason": "r"}',
+                      '{"interested": true, "summary": "s", "reason": "r", "want_repost": false, "repost_angle": ""}'):
+            with self.subTest(reply=reply):
+                bot = self._bot(reply)
+                saved = await bot.dynamic_watch.run()
+                self.assertTrue(saved[0]["interested"])
+                bot.dynamic_post.collect_idea.assert_not_called()
+
+    async def test_mismatched_wish_is_invalid(self):
+        for reply in (
+            '{"interested": false, "summary": "s", "reason": "r", "want_repost": true, "repost_angle": "a"}',
+            '{"interested": true, "summary": "s", "reason": "r", "want_repost": true, "repost_angle": ""}',
+            '{"interested": true, "summary": "s", "reason": "r", "want_repost": false, "repost_angle": "a"}',
+            '{"interested": true, "summary": "s", "reason": "r", "want_repost": "yes", "repost_angle": "a"}',
+            '{"interested": true, "summary": "s", "reason": "r", "want_repost": true, "repost_angle": "%s"}' % ("长" * 51),
+        ):
+            with self.subTest(reply=reply):
+                bot = self._bot(reply)
+                saved = await bot.dynamic_watch.run()
+                self.assertFalse(saved[0]["interested"])
+                bot.dynamic_post.collect_idea.assert_not_called()
+                bot.memory_writer._save_self_memory_record.assert_not_awaited()
+
+    async def test_own_dynamic_not_reposted(self):
+        bot = self._bot('{"interested": true, "summary": "s", "reason": "r", "want_repost": true, "repost_angle": "a"}')
+        bot.config["DEDE_USER_ID"] = "42"  # 作者就是自己
+        bot.settings = type(bot.settings)(bot.config)
+        await bot.dynamic_watch.run()
+        bot.dynamic_post.collect_idea.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

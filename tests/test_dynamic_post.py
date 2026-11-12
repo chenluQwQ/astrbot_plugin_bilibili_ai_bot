@@ -147,7 +147,7 @@ class DynamicWritingTests(unittest.TestCase):
         self.assertIn("结尾反转早有伏笔", host.prompts[0])
         self.assertIn("自定义风格：短句", host.prompts[0])
         self.assertNotIn("B站动态的感觉", host.prompts[0])
-        self.assertIn("不能编造外出", host.prompts[0])
+        self.assertIn("不能写别人能查证的具体真事", host.prompts[0])
 
     def test_scheduled_dynamic_respects_post_chance(self):
         host = WriterHost([], {"DYNAMIC_POST_CHANCE": 0})

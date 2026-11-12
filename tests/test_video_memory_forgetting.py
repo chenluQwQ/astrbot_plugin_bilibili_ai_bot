@@ -27,6 +27,9 @@ class _Settings:
     def __init__(self, **values):
         self.values = {"VIDEO_LOW_SCORE_FORGET_BELOW": 5, "VIDEO_LOW_SCORE_FORGET_DAYS": 30, **values}
 
+    def get(self, key):
+        return self.values.get(key, "")
+
     def int(self, key, *, minimum=None, maximum=None):
         value = int(self.values[key])
         if minimum is not None:

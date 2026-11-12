@@ -216,7 +216,7 @@ class FlowProbe(ProactiveParts, VideoParts):
 
     async def _generation_llm_call(self, prompt, system_prompt=None, max_tokens=None):
         self.record("llm", prompt, system_prompt, max_tokens)
-        if "评论区留一条评论" in prompt:
+        if "要不要去评论区说一句" in prompt:
             return '{"decision":"comment","text":"转场那一下太舒服了"}'
         if "随手分享" in prompt:
             return '{"decision":"share","text":"主人，这段手绘过渡真的好看"}'
@@ -369,7 +369,7 @@ def special_follow_round():
         },
         # 特别关注想发的也进动态池子，但不像主动看完一轮那样马上发（不该有 run_dynamic）。
         evaluations={"BV_INFO_81": evaluation(9.4, recommend_owner=True, recommend_reason="很好",
-                                              want_dynamic=True, dynamic_angle="值得直接看", dynamic_kind="搬运")},
+                                              want_dynamic=True, dynamic_angle="值得直接看", dynamic_kind="转发")},
         analysis_basis={"BV_SP4": "metadata"},
         oids={"BV_SP1": 81},
         watched={"BV_SEEN"},

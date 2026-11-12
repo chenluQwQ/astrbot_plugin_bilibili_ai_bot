@@ -1520,11 +1520,17 @@ button:disabled { cursor: wait; opacity: .58; transform: none !important; }
 .today-empty { padding: 48px 24px; display: grid; justify-items: center; gap: 6px; border: 1px dashed #ebd3dc; border-radius: 20px; color: var(--muted); text-align: center; }
 .today-empty strong { color: var(--accent); font-size: 24px; font-weight: 500; }
 .today-empty p { margin: 0; font-size: 15px; }
+.idea-pool { margin-top: 18px; padding: 22px 28px; }
+.idea-list { display: grid; }
+.idea-item { padding: 14px 0; display: grid; gap: 6px; border-bottom: 1px solid #f6edf1; }
+.idea-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.idea-item .status-pill { flex: none; }
 
 @media (max-width: 860px) {
   .quota-cards, .overview-lower { grid-template-columns: minmax(0, 1fr); }
   .bot-card { padding: 22px; }
   .timeline { padding: 4px 16px; }
+  .idea-pool { padding: 18px 16px; }
   .tl-item { grid-template-columns: 42px 26px minmax(0, 1fr); gap: 0 10px; }
   .tl-item::before { left: 64px; }
 }

@@ -9,6 +9,30 @@ from ...runtime import WriteResultUnknownError
 from .base import BiliApi
 
 
+_DANMAKU = re.compile(r'<d p="([^"]*)">([^<]*)</d>')
+
+
+def parse_danmaku_xml(text: str) -> list[tuple[float, str]]:
+    """``list.so`` 返回的 XML → [(出现的秒数, 内容)]，按时间排。坏的条目跳过。"""
+    items = []
+    for attrs, body in _DANMAKU.findall(str(text or "")):
+        try:
+            second = float(attrs.split(",", 1)[0])
+        except ValueError:
+            continue
+        body = _unescape(body).strip()
+        if body:
+            items.append((second, body[:60]))
+    items.sort(key=lambda item: item[0])
+    return items
+
+
+def _unescape(text: str) -> str:
+    return (text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+            .replace("&#39;", "'").replace("&amp;", "&"))
+
+
+
 class BiliBangumi(BiliApi):
     @staticmethod
     def _pgc_ok(d, label="PGC"):
@@ -255,6 +279,21 @@ class BiliBangumi(BiliApi):
             return results
         except Exception as e:
             logger.debug(f"[BiliBot] 番剧时间表v2异常: {e}")
+            return []
+
+    async def get_danmaku(self, cid):
+        """一集（按 cid）的弹幕：[(出现的秒数, 内容)]。公开接口，不用登录；取不到返回空列表。"""
+        if not cid:
+            return []
+        try:
+            text, resp = await self._http_get_text(
+                "https://api.bilibili.com/x/v1/dm/list.so", params={"oid": int(cid)}, timeout=15, retries=0,
+            )
+            if getattr(resp, "status", 200) != 200:
+                return []
+            return parse_danmaku_xml(text)
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 弹幕取不到，跳过: {exc}")
             return []
 
     async def _follow_bangumi(self, season_id):

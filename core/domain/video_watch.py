@@ -276,10 +276,10 @@ class VideoWatch(HostView):
         try:
             fade_days = max(
                 30,
-                min(730, int(self.settings.get("VIDEO_MEMORY_FADE_DAYS") or 90)),
+                min(730, int(self.settings.get("VIDEO_MEMORY_FADE_DAYS") or 180)),
             )
         except (TypeError, ValueError):
-            fade_days = 90
+            fade_days = 180
         fade_days = max(detail_days, fade_days)
         return detail_days * 86400, fade_days * 86400
 

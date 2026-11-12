@@ -98,7 +98,7 @@ class Database:
 
     # ------------------------------------------------------------ 基础读写
     async def execute(self, sql: str, params: Sequence[Any] = ()) -> int:
-        """执行写语句，返回 lastrowid（无则返回受影响行数）。"""
+        """执行写语句。INSERT / REPLACE 返回新行的 rowid，其余返回受影响行数。"""
         async with self._lock:
             return await asyncio.to_thread(self._execute_sync, sql, params)
 
@@ -106,7 +106,11 @@ class Database:
         conn = self._require()
         cur = conn.execute(sql, params)
         conn.commit()
-        return cur.lastrowid if cur.lastrowid else cur.rowcount
+        # lastrowid 是整个连接上一次插入的 rowid，DELETE / UPDATE 之后也还留着，
+        # 不能拿它当「删了几行」。
+        if sql.lstrip()[:7].upper() in {"INSERT ", "REPLACE"}:
+            return cur.lastrowid if cur.lastrowid else cur.rowcount
+        return max(cur.rowcount, 0)
 
     async def execute_many(self, sql: str, seq: Iterable[Sequence[Any]]) -> None:
         async with self._lock:

@@ -5,7 +5,7 @@ import json
 import math
 from typing import Any
 
-from .domain.dynamic_ideas import DEFAULT_KIND, KINDS as DYNAMIC_KINDS
+from .domain.dynamic_ideas import DEFAULT_KIND, KIND_ALIASES, VIDEO_KINDS as DYNAMIC_KINDS
 
 
 PREFERENCE_TYPES = {
@@ -15,13 +15,15 @@ PREFERENCE_TYPES = {
 PREFERENCE_POLARITIES = {"like", "dislike", "fatigue", "curious"}
 MOODS = {"开心", "平静", "无聊", "感动", "好笑", "震撼", "困惑"}
 EVALUATION_KEYS = {
-    "score", "score_reason", "comment", "mood", "review", "want_follow",
+    "score", "score_reason", "mood", "review", "want_follow",
     "recommend_owner", "recommend_reason", "partition", "preference_signals",
     "search_keywords",
 }
 # 看完想发动态的标注是后加字段；旧模型输出缺省时按“不想发”处理，缺类型按「分享」。
 # impression 也是后加的：缺省留空，记忆淡忘前由每晚清算补一句。
-OPTIONAL_EVALUATION_KEYS = {"want_dynamic", "dynamic_angle", "dynamic_kind", "impression", "interactions"}
+# comment 以前要模型顺手写一条「想评论什么」，但真发的评论是另外一次调用写的，这格只进日志；
+# 现在不再要，旧输出带着也认，结果里照旧有这个键（空字符串）。
+OPTIONAL_EVALUATION_KEYS = {"want_dynamic", "dynamic_angle", "dynamic_kind", "impression", "interactions", "comment"}
 # 看完想做的互动，模型自己选（评分只是参考）；关注用 want_follow。
 INTERACTIONS = ("like", "coin", "favorite", "comment")
 SIGNAL_KEYS = {"type", "value", "polarity", "strength", "evidence"}
@@ -52,7 +54,7 @@ def parse_dynamic_kind(value: dict, want_dynamic: bool, kinds) -> str:
         if kind:
             raise ValueError("dynamic_kind_without_wish")
         return ""
-    kind = kind or DEFAULT_KIND
+    kind = KIND_ALIASES.get(kind, kind) or DEFAULT_KIND
     if kind not in kinds:
         raise ValueError("invalid_dynamic_kind")
     return kind
@@ -94,7 +96,7 @@ def parse_video_evaluation(raw: str) -> dict[str, Any]:
     if not math.isfinite(score) or not 1.0 <= score <= 10.0:
         raise VideoEvaluationError("score_out_of_range")
     score_reason = _text(value.get("score_reason"), "score_reason", 120, empty=False)
-    comment = _text(value.get("comment"), "comment", 80)
+    comment = _text(value.get("comment", ""), "comment", 80)
     mood = _text(value.get("mood"), "mood", 10, empty=False)
     if mood not in MOODS:
         raise VideoEvaluationError("invalid_mood")
@@ -182,12 +184,11 @@ def parse_video_evaluation(raw: str) -> dict[str, Any]:
     }
 
 
-VIDEO_EVALUATION_SCHEMA_PROMPT = """只输出一个完整JSON对象，不要Markdown、解释或额外字段：
-{"score":7.0,"score_reason":"评分理由","comment":"评论区短句或空字符串","mood":"开心|平静|无聊|感动|好笑|震撼|困惑","review":"个人感想","impression":"一句话印象","interactions":["like"],"want_follow":false,"recommend_owner":false,"recommend_reason":"","want_dynamic":false,"dynamic_angle":"","dynamic_kind":"","partition":"实际分区","preference_signals":[{"type":"up|partition|work|character|food|theme|music|game|technology|activity|location|other","value":"具体对象","polarity":"like|dislike|fatigue|curious","strength":0.0,"evidence":"本视频中的具体依据"}],"search_keywords":["以后真能拿去B站搜索的具体词"]}
+VIDEO_EVALUATION_SCHEMA_PROMPT = """只输出一个完整JSON对象，不要Markdown、解释或额外字段，按这个顺序写（先写感受，再打分）：
+{"review":"看完心里的话","mood":"开心|平静|无聊|感动|好笑|震撼|困惑","impression":"一句话印象","score":7.0,"score_reason":"给自己的一句备注","interactions":["like"],"want_follow":false,"recommend_owner":false,"recommend_reason":"","want_dynamic":false,"dynamic_angle":"","dynamic_kind":"","partition":"实际分区","preference_signals":[{"type":"up|partition|work|character|food|theme|music|game|technology|activity|location|other","value":"具体对象","polarity":"like|dislike|fatigue|curious","strength":0.0,"evidence":"本视频中的具体依据"}],"search_keywords":["以后真能拿去B站搜索的具体词"]}
 所有字符串里都不要出现英文双引号"：引用原话、标题、梗或弹幕一律用「」；字符串里也不要换行。出现英文双引号会让整段JSON无法解析，整条评价作废。
-字数（宁可写短）：score_reason 一两句、60字以内，comment 40字以内，review 两三句、100字以内，impression 一句、30字以内，recommend_reason 50字以内，dynamic_angle 50字以内，喜好信号的value 20字、evidence 50字以内，搜索词20字以内；整段JSON不超过600字。写长了整条评价会作废。
-interactions是看完真想做的互动，从 like 点赞、coin 投币、favorite 收藏、comment 评论 里选，可以一个都不选（[]）；want_follow表示想不想关注这个UP。
-impression是很久以后只剩下的那句话：这个视频是什么、自己当时觉得怎样，比如「讲猫咪绝育的科普，讲得很耐心」。
-score是自己的观感；recommend_owner表示自己是否真想分享这次发现，不要求与主人的爱好相同。推荐理由写具体看点，不把自己的喜欢说成对方的喜欢。
-want_dynamic表示看完是否真有话想在自己的B站动态里说，大多数视频填false；为true时dynamic_angle写想说的具体角度，dynamic_kind填吐槽|段子|搬运|分享之一，否则两项都留空。
-最多5个喜好信号和5个搜索词，宁缺毋滥。不要只写“动漫”“游戏”这种过宽词；优先作品、人物、作者、菜名、歌手、技术、活动或具体主题。一次高分只代表本次信号，不要声称已形成永久喜好。喜好信号只记录本次具体感受，不照抄人设或把主人的爱好写成自己的。"""
+字数有上限，超了整条存不下、会作废，所以宁可写短：score_reason 一句、60字以内，review 两三句、100字以内，impression 一句、30字以内，recommend_reason 50字以内，dynamic_angle 50字以内，喜好信号的value 20字、evidence 50字以内，搜索词20字以内；整段JSON不超过600字。写长了整条评价会作废。
+want_dynamic 为 false 时 dynamic_angle、dynamic_kind 都留空；为 true 时 dynamic_kind 填吐槽|段子|分享|转发之一。
+partition 写视频实际属于的分区。
+preference_signals 和 search_keywords 是给以后挑视频用的，各最多 5 个，宁缺毋滥：写具体的作品、人物、作者、菜名、歌手、技术、活动或主题，「动漫」「游戏」这种太宽，拿去搜什么都有。
+喜好信号只记这次看出来的感受，一次高分不等于长期爱好；也别把人设或主人的爱好照抄成自己的，那样以后挑视频会越挑越偏。"""

@@ -86,8 +86,9 @@
     "d3"
    ],
    "embedding_model": "legacy",
+   "evaluation_pending": true,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "privacy": 0,
@@ -274,8 +275,9 @@
     "o2"
    ],
    "embedding_model": "legacy",
+   "evaluation_pending": true,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "100",
@@ -1513,8 +1515,9 @@
     "c1"
    ],
    "embedding_model": "legacy",
+   "evaluation_pending": true,
    "has_embedding": true,
-   "importance": 6,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "chat",
    "oid": "100",
@@ -1604,7 +1607,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1795012200.0,
-   "video_fade_after": 1801492200.0,
+   "video_fade_after": 1809268200.0,
    "video_memory_stage": "detail",
    "video_summary": "Bot看了视频《猫视频》，很可爱",
    "video_title": "猫视频"
@@ -1707,8 +1710,9 @@
    "aged": true,
    "confidence": 0.5,
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 8,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "686261376",
@@ -1737,8 +1741,9 @@
     "d3"
    ],
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "privacy": 0,
@@ -1826,30 +1831,6 @@
    "thread_id": "external:qq_private",
    "time": "2026-11-03 09:30",
    "user_id": "u1",
-   "username": "",
-   "value_score": 0.5
-  },
-  "ext_00000000000000000000000000000003": {
-   "actor_id": "bili:u8",
-   "confidence": 0.5,
-   "embedding_model": "legacy",
-   "has_embedding": true,
-   "importance": 5,
-   "level": "recent",
-   "memory_type": "chat",
-   "privacy": 0,
-   "promoted_at": "2026-11-03 09:30",
-   "promoted_at_ts": 1793716200.0,
-   "rpid": "ext_00000000000000000000000000000003",
-   "scope": "bili_comment",
-   "source": "bilibili",
-   "tags": [
-    "用户:u8"
-   ],
-   "text": "哈哈哈",
-   "thread_id": "external:bilibili",
-   "time": "2026-11-03 09:30",
-   "user_id": "u8",
    "username": "",
    "value_score": 0.5
   },
@@ -1949,8 +1930,9 @@
     "o2"
    ],
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 9,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "100",
@@ -2057,7 +2039,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788591900.0,
-   "video_fade_after": 1795071900.0,
+   "video_fade_after": 1802847900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假53样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测"
@@ -2114,7 +2096,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788592020.0,
-   "video_fade_after": 1795072020.0,
+   "video_fade_after": 1802848020.0,
    "video_memory_stage": "long_term",
    "video_summary": "假65样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假63样"
@@ -2164,7 +2146,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788936420.0,
-   "video_fade_after": 1795416420.0,
+   "video_fade_after": 1803192420.0,
    "video_memory_stage": "long_term",
    "video_summary": "假78样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假76样例文本假数据测试内容"
@@ -2223,7 +2205,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789098120.0,
-   "video_fade_after": 1795578120.0,
+   "video_fade_after": 1803354120.0,
    "video_memory_stage": "long_term",
    "video_summary": "假89样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假87样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -2282,7 +2264,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789368540.0,
-   "video_fade_after": 1795848540.0,
+   "video_fade_after": 1803624540.0,
    "video_memory_stage": "long_term",
    "video_summary": "假103样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假101样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样"
@@ -2340,7 +2322,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789454820.0,
-   "video_fade_after": 1795934820.0,
+   "video_fade_after": 1803710820.0,
    "video_memory_stage": "long_term",
    "video_summary": "假118样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假116样例文本假数据测试内容样例文本假数据测"
@@ -2398,7 +2380,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527780.0,
-   "video_fade_after": 1796007780.0,
+   "video_fade_after": 1803783780.0,
    "video_memory_stage": "long_term",
    "video_summary": "假132样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假130样例文本假数据测试内容样例文本假数据测"
@@ -2464,7 +2446,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527960.0,
-   "video_fade_after": 1796007960.0,
+   "video_fade_after": 1803783960.0,
    "video_memory_stage": "long_term",
    "video_summary": "假146样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假144样例文本假数据测试内容样例文本假数据测试内容样例"
@@ -2503,7 +2485,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790404500.0,
-   "video_fade_after": 1796884500.0,
+   "video_fade_after": 1804660500.0,
    "video_memory_stage": "long_term",
    "video_summary": "假163样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假161样例文本假数据测"
@@ -2569,7 +2551,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790576460.0,
-   "video_fade_after": 1797056460.0,
+   "video_fade_after": 1804832460.0,
    "video_memory_stage": "long_term",
    "video_summary": "假170样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据",
    "video_title": "假168样例文本假数据测试内容样例文本"
@@ -2627,7 +2609,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791208980.0,
-   "video_fade_after": 1797688980.0,
+   "video_fade_after": 1805464980.0,
    "video_memory_stage": "long_term",
    "video_summary": "假186样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
@@ -2678,7 +2660,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791356760.0,
-   "video_fade_after": 1797836760.0,
+   "video_fade_after": 1805612760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假200样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假198样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容"
@@ -2744,7 +2726,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792738260.0,
-   "video_fade_after": 1799218260.0,
+   "video_fade_after": 1806994260.0,
    "video_memory_stage": "long_term",
    "video_summary": "假212样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假210样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -2810,7 +2792,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792808220.0,
-   "video_fade_after": 1799288220.0,
+   "video_fade_after": 1807064220.0,
    "video_memory_stage": "long_term",
    "video_summary": "假229样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假227样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -2859,7 +2841,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793496900.0,
-   "video_fade_after": 1799976900.0,
+   "video_fade_after": 1807752900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假246样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本",
    "video_title": "假244样例文本假数据测试"
@@ -2900,7 +2882,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793588760.0,
-   "video_fade_after": 1800068760.0,
+   "video_fade_after": 1807844760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假255样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假253样例文本假数据测试内"
@@ -2950,7 +2932,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1793935020.0,
-   "video_fade_after": 1800415020.0,
+   "video_fade_after": 1808191020.0,
    "video_memory_stage": "detail",
    "video_summary": "假260样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假258样例文本假数据测"
@@ -3015,7 +2997,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794018900.0,
-   "video_fade_after": 1800498900.0,
+   "video_fade_after": 1808274900.0,
    "video_memory_stage": "detail",
    "video_summary": "假271样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假269样例文本假数据测试内容样例文本假数据测试内容样例文本假"
@@ -3066,7 +3048,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794106020.0,
-   "video_fade_after": 1800586020.0,
+   "video_fade_after": 1808362020.0,
    "video_memory_stage": "detail",
    "video_summary": "假286样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假284样例文本假数据测试内容样例文本假"
@@ -3116,7 +3098,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794193440.0,
-   "video_fade_after": 1800673440.0,
+   "video_fade_after": 1808449440.0,
    "video_memory_stage": "detail",
    "video_summary": "假297样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假295样例文本假数据测试内"
@@ -3174,7 +3156,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794884760.0,
-   "video_fade_after": 1801364760.0,
+   "video_fade_after": 1809140760.0,
    "video_memory_stage": "detail",
    "video_summary": "假317样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假315样例文本假数据测试内容样例文本假数据测试"
@@ -3188,9 +3170,10 @@
     "c1"
    ],
    "embedding_model": "legacy",
+   "evaluation_pending": true,
    "has_embedding": true,
-   "importance": 6,
-   "level": "long_term",
+   "importance": 7,
+   "level": "recent",
    "memory_type": "chat",
    "oid": "100",
    "privacy": 0,
@@ -3247,7 +3230,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794224580.0,
-   "video_fade_after": 1800704580.0,
+   "video_fade_after": 1808480580.0,
    "video_memory_stage": "detail",
    "video_summary": "假309样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假308样例文本假数"
@@ -3279,7 +3262,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1795012200.0,
-   "video_fade_after": 1801492200.0,
+   "video_fade_after": 1809268200.0,
    "video_memory_stage": "detail",
    "video_summary": "Bot看了视频《猫视频》，很可爱",
    "video_title": "猫视频"
@@ -5204,7 +5187,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1795012200.0,
-   "video_fade_after": 1801492200.0,
+   "video_fade_after": 1809268200.0,
    "video_memory_stage": "detail",
    "video_summary": "Bot看了视频《猫视频》，很可爱",
    "video_title": "猫视频"
@@ -5277,19 +5260,24 @@
  },
  "cleanup_aged": 0,
  "cleanup_irrelevant": {
-  "evaluated": 1,
+  "evaluated": 0,
   "failed": 0,
-  "removed_chat": 1,
+  "removed_chat": 0,
   "removed_share_previews": 0
  },
  "daily": [
+  "📦 迁移旧记忆 1 条（chat/video→recent，其他→long_term）",
   "🎞️ 视频记忆：完整 0 | 转长期 1 | 淡忘 0",
   "🕰️ 1 条标记 aged",
   "🍂 忘掉 1 条很久以前的普通闲聊",
   "🪪 整理了 1 份画像",
   "🧹 删掉 12 个没到画像门槛的人的画像",
   "🧠 近期 4 条 → 📌晋升 3 | 🗑丢弃 1 | ⚠失败 0",
-  "🎬 4 条视频/动态/直播 → recent",
+  "🎬 4 条视频/动态/番剧/直播 → recent",
+  "🌙 今晚新对话总结 2 条 | 已评分 2 | 丢弃 0 | 待下晚重试 0 | 请求失败 0",
+  "🗂️ 旧聊天待重评 2 条 | 本次评分 2 | 丢弃 1 | 剩余 0",
+  "📰 旧动态待评分 2 条 | 本次评分 0 | 剩余 2",
+  "📼 旧视频待评分 5 条 | 本次评分 0 | 剩余 5",
   "🗜️ 整理了一次数据库文件"
  ],
  "delete": {
@@ -5372,8 +5360,9 @@
    "aged": true,
    "confidence": 0.5,
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": false,
-   "importance": 8,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "686261376",
@@ -5400,8 +5389,9 @@
     "d2",
     "d3"
    ],
+   "evaluation_version": 2,
    "has_embedding": false,
-   "importance": 7,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "promoted_at": "2026-11-03 09:30",
@@ -5480,26 +5470,6 @@
    "thread_id": "external:qq_private",
    "time": "2026-11-03 09:30",
    "user_id": "u1",
-   "username": ""
-  },
-  "ext_00000000000000000000000000000003": {
-   "actor_id": "bili:u8",
-   "has_embedding": false,
-   "importance": 5,
-   "level": "recent",
-   "memory_type": "chat",
-   "promoted_at": "2026-11-03 09:30",
-   "promoted_at_ts": 1793716200.0,
-   "rpid": "ext_00000000000000000000000000000003",
-   "scope": "bili_comment",
-   "source": "bilibili",
-   "tags": [
-    "用户:u8"
-   ],
-   "text": "哈哈哈",
-   "thread_id": "external:bilibili",
-   "time": "2026-11-03 09:30",
-   "user_id": "u8",
    "username": ""
   },
   "ext_d54c9a87fdd647c6a989dfaa3df1b1fc": {
@@ -5588,8 +5558,9 @@
     "o1",
     "o2"
    ],
+   "evaluation_version": 2,
    "has_embedding": false,
-   "importance": 7,
+   "importance": 9,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "100",
@@ -5694,7 +5665,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788591900.0,
-   "video_fade_after": 1795071900.0,
+   "video_fade_after": 1802847900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假53样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测"
@@ -5751,7 +5722,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788592020.0,
-   "video_fade_after": 1795072020.0,
+   "video_fade_after": 1802848020.0,
    "video_memory_stage": "long_term",
    "video_summary": "假65样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假63样"
@@ -5801,7 +5772,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788936420.0,
-   "video_fade_after": 1795416420.0,
+   "video_fade_after": 1803192420.0,
    "video_memory_stage": "long_term",
    "video_summary": "假78样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假76样例文本假数据测试内容"
@@ -5860,7 +5831,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789098120.0,
-   "video_fade_after": 1795578120.0,
+   "video_fade_after": 1803354120.0,
    "video_memory_stage": "long_term",
    "video_summary": "假89样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假87样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -5919,7 +5890,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789368540.0,
-   "video_fade_after": 1795848540.0,
+   "video_fade_after": 1803624540.0,
    "video_memory_stage": "long_term",
    "video_summary": "假103样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假101样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样"
@@ -5977,7 +5948,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789454820.0,
-   "video_fade_after": 1795934820.0,
+   "video_fade_after": 1803710820.0,
    "video_memory_stage": "long_term",
    "video_summary": "假118样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假116样例文本假数据测试内容样例文本假数据测"
@@ -6035,7 +6006,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527780.0,
-   "video_fade_after": 1796007780.0,
+   "video_fade_after": 1803783780.0,
    "video_memory_stage": "long_term",
    "video_summary": "假132样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假130样例文本假数据测试内容样例文本假数据测"
@@ -6101,7 +6072,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527960.0,
-   "video_fade_after": 1796007960.0,
+   "video_fade_after": 1803783960.0,
    "video_memory_stage": "long_term",
    "video_summary": "假146样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假144样例文本假数据测试内容样例文本假数据测试内容样例"
@@ -6140,7 +6111,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790404500.0,
-   "video_fade_after": 1796884500.0,
+   "video_fade_after": 1804660500.0,
    "video_memory_stage": "long_term",
    "video_summary": "假163样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假161样例文本假数据测"
@@ -6206,7 +6177,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790576460.0,
-   "video_fade_after": 1797056460.0,
+   "video_fade_after": 1804832460.0,
    "video_memory_stage": "long_term",
    "video_summary": "假170样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据",
    "video_title": "假168样例文本假数据测试内容样例文本"
@@ -6264,7 +6235,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791208980.0,
-   "video_fade_after": 1797688980.0,
+   "video_fade_after": 1805464980.0,
    "video_memory_stage": "long_term",
    "video_summary": "假186样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
@@ -6315,7 +6286,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791356760.0,
-   "video_fade_after": 1797836760.0,
+   "video_fade_after": 1805612760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假200样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假198样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容"
@@ -6381,7 +6352,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792738260.0,
-   "video_fade_after": 1799218260.0,
+   "video_fade_after": 1806994260.0,
    "video_memory_stage": "long_term",
    "video_summary": "假212样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假210样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -6447,7 +6418,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792808220.0,
-   "video_fade_after": 1799288220.0,
+   "video_fade_after": 1807064220.0,
    "video_memory_stage": "long_term",
    "video_summary": "假229样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假227样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -6496,7 +6467,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793496900.0,
-   "video_fade_after": 1799976900.0,
+   "video_fade_after": 1807752900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假246样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本",
    "video_title": "假244样例文本假数据测试"
@@ -6537,7 +6508,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793588760.0,
-   "video_fade_after": 1800068760.0,
+   "video_fade_after": 1807844760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假255样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假253样例文本假数据测试内"
@@ -6587,7 +6558,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1793935020.0,
-   "video_fade_after": 1800415020.0,
+   "video_fade_after": 1808191020.0,
    "video_memory_stage": "detail",
    "video_summary": "假260样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假258样例文本假数据测"
@@ -6652,7 +6623,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794018900.0,
-   "video_fade_after": 1800498900.0,
+   "video_fade_after": 1808274900.0,
    "video_memory_stage": "detail",
    "video_summary": "假271样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假269样例文本假数据测试内容样例文本假数据测试内容样例文本假"
@@ -6703,7 +6674,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794106020.0,
-   "video_fade_after": 1800586020.0,
+   "video_fade_after": 1808362020.0,
    "video_memory_stage": "detail",
    "video_summary": "假286样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假284样例文本假数据测试内容样例文本假"
@@ -6753,7 +6724,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794193440.0,
-   "video_fade_after": 1800673440.0,
+   "video_fade_after": 1808449440.0,
    "video_memory_stage": "detail",
    "video_summary": "假297样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假295样例文本假数据测试内"
@@ -6811,7 +6782,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794884760.0,
-   "video_fade_after": 1801364760.0,
+   "video_fade_after": 1809140760.0,
    "video_memory_stage": "detail",
    "video_summary": "假317样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假315样例文本假数据测试内容样例文本假数据测试"
@@ -6823,9 +6794,10 @@
     "c0",
     "c1"
    ],
+   "evaluation_pending": true,
    "has_embedding": false,
-   "importance": 6,
-   "level": "long_term",
+   "importance": 7,
+   "level": "recent",
    "memory_type": "chat",
    "oid": "100",
    "promoted_at": "2026-11-03 09:30",
@@ -6880,7 +6852,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794224580.0,
-   "video_fade_after": 1800704580.0,
+   "video_fade_after": 1808480580.0,
    "video_memory_stage": "detail",
    "video_summary": "假309样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假308样例文本假数"
@@ -6908,7 +6880,7 @@
    "time": "2026-11-03 09:30",
    "user_id": "self",
    "video_detail_until": 1795012200.0,
-   "video_fade_after": 1801492200.0,
+   "video_fade_after": 1809268200.0,
    "video_memory_stage": "detail",
    "video_summary": "Bot看了视频《猫视频》，很可爱",
    "video_title": "猫视频"
@@ -7011,8 +6983,9 @@
    "aged": true,
    "confidence": 0.5,
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 8,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "686261376",
@@ -7041,8 +7014,9 @@
     "d3"
    ],
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "privacy": 0,
@@ -7229,8 +7203,9 @@
     "o2"
    ],
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 9,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "100",
@@ -7337,7 +7312,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788591900.0,
-   "video_fade_after": 1795071900.0,
+   "video_fade_after": 1802847900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假53样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测"
@@ -7394,7 +7369,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788592020.0,
-   "video_fade_after": 1795072020.0,
+   "video_fade_after": 1802848020.0,
    "video_memory_stage": "long_term",
    "video_summary": "假65样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假63样"
@@ -7444,7 +7419,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788936420.0,
-   "video_fade_after": 1795416420.0,
+   "video_fade_after": 1803192420.0,
    "video_memory_stage": "long_term",
    "video_summary": "假78样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假76样例文本假数据测试内容"
@@ -7503,7 +7478,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789098120.0,
-   "video_fade_after": 1795578120.0,
+   "video_fade_after": 1803354120.0,
    "video_memory_stage": "long_term",
    "video_summary": "假89样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假87样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -7562,7 +7537,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789368540.0,
-   "video_fade_after": 1795848540.0,
+   "video_fade_after": 1803624540.0,
    "video_memory_stage": "long_term",
    "video_summary": "假103样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假101样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样"
@@ -7620,7 +7595,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789454820.0,
-   "video_fade_after": 1795934820.0,
+   "video_fade_after": 1803710820.0,
    "video_memory_stage": "long_term",
    "video_summary": "假118样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假116样例文本假数据测试内容样例文本假数据测"
@@ -7678,7 +7653,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527780.0,
-   "video_fade_after": 1796007780.0,
+   "video_fade_after": 1803783780.0,
    "video_memory_stage": "long_term",
    "video_summary": "假132样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假130样例文本假数据测试内容样例文本假数据测"
@@ -7744,7 +7719,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527960.0,
-   "video_fade_after": 1796007960.0,
+   "video_fade_after": 1803783960.0,
    "video_memory_stage": "long_term",
    "video_summary": "假146样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假144样例文本假数据测试内容样例文本假数据测试内容样例"
@@ -7783,7 +7758,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790404500.0,
-   "video_fade_after": 1796884500.0,
+   "video_fade_after": 1804660500.0,
    "video_memory_stage": "long_term",
    "video_summary": "假163样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假161样例文本假数据测"
@@ -7849,7 +7824,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790576460.0,
-   "video_fade_after": 1797056460.0,
+   "video_fade_after": 1804832460.0,
    "video_memory_stage": "long_term",
    "video_summary": "假170样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据",
    "video_title": "假168样例文本假数据测试内容样例文本"
@@ -7907,7 +7882,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791208980.0,
-   "video_fade_after": 1797688980.0,
+   "video_fade_after": 1805464980.0,
    "video_memory_stage": "long_term",
    "video_summary": "假186样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
@@ -7958,7 +7933,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791356760.0,
-   "video_fade_after": 1797836760.0,
+   "video_fade_after": 1805612760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假200样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假198样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容"
@@ -8024,7 +7999,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792738260.0,
-   "video_fade_after": 1799218260.0,
+   "video_fade_after": 1806994260.0,
    "video_memory_stage": "long_term",
    "video_summary": "假212样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假210样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -8090,7 +8065,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792808220.0,
-   "video_fade_after": 1799288220.0,
+   "video_fade_after": 1807064220.0,
    "video_memory_stage": "long_term",
    "video_summary": "假229样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假227样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -8139,7 +8114,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793496900.0,
-   "video_fade_after": 1799976900.0,
+   "video_fade_after": 1807752900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假246样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本",
    "video_title": "假244样例文本假数据测试"
@@ -8180,7 +8155,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793588760.0,
-   "video_fade_after": 1800068760.0,
+   "video_fade_after": 1807844760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假255样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假253样例文本假数据测试内"
@@ -8230,7 +8205,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1793935020.0,
-   "video_fade_after": 1800415020.0,
+   "video_fade_after": 1808191020.0,
    "video_memory_stage": "detail",
    "video_summary": "假260样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假258样例文本假数据测"
@@ -8295,7 +8270,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794018900.0,
-   "video_fade_after": 1800498900.0,
+   "video_fade_after": 1808274900.0,
    "video_memory_stage": "detail",
    "video_summary": "假271样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假269样例文本假数据测试内容样例文本假数据测试内容样例文本假"
@@ -8346,7 +8321,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794106020.0,
-   "video_fade_after": 1800586020.0,
+   "video_fade_after": 1808362020.0,
    "video_memory_stage": "detail",
    "video_summary": "假286样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假284样例文本假数据测试内容样例文本假"
@@ -8396,7 +8371,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794193440.0,
-   "video_fade_after": 1800673440.0,
+   "video_fade_after": 1808449440.0,
    "video_memory_stage": "detail",
    "video_summary": "假297样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假295样例文本假数据测试内"
@@ -8454,7 +8429,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794884760.0,
-   "video_fade_after": 1801364760.0,
+   "video_fade_after": 1809140760.0,
    "video_memory_stage": "detail",
    "video_summary": "假317样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假315样例文本假数据测试内容样例文本假数据测试"
@@ -8468,9 +8443,10 @@
     "c1"
    ],
    "embedding_model": "legacy",
+   "evaluation_pending": true,
    "has_embedding": true,
-   "importance": 6,
-   "level": "long_term",
+   "importance": 7,
+   "level": "recent",
    "memory_type": "chat",
    "oid": "100",
    "privacy": 0,
@@ -8527,7 +8503,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794224580.0,
-   "video_fade_after": 1800704580.0,
+   "video_fade_after": 1808480580.0,
    "video_memory_stage": "detail",
    "video_summary": "假309样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假308样例文本假数"
@@ -8559,7 +8535,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1795012200.0,
-   "video_fade_after": 1801492200.0,
+   "video_fade_after": 1809268200.0,
    "video_memory_stage": "detail",
    "video_summary": "Bot看了视频《猫视频》，很可爱",
    "video_title": "猫视频"
@@ -8662,8 +8638,9 @@
    "aged": true,
    "confidence": 0.5,
    "embedding_model": "legacy",
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 8,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "686261376",
@@ -8690,8 +8667,9 @@
     "d2",
     "d3"
    ],
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 5,
    "level": "long_term",
    "memory_type": "user_summary",
    "promoted_at": "2026-11-03 09:30",
@@ -8858,8 +8836,9 @@
     "o1",
     "o2"
    ],
+   "evaluation_version": 2,
    "has_embedding": true,
-   "importance": 7,
+   "importance": 9,
    "level": "long_term",
    "memory_type": "user_summary",
    "oid": "100",
@@ -8964,7 +8943,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788591900.0,
-   "video_fade_after": 1795071900.0,
+   "video_fade_after": 1802847900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假53样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假51样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测"
@@ -9021,7 +9000,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788592020.0,
-   "video_fade_after": 1795072020.0,
+   "video_fade_after": 1802848020.0,
    "video_memory_stage": "long_term",
    "video_summary": "假65样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内",
    "video_title": "假63样"
@@ -9071,7 +9050,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1788936420.0,
-   "video_fade_after": 1795416420.0,
+   "video_fade_after": 1803192420.0,
    "video_memory_stage": "long_term",
    "video_summary": "假78样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假76样例文本假数据测试内容"
@@ -9130,7 +9109,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789098120.0,
-   "video_fade_after": 1795578120.0,
+   "video_fade_after": 1803354120.0,
    "video_memory_stage": "long_term",
    "video_summary": "假89样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假87样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -9189,7 +9168,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789368540.0,
-   "video_fade_after": 1795848540.0,
+   "video_fade_after": 1803624540.0,
    "video_memory_stage": "long_term",
    "video_summary": "假103样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假101样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样"
@@ -9247,7 +9226,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789454820.0,
-   "video_fade_after": 1795934820.0,
+   "video_fade_after": 1803710820.0,
    "video_memory_stage": "long_term",
    "video_summary": "假118样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假116样例文本假数据测试内容样例文本假数据测"
@@ -9305,7 +9284,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527780.0,
-   "video_fade_after": 1796007780.0,
+   "video_fade_after": 1803783780.0,
    "video_memory_stage": "long_term",
    "video_summary": "假132样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假130样例文本假数据测试内容样例文本假数据测"
@@ -9371,7 +9350,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1789527960.0,
-   "video_fade_after": 1796007960.0,
+   "video_fade_after": 1803783960.0,
    "video_memory_stage": "long_term",
    "video_summary": "假146样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假144样例文本假数据测试内容样例文本假数据测试内容样例"
@@ -9410,7 +9389,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790404500.0,
-   "video_fade_after": 1796884500.0,
+   "video_fade_after": 1804660500.0,
    "video_memory_stage": "long_term",
    "video_summary": "假163样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假",
    "video_title": "假161样例文本假数据测"
@@ -9476,7 +9455,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1790576460.0,
-   "video_fade_after": 1797056460.0,
+   "video_fade_after": 1804832460.0,
    "video_memory_stage": "long_term",
    "video_summary": "假170样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据",
    "video_title": "假168样例文本假数据测试内容样例文本"
@@ -9534,7 +9513,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791208980.0,
-   "video_fade_after": 1797688980.0,
+   "video_fade_after": 1805464980.0,
    "video_memory_stage": "long_term",
    "video_summary": "假186样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假184样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试"
@@ -9585,7 +9564,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1791356760.0,
-   "video_fade_after": 1797836760.0,
+   "video_fade_after": 1805612760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假200样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假198样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容"
@@ -9651,7 +9630,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792738260.0,
-   "video_fade_after": 1799218260.0,
+   "video_fade_after": 1806994260.0,
    "video_memory_stage": "long_term",
    "video_summary": "假212样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假210样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -9717,7 +9696,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1792808220.0,
-   "video_fade_after": 1799288220.0,
+   "video_fade_after": 1807064220.0,
    "video_memory_stage": "long_term",
    "video_summary": "假229样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文",
    "video_title": "假227样例文本假数据测试内容样例文本假数据测试内容样例文本"
@@ -9766,7 +9745,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793496900.0,
-   "video_fade_after": 1799976900.0,
+   "video_fade_after": 1807752900.0,
    "video_memory_stage": "long_term",
    "video_summary": "假246样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本",
    "video_title": "假244样例文本假数据测试"
@@ -9807,7 +9786,7 @@
    "user_id": "self",
    "value_score": 0.35,
    "video_detail_until": 1793588760.0,
-   "video_fade_after": 1800068760.0,
+   "video_fade_after": 1807844760.0,
    "video_memory_stage": "long_term",
    "video_summary": "假255样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试",
    "video_title": "假253样例文本假数据测试内"
@@ -9857,7 +9836,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1793935020.0,
-   "video_fade_after": 1800415020.0,
+   "video_fade_after": 1808191020.0,
    "video_memory_stage": "detail",
    "video_summary": "假260样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假258样例文本假数据测"
@@ -9922,7 +9901,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794018900.0,
-   "video_fade_after": 1800498900.0,
+   "video_fade_after": 1808274900.0,
    "video_memory_stage": "detail",
    "video_summary": "假271样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假269样例文本假数据测试内容样例文本假数据测试内容样例文本假"
@@ -9973,7 +9952,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794106020.0,
-   "video_fade_after": 1800586020.0,
+   "video_fade_after": 1808362020.0,
    "video_memory_stage": "detail",
    "video_summary": "假286样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测",
    "video_title": "假284样例文本假数据测试内容样例文本假"
@@ -10023,7 +10002,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794193440.0,
-   "video_fade_after": 1800673440.0,
+   "video_fade_after": 1808449440.0,
    "video_memory_stage": "detail",
    "video_summary": "假297样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样",
    "video_title": "假295样例文本假数据测试内"
@@ -10081,7 +10060,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794884760.0,
-   "video_fade_after": 1801364760.0,
+   "video_fade_after": 1809140760.0,
    "video_memory_stage": "detail",
    "video_summary": "假317样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数",
    "video_title": "假315样例文本假数据测试内容样例文本假数据测试"
@@ -10093,9 +10072,10 @@
     "c0",
     "c1"
    ],
+   "evaluation_pending": true,
    "has_embedding": true,
-   "importance": 6,
-   "level": "long_term",
+   "importance": 7,
+   "level": "recent",
    "memory_type": "chat",
    "oid": "100",
    "promoted_at": "2026-11-03 09:30",
@@ -10150,7 +10130,7 @@
    "user_id": "self",
    "value_score": 0.5,
    "video_detail_until": 1794224580.0,
-   "video_fade_after": 1800704580.0,
+   "video_fade_after": 1808480580.0,
    "video_memory_stage": "detail",
    "video_summary": "假309样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容样例文本假数据测试内容",
    "video_title": "假308样例文本假数"
@@ -10178,7 +10158,7 @@
    "time": "2026-11-03 09:30",
    "user_id": "self",
    "video_detail_until": 1795012200.0,
-   "video_fade_after": 1801492200.0,
+   "video_fade_after": 1809268200.0,
    "video_memory_stage": "detail",
    "video_summary": "Bot看了视频《猫视频》，很可爱",
    "video_title": "猫视频"
@@ -11401,9 +11381,9 @@
     "video:假1样例文本假数据测试内容样例文本假数据测试内"
    ],
    "api_search": [
+    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n1",
     "thread_compressed_c281b9a49a38848d12baa2b4",
-    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n2",
     "ext_00000000000000000000000000000001",
     "dynamic_1793716200",
@@ -11412,11 +11392,15 @@
    ],
    "bvid": [
     "[视频][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] Bot看了视频《猫视频》，很可爱",
-    "[交流][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
+    "[交流][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
     "[总结][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论区总结] 总结：大家在聊猫和约定"
    ],
    "global": [],
    "search": [
+    [
+     0.6228,
+     "oid_compressed_40e39a72655889f3fb5dc80b"
+    ],
     [
      0.5698,
      "n1"
@@ -11424,10 +11408,6 @@
     [
      0.5661,
      "thread_compressed_c281b9a49a38848d12baa2b4"
-    ],
-    [
-     0.5661,
-     "oid_compressed_40e39a72655889f3fb5dc80b"
     ],
     [
      0.4279,
@@ -11442,7 +11422,7 @@
      "dynamic_1793716200"
     ],
     [
-     0.1667,
+     0.1583,
      "compressed_fd5db6f000f4ca56bc3e6707"
     ],
     [
@@ -11490,20 +11470,24 @@
     "video:假1样例文本假数据测试内容样例文本假数据测试内"
    ],
    "api_search": [
+    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n1",
     "thread_compressed_c281b9a49a38848d12baa2b4",
-    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n2",
     "dynamic_1793716200",
     "video:BV1snapshot01_1793716200"
    ],
    "bvid": [
     "[视频][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] Bot看了视频《猫视频》，很可爱",
-    "[交流][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
+    "[交流][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
     "[总结][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论区总结] 总结：大家在聊猫和约定"
    ],
    "global": [],
    "search": [
+    [
+     0.6228,
+     "oid_compressed_40e39a72655889f3fb5dc80b"
+    ],
     [
      0.5698,
      "n1"
@@ -11511,10 +11495,6 @@
     [
      0.5661,
      "thread_compressed_c281b9a49a38848d12baa2b4"
-    ],
-    [
-     0.5661,
-     "oid_compressed_40e39a72655889f3fb5dc80b"
     ],
     [
      0.4279,
@@ -11571,9 +11551,9 @@
     "video:假1样例文本假数据测试内容样例文本假数据测试内"
    ],
    "api_search": [
+    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n1",
     "thread_compressed_c281b9a49a38848d12baa2b4",
-    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n2",
     "ext_00000000000000000000000000000001",
     "dynamic_1793716200",
@@ -11582,11 +11562,15 @@
    ],
    "bvid": [
     "[视频][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] Bot看了视频《猫视频》，很可爱",
-    "[交流][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
+    "[交流][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
     "[总结][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论区总结] 总结：大家在聊猫和约定"
    ],
    "global": [],
    "search": [
+    [
+     0.6228,
+     "oid_compressed_40e39a72655889f3fb5dc80b"
+    ],
     [
      0.5698,
      "n1"
@@ -11594,10 +11578,6 @@
     [
      0.5661,
      "thread_compressed_c281b9a49a38848d12baa2b4"
-    ],
-    [
-     0.5661,
-     "oid_compressed_40e39a72655889f3fb5dc80b"
     ],
     [
      0.4279,
@@ -11612,7 +11592,7 @@
      "dynamic_1793716200"
     ],
     [
-     0.1667,
+     0.1583,
      "compressed_fd5db6f000f4ca56bc3e6707"
     ],
     [
@@ -11716,20 +11696,24 @@
     "video:假1样例文本假数据测试内容样例文本假数据测试内"
    ],
    "api_search": [
+    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n1",
     "thread_compressed_c281b9a49a38848d12baa2b4",
-    "oid_compressed_40e39a72655889f3fb5dc80b",
     "n2",
     "dynamic_1793716200",
     "video:BV1snapshot01_1793716200"
    ],
    "bvid": [
     "[视频][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] Bot看了视频《猫视频》，很可爱",
-    "[交流][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
+    "[交流][近期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论线总结] 总结：大家在聊猫和约定",
     "[总结][长期][2026-11-03 09:30][视频:《猫视频》][链接:https://www.bilibili.com/video/BV1snapshot01] [评论区总结] 总结：大家在聊猫和约定"
    ],
    "global": [],
    "search": [
+    [
+     0.6228,
+     "oid_compressed_40e39a72655889f3fb5dc80b"
+    ],
     [
      0.5698,
      "n1"
@@ -11737,10 +11721,6 @@
     [
      0.5661,
      "thread_compressed_c281b9a49a38848d12baa2b4"
-    ],
-    [
-     0.5661,
-     "oid_compressed_40e39a72655889f3fb5dc80b"
     ],
     [
      0.4279,
@@ -11786,8 +11766,8 @@
  },
  "stats": {
   "aged": 4,
-  "long_term": 4,
-  "recent": 33,
+  "long_term": 3,
+  "recent": 34,
   "today": 0,
   "total": 37,
   "type_chat": 4,

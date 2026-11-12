@@ -213,7 +213,9 @@ class WatchVideo(HostView):
 
     async def _send_proactive_video_comment(self, watch_round, video, oid, analysis_info, video_description, actions):
         bvid = video["bvid"]
-        proactive_comment = await self.video_evaluate._generate_proactive_comment(analysis_info, video_description)
+        hot_comments = await self.bili_comments._get_hot_comments(oid) if oid else []
+        proactive_comment = await self.video_evaluate._generate_proactive_comment(
+            analysis_info, video_description, hot_comments)
         sync = self.dynamic_post.comment_syncs()
         if not proactive_comment:
             return
