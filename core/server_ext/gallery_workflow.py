@@ -200,28 +200,38 @@ async def collect(bot, sources):
     return {"added": added, "descriptions": descriptions}
 
 
+def _thumbnail(row):
+    """单张缩略图；单张读不到就返回空串，不影响整页。"""
+    from PIL import Image
+    try:
+        with gallery._file_dir() as directory:
+            fd = os.open(gallery._filename(row["file_name"]), os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+            with os.fdopen(fd, "rb") as source, Image.open(source) as image:
+                image = image.convert("RGB")
+                image.thumbnail((160, 160))
+                output = io.BytesIO()
+                image.save(output, "JPEG", quality=60)
+                raw = output.getvalue()
+        return ("data:image/jpeg;base64," + base64.b64encode(raw).decode()) if len(raw) <= 16384 else ""
+    except Exception:
+        return ""
+
+
+def preview(limit=12):
+    """总览用：只解码最近几张，避免每次刷新把整个图库都读一遍。"""
+    rows = gallery.list_assets()[:max(1, int(limit))]
+    return [dict(row["image"], uses=row["uses"], likes=row["likes"],
+                 created_at=row["created_at"], thumbnail=_thumbnail(row))
+            for row in rows]
+
+
 def listing():
     """后台返回缩略图与元数据，不返回文件路径、向量或模型凭证。"""
-    from PIL import Image
     items = []
     for row in gallery.list_assets(include_evicted=True):
         item = dict(row["image"], uses=row["uses"], liking=row["likes"],
                     local_status="available" if row["status"] == "available" else "evicted",
-                    thumbnail="")
-        if row["status"] == "available":
-            try:
-                with gallery._file_dir() as directory:
-                    fd = os.open(gallery._filename(row["file_name"]), os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
-                    with os.fdopen(fd, "rb") as source, Image.open(source) as image:
-                        image = image.convert("RGB")
-                        image.thumbnail((160, 160))
-                        output = io.BytesIO()
-                        image.save(output, "JPEG", quality=60)
-                        raw = output.getvalue()
-                        if len(raw) <= 16384:
-                            item["thumbnail"] = "data:image/jpeg;base64," + base64.b64encode(raw).decode()
-            except Exception:
-                pass
+                    thumbnail=_thumbnail(row) if row["status"] == "available" else "")
         items.append(item)
     state = gallery.status()
     with gallery._db() as db:

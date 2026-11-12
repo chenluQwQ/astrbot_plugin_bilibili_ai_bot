@@ -16,6 +16,7 @@ from .extension_pages import (
     handle_extension_action, handle_extension_page, handle_extension_refresh,
     handle_extensions_list,
 )
+from .gallery import handle_get_gallery
 from .interest import handle_get_interest_status
 from .memory import (
     handle_cache_purge, handle_cache_stats, handle_memory_cleanup_start,
@@ -71,6 +72,7 @@ def register_webui(plugin_instance: Any, context: Context):
         ("cache/stats", "GET", handle_cache_stats, "BiliBot cache usage"),
         ("cache/purge", "POST", handle_cache_purge, "Purge BiliBot disposable cache"),
         ("profiles", "GET", handle_get_profiles, "BiliBot relationship profiles"),
+        ("gallery", "GET", handle_get_gallery, "BiliBot collected image gallery"),
         ("schedule/today", "GET", handle_get_schedule, "BiliBot daily schedule"),
         ("schedule/stats", "GET", handle_get_schedule_stats, "BiliBot scheduler statistics"),
         ("schedule/regenerate", "POST", handle_schedule_regenerate, "Regenerate today's schedule"),
