@@ -184,6 +184,36 @@ def parse_video_impressions(raw: str, expected_ids) -> dict[str, str]:
     return impressions
 
 
+def parse_memory_importance(raw: str) -> int:
+    """写记忆前模型给的重要度：``{"importance": 1-10}``，别的字段一律不收。"""
+    value = _object(raw)
+    if set(value) != {"importance"}:
+        raise ContentProtocolError("memory_importance_schema_mismatch")
+    importance = value["importance"]
+    if isinstance(importance, bool) or not isinstance(importance, int) or not 1 <= importance <= 10:
+        raise ContentProtocolError("memory_importance_out_of_range")
+    return importance
+
+
+def parse_video_score(raw: str) -> int:
+    """回复评论时顺带看的视频，看完给的分：``{"score": 1-10}``，别的字段一律不收。"""
+    value = _object(raw)
+    if set(value) != {"score"}:
+        raise ContentProtocolError("video_score_schema_mismatch")
+    score = value["score"]
+    if isinstance(score, bool) or not isinstance(score, int) or not 1 <= score <= 10:
+        raise ContentProtocolError("video_score_out_of_range")
+    return score
+
+
+def parse_bangumi_season_summary(raw: str, limit: int) -> str:
+    """一季番剧的总结：``{"summary": "..."}``，超过 ``limit`` 字或带内部标记的不收。"""
+    value = _object(raw)
+    if set(value) != {"summary"}:
+        raise ContentProtocolError("bangumi_summary_schema_mismatch")
+    return _public_text(value["summary"], field="summary", limit=limit, required=True)
+
+
 DYNAMIC_IMAGE_CHOICES = {"none", "generate", "video_cover"}
 
 
@@ -259,7 +289,7 @@ def parse_dynamic_content(
 
 
 BANGUMI_DYNAMIC_KEYS = {"want_dynamic", "dynamic_angle", "dynamic_kind"}
-# 番剧没有可转发的视频稿件，不能搬运。
+# 番剧没有可转发的视频稿件，不能转发。
 BANGUMI_DYNAMIC_KINDS = ("吐槽", "段子", "分享")
 
 

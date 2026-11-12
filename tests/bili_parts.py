@@ -52,6 +52,7 @@ OWNERS = {
     "_post_dynamic_text": "bili_dynamics",
     "_post_dynamic_with_image": "bili_dynamics",
     "_repost_video": "bili_dynamics",
+    "_repost_dynamic": "bili_dynamics",
     "get_up_recent_dynamics": "bili_dynamics",
     "get_following_updates": "bili_dynamics",
 }

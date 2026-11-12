@@ -1,4 +1,6 @@
-"""「今天」页：某一天看过的视频、发过的评论、发的动态、看的番剧；唯一的写操作是删自己的评论。
+"""「今天」页：某一天看过的视频、发过的评论、发的动态、看的番剧，和动态池子；唯一的写操作是删自己的评论。
+
+动态池子（``domain/dynamic_ideas.py``）只读：那天进池或状态变了的想法，看今天时再带上所有还在等的。
 
 都从活动日志按日期查（数据库里留 30 天）。评论另外查运行库的动作表：
 QQ 工具发的评论只记在那里，发出去不知道成没成的也只在那里。
@@ -148,7 +150,54 @@ def _dynamic(item: dict[str, Any]) -> dict[str, Any]:
         "kind": "comment_sync" if item.get("comment_sync") else "repost" if item.get("repost") else str(item.get("kind") or ""),
         "bvid": str(item.get("bvid") or ""),
         "title": str(item.get("video_title") or ""),
+        "link": str(item.get("link") or ""),
     }
+
+
+IDEA_SOURCES = {
+    "proactive": "看视频", "special_follow": "特别关注", "bangumi": "追番",
+    "feed": "站外订阅", "search": "站外搜索", "dynamic_watch": "关注动态",
+}
+
+
+def _stamp(value: Any, day: str) -> str:
+    """同一天只写时分，别的日子带上月日。"""
+    try:
+        moment = datetime.fromtimestamp(float(value))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return ""
+    return moment.strftime("%H:%M") if moment.strftime("%Y-%m-%d") == day else moment.strftime("%m-%d %H:%M")
+
+
+def _idea(item: dict[str, Any], day: str) -> dict[str, Any]:
+    key = str(item.get("key") or "")
+    return {
+        "id": item.get("id"),
+        "kind": str(item.get("kind") or ""),
+        "source": IDEA_SOURCES.get(str(item.get("source") or ""), str(item.get("source") or "")),
+        "title": str(item.get("title") or ""),
+        "up_name": str(item.get("up_name") or ""),
+        "angle": str(item.get("angle") or ""),
+        "bvid": key if key.startswith("BV") else "",
+        "link": str(item.get("link") or ""),
+        "state": str(item.get("state") or ""),
+        "reason": str(item.get("reason") or ""),
+        "created": _stamp(item.get("created_at"), day),
+        "changed": "" if item.get("state") == "pending" else _stamp(item.get("state_at"), day),
+    }
+
+
+def _ideas(plugin: Any, day: str, is_today: bool) -> list[dict[str, Any]]:
+    post = getattr(app_of(plugin), "dynamic_post", None)
+    if post is None:
+        return []
+    try:
+        start = datetime.strptime(day, "%Y-%m-%d").timestamp()
+        rows = post.idea_pool().touched(start, start + 86400, with_pending=is_today)
+    except Exception as exc:
+        logger.warning(f"[BiliBot WebUI] 读动态池子出错（不影响别的）: {exc}")
+        return []
+    return [_idea(item, day) for item in rows]
 
 
 def _bangumi(item: dict[str, Any]) -> dict[str, Any]:
@@ -184,6 +233,7 @@ async def handle_get_today(plugin: Any):
             "comments": await _comments(plugin, day, logs.reply.on_day(day), logs.proactive.on_day(day)),
             "dynamics": [_dynamic(item) for item in logs.dynamic.on_day(day)],
             "bangumi": [_bangumi(item) for item in logs.bangumi.on_day(day)],
+            "ideas": _ideas(plugin, day, day == today),
         })
     except Exception as exc:
         logger.exception(f"[BiliBot WebUI] today failed: {exc}")

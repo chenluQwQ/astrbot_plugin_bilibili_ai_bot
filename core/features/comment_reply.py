@@ -98,16 +98,15 @@ class CommentReply(HostView):
     async def _generate_comment_reply(self, ctx, oid, comment_type, thread_id, *, defer=None, resume=None):
         """评论：评论区场景提示词，交给查资料循环（模型可以先要资料再回）。"""
         scene_prompt = (
-            f"【场景】你在B站评论区回复别人的评论。这是公开场合，其他人也能看到你的回复。{ctx.security_notice}\n"
-            "评论区回复的基本原则：\n"
-            "- 先抓住评论里最具体的一个点再回，宁可短一点，也不要复述整句或泛泛表示赞同\n"
-            "- 像真人在评论区回一轮话：口语、自然、8-45字，通常一句，确有必要才两句\n"
-            "- 玩梗就接梗，认真讨论就回应观点；没看懂的梗不要硬接，也不要装懂\n"
-            "- 避免客服腔和万能句：少用“感谢支持”“确实如此”“很高兴你能”“每个人都有”\n"
-            "- 回应完这个具体点就收住，不必习惯性反问、邀请继续交流或给出万能祝福\n"
-            "- 不要为了显得亲密而乱叫昵称、连续撒娇、堆颜文字或感叹号\n"
-            "- 记忆和关系只用于调整语气；没有明确依据时不要编造共同经历，不要提UID、好感度、记忆系统或内部判断\n"
-            f"- 这是公开评论区。即使回复{ctx.on}也可以亲近，但不要暴露私聊内容，不要每次都喊“主人”\n"
+            "【在哪】B站评论区。这是公开的，楼里的人和路过的人都看得到你的回复。\n"
+            "【怎么回】\n"
+            "- 接住对方这条里最具体的那个点再说。泛泛地附和、或者把对方的话复述一遍，对方会觉得你没在看\n"
+            "- 一般一句，最多两句。评论区里回一大段像在发表声明，不像随手回的\n"
+            "- 对方玩梗就接梗，认真讨论就说你的看法；没看懂的梗别硬接，接错了比不接还尴尬\n"
+            "- 说完这个点就停。不用每次都反问、邀请继续聊或者送祝福，那样像客服在维护关系\n"
+            "- 关系和记忆只用来拿捏语气。没依据的共同经历别编，对方一眼就知道是假的；"
+            "UID、好感度、记忆这些是后台的东西，说出来会出戏\n"
+            f"- 回{ctx.on}也是在公开场合：可以亲近，但别带出私聊里的事，也不用每句都喊「主人」\n"
         )
         target_name = "评论"
         prompt = self.reply_writing._assemble_reply_prompt(ctx, scene_prompt=scene_prompt, target_name=target_name)
@@ -117,7 +116,8 @@ class CommentReply(HostView):
         return await self.comment_context._run_comment_reply_flow(
             prompt, ctx.sp, oid, comment_type, thread_id, uid=ctx.mid, nickname=ctx.username,
             content=str(ctx.clean_content or ""), suspicious=ctx.is_suspicious,
-            defer=defer, resume=resume,
+            defer=defer, resume=resume, situation=self.reply_writing.reply_situation(ctx),
+            closing=self.reply_writing.reply_closing(ctx, target_name),
         )
 
     async def _poll_unified(self):
@@ -311,7 +311,7 @@ class CommentReply(HostView):
         await self.event_runtime.transition(turn.claim.event_key, state, reason)
 
     async def _admit_comment(self, turn):
-        """阶段 6–8：准入。必回对象（主人、@、高好感、白名单）跳过筛选；其余要过低价值过滤、兴趣、概率、语义去重。"""
+        """阶段 6–8：准入。必回对象（主人、@、高好感、白名单，开了 ``REPLY_OWN_CONTENT_ALWAYS`` 时还有自己视频/动态下的评论）跳过筛选；其余要过低价值过滤、兴趣、概率、语义去重。"""
         mid, username, content = turn.mid, turn.username, turn.content
         if not content or not turn.rpid:
             await self._ignore_comment(turn, "empty_or_missing_reply_id")
@@ -342,6 +342,10 @@ class CommentReply(HostView):
         if force_reply:
             turn.path.append("必回")
             logger.info(f"[BiliBot] ✅ 必回（主人/@/高好感/白名单）：{username}")
+            return True
+        if self.settings.get("REPLY_OWN_CONTENT_ALWAYS") and await self.reply_gate._is_own_content(turn.oid, turn.comment_type):
+            turn.path.append("必回:自己的评论区")
+            logger.info(f"[BiliBot] ✅ 必回（自己的视频/动态下的评论）：{username}")
             return True
         turn.path.append("普通")
         filter_reason = self.reply_gate._interaction_filter_reason(content, "comment")

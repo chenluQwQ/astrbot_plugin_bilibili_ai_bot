@@ -122,7 +122,8 @@ class DynamicContext(HostView):
                                 mem_text = f"[{now_str}] 动态图片记忆：{author_name}的动态「{description[:60]}」图片内容：{image_desc[:200]}"
                                 await self.memory_writer._save_self_memory_record(
                                     mem_key, mem_text, memory_type="dynamic",
-                                    extra={"dynamic_id": str(doc_id), "author_mid": author_mid},
+                                    extra={"dynamic_id": str(doc_id), "author_mid": author_mid,
+                                           **await self.memory_writer._score_self_memory("动态", mem_text)},
                                 )
                                 logger.info(f"[BiliBot] 📸 存入动态图片记忆")
                         else:

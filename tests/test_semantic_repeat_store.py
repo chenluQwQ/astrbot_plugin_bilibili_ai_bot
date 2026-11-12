@@ -55,7 +55,7 @@ class SemanticRepeatStoreTests(unittest.IsolatedAsyncioTestCase):
 class EvaluationPromptTests(unittest.TestCase):
     def test_prompt_asks_for_less_than_the_validator_enforces(self):
         # 提示词要的字数比校验上限短一截，模型写超一点也不至于整条作废
-        for field, limit in (("score_reason", 120), ("comment", 80), ("review", 180), ("recommend_reason", 80), ("dynamic_angle", 80)):
+        for field, limit in (("score_reason", 120), ("review", 180), ("recommend_reason", 80), ("dynamic_angle", 80)):
             asked = re.search(rf"{field} [^，；]*?(\d+)字以内", VIDEO_EVALUATION_SCHEMA_PROMPT)
             self.assertIsNotNone(asked, field)
             self.assertLessEqual(int(asked.group(1)) * 3, limit * 2, field)

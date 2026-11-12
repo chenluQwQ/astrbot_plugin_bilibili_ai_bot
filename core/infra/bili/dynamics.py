@@ -94,7 +94,7 @@ class BiliDynamics(BiliApi):
         return await self._post_dynamic_text(text)
 
     async def _repost_video(self, aid, text):
-        """把视频转发到自己的动态，配一句话（「搬运」）。
+        """把视频转发到自己的动态，配一句话（池子里的「转发」类）。
 
         和带图动态同一个接口，scene 5 + ``web_repost_src.revs_id``（视频 dyn_type 8，rid 是 aid），
         照网页端的请求写的。被明确拒绝返回 False，由调用方决定要不要改发纯文字；
@@ -124,6 +124,38 @@ class BiliDynamics(BiliApi):
             logger.info("[BiliBot] ✅ 转发视频成功")
             return True
         logger.warning(f"[BiliBot] 转发视频被服务器拒绝: {result}")
+        return False
+
+    async def _repost_dynamic(self, dynamic_id, text):
+        """把别人的动态转发到自己的动态，配一句话（关注动态巡视攒下的「转发」类）。
+
+        和转发视频同一个接口，scene 4 + ``web_repost_src.dyn_id_str``，照网页端的请求写的。
+        被明确拒绝返回 False；网络或解析出错时结果未知，不重发。
+        """
+        params = {"csrf": self.settings.get("BILI_JCT")}
+        payload = {
+            "dyn_req": {
+                "content": {"contents": [{"raw_text": text, "type": 1, "biz_id": ""}]},
+                "scene": 4, "attach_card": None,
+                "upload_id": f"0_{int(time.time())}_{random.randint(1000, 9999)}",
+                "meta": {"app_meta": {"from": "create.dynamic.web", "mobi_app": "web"}},
+            },
+            "web_repost_src": {"dyn_id_str": str(dynamic_id)},
+        }
+        try:
+            headers = {**self._headers(), "Content-Type": "application/json"}
+            async with plugin_http_session(self.config) as s:
+                async with s.post(BILI_DYNAMIC_IMAGE_URL, params=params, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    result = await r.json(content_type=None)
+        except Exception as exc:
+            logger.error("[BiliBot] 转发动态请求结果未知，不自动重发")
+            raise WriteResultUnknownError(f"dynamic repost result unknown after {type(exc).__name__}") from exc
+        if not isinstance(result, dict) or type(result.get("code")) is not int:
+            raise WriteResultUnknownError("dynamic repost response has no valid result code")
+        if result.get("code") == 0:
+            logger.info("[BiliBot] ✅ 转发动态成功")
+            return True
+        logger.warning(f"[BiliBot] 转发动态被服务器拒绝: {result}")
         return False
 
     async def get_up_recent_dynamics(self, mid, limit=5):

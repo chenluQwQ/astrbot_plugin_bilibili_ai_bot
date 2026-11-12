@@ -761,6 +761,120 @@
    }
   ]
  },
+ "_repost_dynamic/fail": {
+  "calls": [
+   [
+    "SESSION_POST",
+    "https://api.bilibili.com/x/dynamic/feed/create/dyn",
+    {
+     "csrf": "jct"
+    },
+    {
+     "dyn_req": {
+      "attach_card": null,
+      "content": {
+       "contents": [
+        {
+         "biz_id": "",
+         "raw_text": "转发语",
+         "type": 1
+        }
+       ]
+      },
+      "meta": {
+       "app_meta": {
+        "from": "create.dynamic.web",
+        "mobi_app": "web"
+       }
+      },
+      "scene": 4,
+      "upload_id": "0_1700000000_1234"
+     },
+     "web_repost_src": {
+      "dyn_id_str": "900"
+     }
+    },
+    null
+   ]
+  ],
+  "result": false
+ },
+ "_repost_dynamic/network": {
+  "calls": [
+   [
+    "SESSION_POST",
+    "https://api.bilibili.com/x/dynamic/feed/create/dyn",
+    {
+     "csrf": "jct"
+    },
+    {
+     "dyn_req": {
+      "attach_card": null,
+      "content": {
+       "contents": [
+        {
+         "biz_id": "",
+         "raw_text": "转发语",
+         "type": 1
+        }
+       ]
+      },
+      "meta": {
+       "app_meta": {
+        "from": "create.dynamic.web",
+        "mobi_app": "web"
+       }
+      },
+      "scene": 4,
+      "upload_id": "0_1700000000_1234"
+     },
+     "web_repost_src": {
+      "dyn_id_str": "900"
+     }
+    },
+    null
+   ]
+  ],
+  "raises": "WriteResultUnknownError"
+ },
+ "_repost_dynamic/ok": {
+  "calls": [
+   [
+    "SESSION_POST",
+    "https://api.bilibili.com/x/dynamic/feed/create/dyn",
+    {
+     "csrf": "jct"
+    },
+    {
+     "dyn_req": {
+      "attach_card": null,
+      "content": {
+       "contents": [
+        {
+         "biz_id": "",
+         "raw_text": "转发语",
+         "type": 1
+        }
+       ]
+      },
+      "meta": {
+       "app_meta": {
+        "from": "create.dynamic.web",
+        "mobi_app": "web"
+       }
+      },
+      "scene": 4,
+      "upload_id": "0_1700000000_1234"
+     },
+     "web_repost_src": {
+      "dyn_id_str": "900"
+     }
+    },
+    null
+   ]
+  ],
+  "result": true
+ },
  "_repost_video/fail": {
   "calls": [
    [

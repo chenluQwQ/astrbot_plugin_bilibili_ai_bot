@@ -16,6 +16,19 @@ def main_seasons(seasons):
             if season.get("season_id") and not _SIDE_STORY.search(str(season.get("title") or ""))]
 
 
+def series_position(seasons, season_id) -> tuple[str, int]:
+    """这一季在系列里的位置：``(系列编号, 第几个)``。系列编号取B站给的顺序里的第一季。
+
+    番剧记忆进长期时，同系列各季按这个顺序放在一条记忆里。系列里找不到这一季（单季番、
+    接口没给系列）就自己算一个系列。剧场版、特别篇也按B站给的位置排，不丢。
+    """
+    current = str(season_id)
+    ids = [str(season.get("season_id")) for season in seasons or [] if season.get("season_id")]
+    if current not in ids:
+        return current, 0
+    return ids[0], ids.index(current)
+
+
 def season_to_backfill(seasons, current_id, *, started, completed):
     """该补的那一季（``{"season_id", "title"}``），没有就 None。
 

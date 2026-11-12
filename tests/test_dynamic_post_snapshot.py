@@ -52,7 +52,7 @@ PNG_URL = "data:image/png;base64," + base64.b64encode(PNG).decode()
 IDEA = {"key": "BV1", "kind": "分享", "source": "proactive", "title": "测试视频", "up_name": "UP", "score": 8,
         "review": "好看", "summary": "讲了猫", "angle": "结尾反转", "pic": "https://i0.hdslb.com/a.jpg"}
 OLD_IDEA = {**IDEA, "key": "BV_OLD", "kind": "吐槽", "title": "昨天的视频", "pic": "", "days_ago": 1}
-REPOST_IDEA = {**IDEA, "key": "BV_R", "kind": "搬运", "title": "值得一看"}
+REPOST_IDEA = {**IDEA, "key": "BV_R", "kind": "转发", "title": "值得一看"}
 BANGUMI_IDEA = {**IDEA, "key": "ep:5", "kind": "段子", "source": "bangumi", "title": "《番》第3话", "up_name": "", "pic": ""}
 
 
@@ -285,7 +285,7 @@ SCENES = {
     "round_cover_not_bilibili": (dict(ideas=[{**IDEA, "pic": "https://evil.test/a.jpg"}], replies=[post(image="video_cover", idea=1)]), {"fresh": (1,)}),
     "round_cover_protocol_relative": (dict(ideas=[{**IDEA, "pic": "//i0.hdslb.com/a.jpg"}], replies=[post(image="video_cover", idea=1)], http=FakeResponse(body=b"cover")), {"fresh": (1,)}),
     "round_cover_refused_without_pic": (dict(ideas=[{**IDEA, "pic": ""}], replies=[post(image="video_cover", idea=1)]), {"fresh": (1,)}),
-    # 搬运：转发视频配一句话
+    # 转发：转发视频配一句话
     "repost": (dict(ideas=[REPOST_IDEA], replies=[post("一定要看到最后", idea=1)]), {"fresh": (1,)}),
     "repost_ignores_image": (dict(ideas=[REPOST_IDEA], replies=[post("一定要看到最后", image="video_cover", idea=1)]), {"fresh": (1,)}),
     # 这个假运行时不看处理函数的返回值；真的运行时把 False 记成 handler_returned_unsuccessful。

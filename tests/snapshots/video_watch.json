@@ -445,20 +445,11 @@
     "BV1234567890": {
      "analysis_basis": "video_media",
      "bvid": "BV1234567890",
-     "content_analyzed": true,
-     "faded_at": "<TIME>",
-     "memory_stage": "faded",
-     "mood": "平静",
-     "owner_mid": "",
-     "owner_name": "",
+     "detail_expired_at": "<TIME>",
+     "memory_stage": "long_term",
      "review": "好看",
-     "score": null,
-     "score_reason": "",
-     "source": "",
-     "summary": "摘要",
-     "time": "<TIME>",
-     "title": "",
-     "tname": ""
+     "summary": "看过的内容",
+     "time": "<TIME>"
     }
    }
   },
@@ -466,20 +457,11 @@
   "result": {
    "analysis_basis": "video_media",
    "bvid": "BV1234567890",
-   "content_analyzed": true,
-   "faded_at": "<TIME>",
-   "memory_stage": "faded",
-   "mood": "平静",
-   "owner_mid": "",
-   "owner_name": "",
+   "detail_expired_at": "<TIME>",
+   "memory_stage": "long_term",
    "review": "好看",
-   "score": null,
-   "score_reason": "",
-   "source": "",
-   "summary": "摘要",
-   "time": "<TIME>",
-   "title": "",
-   "tname": ""
+   "summary": "看过的内容",
+   "time": "<TIME>"
   }
  },
  "context/needs_oid": {

@@ -1,6 +1,7 @@
 from base_parts import BaseParts
 import asyncio
 import json
+import types
 import unittest
 from datetime import datetime, timedelta
 
@@ -22,6 +23,7 @@ class _Bot(BaseParts):
         self.prompts = []
         self.memories = self
         self.memory_entry = self  # 假的 MemoryEntry：规则就写在下面
+        self.settings = types.SimpleNamespace(get=lambda key: "")
 
     # 假的 Memories：records 就是 _memory
     @property

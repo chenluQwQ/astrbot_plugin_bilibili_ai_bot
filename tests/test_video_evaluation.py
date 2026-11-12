@@ -79,7 +79,7 @@ class VideoEvaluationSchemaTests(unittest.TestCase):
         result = self.parse(payload(want_dynamic=True, dynamic_angle="想说说"))
         self.assertEqual(result["dynamic_kind"], "分享")  # 没写类型按分享（旧输出）
         self.assertEqual(self.parse(payload())["dynamic_kind"], "")
-        for kind in ("吐槽", "段子", "搬运", "分享"):
+        for kind in ("吐槽", "段子", "分享", "转发"):
             result = self.parse(payload(want_dynamic=True, dynamic_angle="想说说", dynamic_kind=kind))
             self.assertEqual(result["dynamic_kind"], kind)
         for bad in (
