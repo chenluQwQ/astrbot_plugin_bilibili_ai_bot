@@ -54,7 +54,7 @@ _install_astrbot_stub()
 
 import asyncio
 
-from core.server_ext import image_gallery
+from core.server_ext import gallery_workflow, image_gallery
 
 NOW = 1_700_000_000.0
 DAY = 24 * 3600
@@ -78,6 +78,16 @@ class GalleryRetentionTests(unittest.TestCase):
 
     def test_limit_is_200(self):
         self.assertEqual(image_gallery.GALLERY_LIMIT, 200)
+
+    def test_preview_returns_only_newest_available(self):
+        for i in range(14):
+            self._insert(f"{i:064x}", NOW - i)
+        self._insert("f" * 64, NOW + 1, status="evicted")  # 最新但已淘汰，不应出现
+        items = gallery_workflow.preview(12)
+        self.assertEqual(len(items), 12)
+        self.assertEqual(items[0]["created_at"], NOW)
+        # 文件不存在时单张缩略图留空，不抛异常拖垮整页。
+        self.assertTrue(all(item["thumbnail"] == "" for item in items))
 
     def test_stale_candidates_only_old_and_low_weight(self):
         old = NOW - 8 * DAY

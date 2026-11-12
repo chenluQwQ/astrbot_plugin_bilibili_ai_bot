@@ -46,6 +46,7 @@ const state = {
   memoryCleanup: {},
   memoryCleanupTimer: null,
   profiles: [],
+  gallery: {},
   today: {},
   todayDate: "",
   interest: {},
@@ -352,6 +353,13 @@ function buildMock() {
       { name: "示例用户C", user_id: "demo_c", affection: 34, relationship: "普通", impression: "偶尔在评论区交流", tags: ["番剧"], facts_count: 2, video_refs_count: 3, last_interaction: "2026-08-11 11:18" },
     ],
     security: { today_total: 21, by_type: { low_value_filtered: 9, duplicate_filtered: 5, ad_filtered: 4, bili_tool_denied: 3 }, tool_isolation: true, allowed_tools: ["bili_up_info", "bili_video_search", "web_search"], prompt_defense: true, memory_mode: "isolated" },
+    gallery: {
+      limit: 200, available: 4, evicted: 0, stale_days: 7, low_weight: 5,
+      items: ["#f6c9d8", "#cfe0f7", "#d8ecd6", "#f7e6c4"].map((color, index) => ({
+        asset_id: `preview-${index}`, description: `示例配图 ${index + 1}`, uses: [6, 3, 1, 0][index], likes: 5, created_at: 0,
+        thumbnail: `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" fill="${color}"/><circle cx="36" cy="30" r="12" fill="rgba(255,255,255,.8)"/><rect x="14" y="48" width="44" height="6" rx="3" fill="rgba(255,255,255,.8)"/></svg>`)}`,
+      })),
+    },
     availableTools: [
       { name: "bili_up_info", label: "UP 主信息", description: "读取公开 UP 主资料", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
       { name: "bili_video_search", label: "视频搜索", description: "查询公开 B站视频", origin: "bilibot", origin_name: "BiliBot 安全适配器", active: true, compatible: true, reason: "插件内置只读安全适配器" },
@@ -540,7 +548,7 @@ function unwrap(result) {
 async function apiGet(path, query = {}) {
   if (isPreview) {
     await sleep(70);
-    const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "memory/cleanup": mock.memoryCleanup, "profiles": mock.profiles, "interest/status": mock.interest, "security/stats": mock.security, "tools/available": mock.availableTools, "cache/stats": mock.cache };
+    const map = { "stats": mock.stats, "persona/state": mock.persona, "config/schema": mock.schema, "config": mock.config, "account/info": mock.account, "schedule/today": mock.schedule, "schedule/stats": mock.scheduleStats, "memory/stats": mock.memory, "memory/cleanup": mock.memoryCleanup, "profiles": mock.profiles, "interest/status": mock.interest, "security/stats": mock.security, "gallery": mock.gallery, "tools/available": mock.availableTools, "cache/stats": mock.cache };
     if (path === "today") return structuredClone({ ...mock.today, date: query.date || mock.today.date });
     if (path === "account/qr/generate") return { image: "", key: "preview", expires_in: 180 };
     if (path === "account/qr/poll") return { status: "waiting", message: "预览模式不连接真实账号" };
@@ -799,10 +807,11 @@ async function loadBase() {
 
 async function refreshPageData(page) {
   if (page === "overview") {
-    const [stats, persona, account, scheduleStats, security] = await Promise.all([
+    const [stats, persona, account, scheduleStats, security, gallery] = await Promise.all([
       apiGet("stats"), apiGet("persona/state"), apiGet("account/info"), apiGet("schedule/stats"), apiGet("security/stats"),
+      apiGet("gallery").catch(() => ({})),
     ]);
-    Object.assign(state, { stats: stats || {}, persona: persona || {}, account: account || {}, scheduleStats: scheduleStats || {}, security: security || {} });
+    Object.assign(state, { stats: stats || {}, persona: persona || {}, account: account || {}, scheduleStats: scheduleStats || {}, security: security || {}, gallery: gallery || {} });
   } else if (page === "autonomy") {
     const [schedule, scheduleStats] = await Promise.all([apiGet("schedule/today"), apiGet("schedule/stats")]);
     state.schedule = schedule || { events: [] };
@@ -1745,7 +1754,27 @@ function renderOverview() {
           ${monitorRow("记忆", `${fmt(s.memory_total)} 条 · ${fmt(s.profiles_total)} 个人`, "", true, "memory")}
         </div>
       </article>
-    </section>`;
+    </section>
+    ${renderGalleryBlock()}`;
+}
+
+// 收藏图库：只放最近 12 张缩略图和容量，够判断「有没有在攒图」就行。
+function renderGalleryBlock() {
+  const g = state.gallery || {};
+  const items = (g.items || []).filter((item) => item.thumbnail);
+  const total = num(g.available);
+  const limit = num(g.limit, 200);
+  const head = sectionHead("收藏的图片", `${fmt(total)} / ${fmt(limit)} 张 · 超 ${fmt(num(g.stale_days, 7))} 天且低权重的会自动清掉`, "sun");
+  if (!items.length) {
+    return `<section class="card gallery-card">${head}<p class="gallery-empty">还没有收藏的图片。评论配图会边用边攒，攒满 ${fmt(limit)} 张后先清掉没怎么用过的旧图。</p></section>`;
+  }
+  return `<section class="card gallery-card">${head}
+    <div class="gallery-grid">${items.map((item) => `<figure class="gallery-cell" title="${esc(item.description || "")}">
+      <img src="${esc(item.thumbnail)}" alt="${esc(item.description || "收藏的图片")}" loading="lazy" />
+      <figcaption>${fmt(item.uses)} 次</figcaption>
+    </figure>`).join("")}</div>
+    ${total > items.length ? `<p class="gallery-more">还有 ${fmt(total - items.length)} 张没显示</p>` : ""}
+  </section>`;
 }
 
 // 总览最上面那张角色卡：先看到「它」，再看数字。

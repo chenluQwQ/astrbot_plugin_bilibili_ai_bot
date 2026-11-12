@@ -1479,6 +1479,15 @@ button:disabled { cursor: wait; opacity: .58; transform: none !important; }
 .monitor-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 .monitor-dot.warn { background: var(--orange); }
 
+/* ---- 总览：收藏的图片 ---- */
+.gallery-card { margin-top: 16px; padding: 22px 26px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+.gallery-cell { position: relative; margin: 0; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-muted); }
+.gallery-cell img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.gallery-cell figcaption { position: absolute; right: 4px; bottom: 4px; padding: 1px 5px; border-radius: 999px; background: rgba(35,28,32,.62); color: #fff; font-size: 10.5px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.gallery-empty { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.gallery-more { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+
 /* ---- 今天：日记时间线 ---- */
 .today-head { margin-bottom: 18px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .today-head p { margin: 0 0 4px; color: var(--muted); font-size: 13.5px; }
