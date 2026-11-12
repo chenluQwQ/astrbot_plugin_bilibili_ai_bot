@@ -2608,6 +2608,20 @@
     "max": 12,
     "hint": "每天最多调用几次视觉模型识别新图；0 表示当天不识别。"
   },
+  "FUSION_HOT_REPLY_ENABLED": {
+    "description": "【融合插件】热评楼中楼回复",
+    "type": "bool",
+    "default": false,
+    "hint": "看完视频并发布主评论后，按下面的条数从前 10 条热评里挑着回复。设置位置：AstrBot 管理面板 → 插件 → BiliBot → 配置（本页）。默认关闭；发送结果未知时不会自动重试。"
+  },
+  "PROACTIVE_HOT_REPLY_COUNT": {
+    "description": "【融合插件】热评楼中楼回复条数",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 10,
+    "hint": "每次最多回复几条热评；0 表示按默认 1 条处理。「热评楼中楼回复」关闭时此项不生效。"
+  },
   "PROXY_URL": {
     "description": "【系统】代理地址（可选）",
     "type": "string",

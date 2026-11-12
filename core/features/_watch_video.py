@@ -208,7 +208,16 @@ class WatchVideo(HostView):
                 actions.append("⭐收藏")
                 logger.info("[BiliBot] ⭐ 收藏成功")
         if "comment" in chosen and watch_round.per_video_comment and score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 0) and watch_round.comment_count < watch_round.daily_comment_limit and self.settings.get("PROACTIVE_COMMENT"):
-            await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
+            sent_comment = await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
+            if sent_comment:
+                # 热评楼中楼：主评论成功后按开关补几条，默认 0 = 关闭。
+                try:
+                    from ..server_ext import hot_reply
+                    await hot_reply.reply_hot_comments(
+                        self._host, bvid=bvid, oid=oid, title=video.get("title", "")
+                    )
+                except Exception as exc:
+                    logger.warning(f"[BiliBot] 热评楼中楼跳过: {exc}")
         if (
             watch_round.policy.recommends_to_owner
             and bvid not in getattr(self, "_owner_recommended_bvids", set())
@@ -222,7 +231,7 @@ class WatchVideo(HostView):
         proactive_comment = await self.video_evaluate._generate_proactive_comment(analysis_info, video_description)
         sync = self.dynamic_post.comment_syncs()
         if not proactive_comment:
-            return
+            return False
         sent = await self.outward_actions._execute_proactive_action(
             f"{watch_round.action_key_prefix}_comment:{bvid}",
             "proactive_comment",
@@ -231,7 +240,7 @@ class WatchVideo(HostView):
             metadata={"text": proactive_comment[:200], "title": video.get("title", "")[:80]},
         )
         if not sent.success:
-            return
+            return False
         if sync:
             self.dynamic_post.comment_synced(bvid, proactive_comment, video.get("title", ""))
         actions.append("💬评论")
@@ -247,6 +256,7 @@ class WatchVideo(HostView):
         if own_rpid:
             entry["own_rpid"] = str(own_rpid)
         self.activity_logs.proactive.append(entry)
+        return True
 
     async def _maybe_follow_video_up(self, video, score, actions):
         if score < self._proactive_score_threshold("PROACTIVE_FOLLOW_MIN_SCORE", 0) or not self.settings.get("PROACTIVE_FOLLOW"):
