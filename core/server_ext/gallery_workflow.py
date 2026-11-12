@@ -115,6 +115,11 @@ async def collect(bot, sources):
     batch = int(number(bot, "GALLERY_COLLECT_PER_BROWSE", 2, 0, 2))
     daily = int(number(bot, "GALLERY_CAPTION_DAILY_MAX", 12, 0, 12))
     async with _COLLECT_LOCK:
+        # 每次采图前顺手清一批过期低权重图片；清理失败不影响本次采集。
+        try:
+            await gallery.prune_stale(bot)
+        except Exception:
+            pass
         for source in list(sources)[:20]:
             if attempts >= batch:
                 break
