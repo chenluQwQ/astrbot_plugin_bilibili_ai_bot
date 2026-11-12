@@ -24,9 +24,10 @@ class MemoryEntry(HostView):
         if not rec.get("memory_type"):
             thread_id = str(rec.get("thread_id", ""))
             text = str(rec.get("text", ""))
-            if thread_id == "dynamic" or "Bot发了一条动态" in text:
+            # 记录里的说法 2026-11-12 从「Bot……」改成第一人称，旧的新的都认
+            if thread_id == "dynamic" or "Bot发了一条动态" in text or "我发了一条动态" in text:
                 rec["memory_type"] = "dynamic"
-            elif thread_id.startswith("video:") or thread_id == "proactive_watch" or "Bot看了视频" in text or "视频分析记忆" in text:
+            elif thread_id.startswith("video:") or thread_id == "proactive_watch" or "Bot看了视频" in text or "我看了视频" in text or "视频分析记忆" in text:
                 rec["memory_type"] = "video"
             elif text.startswith("[记忆压缩]") or text.startswith("[评论区总结]"):
                 rec["memory_type"] = "user_summary"

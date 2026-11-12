@@ -126,7 +126,7 @@ want_repost 是想不想把这条原样转发到自己的动态、让关注你�
                     extra.update(importance=importance, scored_by="reply_model")
                 await self.memory_writer._save_self_memory_record(
                     f"dynamic_watch:{dynamic_id}",
-                    f"[{record['time']}] 关注动态：{record['up_name']} 发布了「{summary}」",
+                    f"[{record['time']}] 刷到关注的{record['up_name']}发了动态：{summary}",
                     memory_type="dynamic",
                     extra=extra,
                 )

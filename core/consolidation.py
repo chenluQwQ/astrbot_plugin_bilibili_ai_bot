@@ -525,7 +525,7 @@ class ConsolidationEngine:
         ).strip()
         trace = trace[:120].rstrip()
         meta = "、".join(part for part in (f"UP主：{owner}" if owner else "", f"分区：{zone}" if zone else "") if part)
-        prefix = f"[看过·已淡忘] Bot看过视频《{title}》"
+        prefix = f"[看过·已淡忘] 我看过视频《{title}》"
         if meta:
             prefix += f"（{meta}）"
         return f"{prefix}。大概是：{trace}" if trace else prefix + "。"

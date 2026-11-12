@@ -370,7 +370,7 @@ class Bangumi(HostView):
 
             # 保存到通用记忆（memory_type=bangumi）
             memory_text = (
-                f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] Bot看了番剧"
+                f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] 我看了番剧"
                 f"《{season_info['title']}》第{ep_index}话{ep_title} "
                 f"评分:{score}/10 心情:{mood} 感想:{review[:60]}"
             )
