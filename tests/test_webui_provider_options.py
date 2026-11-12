@@ -27,8 +27,16 @@ class ProviderOptionTests(unittest.TestCase):
         for key in provider_keys:
             self.assertEqual(schema[key]["options"], ["", "main", "vision"])
             self.assertEqual(schema[key]["option_labels"][""], "跟随 AstrBot 默认")
-            self.assertEqual(schema[key]["option_labels"]["main"], "main（gpt-x）")
+            # 下拉只展示模型名；provider id 仍是保存的值。
+            self.assertEqual(schema[key]["option_labels"]["main"], "gpt-x")
             self.assertEqual(schema[key]["option_labels"]["vision"], "vision")
+
+    def test_duplicate_provider_ids_are_listed_once(self):
+        schema = config_page._schema_with_choices(
+            plugin_with(provider("main", "gpt-x"), provider("main", "gpt-y"), provider("vision", "vision"))
+        )
+        self.assertEqual(schema["LLM_PROVIDER_ID"]["options"], ["", "main", "vision"])
+        self.assertEqual(schema["LLM_PROVIDER_ID"]["option_labels"]["main"], "gpt-x")
 
     def test_without_providers_fields_stay_free_text(self):
         schema = config_page._schema_with_choices(plugin_with())

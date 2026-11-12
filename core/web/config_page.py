@@ -79,6 +79,7 @@ def _provider_choices(plugin: Any) -> list[tuple[str, str]]:
     if not callable(getter):
         return []
     choices = []
+    seen = set()
     for provider in getter() or []:
         try:
             meta = provider.meta()
@@ -87,8 +88,13 @@ def _provider_choices(plugin: Any) -> list[tuple[str, str]]:
         provider_id = str(getattr(meta, "id", "") or "").strip()
         if not provider_id:
             continue
+        # 多上游插件会把同名 provider 重复注册，下拉框按 id 去重；值相同不影响选择。
+        if provider_id in seen:
+            continue
+        seen.add(provider_id)
         model = str(getattr(meta, "model", "") or "").strip()
-        choices.append((provider_id, f"{provider_id}（{model}）" if model and model != provider_id else provider_id))
+        # 下拉只展示模型名；provider id 仍作为 option 的值保存，无需显示前缀。
+        choices.append((provider_id, model or provider_id))
     return choices
 
 
