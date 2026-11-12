@@ -440,7 +440,7 @@ def _check_video_format_fallbacks_include_portrait_short_side():
     assert any("[width<=480]" in value for value in formats)
     assert formats[-2:] == [
         "bestvideo+bestaudio/best",
-        "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
+        "worstvideo+worstaudio/worst",
     ]
 
 

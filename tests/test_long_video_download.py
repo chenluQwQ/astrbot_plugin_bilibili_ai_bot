@@ -33,10 +33,22 @@ class LongVideoDownloadTest(unittest.TestCase):
         self.assertIsNone(download(probe, duration=3600))
         self.assertEqual(probe.timeouts, [1800])
 
-    def test_short_video_timeout_still_tries_other_formats(self):
+    def test_timeout_does_not_retry_other_formats(self):
+        # 同一视频的其他格式指向同一 CDN，超时后换格式只是把同样的等待再来一遍。
         probe = Probe([(124, "", "timeout")])
         self.assertIsNone(download(probe, duration=60))
-        self.assertEqual(probe.timeouts, [120] * len(probe.video_files._format_fallbacks(480)))
+        self.assertEqual(probe.timeouts, [120])
+
+    def test_network_error_is_reported_instead_of_later_format_error(self):
+        probe = Probe([
+            (1, "", "ERROR: unable to download video data: HTTP Error 503"),
+            (1, "", "ERROR: [BiliBili] BV1TEST12345: Requested format is not available."),
+        ])
+        with patch("core.infra.video_files.logger") as log:
+            self.assertIsNone(download(probe))
+            warnings = " ".join(str(call.args[0]) for call in log.warning.call_args_list)
+        self.assertEqual(len(probe.timeouts), 1)
+        self.assertIn("503", warnings)
 
 
 if __name__ == "__main__":

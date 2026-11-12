@@ -26,6 +26,13 @@ def _yt_dlp_error(stderr):
     return re.split(r"[;,.]? *please report this issue", text, flags=re.IGNORECASE)[0]
 
 
+# 这些错误和具体格式无关：同一视频的所有格式都指向同一个 CDN，换格式只是把同样的失败再等一遍。
+_NETWORK_ERROR_HINTS = (
+    "timed out", "timeout", "connection", "unable to download", "unable to connect",
+    "network is unreachable", "name resolution", "remote end closed", "ssl",
+)
+
+
 class VideoFiles:
     def __init__(self, host):
         self._host = host
@@ -41,7 +48,8 @@ class VideoFiles:
     async def _run_process(self, *args, **kwargs):
         return await self._host.processes._run_process(*args, **kwargs)
 
-    # 分辨率回退链：先尝试无需合并的 MP4，避免无 ffmpeg 时只留下 m4a；再尝试高质量音视频合并。
+    # 分辨率回退链：先尝试音视频分离后合并（B 站现在几乎只提供 DASH 分离流），
+    # 再退回无需合并的 MP4；没有 ffmpeg 时合并会立即失败并自动落到下一档。
     def _format_fallbacks(self, max_height=480):
         try:
             cap = max(144, int(max_height or 480))
@@ -56,6 +64,11 @@ class VideoFiles:
         formats = []
         for h in heights:
             formats.extend([
+                f"bestvideo[ext=mp4][height<={h}]+bestaudio[ext=m4a]/"
+                f"bestvideo[ext=mp4][width<={h}]+bestaudio[ext=m4a]/"
+                f"bestvideo[height<={h}]+bestaudio/"
+                f"bestvideo[width<={h}]+bestaudio/"
+                f"best[height<={h}]/best[width<={h}]",
                 # 横屏视频的短边通常是 height，竖屏视频的短边则是 width。
                 # 两种方向都纳入同一档回退，避免 360x640 这类竖屏视频
                 # 因 height>360 被误判为“没有 360p 格式”。
@@ -63,15 +76,12 @@ class VideoFiles:
                 f"best[ext=mp4][vcodec!=none][acodec!=none][width<={h}]/"
                 f"best[height<={h}][vcodec!=none][acodec!=none]/"
                 f"best[width<={h}][vcodec!=none][acodec!=none]",
-                f"bestvideo[ext=mp4][height<={h}]+bestaudio[ext=m4a]/"
-                f"bestvideo[ext=mp4][width<={h}]+bestaudio[ext=m4a]/"
-                f"bestvideo[height<={h}]+bestaudio/"
-                f"bestvideo[width<={h}]+bestaudio/"
-                f"best[height<={h}]/best[width<={h}]",
             ])
         formats.extend([
             "bestvideo+bestaudio/best",
-            "worst[ext=mp4][vcodec!=none]/worst[vcodec!=none]",
+            # 原来的 worst[vcodec!=none] 永远选不到东西：worst 只挑“音视频合一”的格式，
+            # DASH 视频没有这种格式，最后一档必然报 Requested format is not available。
+            "worstvideo+worstaudio/worst",
         ])
         return formats
     _VIDEO_FILE_EXTS = {".mp4", ".mkv", ".webm", ".mov"}
@@ -141,6 +151,7 @@ class VideoFiles:
             return None
 
         last_err = ""
+        network_err = ""  # 网络类错误优先保留：它才是换格式也躲不掉的真实原因
         try:
             formats = self._format_fallbacks(max_height)
             total_formats = len(formats)
@@ -159,6 +170,9 @@ class VideoFiles:
                     "--cookies", cookie_file,
                     "--add-header", "Referer: https://www.bilibili.com",
                     "--limit-rate", "2M",
+                    # yt-dlp 默认单次连接等 20 秒、重试 10 次，CDN 不通时一档就要等好几分钟。
+                    "--socket-timeout", "15",
+                    "--retries", "2",
                     *proxy_args,
                     f"https://www.bilibili.com/video/{bvid}",
                     timeout=timeout,
@@ -173,13 +187,15 @@ class VideoFiles:
                     logger.info(f"[BiliBot] {last_err}({bvid})，{next_step}")
                     continue
                 if code == 124:
-                    last_err = f"下载超时（等了 {timeout} 秒）"
-                    if timeout > self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT:
-                        # 长视频已经等够久了，换格式只会从头再下一遍。
-                        logger.info(f"[BiliBot] {last_err}({bvid})，不再尝试其他格式")
-                        break
-                    continue
+                    network_err = f"下载超时（等了 {timeout} 秒）"
+                    last_err = network_err
+                    logger.info(f"[BiliBot] {last_err}({bvid})，同一视频的其他格式也会撞上同样的网络问题，不再尝试")
+                    break
                 last_err = _yt_dlp_error(redact_proxy_error(stderr, self.config))[:200] if stderr else "unknown error"
+                if any(hint in last_err.lower() for hint in _NETWORK_ERROR_HINTS):
+                    network_err = last_err
+                    logger.info(f"[BiliBot] 格式 {format_index}/{total_formats} 网络失败({bvid})，不再尝试其他格式: {last_err[:80]}")
+                    break
                 next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
                 logger.info(
                     f"[BiliBot] 格式 {format_index}/{total_formats} 下载失败({bvid})，"
@@ -191,8 +207,8 @@ class VideoFiles:
             except OSError:
                 pass
 
-        set_call_diagnostic(reason=safe_detail(last_err, self.config))
-        logger.warning(f"[BiliBot] 视频下载全部失败({bvid}): {safe_detail(last_err, self.config)}")
+        set_call_diagnostic(reason=safe_detail(network_err or last_err, self.config))
+        logger.warning(f"[BiliBot] 视频下载全部失败({bvid}): {safe_detail(network_err or last_err, self.config)}")
         return None
 
     def _cleanup_partial_downloads(self, bvid, output_dir=None):
