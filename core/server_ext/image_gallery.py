@@ -16,7 +16,10 @@ from ..config import DATA_DIR, PROACTIVE_LOG_FILE
 from .compat import activity_entries
 from .comment_media import comment_key, fingerprint, merge_images, normalize_images, publication_status
 
-GALLERY_LIMIT = 150
+GALLERY_LIMIT = 200
+# 低权重图片的保留期：超过这个天数且没被用过/喜欢程度低的先淘汰。
+STALE_AFTER_SECONDS = 7 * 24 * 3600
+LOW_WEIGHT_SCORE = 5
 _LOCK = asyncio.Lock()
 
 
@@ -150,7 +153,7 @@ def register_asset(bot, *, file_name: str, image: dict, embedding=None, model_ke
             return {"ok": True, "existing": True, "asset_id": old["asset_id"]}
         count = db.execute("SELECT count(*) FROM assets WHERE status='available'").fetchone()[0]
         if count >= GALLERY_LIMIT:
-            raise ValueError("图库已满 150 张，请先通过安全淘汰入口释放名额")
+            raise ValueError(f"图库已满 {GALLERY_LIMIT} 张，请先通过安全淘汰入口释放名额")
         db.execute("INSERT INTO assets(asset_id,sha256,file_name,snapshot,embedding,model_key,likes,created_at) "
                    "VALUES(?,?,?,?,?,?,?,?)",
                    (snapshot["asset_id"], sha, name, json.dumps(snapshot, ensure_ascii=False),
@@ -279,6 +282,32 @@ async def evict_asset(bot, asset_id: str, *, reason="manual") -> dict:
             return result
         except Exception as exc:
             return {"ok": False, "asset_id": asset_id, "pending": True, "reason": str(exc)[:200]}
+
+
+def stale_candidates(now: float | None = None, *, limit: int = 10) -> list[str]:
+    """到期且低权重的可淘汰图片；只读，不改状态。权重口径与容量淘汰一致。"""
+    now = time.time() if now is None else now
+    with _db() as db:
+        if db is None:
+            return []
+        rows = db.execute(
+            "SELECT asset_id FROM assets WHERE status='available' AND created_at<? "
+            "AND (uses*2 + likes) < ? ORDER BY created_at, asset_id LIMIT ?",
+            (now - STALE_AFTER_SECONDS, LOW_WEIGHT_SCORE, max(1, int(limit))),
+        ).fetchall()
+        return [row[0] for row in rows]
+
+
+async def prune_stale(bot, now: float | None = None, *, limit: int = 10) -> dict:
+    """低权重图片过 7 天自动淘汰；单张失败只跳过，下一轮再试，不阻断采图。"""
+    removed = skipped = 0
+    for asset_id in stale_candidates(now, limit=limit):
+        result = await evict_asset(bot, asset_id, reason="stale_7d")
+        if result.get("ok"):
+            removed += 1
+        else:
+            skipped += 1
+    return {"removed": removed, "skipped": skipped}
 
 
 async def recover(bot) -> dict:
