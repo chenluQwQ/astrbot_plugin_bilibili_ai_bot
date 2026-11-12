@@ -2585,6 +2585,34 @@
       "BEHAVIOR_BUDGET_ENABLED": true
     }
   },
+  "FUSION_LIVINGMEMORY_ENABLED": {
+    "description": "【融合插件】LivingMemory 记忆同步",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后自动把看片、评论、私信记录写入 LivingMemory：按下面的间隔同步，回看最近几天，已写过的不会重复。设置位置：AstrBot 管理面板 → 插件 → BiliBot → 配置（本页）。关闭后停止写入，已有记忆不受影响。"
+  },
+  "LIVINGMEMORY_SESSION_UMO": {
+    "description": "【融合插件】记忆写入的目标会话 UMO",
+    "type": "string",
+    "default": "",
+    "hint": "留空则跟随「主人 QQ 私聊 UMO」。格式为 平台实例ID:消息类型:会话ID。"
+  },
+  "LIVINGMEMORY_SYNC_INTERVAL_MINUTES": {
+    "description": "【融合插件】LivingMemory 同步间隔（分钟）",
+    "type": "int",
+    "default": 10,
+    "min": 2,
+    "max": 720,
+    "hint": "每多少分钟自动同步一次看片、评论、私信记录；范围 2-720。"
+  },
+  "LIVINGMEMORY_SYNC_WINDOW_DAYS": {
+    "description": "【融合插件】LivingMemory 每次回看的天数",
+    "type": "int",
+    "default": 3,
+    "min": 1,
+    "max": 60,
+    "hint": "每次同步回看最近几天的记录；范围 1-60。"
+  },
   "PROXY_URL": {
     "description": "【系统】代理地址（可选）",
     "type": "string",
