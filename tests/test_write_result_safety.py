@@ -155,6 +155,36 @@ class HttpWriteSafetyTests(unittest.IsolatedAsyncioTestCase):
         await bot.bili_comments._send_comment(1, "hello", sync_to_dynamic=True)
         self.assertEqual(bot.bili_http._http_post.await_args.kwargs["data"]["sync_to_dynamic"], 1)
 
+    async def test_comment_pictures_and_mentions_are_serialized(self):
+        """评论附图：pictures 必须是 JSON 字符串；@ 只能拼进正文前缀。"""
+        bot = WriteProbe()
+        bot.bili_http._http_post = AsyncMock(
+            return_value=({"code": 0, "data": {"rpid": 42}}, None)
+        )
+        sink = {}
+        posted = await bot.bili_comments._send_comment(
+            1,
+            "好看",
+            at_names=["小明"],
+            result_sink=sink,
+            pictures=[{
+                "img_src": "https://i0.hdslb.com/a.jpg",
+                "img_width": 10,
+                "img_height": 20,
+                "img_size": 30,
+            }],
+        )
+        data = bot.bili_http._http_post.await_args.kwargs["data"]
+        self.assertEqual(json.loads(data["pictures"]), [{
+            "img_src": "https://i0.hdslb.com/a.jpg",
+            "img_width": 10,
+            "img_height": 20,
+            "img_size": 30,
+        }])
+        self.assertEqual(data["message"], "@小明 好看")
+        self.assertEqual(sink, {"send_status": "published", "rpid": "42"})
+        self.assertEqual(posted.rpid, 42)
+
 
 class DynamicFallbackSafetyTests(unittest.IsolatedAsyncioTestCase):
     async def test_image_dynamic_unknown_never_falls_back_to_text(self):

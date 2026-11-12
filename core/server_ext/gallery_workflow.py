@@ -357,10 +357,102 @@ async def select(bot, text, *, title="", diagnostic=None):
     return None
 
 
-async def send(bot, oid, text, *, bvid, title, at_names, result_sink):
+async def send(bot, oid, text, *, bvid, title, at_names=None, result_sink=None, sync_to_dynamic=False):
     """在现有行为队列内配图；上传失败可退回文字，发出评论后绝不补发。
 
-    2.0.3 的 ``bili_comments._send_comment`` 不支持 pictures/at_names/result_sink，
-    这个入口在上游暂无调用方；等上游支持图片评论后再接入，避免静默丢掉配图。
-    """
-    raise NotImplementedError("2.0.3 暂不支持评论附带图片")
+    关闭「评论自动配图」或没有记忆目标会话时，完全不碰图库，直接发纯文字评论，
+    与 2.0.3 原有行为一致。开启后才建 comment_attempts 防重复记录：请求发出前
+    先登记 ``unknown``，断电/重载后另一条浏览路径也不会盲目补发。"""
+    sink = result_sink if result_sink is not None else {}
+    sink.clear()
+    sink.update(send_status="unknown", images=[])
+    try:
+        from . import livingmemory_bridge as bridge
+        enabled = config_value(bot, "GALLERY_COMMENT_ENABLED", False) and bool(bridge.target_umo(bot))
+    except Exception:
+        # 宿主缺少 AstrBot 的记忆组件时按未开启处理，不阻断纯文字评论。
+        bridge, enabled = None, False
+    if not enabled:
+        # 没开附图时保持原行为：不建库、不做防重复，也不带任何新参数。
+        return await bot.bili_comments._send_comment(oid, text, sync_to_dynamic=sync_to_dynamic)
+
+    # 选图到发送完成期间防止安全淘汰删掉正在使用的图片。
+    async with gallery._LOCK:
+        target = f"video:{oid}"
+        with gallery._db(create=True) as db:
+            previous = db.execute("SELECT state FROM comment_attempts WHERE target=?", (target,)).fetchone()
+            if previous and previous[0] in {"unknown", "published"}:
+                sink["send_status"] = "unknown" if previous[0] == "unknown" else "failed"
+                if previous[0] == "unknown":
+                    raise TimeoutError("gallery_comment_send_result_unknown")
+                return False
+        scope, selected = None, None
+        diagnostic = {"reason": "no_memory_target"}
+        try:
+            persona = await asyncio.wait_for(bridge._resolve_persona_id(bot.context, bridge.target_umo(bot)), 3)
+            scope = fingerprint([bridge.target_umo(bot), persona])
+            selected = await select(bot, text, title=title, diagnostic=diagnostic)
+        except Exception as exc:
+            diagnostic.update(reason="selection_unavailable")
+            logger.warning(f"[BiliBot Gallery] 选图失败，退回文字：{type(exc).__name__}")
+        images, picture = [], None
+        if selected:
+            try:
+                name = gallery._filename(selected["file_name"])
+                _, files = gallery._paths()
+                with gallery._file_dir() as directory:
+                    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+                    with os.fdopen(fd, "rb") as source:
+                        if hashlib.file_digest(source, "sha256").hexdigest() != selected["sha256"]:
+                            raise ValueError("图片内容已变化")
+                picture = await asyncio.wait_for(
+                    bot.bili_dynamics._upload_image_to_bilibili(str(files / name)), 8)
+                if picture and public_bili_url(picture.get("img_src")):
+                    images = [dict(selected["image"], published_url=public_bili_url(picture["img_src"]),
+                                   use_reason=diagnostic.get("judgment_reason") or "与评论文字的情绪和含义匹配")]
+                else:
+                    picture = None
+                    diagnostic.update(reason="upload_failed")
+            except Exception as exc:
+                diagnostic.update(reason="upload_failed")
+                logger.warning(f"[BiliBot Gallery] 上传失败，退回文字：{type(exc).__name__}")
+                picture = None
+        sent = {}
+        # 请求发出前登记为未知；断电/插件重载后，另一条浏览路径也不能盲目补发。
+        with gallery._db(create=True) as db, db:
+            db.execute("INSERT INTO comment_attempts(target,state,updated_at,selection) VALUES(?,'unknown',?,?) "
+                       "ON CONFLICT(target) DO UPDATE SET state='unknown',updated_at=excluded.updated_at,selection=excluded.selection",
+                       (target, time.time(), json.dumps(dict(diagnostic, bvid=bvid), ensure_ascii=False)))
+        ok = await bot.bili_comments._send_comment(
+            oid, text, at_names=at_names, result_sink=sent,
+            pictures=[picture] if picture else None, sync_to_dynamic=sync_to_dynamic,
+        )
+        sink.update(sent)
+        sink["image_selection"] = diagnostic
+        try:
+            with gallery._db() as db, db:
+                db.execute("UPDATE comment_attempts SET state=?,rpid=?,updated_at=? WHERE target=?",
+                           (sent.get("send_status", "unknown"), str(sent.get("rpid") or ""), time.time(), target))
+        except Exception as exc:
+            logger.error(f"[BiliBot Gallery] 发送凭据待核对：{type(exc).__name__}")
+        sink["images"] = images if ok and sent.get("send_status") == "published" else []
+        if sink["images"]:
+            record = {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "bvid": bvid,
+                      "title": title, "comment": text, **sink}
+            try:
+                await gallery.retain_publication(bot, record, scope=scope)
+            except Exception as exc:
+                # 发送成功不能因后续记忆异常变成“失败”而引发重复发布。
+                try:
+                    bot.activity_logs.proactive.append(record)
+                except Exception:
+                    from ..config import PROACTIVE_LOG_FILE
+                    log = proactive_entries(bot)
+                    log.append(record)
+                    save_json(bot, PROACTIVE_LOG_FILE, log)
+                logger.error(f"[BiliBot Gallery] 历史留存待恢复：{type(exc).__name__}")
+        logger.info(f"[BiliBot Gallery] route=gallery.comment status={sent.get('send_status')} images={len(sink['images'])}")
+        if not ok and sent.get("send_status") == "unknown":
+            # bool False 会被行为队列当作“明确失败，可重试”；未知结果必须保留 UNKNOWN。
+            raise TimeoutError("gallery_comment_send_result_unknown")
+        return ok
