@@ -120,7 +120,7 @@ class ToolExecutionSecurityTests(unittest.TestCase):
         self.assertIn("无法确认", missing)
         foreign = run(
             search.call(
-                tool_context(FakeEvent(platform="discord")), keyword="hello"
+                tool_context(FakeEvent(platform="bilibili")), keyword="hello"
             )
         )
         self.assertIn("不支持", foreign)
@@ -146,6 +146,59 @@ class ToolExecutionSecurityTests(unittest.TestCase):
         )
         self.assertIn("BV1test", result)
         self.plugin.bili_videos.search_bilibili_videos.assert_awaited_once()
+
+    def _search_results(self):
+        self.plugin.bili_videos.search_bilibili_videos = AsyncMock(
+            return_value=[{"title": "公开视频", "author": "UP", "bvid": "BV1test", "play": 1, "duration": "00:10"}]
+        )
+
+    def test_other_platform_admin_private_chat_can_use_tools(self):
+        self._search_results()
+        result = run(
+            self.tools["search_bilibili"].call(
+                tool_context(FakeEvent(platform="telegram", sender="555", admin=True)), keyword="公开视频"
+            )
+        )
+        self.assertIn("BV1test", result)
+
+    def test_other_platform_id_never_matches_qq_admin_list(self):
+        self.config["ADMIN_QQ_IDS"] = ["10001"]
+        self._search_results()
+        qq = run(self.tools["search_bilibili"].call(tool_context(FakeEvent(sender="10001")), keyword="x"))
+        self.assertIn("BV1test", qq)
+        telegram = run(
+            self.tools["search_bilibili"].call(
+                tool_context(FakeEvent(platform="telegram", sender="10001")), keyword="x"
+            )
+        )
+        self.assertIn("只有管理员", telegram)
+
+    def test_other_platform_sessions_stay_apart_from_qq(self):
+        qq = self.runtime.caller_from_tool_context(tool_context(FakeEvent(sender="10001")))
+        telegram = self.runtime.caller_from_tool_context(tool_context(FakeEvent(platform="telegram", sender="10001")))
+        self.assertEqual(qq.actor_id, "qq:10001")
+        self.assertEqual(telegram.actor_id, "telegram:10001")
+        self.assertNotEqual(qq.session_id, telegram.session_id)
+
+    def test_other_platform_group_user_gets_no_tools_by_default(self):
+        self._search_results()
+        result = run(
+            self.tools["search_bilibili"].call(
+                tool_context(FakeEvent(platform="discord", group="777")), keyword="x"
+            )
+        )
+        self.assertIn("只有管理员", result)
+        self.plugin.bili_videos.search_bilibili_videos.assert_not_awaited()
+
+    def test_bilibili_tool_loop_events_are_never_chat_callers(self):
+        self._search_results()
+        result = run(
+            self.tools["search_bilibili"].call(
+                tool_context(FakeEvent(platform="bilibili", sender="42", admin=True)), keyword="x"
+            )
+        )
+        self.assertIn("不支持", result)
+        self.plugin.bili_videos.search_bilibili_videos.assert_not_awaited()
 
     def test_ordinary_group_user_gets_no_tools_by_default(self):
         self.plugin.bili_videos.search_bilibili_videos = AsyncMock(return_value=[])
