@@ -131,6 +131,19 @@ class StagedKeepTests(unittest.TestCase):
         ])
         self.assertEqual(len([k for k in bot.files if "memory_forgotten_backup_" in k]), 1)
 
+    def test_chat_and_dynamic_days_follow_config(self):
+        memories = [
+            _chat("low_8", 8, 3),                        # 低分保留改成 10 天，第 8 天还在
+            _chat("low_11", 11, 3),
+            _chat("long_40", 40, 7, level="long_term"),  # 只留高分改成 30 天
+            _chat("long_20", 20, 7, level="long_term"),
+            _dynamic("dyn_45", 45, 7),                   # 动态：14 + 30 天
+            _dynamic("dyn_40", 40, 7),
+        ]
+        bot = _Bot(memories, MEMORY_LOW_SCORE_KEEP_DAYS=10, MEMORY_LONG_TERM_KEEP_DAYS=30)
+        self.assertEqual(self.engine(bot)._forget_by_score(), 3)
+        self.assertEqual(self.kept(bot), ["low_8", "long_20", "dyn_40"])
+
     def test_own_content_gets_double_the_days(self):
         memories = [
             _chat("own_low_8", 8, 3, own_content=True),

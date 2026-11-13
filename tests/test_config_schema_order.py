@@ -72,12 +72,13 @@ class ConfigSchemaOrderTests(unittest.TestCase):
 
     def test_video_memory_switch_precedes_lifecycle_windows(self):
         self.assert_contiguous([
-            "VIDEO_VISUAL_ANALYSIS_POLICY",
             "ENABLE_VIDEO_LONG_TERM_MEMORY",
             "VIDEO_MEMORY_DETAIL_DAYS",
             "VIDEO_MEMORY_FADE_DAYS",
             "VIDEO_LOW_SCORE_FORGET_BELOW",
             "VIDEO_LOW_SCORE_FORGET_DAYS",
+            "MEMORY_LOW_SCORE_KEEP_DAYS",
+            "MEMORY_LONG_TERM_KEEP_DAYS",
         ])
         self.assertTrue(self.schema["ENABLE_VIDEO_LONG_TERM_MEMORY"]["default"])
         self.assertEqual(self.schema["VIDEO_MEMORY_DETAIL_DAYS"]["default"], 15)

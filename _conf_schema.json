@@ -874,56 +874,6 @@
     ],
     "hint": "文字信息不够时才看（when_text_insufficient）：先读标题、简介、字幕、标签和热评，不够再分析画面。每次都看（always）：费用更高。"
   },
-  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
-    "description": "【主动看视频】保存视频长期记忆",
-    "type": "bool",
-    "default": true,
-    "hint": "开启后看过的视频会写成可按意思检索的记忆：前 15 天保留完整印象，之后降低检索权重；第 15 天删除低分的，第 90 天删除 7 分以下的，第 180 天只留 8 分以上的并精简为 BV 号和一句话印象。Bot 自己的视频各个天数加倍。关闭时仍保留视频分析缓存。"
-  },
-  "VIDEO_MEMORY_DETAIL_DAYS": {
-    "description": "【主动看视频】完整保留天数",
-    "type": "int",
-    "default": 15,
-    "min": 1,
-    "max": 60,
-    "hint": "默认 15 天，期间保留完整的内容概括和感想；之后降低检索权重。",
-    "condition": {
-      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
-    }
-  },
-  "VIDEO_MEMORY_FADE_DAYS": {
-    "description": "【主动看视频】精简为一句话的天数",
-    "type": "int",
-    "default": 180,
-    "min": 30,
-    "max": 730,
-    "hint": "默认 180 天。到期后只留评分 8 分以上的视频记忆，并且只保留 BV 号和看完时写的一句话印象（多留一句感想），只在高度相关时才会被检索到；其余的删除（删除前备份）。看过的记录不删除，不会重复看。不会小于上一项。",
-    "condition": {
-      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
-    }
-  },
-  "VIDEO_LOW_SCORE_FORGET_BELOW": {
-    "description": "【主动看视频】低分记忆的分数线",
-    "type": "int",
-    "default": 5,
-    "min": 0,
-    "max": 10,
-    "hint": "默认 5：评分低于 5 分的视频记忆，到下一项的天数后整条删除（删除前备份）。看过的记录保留，不会重复看。0 表示关闭所有按评分删除视频记忆的规则。",
-    "condition": {
-      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
-    }
-  },
-  "VIDEO_LOW_SCORE_FORGET_DAYS": {
-    "description": "【主动看视频】低分记忆保留天数",
-    "type": "int",
-    "default": 15,
-    "min": 1,
-    "max": 730,
-    "hint": "默认 15 天。低分的视频记忆至少保留这么多天。",
-    "condition": {
-      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
-    }
-  },
   "ENABLE_BANGUMI": {
     "description": "【番剧】番剧功能",
     "type": "bool",
@@ -1611,6 +1561,72 @@
     "editor_language": "markdown",
     "editor_theme": "vs-dark",
     "hint": "被反复冒犯后的态度：冷淡、划清界限，不对骂。"
+  },
+  "ENABLE_VIDEO_LONG_TERM_MEMORY": {
+    "description": "【记忆清理】保存视频长期记忆",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后看过的视频会写成可按意思检索的记忆：前 15 天保留完整印象，之后降低检索权重；第 15 天删除低分的，第 90 天删除 7 分以下的，第 180 天只留 8 分以上的并精简为 BV 号和一句话印象。Bot 自己的视频各个天数加倍。关闭时仍保留视频分析缓存。"
+  },
+  "VIDEO_MEMORY_DETAIL_DAYS": {
+    "description": "【记忆清理】视频记忆完整保留天数",
+    "type": "int",
+    "default": 15,
+    "min": 1,
+    "max": 60,
+    "hint": "默认 15 天，期间保留完整的内容概括和感想；之后降低检索权重。",
+    "condition": {
+      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
+    }
+  },
+  "VIDEO_MEMORY_FADE_DAYS": {
+    "description": "【记忆清理】视频记忆精简为一句话的天数",
+    "type": "int",
+    "default": 180,
+    "min": 30,
+    "max": 730,
+    "hint": "默认 180 天。到期后只留评分 8 分以上的视频记忆，并且只保留 BV 号和看完时写的一句话印象（多留一句感想），只在高度相关时才会被检索到；其余的删除（删除前备份）。看过的记录不删除，不会重复看。不会小于上一项。",
+    "condition": {
+      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
+    }
+  },
+  "VIDEO_LOW_SCORE_FORGET_BELOW": {
+    "description": "【记忆清理】视频低分记忆的分数线",
+    "type": "int",
+    "default": 5,
+    "min": 0,
+    "max": 10,
+    "hint": "默认 5：评分低于 5 分的视频记忆，到下一项的天数后整条删除（删除前备份）。看过的记录保留，不会重复看。0 表示关闭所有按评分删除视频记忆的规则。",
+    "condition": {
+      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
+    }
+  },
+  "VIDEO_LOW_SCORE_FORGET_DAYS": {
+    "description": "【记忆清理】视频低分记忆保留天数",
+    "type": "int",
+    "default": 15,
+    "min": 1,
+    "max": 730,
+    "hint": "默认 15 天。低分的视频记忆至少保留这么多天。",
+    "condition": {
+      "ENABLE_VIDEO_LONG_TERM_MEMORY": true
+    }
+  },
+  "MEMORY_LOW_SCORE_KEEP_DAYS": {
+    "description": "【记忆清理】聊天和动态低分记忆保留天数",
+    "type": "int",
+    "default": 7,
+    "min": 1,
+    "max": 90,
+    "hint": "默认 7 天。评论、私信聊天和动态记忆评分 3 分及以下的，记下满这么多天后删除（删除前备份）；2 分及以下的当晚就删，不受这项影响。Bot 自己的视频、动态和它们评论区里的聊天，天数加倍。"
+  },
+  "MEMORY_LONG_TERM_KEEP_DAYS": {
+    "description": "【记忆清理】聊天和动态只留高分的天数",
+    "type": "int",
+    "default": 90,
+    "min": 7,
+    "max": 730,
+    "hint": "默认 90 天。聊天进入长期记忆（动态进入近期记忆后再过 14 天）满这么多天，只留评分 8 分以上的，其余删除（删除前备份）。Bot 自己的内容天数加倍。"
   },
   "ENABLE_LLM_TOOLS": {
     "description": "【工具调用】QQ 里可以让 Bot 调用B站工具",

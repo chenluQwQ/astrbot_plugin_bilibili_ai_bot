@@ -109,7 +109,7 @@ const PAGE_KEYS = {
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
     "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE", "COMMENT_SYNC_DYNAMIC",
     "PROACTIVE_FOLLOW", "PROACTIVE_FOLLOW_MIN_SCORE", "CUSTOM_PROACTIVE_INSTRUCTION",
-    "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS",
+    "VIDEO_VISUAL_ANALYSIS_POLICY",
     "ENABLE_BANGUMI", "BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT",
     "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW", "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS",
     "DYNAMIC_POST_CHANCE", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_PROMPT",
@@ -130,6 +130,8 @@ const PAGE_KEYS = {
     "ENABLE_AFFECTION", "ENABLE_MOOD", "PROFILE_AFFECTION_LINE", "ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY",
     "FAVORITE_PROFILE_MIN_LEVEL", "FAVORITE_PROFILE_FRIENDS_PER_WEEK", "AFFECTION_PROMPT_SPECIAL", "AFFECTION_PROMPT_CLOSE",
     "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD",
+    "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS",
+    "MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS",
   ],
   security: [
     "ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS",
@@ -1885,7 +1887,7 @@ const EVENT_STYLES = {
 };
 
 const AUTONOMY_CAPABILITIES = [
-  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"] },
+  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY"] },
   { id: "prefilter", title: "视频来源与标题筛选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "开关控制看之前是否先按标题筛一遍；视频从哪里来（关注、视频池、搜索、口味）也在这里设置。", dependency: "需要先开主动看视频", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS"] },
   { id: "bangumi", title: "追番", icon: "video", toggle: "ENABLE_BANGUMI", description: "按日程看番剧、写评价、按评分评论和追番。要同时打开「主动追番」才会排进日程。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
   { id: "dynamic", title: "发动态", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按日程发 B站动态，内容来自看过的视频、番剧、站外订阅和搜索攒下的想法。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },
@@ -2389,6 +2391,7 @@ function renderMemory() {
         </article>
       </aside>
     </section>
+    ${renderConfigSection("记忆清理", "记忆按评分和天数分阶段删除，删除前都会备份；看过的视频不会因此重看", ["MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"], "trash")}
     ${renderConfigSection("好感度与画像", "好感度到了画像门槛的人才会记画像；每个好感等级用哪段提示词也在这里", ["ENABLE_AFFECTION", "ENABLE_MOOD", "PROFILE_AFFECTION_LINE", "AFFECTION_PROMPT_SPECIAL", "AFFECTION_PROMPT_CLOSE", "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD"], "heart")}
     ${renderConfigSection("看收藏夹修正画像", "每周一次，读主人和好感高的人公开的收藏夹，用来修正画像", ["ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY", "FAVORITE_PROFILE_MIN_LEVEL", "FAVORITE_PROFILE_FRIENDS_PER_WEEK"], "star")}`;
 }
@@ -2547,12 +2550,12 @@ function renderBasics() {
     }).join("") || `<div class="card empty-search">${icon("search")}<strong>没有匹配的配置</strong><span>换一个关键词试试。</span></div>`}</div>`;
 }
 
-const ALL_CONFIG_GROUPS = ["账号与主人", "人设与模型", "评论回复", "回复筛选", "回复时查资料与记事", "私信", "主动看视频", "番剧", "发动态", "关注动态与特别关注", "日程与作息", "好感度与画像", "工具调用", "分享解析", "给主人分享", "日报与周报", "性格演化", "联网搜索", "视觉模型", "图片生成", "记忆向量", "安全与隐私", "行为限流", "系统"];
+const ALL_CONFIG_GROUPS = ["账号与主人", "人设与模型", "评论回复", "回复筛选", "回复时查资料与记事", "私信", "主动看视频", "番剧", "发动态", "关注动态与特别关注", "日程与作息", "好感度与画像", "记忆清理", "工具调用", "分享解析", "给主人分享", "日报与周报", "性格演化", "联网搜索", "视觉模型", "图片生成", "记忆向量", "安全与隐私", "行为限流", "系统"];
 
 const ALL_CONFIG_GROUP_ICONS = {
   "账号与主人": "user", "人设与模型": "heart", "评论回复": "message", "回复筛选": "star", "回复时查资料与记事": "search",
   "私信": "message", "主动看视频": "play", "番剧": "video", "发动态": "message", "关注动态与特别关注": "star",
-  "日程与作息": "clock", "好感度与画像": "heart", "工具调用": "controller", "分享解析": "arrow-right", "给主人分享": "heart",
+  "日程与作息": "clock", "好感度与画像": "heart", "记忆清理": "trash", "工具调用": "controller", "分享解析": "arrow-right", "给主人分享": "heart",
   "日报与周报": "calendar", "性格演化": "star", "联网搜索": "search", "视觉模型": "video", "图片生成": "sun",
   "记忆向量": "memory-card", "安全与隐私": "shield", "行为限流": "clock", "系统": "settings",
 };
