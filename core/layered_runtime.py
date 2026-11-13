@@ -83,7 +83,8 @@ _PUBLIC_READ_TOOLS = {
 _PERSONA_ADMIN_TOOLS = {
     "bili_owner_feedback",
 }
-_QQ_PLATFORMS = {"aiocqhttp", "qq", "qqofficial", "napcat", "onebot"}
+# QQ 官方机器人在 AstrBot 里上报的平台名是 qq_official（带下划线）。
+_QQ_PLATFORMS = {"aiocqhttp", "qq", "qqofficial", "qq_official", "napcat", "onebot"}
 
 
 class LayeredRuntime:

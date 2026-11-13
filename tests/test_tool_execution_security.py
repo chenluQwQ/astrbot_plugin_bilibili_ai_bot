@@ -126,6 +126,27 @@ class ToolExecutionSecurityTests(unittest.TestCase):
         self.assertIn("不支持", foreign)
         self.plugin.bili_videos.search_bilibili_videos.assert_not_awaited()
 
+    def test_qq_official_admin_private_chat_can_use_tools(self):
+        self.plugin.bili_videos.search_bilibili_videos = AsyncMock(
+            return_value=[
+                {
+                    "title": "公开视频",
+                    "author": "UP",
+                    "bvid": "BV1test",
+                    "play": 1,
+                    "duration": "00:10",
+                }
+            ]
+        )
+        result = run(
+            self.tools["search_bilibili"].call(
+                tool_context(FakeEvent(platform="qq_official", sender="openid_abc", admin=True)),
+                keyword="公开视频",
+            )
+        )
+        self.assertIn("BV1test", result)
+        self.plugin.bili_videos.search_bilibili_videos.assert_awaited_once()
+
     def test_ordinary_group_user_gets_no_tools_by_default(self):
         self.plugin.bili_videos.search_bilibili_videos = AsyncMock(return_value=[])
         result = run(
