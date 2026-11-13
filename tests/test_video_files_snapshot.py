@@ -37,6 +37,9 @@ class Probe(VideoParts):
         return str(value).replace(self.folder, "<DIR>")
 
     async def _run_process(self, *command, timeout=None):
+        if "-J" in command:
+            # 线路探测在这里不启用，快照只记录直连下载命令
+            return 1, "", "probe disabled"
         step = self.script.pop(0) if self.script else (0, "", "")
         code, stdout, stderr, *files = step
         call = {"command": [self._clean(part) for part in command], "timeout": timeout}

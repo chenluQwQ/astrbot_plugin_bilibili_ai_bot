@@ -4,9 +4,12 @@
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 import re
 import shutil
+from urllib.parse import urlsplit, urlunsplit
 
 from astrbot.api import logger
 
@@ -153,6 +156,18 @@ class VideoFiles:
         last_err = ""
         network_err = ""  # 网络类错误优先保留：它才是换格式也躲不掉的真实原因
         try:
+            # 先探一次 CDN 线路：原线路在这台机器上不通时直接改走可达镜像，
+            # 省掉在死线路上反复等超时。这一步失败不影响后面的直连回退链。
+            try:
+                mirrored = await self._download_via_reachable_cdn(
+                    bvid, max_height, cookie_file, output_dir=output_dir, duration=duration
+                )
+            except Exception as exc:
+                logger.info(f"[BiliBot] CDN 线路探测失败({bvid})，按原逻辑下载: {exception_detail(exc, self.config)[:120]}")
+                mirrored = None
+            if mirrored:
+                return mirrored
+
             formats = self._format_fallbacks(max_height)
             total_formats = len(formats)
             for format_index, fmt in enumerate(formats, start=1):
@@ -210,6 +225,130 @@ class VideoFiles:
         set_call_diagnostic(reason=safe_detail(network_err or last_err, self.config))
         logger.warning(f"[BiliBot] 视频下载全部失败({bvid}): {safe_detail(network_err or last_err, self.config)}")
         return None
+
+    # B 站按访客所在运营商分配 CDN 域名：实测部分线路（cn-sh-cc-*，上海移动）在这台服务器上
+    # 完全连不上，而深圳对象存储线路正常。所有线路共用同一套路径和签名，只换域名就能取到
+    # 同一份数据，所以先探一次线路，不通就改走可达镜像，全程不依赖任何代理。
+    _CDN_MIRROR_HOSTS = (
+        "upos-sz-mirrorcos.bilivideo.com",
+        "upos-sz-estgcos.bilivideo.com",
+        "upos-sz-estgoss.bilivideo.com",
+    )
+    _CDN_PROBE_TIMEOUT = 3
+
+    @staticmethod
+    def _cdn_host(url):
+        """取出 B 站视频 CDN 的域名；不是 CDN 地址就返回空串。"""
+        try:
+            host = urlsplit(str(url)).hostname or ""
+        except ValueError:
+            return ""
+        return host if host.endswith(".bilivideo.com") else ""
+
+    async def _reachable_cdn_host(self, hosts):
+        """并发探 443，按传入顺序返回第一个连得上的域名。"""
+        async def probe(host):
+            try:
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection(host, 443), timeout=self._CDN_PROBE_TIMEOUT
+                )
+                writer.close()
+                return True
+            except Exception:
+                return False
+
+        for host, ok in zip(hosts, await asyncio.gather(*(probe(host) for host in hosts))):
+            if ok:
+                return host
+        return ""
+
+    @staticmethod
+    def _swap_cdn_host(url, host):
+        parsed = urlsplit(str(url))
+        return urlunsplit((parsed.scheme, host, parsed.path, parsed.query, parsed.fragment))
+
+    async def _download_via_reachable_cdn(self, bvid, max_height, cookie_file, *, output_dir=None, duration=None):
+        """探一次 CDN 线路：原线路可达就返回 None 交给直连逻辑，不可达则换镜像域名后下载。
+
+        换域名只在拿到视频信息后做一次，任何一步失败都返回 None，由原有回退链兜底。
+        """
+        download_dir = output_dir or TEMP_VIDEO_DIR
+        # 不用 bvid 开头：_cleanup_partial_downloads 会删掉所有 bvid 前缀的文件
+        info_file = os.path.join(download_dir, f"_cdn_{bvid}.json")
+        try:
+            code, stdout, _ = await self._run_process(
+                "yt-dlp", "-J", "--no-playlist",
+                "--cookies", cookie_file,
+                "--add-header", "Referer: https://www.bilibili.com",
+                *download_proxy_args(self.config),
+                f"https://www.bilibili.com/video/{bvid}",
+                timeout=60,
+            )
+            if code != 0 or not stdout.strip():
+                return None
+            try:
+                info = json.loads(stdout)
+            except ValueError:
+                return None
+            entries = [item for item in (info.get("formats") or []) if isinstance(item, dict)]
+            hosts = []
+            for item in entries:
+                host = self._cdn_host(item.get("url"))
+                if host and host not in hosts:
+                    hosts.append(host)
+            if not hosts:
+                return None
+            # 先看原线路，全不可达才看镜像：避免把本来通的线路也换掉。
+            reachable = await self._reachable_cdn_host(hosts)
+            if not reachable:
+                reachable = await self._reachable_cdn_host(
+                    [host for host in self._CDN_MIRROR_HOSTS if host not in hosts]
+                )
+            if not reachable or reachable in hosts:
+                return None
+            changed = 0
+            for item in entries:
+                for key in ("url", "manifest_url"):
+                    value = item.get(key)
+                    if isinstance(value, str) and self._cdn_host(value):
+                        item[key] = self._swap_cdn_host(value, reachable)
+                        changed += 1
+                for fragment in item.get("fragments") or []:
+                    value = fragment.get("url")
+                    if isinstance(value, str) and self._cdn_host(value):
+                        fragment["url"] = self._swap_cdn_host(value, reachable)
+                        changed += 1
+            if not changed:
+                return None
+            with open(info_file, "w", encoding="utf-8") as handle:
+                json.dump(info, handle, ensure_ascii=False)
+            logger.info(f"[BiliBot] CDN 线路不可达({bvid})，改走 {reachable}")
+            output_template = os.path.join(download_dir, f"{bvid}.%(ext)s")
+            timeout = self._video_download_timeout(duration)
+            for fmt in self._format_fallbacks(max_height):
+                self._cleanup_partial_downloads(bvid, output_dir=output_dir)
+                code, _, _ = await self._run_process(
+                    "yt-dlp", "--load-info-json", info_file,
+                    "-o", output_template,
+                    "--format", fmt,
+                    "--no-playlist", "--merge-output-format", "mp4",
+                    "--recode-video", "mp4",
+                    "--limit-rate", "2M",
+                    "--socket-timeout", "15",
+                    "--retries", "2",
+                    timeout=timeout,
+                )
+                if code == 0:
+                    fp = self._pick_downloaded_video_file(bvid, output_dir=output_dir)
+                    if fp:
+                        logger.info(f"[BiliBot] 视频下载成功({bvid})，线路 {reachable}，格式: {fmt}")
+                        return fp
+            return None
+        finally:
+            try:
+                os.remove(info_file)
+            except OSError:
+                pass
 
     def _cleanup_partial_downloads(self, bvid, output_dir=None):
         """清理某个 bvid 的残留下载文件（不删 cookie）"""

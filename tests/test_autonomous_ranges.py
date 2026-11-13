@@ -450,6 +450,9 @@ def _check_video_download_uses_short_timeout_for_each_format():
     observed_formats = []
 
     async def fake_run_process(*args, **kwargs):
+        if "-J" in args:
+            # 线路探测在这里不启用，本用例只检查直连格式链
+            return 1, "", "probe disabled"
         assert args[args.index("--proxy") + 1] == "http://127.0.0.1:7890"
         format_pos = args.index("--format")
         observed_formats.append(args[format_pos + 1])

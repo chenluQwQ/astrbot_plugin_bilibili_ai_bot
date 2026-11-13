@@ -13,6 +13,9 @@ class Probe(VideoParts):
         self.timeouts = []
 
     async def _run_process(self, *args, **kwargs):
+        if "-J" in args:
+            # 线路探测在这里不启用，这些用例只验证直连回退链
+            return 1, "", "probe disabled"
         self.timeouts.append(kwargs.get("timeout"))
         return self.results.pop(0) if self.results else (1, "", "failed")
 
