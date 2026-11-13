@@ -18,8 +18,8 @@ class Scope(str, Enum):
     COMMENT = "bili_comment"  # B 站公开评论区（不可信）
     DM = "bili_dm"  # B 站私信（半可信，仍是外部输入）
     LIVE = "bili_live"  # 直播弹幕（不可信）
-    QQ_GROUP = "qq_group"  # QQ 群聊
-    QQ_PRIVATE = "qq_private"  # QQ 私聊
+    QQ_GROUP = "qq_group"  # 聊天群（QQ 和 AstrBot 接入的其他平台；值沿用旧名）
+    QQ_PRIVATE = "qq_private"  # 聊天私聊（同上）
     ADMIN = "admin"  # 管理员控制通道
     BACKGROUND = "background"  # 后台任务：日报、清算
     PROACTIVE = "proactive"  # 主动行为：看片、动态

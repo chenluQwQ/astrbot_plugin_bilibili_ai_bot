@@ -54,11 +54,9 @@ FORGET_MAX_IMPORTANCE = 5
 # ── 按分数分阶段留存（聊天、动态；分数是 1-10 的重要度）──
 # 今日 → 近期时，分数不超过这个的「很低分」当晚就删。
 VERY_LOW_SCORE_MAX = 2
-# 记下满 LOW_SCORE_KEEP_DAYS 天，分数不超过 CONSOLIDATION_DISCARD_THRESHOLD 的「低分」删。
-LOW_SCORE_KEEP_DAYS = 7
+# 记下满 MEMORY_LOW_SCORE_KEEP_DAYS 天（配置），分数不超过 CONSOLIDATION_DISCARD_THRESHOLD 的「低分」删。
 # 近期满 RECENT_PROMOTE_DAYS 天：到 LONG_TERM_MIN_IMPORTANCE 的「较高分」留下（聊天进长期），其余删。
-# 再过 LONG_TERM_KEEP_DAYS 天，只留到 HIGH_SCORE_MIN 的「高分」。
-LONG_TERM_KEEP_DAYS = 90
+# 再过 MEMORY_LONG_TERM_KEEP_DAYS 天（配置），只留到 HIGH_SCORE_MIN 的「高分」。
 HIGH_SCORE_MIN = 8
 # Bot 自己的视频、动态，以及它们评论区里的聊天，上面这些天数（含视频的）都乘这个倍数。
 OWN_CONTENT_KEEP_FACTOR = 2
@@ -658,14 +656,16 @@ class ConsolidationEngine:
     def _forget_by_score(self) -> int:
         """评过分的聊天、动态到了天数按分数删，删前备份。
 
-        - 记下满 LOW_SCORE_KEEP_DAYS 天：删 ≤ CONSOLIDATION_DISCARD_THRESHOLD 的
+        - 记下满 MEMORY_LOW_SCORE_KEEP_DAYS 天：删 ≤ CONSOLIDATION_DISCARD_THRESHOLD 的
         - 近期满 RECENT_PROMOTE_DAYS 天：删 < LONG_TERM_MIN_IMPORTANCE 的（够分的聊天已由上一步升进长期）
-        - 再过 LONG_TERM_KEEP_DAYS 天：删 < HIGH_SCORE_MIN 的。聊天从进长期那天算，评论线/评论区总结也算在内；
+        - 再过 MEMORY_LONG_TERM_KEEP_DAYS 天：删 < HIGH_SCORE_MIN 的。聊天从进长期那天算，评论线/评论区总结也算在内；
           动态一直留在近期，从进近期那天接着算
         - Bot 自己的内容，天数都乘 OWN_CONTENT_KEEP_FACTOR
 
         没评过分的（模型没评上的、旧数据）不动，还是走老化那条路；按人压缩的总结（user_summary）不删。
         """
+        low_score_days = self.bot.settings.int("MEMORY_LOW_SCORE_KEEP_DAYS", minimum=1, maximum=90)
+        long_term_days = self.bot.settings.int("MEMORY_LONG_TERM_KEEP_DAYS", minimum=7, maximum=730)
         now_ts = time.time()
         forget = []
         for m in self.bot.memories.records:
@@ -681,7 +681,7 @@ class ConsolidationEngine:
             day = 86400 * self._keep_factor(m)
             in_level = now_ts - self.bot.memory_entry._memory_timestamp(m.get("promoted_at") or m.get("time"))
             if level == "long_term":
-                if is_chat and in_level >= LONG_TERM_KEEP_DAYS * day and score < HIGH_SCORE_MIN:
+                if is_chat and in_level >= long_term_days * day and score < HIGH_SCORE_MIN:
                     forget.append(m)
                 continue
             if self.bot.memory_entry._is_derived_memory(m):
@@ -689,12 +689,12 @@ class ConsolidationEngine:
             age = now_ts - (
                 self._number(m.get("created_at"), 0) or self.bot.memory_entry._memory_timestamp(m.get("time"))
             )
-            if in_level >= (RECENT_PROMOTE_DAYS + LONG_TERM_KEEP_DAYS) * day:
+            if in_level >= (RECENT_PROMOTE_DAYS + long_term_days) * day:
                 drop = score < HIGH_SCORE_MIN
             elif in_level >= RECENT_PROMOTE_DAYS * day:
                 drop = score < LONG_TERM_MIN_IMPORTANCE
             else:
-                drop = age >= LOW_SCORE_KEEP_DAYS * day and score <= CONSOLIDATION_DISCARD_THRESHOLD
+                drop = age >= low_score_days * day and score <= CONSOLIDATION_DISCARD_THRESHOLD
             if drop:
                 forget.append(m)
         if not forget:
@@ -1020,7 +1020,7 @@ class ConsolidationEngine:
                         total_promoted += 1
                         continue
 
-                    # 很低分的当晚删；低分的留到满 LOW_SCORE_KEEP_DAYS 天再删（``_forget_by_score``）
+                    # 很低分的当晚删；低分的留到满 MEMORY_LOW_SCORE_KEEP_DAYS 天再删（``_forget_by_score``）
                     if importance <= VERY_LOW_SCORE_MAX and not self._is_own_content(m):
                         discard_rpids.add(rpid)
                         total_discarded += 1

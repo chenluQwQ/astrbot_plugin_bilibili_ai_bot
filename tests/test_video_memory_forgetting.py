@@ -25,7 +25,8 @@ def _video(rpid, days_ago, **extra):
 
 class _Settings:
     def __init__(self, **values):
-        self.values = {"VIDEO_LOW_SCORE_FORGET_BELOW": 5, "VIDEO_LOW_SCORE_FORGET_DAYS": 30, **values}
+        self.values = {"VIDEO_LOW_SCORE_FORGET_BELOW": 5, "VIDEO_LOW_SCORE_FORGET_DAYS": 30,
+                       "MEMORY_LOW_SCORE_KEEP_DAYS": 7, "MEMORY_LONG_TERM_KEEP_DAYS": 90, **values}
 
     def get(self, key):
         return self.values.get(key, "")
