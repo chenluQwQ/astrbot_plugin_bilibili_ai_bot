@@ -33,6 +33,15 @@ def number(bot, key, default, low, high):
 
 def model_key(bot):
     # 相同维度但不同模型的向量也不能混算；命名空间不包含凭证。
+    provider_id = str(bot.config.get("EMBED_PROVIDER_ID", "") or "").strip()
+    if provider_id:
+        provider = bot.context.get_provider_by_id(provider_id)
+        cfg = getattr(provider, "provider_config", {}) or {}
+        return fingerprint([
+            provider_id, cfg.get("embedding_api_base", ""),
+            cfg.get("embedding_model", ""),
+            provider.get_dim() if provider else None,
+        ])
     return fingerprint([bot.config.get("EMBED_API_BASE", ""), bot.config.get("EMBED_MODEL", "")])
 
 

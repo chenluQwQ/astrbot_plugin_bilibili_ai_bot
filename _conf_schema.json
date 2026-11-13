@@ -2362,6 +2362,12 @@
     "editor_language": "markdown",
     "editor_theme": "vs-dark"
   },
+  "EMBED_PROVIDER_ID": {
+    "description": "【记忆向量】AstrBot 向量模型",
+    "type": "string",
+    "default": "",
+    "hint": "在 AstrBot 管理面板 → 服务提供商设置向量模型，再在插件 → BiliBot → 配置填写 Provider ID。填写后复用该模型与密钥；留空使用下方 API 地址、密钥和模型名。"
+  },
   "EMBED_API_KEY": {
     "description": "【记忆向量】记忆向量 API Key",
     "type": "string",
