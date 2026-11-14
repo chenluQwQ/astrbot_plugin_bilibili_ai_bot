@@ -222,12 +222,18 @@ class VideoFiles:
         except ValueError:
             return 0.0
 
+    def _audio_args(self):
+        """给视频模型的片段带不带声音。带的话转单声道低码率，体积只多一点；没有音轨也不报错（``0:a?``）。"""
+        if not self.settings.get("VIDEO_VISION_AUDIO"):
+            return ["-an"]
+        return ["-map", "0:v:0", "-map", "0:a?", "-c:a", "aac", "-ac", "1", "-b:a", "32k"]
+
     async def _compress_video(self, input_path, timeout=300):
         """压缩单段视频，AI分析用，极速编码优先。"""
         output_path = input_path.rsplit(".", 1)[0] + "_compressed.mp4"
         code, _, stderr = await self._run_process(
             "ffmpeg", "-y", "-i", input_path,
-            "-vf", "scale=360:-2", "-an",
+            "-vf", "scale=360:-2", *self._audio_args(),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
             output_path, timeout=timeout,
         )
@@ -262,7 +268,7 @@ class VideoFiles:
             code, _, stderr = await self._run_process(
                 "ffmpeg", "-y", "-ss", str(start), "-i", video_path,
                 "-t", str(segment_sec),
-                "-vf", "scale=360:-2", "-an",
+                "-vf", "scale=360:-2", *self._audio_args(),
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
                 seg_path, timeout=max(300, int(segment_sec)),
             )

@@ -9,6 +9,7 @@ from datetime import datetime
 from astrbot.api import logger
 
 from ..infra.host_view import HostView
+from ..video_timeline import watch_digest
 
 
 class WatchVideo(HostView):
@@ -73,7 +74,7 @@ class WatchVideo(HostView):
         path = []
         video_description = await self.video_watch._analyze_video_with_vision(analysis_info)
         path.append(f"分析:{analysis_info.get('analysis_basis', 'legacy')}")
-        logger.info(f"[BiliBot] {watch_round.icon} 分析：{video_description[:60]}...")
+        logger.info(f"[BiliBot] {watch_round.icon} 分析：{watch_digest(video_description, 60)}")
         # 分析完成即算“看过”；即使后续评价或互动失败，也不能在旧流水
         # 超过 200 条后被再次当成新视频下载分析。
         if analysis_info.get("analysis_basis") != "metadata":
@@ -279,7 +280,7 @@ class WatchVideo(HostView):
                 key=bvid, kind=kind, source=watch_round.policy.name,
                 title=video.get("title", ""), up_name=video.get("up_name", ""), pic=video.get("pic", ""),
                 score=score, review=review, angle=evaluation.get("dynamic_angle", ""),
-                summary=self.video_watch._clip_media_text(video_description, 360),
+                summary=watch_digest(video_description, 360),
             )
             if idea_id:
                 watch_round.dynamic_candidates.append(idea_id)
@@ -291,7 +292,7 @@ class WatchVideo(HostView):
                 discovery_mode="explore" if video.get("_exploration") else "interest",
                 recommend_reason=evaluation.get("recommend_reason", ""),
                 recommended_at=getattr(self, "_owner_last_recommended_at", "") if any(self.owner_recommend._is_owner_recommend_action(action) for action in actions) else "",
-                content_summary=self.video_watch._clip_media_text(video_description, 360),
+                content_summary=watch_digest(video_description, 360),
                 analysis_basis=analysis_info.get("analysis_basis", "legacy"),
             )
         watch_round.watch_log = self.activity_logs.watch.append(log_entry)
@@ -301,7 +302,7 @@ class WatchVideo(HostView):
             f"(UP主:{video.get('up_name', '')}) "
             f"评分:{score}/10 心情:{mood} "
             f"理由:{score_reason[:80]} 感想:{review[:80]} "
-            f"内容:{video_description[:120]}"
+            f"内容:{watch_digest(video_description, 120)}"
         )
         if preference_signals:
             memory_text += " | 兴趣信号:" + "、".join(
@@ -324,7 +325,7 @@ class WatchVideo(HostView):
             await self.memory_writer._save_self_memory_record(f"{watch_round.action_key_prefix}_watch", self.video_watch._clip_media_text(memory_text, 520), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": tname, "score": score, "score_reason": score_reason, "mood": mood, "review": review, "impression": verdict.get("impression", ""), "preference_signals": preference_signals, "search_keywords": search_keywords})
         external_memory = watch_round.external_memory
         if bvid not in external_memory:
-            external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": self.video_watch._clip_media_text(video_description, 220), "score": score, "score_reason": score_reason, "mood": mood, "review": self.video_watch._clip_media_text(review, 120), "preference_signals": preference_signals, "search_keywords": search_keywords, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
+            external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": watch_digest(video_description, 220), "score": score, "score_reason": score_reason, "mood": mood, "review": self.video_watch._clip_media_text(review, 120), "preference_signals": preference_signals, "search_keywords": search_keywords, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
             self.memory_docs.external_memory.write(external_memory)
         if not watch_round.policy.writes_shared_video_cache:
             return
@@ -341,7 +342,7 @@ class WatchVideo(HostView):
                 "analysis": video_description,
                 "analysis_basis": analysis_info.get("analysis_basis", "legacy"),
                 "content_analyzed": analysis_info.get("analysis_basis") != "metadata",
-                "summary": self.video_watch._clip_media_text(video_description, 220),
+                "summary": watch_digest(video_description, 220),
                 "score": score,
                 "score_reason": score_reason,
                 "mood": mood,

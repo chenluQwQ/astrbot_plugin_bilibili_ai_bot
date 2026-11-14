@@ -15,6 +15,8 @@ from ..video_evaluation import VIDEO_EVALUATION_SCHEMA_PROMPT, VideoEvaluationEr
 
 
 HOT_COMMENTS_SHOWN = 5
+# 主动评论：拉到的那一页热评（默认 10 条）全给，当参考。
+COMMENT_HOT_COMMENTS_SHOWN = 10
 
 PROACTIVE_COMMENT_INSTRUCTIONS = f"""你刚看完一个B站视频，在想要不要去评论区说一句。
 
@@ -186,7 +188,7 @@ class VideoEvaluate(HostView):
             f"UP主：{video_info.get('up_name', '')}\n标题：{video_info.get('title', '')}\n视频内容：{video_description}",
             "video_material",
         )
-        hot = [str(item).strip() for item in hot_comments or () if str(item).strip()][:HOT_COMMENTS_SHOWN]
+        hot = [str(item).strip() for item in hot_comments or () if str(item).strip()][:COMMENT_HOT_COMMENTS_SHOWN]
         hot_block = (wrap_untrusted("\n".join(f"- {item}" for item in hot), "hot_comments")
                      if hot else "（这次没拿到热评）")
         prompt += f"""
