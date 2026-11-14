@@ -8,8 +8,9 @@ from core.video_timeline import (
 )
 
 
-def raw(timeline, impression="印象", audio="有人讲话"):
-    return json.dumps({"timeline": timeline, "impression": impression, "audio": audio}, ensure_ascii=False)
+def raw(timeline, impression="印象", audio="有人讲话", sensitive=False, hint="适合段评"):
+    return json.dumps({"timeline": timeline, "impression": impression, "audio": audio,
+                       "sensitive": sensitive, "comment_hint": hint}, ensure_ascii=False)
 
 
 class ParseTests(unittest.TestCase):
@@ -33,6 +34,8 @@ class ParseTests(unittest.TestCase):
             "timeline_text_invalid": raw([{"at": 1, "text": "字" * 161}]),
             "impression_invalid": raw([{"at": 1, "text": "a"}], impression=""),
             "audio_invalid": raw([{"at": 1, "text": "a"}], audio=""),
+            "sensitive_must_be_bool": raw([{"at": 1, "text": "a"}], sensitive="否"),
+            "comment_hint_invalid": raw([{"at": 1, "text": "a"}], hint=""),
         }
         for reason, text in cases.items():
             with self.subTest(reason):

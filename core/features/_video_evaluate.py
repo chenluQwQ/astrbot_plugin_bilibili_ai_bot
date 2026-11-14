@@ -198,6 +198,10 @@ class VideoEvaluate(HostView):
                  f"分区：{video_info.get('tname', '') or '不知道'}", f"标签：{tag_text or '没有'}"]
         if video_description is not None:
             lines.append(f"你看视频时记下的：\n{video_description}")
+            if video_info.get("_comment_hint"):
+                lines.append(f"看的时候给自己留的评论建议（只是参考）：{video_info['_comment_hint']}")
+        if video_info.get("_sensitive"):
+            lines.append("这是政治、时事有争议的视频：要评就只说视频里出现的细节，不表态、不站队。")
         material = wrap_untrusted("\n".join(lines), "video_material")
         hot = [str(item).strip() for item in hot_comments or () if str(item).strip()][:COMMENT_HOT_COMMENTS_SHOWN]
         hot_block = (wrap_untrusted("\n".join(f"- {item}" for item in hot), "hot_comments")

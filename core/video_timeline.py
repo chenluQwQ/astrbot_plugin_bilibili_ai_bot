@@ -16,11 +16,12 @@ from typing import Any
 
 TIMELINE_MARK = "【时间线】"
 PARTIAL_MARK = "【仅分析部分视频片段，不能确认全部内容】"
-SEGMENT_KEYS = {"timeline", "impression", "audio"}
+SEGMENT_KEYS = {"timeline", "impression", "audio", "sensitive", "comment_hint"}
 MAX_ENTRIES = 24
 ENTRY_LIMIT = 160
 IMPRESSION_LIMIT = 300
 AUDIO_LIMIT = 80
+HINT_LIMIT = 150
 # 视频模型收不到音轨时，audio 会写这个（提示词里要求的）。
 NO_AUDIO_WORDS = ("听不到", "没有收到声音", "无法听到", "收不到声音")
 
@@ -31,7 +32,9 @@ _SEGMENT_RULES = """at 是这一段里的第几秒（数字，从 0 开始），
 _RECORD_FIELDS = (
     '"timeline": [{"at": 秒数, "text": "这一刻画面里有什么、谁说了什么"}], '
     '"impression": "看完这一段的整体印象，一两句", '
-    '"audio": "这段声音里有什么：有人讲话（大概在讲什么）/只有音乐/没声音；收不到声音就写「听不到」"'
+    '"audio": "这段声音里有什么：有人讲话（大概在讲什么）/只有音乐/没声音；收不到声音就写「听不到」", '
+    '"sensitive": 是不是政治、时事有争议的内容（true 或 false）, '
+    '"comment_hint": "给之后写评论的自己留一两句：这个视频评论区适合说什么、哪里可以接、适合随手一句、段评（挑一段写感受）还是补充（视频没讲到的知识）"'
 )
 
 SEGMENT_SCHEMA_PROMPT = (
@@ -112,10 +115,24 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     audio = value["audio"]
     if not isinstance(audio, str) or not audio.strip() or len(audio.strip()) > AUDIO_LIMIT:
         raise VideoTimelineError("audio_invalid")
-    out = {"timeline": entries, "impression": impression.strip(), "audio": audio.strip()}
+    if not isinstance(value["sensitive"], bool):
+        raise VideoTimelineError("sensitive_must_be_bool")
+    hint = value["comment_hint"]
+    if not isinstance(hint, str) or not hint.strip() or len(hint.strip()) > HINT_LIMIT:
+        raise VideoTimelineError("comment_hint_invalid")
+    out = {"timeline": entries, "impression": impression.strip(), "audio": audio.strip(),
+           "sensitive": value["sensitive"], "comment_hint": hint.strip()}
     if with_comment:
         out["comment"] = comment
     return out
+
+
+# 分区本身就是新闻时事的，不管模型怎么判都算（宁可少评）。
+SENSITIVE_PARTITIONS = {"资讯", "热点", "环球", "社会", "时政"}
+
+
+def sensitive_partition(tname: str) -> bool:
+    return str(tname or "").strip() in SENSITIVE_PARTITIONS
 
 
 def heard_nothing(audio: str) -> bool:

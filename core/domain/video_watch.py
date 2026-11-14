@@ -29,7 +29,7 @@ from ..video_diagnostics import exception_detail, get_call_diagnostic, media_fai
 from ..infra.text import normalize_openai_base_url
 from ..video_timeline import (
     SEGMENT_SCHEMA_PROMPT, SEGMENT_WITH_COMMENT_SCHEMA_PROMPT, VideoTimelineError, clock, format_subtitle_lines,
-    format_timeline, format_watch, heard_nothing, parse_segment_watch, watch_digest,
+    format_timeline, format_watch, heard_nothing, parse_segment_watch, sensitive_partition, watch_digest,
 )
 
 # 视频直读的报文形状。auto 会按 _AUTO_PROBE_ORDER 逐个探测，首个成功即锁定。
@@ -363,6 +363,9 @@ class VideoWatch(HostView):
                 if cached:
                     video_info["analysis_basis"] = cached.get("analysis_basis", "legacy")
                     video_info["_analysis_from_cache"] = True
+                    if cached.get("comment_hint"):
+                        video_info["_comment_hint"] = cached["comment_hint"]
+                    video_info["_sensitive"] = bool(cached.get("sensitive")) or sensitive_partition(video_info.get("tname"))
                     return cached.get("analysis") or cached.get("summary")
                 seen = await self.seen_videos.record(bvid)
                 if seen:
@@ -382,6 +385,10 @@ class VideoWatch(HostView):
                     "content_analyzed": video_info.get("analysis_basis") != "metadata",
                     "source": "video_analysis",
                 }
+                if video_info.get("_comment_hint"):
+                    cache[bvid]["comment_hint"] = video_info["_comment_hint"]
+                if video_info.get("_sensitive"):
+                    cache[bvid]["sensitive"] = True
                 self.memory_docs.video_memory.write(cache)
             return result
 
@@ -391,6 +398,8 @@ class VideoWatch(HostView):
         video_info.pop("_media_diagnostics", None)
         video_info.pop("_subtitle_lines", None)
         video_info.pop("_comment_draft", None)
+        video_info.pop("_comment_hint", None)
+        video_info["_sensitive"] = sensitive_partition(video_info.get("tname"))
         joint = None
         if str(self.settings.get("VIDEO_VISUAL_ANALYSIS_POLICY")) != "always":
             joint = await self._build_joint_context(video_info)
@@ -515,10 +524,13 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
                 logger.warning(f"[BiliBot] 📹 视频模型好像没听到声音({bvid})：{direct[0]['audio'][:40]}")
             partial = len(watched) < len(segments) or duration > segment_sec * max_segments
             entries = [entry for item in watched for entry in item["timeline"]]
+            video_info["_sensitive"] = bool(video_info.get("_sensitive")) or any(item["sensitive"] for item in watched)
             if len(watched) == 1:
-                impression = watched[0]["impression"]
+                impression, hint = watched[0]["impression"], watched[0]["comment_hint"]
             else:
-                impression = await self._consolidate_segment_analyses(video_info, [item["impression"] for item in watched])
+                impression, hint = await self._consolidate_segment_analyses(
+                    video_info, [item["impression"] for item in watched], [item["comment_hint"] for item in watched])
+            video_info["_comment_hint"] = hint
             text = format_watch(impression, self._fit_timeline(impression, entries), partial=partial)
             logger.info(f"[BiliBot] 📹 看完 {len(watched)} 段，时间线 {len(entries)} 条")
             return text
@@ -722,19 +734,34 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         finally:
             self.video_files._cleanup_video_artifacts(None, frames)
 
-    async def _consolidate_segment_analyses(self, video_info, impressions):
-        """多段视频：只把各段的印象合成一段，时间线不重写。"""
-        parts = "\n".join(f"【第{i+1}段】{self._clip_media_text(text, 300)}" for i, text in enumerate(impressions))
-        prompt = f"""下面是看B站视频《{video_info.get('title', '未知')}》时每一段的印象，按顺序排的。合成一段看完整个视频的整体印象，两三句，200字以内：讲了什么、怎么推进的、最记得哪里。只用下面有的，不补没看到的。
+    async def _consolidate_segment_analyses(self, video_info, impressions, hints=()):
+        """多段视频：把各段的印象合成一段、各段的评论建议合成一句，时间线不重写。返回 (印象, 建议)。"""
+        hints = list(hints or ())
+        parts = "\n".join(
+            f"【第{i+1}段】印象：{self._clip_media_text(text, 300)}"
+            + (f"\n评论建议：{self._clip_media_text(hints[i], 150)}" if i < len(hints) and hints[i] else "")
+            for i, text in enumerate(impressions)
+        )
+        prompt = f"""下面是看B站视频《{video_info.get('title', '未知')}》时每一段的印象和评论建议，按顺序排的。
 
 {wrap_untrusted(parts, "segment_impressions")}
 
-直接输出这段印象，不要加前缀。"""
-        result = await getattr(self.models, "_summary_llm_call", self.models._llm_call)(prompt, max_tokens=400)
+只输出一个 JSON 对象，不要代码块：{{"impression": "看完整个视频的整体印象，两三句、200字以内：讲了什么、怎么推进的、最记得哪里", "comment_hint": "整个视频评论区适合说什么、哪里可以接、适合随手一句、段评还是补充，一两句、150字以内"}}
+只用上面有的，不补没看到的。"""
+        fallback_hint = next((hint for hint in reversed(hints) if hint), "")
+        result = await getattr(self.models, "_summary_llm_call", self.models._llm_call)(prompt, max_tokens=600)
         if result:
-            logger.info(f"[BiliBot] 📹 长视频{len(impressions)}段印象合成完成")
-            return self._clip_media_text(result, 300)
-        return self._clip_media_text(" ".join(impressions), 300)
+            try:
+                value = json.loads(repair_llm_json(result).strip().removeprefix("```json").removesuffix("```").strip())
+                impression, hint = value.get("impression"), value.get("comment_hint")
+                if isinstance(impression, str) and impression.strip():
+                    logger.info(f"[BiliBot] 📹 长视频{len(impressions)}段印象合成完成")
+                    hint = hint.strip() if isinstance(hint, str) and hint.strip() else fallback_hint
+                    return self._clip_media_text(impression, 300), self._clip_media_text(hint, 150)
+            except (TypeError, ValueError, AttributeError):
+                pass
+            logger.warning("[BiliBot] 📹 长视频印象合成格式不对，改成直接拼接")
+        return self._clip_media_text(" ".join(impressions), 300), self._clip_media_text(fallback_hint, 150)
 
     def _detect_video_format(self, model: str) -> str:
         """读取用户配置的视频直读格式；auto 交给逐段探测。"""

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import random
 from datetime import datetime
 
 from astrbot.api import logger
@@ -205,13 +206,27 @@ class WatchVideo(HostView):
                 actions.append("⭐收藏")
                 logger.info("[BiliBot] ⭐ 收藏成功")
         if "comment" in chosen and watch_round.per_video_comment and score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 0) and watch_round.comment_count < watch_round.daily_comment_limit and self.settings.get("PROACTIVE_COMMENT"):
-            await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
+            if self._sensitive_comment_allowed(analysis_info):
+                await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
         if (
             watch_round.policy.recommends_to_owner
             and bvid not in getattr(self, "_owner_recommended_bvids", set())
             and self.owner_recommend._can_recommend_owner(evaluation, score, watch_round.owner_recommend_count)
         ):
             await self.owner_recommend._recommend_video_to_owner(watch_round, video, oid, video_description, evaluation, verdict["review"], actions)
+        return False
+
+    def _sensitive_comment_allowed(self, analysis_info):
+        """政治、时事有争议的视频少评论：按配置的概率放行，评了也只说视频里的细节（提示词里说了）。"""
+        if not analysis_info.get("_sensitive"):
+            return True
+        try:
+            chance = min(1.0, max(0.0, float(self.settings.get("PROACTIVE_SENSITIVE_COMMENT_CHANCE"))))
+        except (TypeError, ValueError):
+            chance = 0.3
+        if random.random() < chance:
+            return True
+        logger.info(f"[BiliBot] 💬 政治时事类视频，这次不评论（放行概率 {chance:.0%}）")
         return False
 
     async def _comment_context(self, oid, analysis_info):
@@ -380,6 +395,10 @@ class WatchVideo(HostView):
                 "search_keywords": search_keywords,
                 "time": log_entry["time"],
             }
+            if analysis_info.get("_comment_hint"):
+                vc[bvid]["comment_hint"] = analysis_info["_comment_hint"]
+            if analysis_info.get("_sensitive"):
+                vc[bvid]["sensitive"] = True
             self.memory_docs.video_memory.write(vc)
         except Exception as e:
             logger.debug(f"[BiliBot] 写入视频缓存失败: {e}")

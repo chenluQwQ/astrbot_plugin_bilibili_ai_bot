@@ -817,7 +817,23 @@
       "max": 10,
       "step": 1
     }
+  },  "PROACTIVE_SENSITIVE_COMMENT_CHANCE": {
+    "description": "【主动看视频】政治时事类视频的评论概率",
+    "type": "float",
+    "default": 0.3,
+    "min": 0,
+    "max": 1,
+    "hint": "视频模型判断是政治、时事有争议的内容，或分区是资讯类时，想评论也只按这个概率评；评了也只说视频里的细节、不表态。0 是这类视频都不评，1 是照常评。",
+    "condition": {
+      "PROACTIVE_COMMENT": true
+    },
+    "slider": {
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    }
   },
+
   "COMMENT_SYNC_DYNAMIC": {
     "description": "【主动看视频】主动发的评论同时转发到动态",
     "type": "bool",

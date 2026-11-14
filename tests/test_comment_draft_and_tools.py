@@ -155,6 +155,33 @@ class DraftFlowTests(unittest.IsolatedAsyncioTestCase):
         bot.video_evaluate._generate_proactive_comment.assert_not_awaited()
 
 
+class HintAndSensitiveTests(unittest.IsolatedAsyncioTestCase):
+    async def test_hint_and_sensitive_reach_comment_writer(self):
+        bot = Bot()
+        bot._llm_call = AsyncMock()
+        bot._get_system_prompt = AsyncMock(return_value="人设")
+        bot._generation_llm_call = AsyncMock(return_value='{"decision":"skip","text":""}')
+        info = {**INFO, "cid": 0, "_comment_hint": "适合补充茶具的知识", "_sensitive": True}
+        await VideoEvaluate(bot)._generate_proactive_comment(info, "印象")
+        material = bot._generation_llm_call.call_args.args[0].split('<video_material trust="untrusted">', 1)[1]
+        self.assertIn("评论建议（只是参考）：适合补充茶具的知识", material)
+        self.assertIn("不表态、不站队", material)
+
+    def test_sensitive_videos_pass_by_chance(self):
+        from unittest.mock import patch
+        bot = Bot()
+        watch = WatchVideo(bot)
+        self.assertTrue(watch._sensitive_comment_allowed({}))
+        bot.config.update(PROACTIVE_SENSITIVE_COMMENT_CHANCE=0.3)
+        with patch("core.features._watch_video.random.random", return_value=0.5):
+            self.assertFalse(watch._sensitive_comment_allowed({"_sensitive": True}))
+        with patch("core.features._watch_video.random.random", return_value=0.1):
+            self.assertTrue(watch._sensitive_comment_allowed({"_sensitive": True}))
+        bot.config.update(PROACTIVE_SENSITIVE_COMMENT_CHANCE=0)
+        with patch("core.features._watch_video.random.random", return_value=0.0):
+            self.assertFalse(watch._sensitive_comment_allowed({"_sensitive": True}))
+
+
 class RouteTests(unittest.TestCase):
     def gateway(self, **config):
         from core.settings import Settings
