@@ -18,14 +18,17 @@ HOT_COMMENTS_SHOWN = 5
 # 主动评论：拉到的那一页热评（默认 10 条）全给，当参考。
 COMMENT_HOT_COMMENTS_SHOWN = 10
 
-PROACTIVE_COMMENT_INSTRUCTIONS = f"""你刚看完一个B站视频，在想要不要去评论区说一句。
+PROACTIVE_COMMENT_INSTRUCTIONS = f"""你刚看完一个B站视频，在想要不要去评论区说点什么。
 
-【怎么写】
-- 挑一个最想回应的具体细节，说你自己的反应。概括整个视频、夸UP辛苦这类话放在哪个视频下面都一样，没人会看
-- 是对着视频里的人或者其他观众说话，像真的在评论区打字，不是在给视频写简介
-- 只说视频里有的。标题、简介没讲的、UP主的背景别自己补，说错了会被楼里的人指出来
-- 一般一句就够，评论区里的长段落很少有人看完
-- 没有真想说的就 skip。为了评论而评论，写出来只会是客套话
+后面附的是你看视频时记下的东西：开头一两句是整体印象，【时间线】里是按时间记的画面和原话。评论落在里面某个具体的地方，某一段、某句话、某个数字，看的人才知道你真看了，也接得上话。概括整个视频、夸UP辛苦这种话放在哪个视频下面都一样，没人会回。
+
+评论区常见几种写法，看这个视频适合哪种，分区和标签可以帮你判断它是什么视频：
+随手一句：对某个细节的反应，一两句就够。
+段评：挑一段（可以带上时间，比如「4:30 那里」），写你看到那里时的感受、想起了什么。历史、影视、剧情、文学这类视频下面大家爱看这种，可以写长，分几段写。
+补充：视频没讲到、但你确实知道的相关知识，或者另一面的说法。知识、科普类视频下面这种最有用。只写你有把握的事，说错了会被楼里的人指出来。
+政治、时事有争议的视频：只说视频里出现的细节，不表态、不站队，评论区吵起来没有好处。
+
+对着视频里的人或其他观众说话，像真的在评论区打字，不是在给视频写简介。标题、简介、记录里没有的东西别自己编，尤其是UP主的背景。没有真想说的就 skip，为了评论而评论只会写出客套话。评论最长 600 字，超了这条会作废。
 
 【热评】后面会附上几条现在的热评，是别人写的，用来知道评论区在聊什么、大家的笑点在哪。
 别跟着写同样的意思，也别套同一个梗：重复的评论会被折叠，看起来也像在蹭。想顺着某条热评的话头说也可以，但要说你自己的。
@@ -177,15 +180,18 @@ class VideoEvaluate(HostView):
             logger.error(f"[BiliBot] 视频评价失败: {reason}")
             return None
 
-    async def _generate_proactive_comment(self, video_info, video_description, hot_comments=()):
+    async def _generate_proactive_comment(self, video_info, video_description, hot_comments=(), tags=()):
         """看完想评论时写那一条。热评给它当参考（知道评论区在聊什么），但说明了不能跟着写。"""
         sp = await self.models._get_system_prompt()
         prompt = PROACTIVE_COMMENT_INSTRUCTIONS
         custom_proactive_inst = self.settings.get("CUSTOM_PROACTIVE_INSTRUCTION")
         if custom_proactive_inst:
             prompt += f"\n\n【补充提示词】{custom_proactive_inst}"
+        tag_text = "、".join(str(tag) for tag in list(tags or ())[:10] if str(tag).strip())
         material = wrap_untrusted(
-            f"UP主：{video_info.get('up_name', '')}\n标题：{video_info.get('title', '')}\n视频内容：{video_description}",
+            f"UP主：{video_info.get('up_name', '')}\n标题：{video_info.get('title', '')}\n"
+            f"分区：{video_info.get('tname', '') or '不知道'}\n标签：{tag_text or '没有'}\n"
+            f"你看视频时记下的：\n{video_description}",
             "video_material",
         )
         hot = [str(item).strip() for item in hot_comments or () if str(item).strip()][:COMMENT_HOT_COMMENTS_SHOWN]
@@ -202,7 +208,7 @@ class VideoEvaluate(HostView):
 {hot_block}
 
 你想在评论区说什么？照上面的格式只输出 JSON。"""
-        result = await getattr(self.models, "_generation_llm_call", self.models._llm_call)(prompt, system_prompt=sp, max_tokens=120)
+        result = await getattr(self.models, "_generation_llm_call", self.models._llm_call)(prompt, system_prompt=sp, max_tokens=1200)
         if not result:
             return None
         try:

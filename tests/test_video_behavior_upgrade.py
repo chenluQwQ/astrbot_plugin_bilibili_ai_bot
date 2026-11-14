@@ -287,8 +287,24 @@ class PostingAndRatingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("热评10", block)  # 拉到的那一页（10 条）都给
         self.assertNotIn("第十一条不给", prompt)
         self.assertIn("别跟着写同样的意思", prompt)
-        self.assertLess(prompt.index("【怎么写】"), prompt.index("【这个视频】"))  # 固定说明在前
+        self.assertLess(prompt.index("评论区常见几种写法"), prompt.index("【这个视频】"))  # 固定说明在前
         self.assertTrue(prompt.rstrip().endswith("只输出 JSON。"))
+
+    async def test_comment_sees_partition_tags_and_can_write_long(self):
+        bot = Bot()
+        bot._get_system_prompt = AsyncMock(return_value="人设")
+        bot._llm_call = AsyncMock()
+        bot._generation_llm_call = AsyncMock(return_value='{"decision":"skip","text":""}')
+        await VideoEvaluate(bot)._generate_proactive_comment(
+            {"title": "宋朝的茶", "up_name": "UP", "tname": "人文历史"}, "印象\n\n【时间线】\n[00:03] 点茶", (), ["宋朝", "茶文化"])
+        prompt = bot._generation_llm_call.call_args.args[0]
+        material = prompt.split('<video_material trust="untrusted">', 1)[1].split("</video_material>", 1)[0]
+        self.assertIn("分区：人文历史", material)
+        self.assertIn("标签：宋朝、茶文化", material)
+        self.assertIn("[00:03] 点茶", material)
+        self.assertIn("段评", prompt)
+        self.assertIn("补充", prompt)
+        self.assertEqual(bot._generation_llm_call.call_args.kwargs["max_tokens"], 1200)
 
     async def test_comment_without_hot_comments_says_so(self):
         bot = Bot()

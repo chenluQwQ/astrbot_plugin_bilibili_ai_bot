@@ -77,5 +77,17 @@ class FormatTests(unittest.TestCase):
         self.assertIn("后面还有", format_subtitle_lines(lines, limit=12))
 
 
+class ProactiveCommentRulesTests(unittest.TestCase):
+    def test_long_comment_keeps_paragraphs_up_to_limit(self):
+        from core.content_protocol import ContentProtocolError, PROACTIVE_COMMENT_LIMIT, parse_proactive_comment
+        body = "第一段" + "字" * 200 + "\r\n\n\n\n第二段"
+        out = parse_proactive_comment(json.dumps({"decision": "comment", "text": body}, ensure_ascii=False))
+        self.assertIn("\n\n第二段", out["text"])
+        self.assertNotIn("\n\n\n", out["text"])
+        too_long = json.dumps({"decision": "comment", "text": "字" * (PROACTIVE_COMMENT_LIMIT + 1)}, ensure_ascii=False)
+        with self.assertRaises(ContentProtocolError):
+            parse_proactive_comment(too_long)
+
+
 if __name__ == "__main__":
     unittest.main()

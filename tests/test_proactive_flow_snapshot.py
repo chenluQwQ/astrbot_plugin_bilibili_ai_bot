@@ -216,7 +216,7 @@ class FlowProbe(ProactiveParts, VideoParts):
 
     async def _generation_llm_call(self, prompt, system_prompt=None, max_tokens=None):
         self.record("llm", prompt, system_prompt, max_tokens)
-        if "要不要去评论区说一句" in prompt:
+        if "要不要去评论区说点什么" in prompt:
             return '{"decision":"comment","text":"转场那一下太舒服了"}'
         if "随手分享" in prompt:
             return '{"decision":"share","text":"主人，这段手绘过渡真的好看"}'

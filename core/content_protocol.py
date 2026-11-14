@@ -31,10 +31,14 @@ def _object(raw: str) -> dict[str, Any]:
     return value
 
 
-def _public_text(value: Any, *, field: str, limit: int, required: bool) -> str:
+def _public_text(value: Any, *, field: str, limit: int, required: bool, paragraphs: bool = False) -> str:
     if not isinstance(value, str):
         raise ContentProtocolError(f"{field}_must_be_string")
-    text = re.sub(r"[\r\n]+", " ", value).strip()
+    if paragraphs:
+        # 长评可以分段：保留换行，多个空行并成一个。
+        text = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]*\r?\n[ \t]*", "\n", value)).strip()
+    else:
+        text = re.sub(r"[\r\n]+", " ", value).strip()
     if required and not text:
         raise ContentProtocolError(f"{field}_required")
     if len(text) > limit:
@@ -50,6 +54,10 @@ def _public_text(value: Any, *, field: str, limit: int, required: bool) -> str:
     return text
 
 
+# 主动评论最长几个字。B站评论上限 1000 字；段评、补充写到 500-600 字就够了。
+PROACTIVE_COMMENT_LIMIT = 600
+
+
 def parse_proactive_comment(raw: str) -> dict[str, Any]:
     value = _object(raw)
     if set(value) != {"decision", "text"}:
@@ -57,7 +65,8 @@ def parse_proactive_comment(raw: str) -> dict[str, Any]:
     decision = str(value.get("decision") or "").strip().lower()
     if decision not in {"comment", "skip"}:
         raise ContentProtocolError("invalid_comment_decision")
-    text = _public_text(value.get("text"), field="text", limit=80, required=decision == "comment")
+    text = _public_text(value.get("text"), field="text", limit=PROACTIVE_COMMENT_LIMIT,
+                        required=decision == "comment", paragraphs=True)
     if decision == "skip" and text:
         raise ContentProtocolError("skipped_comment_has_text")
     return {"decision": decision, "text": text}
@@ -342,7 +351,7 @@ def parse_bangumi_evaluation(raw: str) -> dict[str, Any]:
 
 PROACTIVE_COMMENT_SCHEMA_PROMPT = (
     '只输出完整JSON：{"decision":"comment|skip","text":"评论正文"}。'
-    "真有一个具体细节想回应才用comment；不想硬评或资料不足用skip且text留空。"
+    "想说就用comment；没有真想说的就用skip，text留空。长评分段用\\n换行。"
 )
 
 RECOMMENDATION_SCHEMA_PROMPT = (
