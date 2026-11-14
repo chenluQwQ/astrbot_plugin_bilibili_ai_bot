@@ -416,6 +416,8 @@ core/
 
 依赖只能往下走：分支之间不互相调用，domain 之间不互相调用，有事经主干交接。`tests/test_import_direction.py` 会检查。
 
+想提 PR 的话先看 [维护说明](CONTRIBUTING.md)：现在在做什么、接下来做什么，还有几条必须守的规矩，免得撞车或合不进来。
+
 ## 📁 数据存储
 
 插件数据存储在 `data/plugin_data/astrbot_plugin_bilibili_ai_bot/` 目录下，更新插件不会丢失数据。
