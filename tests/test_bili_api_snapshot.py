@@ -124,7 +124,7 @@ CALLS = {
         "owner": {"mid": 3, "name": "UP", "face": "f"},
     }),
     "get_followings": (), "_oid_to_bvid": (11,), "_get_video_info": ("BV1",),
-    "_get_video_subtitles": ("BV1", 22), "_get_video_tags": ("BV1",),
+    "_get_video_subtitles": ("BV1", 22), "_get_video_subtitle_lines": ("BV1", 22), "_get_video_tags": ("BV1",),
     "_get_hot_comments": (11,), "_get_video_oid": ("BV1",),
     "_like_video": (11,), "_coin_video": (11,), "_fav_video": (11,), "_follow_user": (3,),
     "_post_dynamic_text": ("动态",), "_repost_video": (11, "转发语"), "_repost_dynamic": ("900", "转发语"), "_get_up_latest_video": (3,),

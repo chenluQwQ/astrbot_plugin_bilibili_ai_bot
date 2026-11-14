@@ -4,11 +4,13 @@
 """
 from __future__ import annotations
 
+import random
 from datetime import datetime
 
 from astrbot.api import logger
 
 from ..infra.host_view import HostView
+from ..video_timeline import watch_digest
 
 
 class WatchVideo(HostView):
@@ -71,9 +73,11 @@ class WatchVideo(HostView):
             } if vi else {"bvid": bvid}),
         }
         path = []
+        await self._prepare_comment_draft(watch_round, oid, analysis_info)
         video_description = await self.video_watch._analyze_video_with_vision(analysis_info)
+        analysis_info.pop("_comment_request", None)
         path.append(f"分析:{analysis_info.get('analysis_basis', 'legacy')}")
-        logger.info(f"[BiliBot] {watch_round.icon} 分析：{video_description[:60]}...")
+        logger.info(f"[BiliBot] {watch_round.icon} 分析：{watch_digest(video_description, 60)}")
         # 分析完成即算“看过”；即使后续评价或互动失败，也不能在旧流水
         # 超过 200 条后被再次当成新视频下载分析。
         if analysis_info.get("analysis_basis") != "metadata":
@@ -202,7 +206,8 @@ class WatchVideo(HostView):
                 actions.append("⭐收藏")
                 logger.info("[BiliBot] ⭐ 收藏成功")
         if "comment" in chosen and watch_round.per_video_comment and score >= self._proactive_score_threshold("PROACTIVE_COMMENT_MIN_SCORE", 0) and watch_round.comment_count < watch_round.daily_comment_limit and self.settings.get("PROACTIVE_COMMENT"):
-            await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
+            if self._sensitive_comment_allowed(analysis_info):
+                await self._send_proactive_video_comment(watch_round, video, oid, analysis_info, video_description, actions)
         if (
             watch_round.policy.recommends_to_owner
             and bvid not in getattr(self, "_owner_recommended_bvids", set())
@@ -211,11 +216,51 @@ class WatchVideo(HostView):
             await self.owner_recommend._recommend_video_to_owner(watch_round, video, oid, video_description, evaluation, verdict["review"], actions)
         return False
 
+    def _sensitive_comment_allowed(self, analysis_info):
+        """政治、时事有争议的视频少评论：按配置的概率放行，评了也只说视频里的细节（提示词里说了）。"""
+        if not analysis_info.get("_sensitive"):
+            return True
+        try:
+            chance = min(1.0, max(0.0, float(self.settings.get("PROACTIVE_SENSITIVE_COMMENT_CHANCE"))))
+        except (TypeError, ValueError):
+            chance = 0.3
+        if random.random() < chance:
+            return True
+        logger.info(f"[BiliBot] 💬 政治时事类视频，这次不评论（放行概率 {chance:.0%}）")
+        return False
+
+    async def _comment_context(self, oid, analysis_info):
+        """写评论要的热评和标签；看视频前拿过就不再拿。"""
+        if "_hot_comments" not in analysis_info:
+            analysis_info["_hot_comments"] = await self.bili_comments._get_hot_comments(oid) if oid else []
+        if "_tags" not in analysis_info:
+            bvid = analysis_info.get("bvid")
+            analysis_info["_tags"] = await self.bili_videos._get_video_tags(bvid) if bvid else []
+        return analysis_info["_hot_comments"], analysis_info["_tags"]
+
+    async def _prepare_comment_draft(self, watch_round, oid, analysis_info):
+        """视频模型和写评论的模型是同一个、这次还可能评论时，让看视频那次顺便把评论写了。
+        写好的草稿等评价出来、过了评论的门槛才发；没过就丢掉。"""
+        if not (oid and self.settings.get("PROACTIVE_COMMENT") and watch_round.per_video_comment
+                and watch_round.comment_count < watch_round.daily_comment_limit):
+            return
+        if not self.video_evaluate.video_watch.video_route():
+            return
+        hot_comments, tags = await self._comment_context(oid, analysis_info)
+        request = await self.video_evaluate.comment_watch_request(analysis_info, hot_comments, tags)
+        if request:
+            analysis_info["_comment_request"] = request
+
     async def _send_proactive_video_comment(self, watch_round, video, oid, analysis_info, video_description, actions):
         bvid = video["bvid"]
-        hot_comments = await self.bili_comments._get_hot_comments(oid) if oid else []
-        proactive_comment = await self.video_evaluate._generate_proactive_comment(
-            analysis_info, video_description, hot_comments)
+        if "_comment_draft" in analysis_info:
+            # 视频模型看的时候已经写了；空字符串是它选了不评。
+            proactive_comment = analysis_info["_comment_draft"] or None
+            logger.info(f"[BiliBot] 💬 用视频模型看完时写的评论（{'想评' if proactive_comment else '选了不评'}）")
+        else:
+            hot_comments, tags = await self._comment_context(oid, analysis_info)
+            proactive_comment = await self.video_evaluate._generate_proactive_comment(
+                analysis_info, video_description, hot_comments, tags)
         sync = self.dynamic_post.comment_syncs()
         if not proactive_comment:
             return
@@ -279,7 +324,7 @@ class WatchVideo(HostView):
                 key=bvid, kind=kind, source=watch_round.policy.name,
                 title=video.get("title", ""), up_name=video.get("up_name", ""), pic=video.get("pic", ""),
                 score=score, review=review, angle=evaluation.get("dynamic_angle", ""),
-                summary=self.video_watch._clip_media_text(video_description, 360),
+                summary=watch_digest(video_description, 360),
             )
             if idea_id:
                 watch_round.dynamic_candidates.append(idea_id)
@@ -291,7 +336,7 @@ class WatchVideo(HostView):
                 discovery_mode="explore" if video.get("_exploration") else "interest",
                 recommend_reason=evaluation.get("recommend_reason", ""),
                 recommended_at=getattr(self, "_owner_last_recommended_at", "") if any(self.owner_recommend._is_owner_recommend_action(action) for action in actions) else "",
-                content_summary=self.video_watch._clip_media_text(video_description, 360),
+                content_summary=watch_digest(video_description, 360),
                 analysis_basis=analysis_info.get("analysis_basis", "legacy"),
             )
         watch_round.watch_log = self.activity_logs.watch.append(log_entry)
@@ -301,7 +346,7 @@ class WatchVideo(HostView):
             f"(UP主:{video.get('up_name', '')}) "
             f"评分:{score}/10 心情:{mood} "
             f"理由:{score_reason[:80]} 感想:{review[:80]} "
-            f"内容:{video_description[:120]}"
+            f"内容:{watch_digest(video_description, 120)}"
         )
         if preference_signals:
             memory_text += " | 兴趣信号:" + "、".join(
@@ -324,7 +369,7 @@ class WatchVideo(HostView):
             await self.memory_writer._save_self_memory_record(f"{watch_round.action_key_prefix}_watch", self.video_watch._clip_media_text(memory_text, 520), memory_type="video", extra={"bvid": bvid, "owner_mid": str(video.get("up_mid", "")), "owner_name": video.get("up_name", ""), "video_title": video.get("title", ""), "tname": tname, "score": score, "score_reason": score_reason, "mood": mood, "review": review, "impression": verdict.get("impression", ""), "preference_signals": preference_signals, "search_keywords": search_keywords})
         external_memory = watch_round.external_memory
         if bvid not in external_memory:
-            external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": self.video_watch._clip_media_text(video_description, 220), "score": score, "score_reason": score_reason, "mood": mood, "review": self.video_watch._clip_media_text(review, 120), "preference_signals": preference_signals, "search_keywords": search_keywords, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
+            external_memory[bvid] = {"title": video.get("title", ""), "up_name": video.get("up_name", ""), "up_mid": str(video.get("up_mid", "")), "description": watch_digest(video_description, 220), "score": score, "score_reason": score_reason, "mood": mood, "review": self.video_watch._clip_media_text(review, 120), "preference_signals": preference_signals, "search_keywords": search_keywords, "watched_at": datetime.now().strftime("%Y-%m-%d %H:%M"), "comments": []}
             self.memory_docs.external_memory.write(external_memory)
         if not watch_round.policy.writes_shared_video_cache:
             return
@@ -341,7 +386,7 @@ class WatchVideo(HostView):
                 "analysis": video_description,
                 "analysis_basis": analysis_info.get("analysis_basis", "legacy"),
                 "content_analyzed": analysis_info.get("analysis_basis") != "metadata",
-                "summary": self.video_watch._clip_media_text(video_description, 220),
+                "summary": watch_digest(video_description, 220),
                 "score": score,
                 "score_reason": score_reason,
                 "mood": mood,
@@ -350,6 +395,10 @@ class WatchVideo(HostView):
                 "search_keywords": search_keywords,
                 "time": log_entry["time"],
             }
+            if analysis_info.get("_comment_hint"):
+                vc[bvid]["comment_hint"] = analysis_info["_comment_hint"]
+            if analysis_info.get("_sensitive"):
+                vc[bvid]["sensitive"] = True
             self.memory_docs.video_memory.write(vc)
         except Exception as e:
             logger.debug(f"[BiliBot] 写入视频缓存失败: {e}")

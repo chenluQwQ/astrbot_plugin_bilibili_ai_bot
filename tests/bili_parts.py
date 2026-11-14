@@ -42,6 +42,7 @@ OWNERS = {
     "_oid_to_bvid": "bili_videos",
     "_get_video_info": "bili_videos",
     "_get_video_subtitles": "bili_videos",
+    "_get_video_subtitle_lines": "bili_videos",
     "_get_video_tags": "bili_videos",
     "_get_video_oid": "bili_videos",
     "_like_video": "bili_videos",

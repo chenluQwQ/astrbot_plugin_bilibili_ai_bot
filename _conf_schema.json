@@ -817,7 +817,23 @@
       "max": 10,
       "step": 1
     }
+  },  "PROACTIVE_SENSITIVE_COMMENT_CHANCE": {
+    "description": "【主动看视频】政治时事类视频的评论概率",
+    "type": "float",
+    "default": 0.3,
+    "min": 0,
+    "max": 1,
+    "hint": "视频模型判断是政治、时事有争议的内容，或分区是资讯类时，想评论也只按这个概率评；评了也只说视频里的细节、不表态。0 是这类视频都不评，1 是照常评。",
+    "condition": {
+      "PROACTIVE_COMMENT": true
+    },
+    "slider": {
+      "min": 0,
+      "max": 1,
+      "step": 0.05
+    }
   },
+
   "COMMENT_SYNC_DYNAMIC": {
     "description": "【主动看视频】主动发的评论同时转发到动态",
     "type": "bool",
@@ -867,12 +883,18 @@
   "VIDEO_VISUAL_ANALYSIS_POLICY": {
     "description": "【主动看视频】什么时候看画面",
     "type": "string",
-    "default": "when_text_insufficient",
+    "default": "always",
     "options": [
       "when_text_insufficient",
       "always"
     ],
-    "hint": "文字信息不够时才看（when_text_insufficient）：先读标题、简介、字幕、标签和热评，不够再分析画面。每次都看（always）：费用更高。"
+    "hint": "每次都看（always）：视频模型看画面、听声音，按时间记下内容；有字幕也看。文字信息不够时才看（when_text_insufficient）：有字幕就只读字幕，省钱但只知道说了什么、不知道画面。"
+  },
+  "VIDEO_VISION_AUDIO": {
+    "description": "【主动看视频】视频模型听声音",
+    "type": "bool",
+    "default": true,
+    "hint": "开启时上传给视频模型的片段带音轨（单声道低码率），模型能听到讲话和音乐。不听音轨的模型会忽略，不会出错。关闭后只传画面。截图分析听不到声音。"
   },
   "ENABLE_BANGUMI": {
     "description": "【番剧】番剧功能",

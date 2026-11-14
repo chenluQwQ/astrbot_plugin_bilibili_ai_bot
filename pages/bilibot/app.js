@@ -107,9 +107,9 @@ const PAGE_KEYS = {
     "PROACTIVE_COMMENT_DAILY_LIMIT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
-    "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE", "COMMENT_SYNC_DYNAMIC",
+    "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE", "PROACTIVE_SENSITIVE_COMMENT_CHANCE", "COMMENT_SYNC_DYNAMIC",
     "PROACTIVE_FOLLOW", "PROACTIVE_FOLLOW_MIN_SCORE", "CUSTOM_PROACTIVE_INSTRUCTION",
-    "VIDEO_VISUAL_ANALYSIS_POLICY",
+    "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_AUDIO",
     "ENABLE_BANGUMI", "BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT",
     "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW", "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS",
     "DYNAMIC_POST_CHANCE", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_PROMPT",
@@ -1032,7 +1032,7 @@ const OPTION_LABELS = {
   ABUSE_ALERT_MODE: { off: "关闭", score: "按好感度变化判断", model: "再用模型确认" },
   DAILY_SUMMARY_MODE: { archive: "只写进记忆", qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
   WEEKLY_SUMMARY_MODE: { qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
-  VIDEO_VISUAL_ANALYSIS_POLICY: { when_text_insufficient: "文字信息不足时才看画面", always: "每次都看画面" },
+  VIDEO_VISUAL_ANALYSIS_POLICY: { when_text_insufficient: "有字幕就只读字幕", always: "每次都看视频" },
   IMAGE_GEN_BACKEND: { openai: "OpenAI 兼容接口", novelai: "NovelAI" },
   WEB_SEARCH_BACKEND: { tavily: "Tavily", firecrawl: "Firecrawl", grok: "Grok", perplexity: "Perplexity", bocha: "博查", custom: "自定义接口" },
   VIDEO_VISION_FORMAT: { auto: "自动探测", openai: "OpenAI video_url", file: "OpenAI file", qwen: "通义千问 / vLLM", gemini: "Gemini 兼容层", none: "不直读，只截帧" },
@@ -1052,7 +1052,8 @@ const UI_COPY = {
   RECOMMEND_OWNER_DELIVERY: { hint: "建议 B站私信或 QQ 私信。评论区 @主人 别人都看得到，不太建议。QQ 发到「主人 QQ 私聊」那个窗口" },
   AUTONOMOUS_PLAN_GENERATION_MODE: { hint: "睡醒后过一会儿生成，或者每天固定时刻生成" },
   WEEKLY_SUMMARY_MODE: { hint: "也可以用 /bili周总结 手动发" },
-  VIDEO_VISUAL_ANALYSIS_POLICY: { hint: "先看标题、简介、字幕、标签和热评，不够再截帧看画面；每次都看画面更费钱" },
+  VIDEO_VISUAL_ANALYSIS_POLICY: { hint: "每次都看：视频模型看画面、听声音；有字幕就只读字幕：省钱，但不知道画面" },
+  VIDEO_VISION_AUDIO: { hint: "上传给视频模型的片段带声音，模型能听到讲话和音乐；截图分析听不到" },
   VIDEO_VISION_FORMAT: { hint: "按你的模型或网关支持的选。不确定就选「自动探测」：挨个试，第一个成功的记下来。选错也不会坏，会自动改用截帧" },
   IMAGE_GEN_BACKEND: { hint: "NovelAI 只在手动 /bili动态 时能生图" },
 };
@@ -1887,7 +1888,7 @@ const EVENT_STYLES = {
 };
 
 const AUTONOMY_CAPABILITIES = [
-  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY"] },
+  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_AUDIO"] },
   { id: "prefilter", title: "视频来源与标题筛选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "开关控制看之前是否先按标题筛一遍；视频从哪里来（关注、视频池、搜索、口味）也在这里设置。", dependency: "需要先开主动看视频", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS"] },
   { id: "bangumi", title: "追番", icon: "video", toggle: "ENABLE_BANGUMI", description: "按日程看番剧、写评价、按评分评论和追番。要同时打开「主动追番」才会排进日程。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
   { id: "dynamic", title: "发动态", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按日程发 B站动态，内容来自看过的视频、番剧、站外订阅和搜索攒下的想法。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },

@@ -210,7 +210,7 @@ class LLMGateway:
         return await self._astrbot_call(generate, provider_id, circuit, timeout)
 
     async def tool_loop(self, prompt, system_prompt="", *, event, tools, max_steps,
-                        tool_call_timeout=120, provider_id=None, circuit=None, timeout=None):
+                        tool_call_timeout=120, provider_id=None, circuit=None, timeout=None, max_tokens=900):
         """走 AstrBot 的工具循环：模型可以先调 ``tools`` 里的工具，最后给出回复文字。
 
         只放进传进来的工具；``max_steps`` 轮之后 AstrBot 会拔掉工具逼模型收尾。
@@ -218,7 +218,7 @@ class LLMGateway:
         ``timeout`` 是整轮的总时限：AstrBot 里面的重试也算在内，到点没完就算一次失败，记进熔断。
         """
         if not tools:
-            return await self.call(prompt, system_prompt=system_prompt, max_tokens=900,
+            return await self.call(prompt, system_prompt=system_prompt, max_tokens=max_tokens,
                                    provider_id=provider_id, circuit=circuit, timeout=timeout)
         from astrbot.core.agent.tool import ToolSet
 
@@ -279,6 +279,37 @@ class LLMGateway:
             logger.error(f"[BiliBot] LLM 调用失败: {self.last_error}")
             await circuit.failure(mode, self.last_error)
             return None
+
+    def purpose_route(self, purpose):
+        """这个用途实际走哪个模型：``("provider", ID)``、``("api", 地址, 模型名)``，找不到是 None。
+        用来判断视频模型和写评论的模型是不是同一个。"""
+        prefix = str(purpose).upper()
+        settings = self._settings()
+        provider = settings.str(f"{prefix}_PROVIDER_ID")
+        if provider and provider.lower() != "default":
+            return ("provider", provider)
+        api_key = settings.str(f"{prefix}_API_KEY")
+        if api_key:
+            model = settings.str(f"{prefix}_MODEL")
+            base = normalize_openai_base_url(settings.get(f"{prefix}_API_BASE") or "https://api.openai.com/v1")
+            return ("api", base, model) if model else None
+        pid = self.resolve_provider(None)
+        return ("provider", pid) if pid else None
+
+    async def purpose_tool_loop(self, purpose, prompt, system_prompt="", *, event, tools, max_steps,
+                                tool_call_timeout=120, timeout=None, max_tokens=900):
+        """用某个用途配的模型跑工具循环。配的是独立 API 时 AstrBot 的工具循环用不了，就不给工具、普通调用一次。"""
+        prefix = str(purpose).upper()
+        route = self.purpose_route(prefix)
+        if route and route[0] == "api":
+            return await self.purpose_call(prefix, prompt, system_prompt=system_prompt, max_tokens=max_tokens)
+        provider = self._settings().str(f"{prefix}_PROVIDER_ID")
+        explicit = provider if provider and provider.lower() != "default" else None
+        return await self.tool_loop(
+            prompt, system_prompt, event=event, tools=tools, max_steps=max_steps,
+            tool_call_timeout=tool_call_timeout, provider_id=explicit,
+            circuit=self.purpose_circuit(prefix) if explicit else None, timeout=timeout, max_tokens=max_tokens,
+        )
 
     async def purpose_call(self, purpose, prompt, system_prompt="", max_tokens=600):
         """总结和生成：事实和人设写作可以分开配模型，没配就用对话模型。"""
