@@ -72,7 +72,9 @@ class WatchVideo(HostView):
             } if vi else {"bvid": bvid}),
         }
         path = []
+        await self._prepare_comment_draft(watch_round, oid, analysis_info)
         video_description = await self.video_watch._analyze_video_with_vision(analysis_info)
+        analysis_info.pop("_comment_request", None)
         path.append(f"分析:{analysis_info.get('analysis_basis', 'legacy')}")
         logger.info(f"[BiliBot] {watch_round.icon} 分析：{watch_digest(video_description, 60)}")
         # 分析完成即算“看过”；即使后续评价或互动失败，也不能在旧流水
@@ -212,12 +214,38 @@ class WatchVideo(HostView):
             await self.owner_recommend._recommend_video_to_owner(watch_round, video, oid, video_description, evaluation, verdict["review"], actions)
         return False
 
+    async def _comment_context(self, oid, analysis_info):
+        """写评论要的热评和标签；看视频前拿过就不再拿。"""
+        if "_hot_comments" not in analysis_info:
+            analysis_info["_hot_comments"] = await self.bili_comments._get_hot_comments(oid) if oid else []
+        if "_tags" not in analysis_info:
+            bvid = analysis_info.get("bvid")
+            analysis_info["_tags"] = await self.bili_videos._get_video_tags(bvid) if bvid else []
+        return analysis_info["_hot_comments"], analysis_info["_tags"]
+
+    async def _prepare_comment_draft(self, watch_round, oid, analysis_info):
+        """视频模型和写评论的模型是同一个、这次还可能评论时，让看视频那次顺便把评论写了。
+        写好的草稿等评价出来、过了评论的门槛才发；没过就丢掉。"""
+        if not (oid and self.settings.get("PROACTIVE_COMMENT") and watch_round.per_video_comment
+                and watch_round.comment_count < watch_round.daily_comment_limit):
+            return
+        if not self.video_evaluate.video_watch.video_route():
+            return
+        hot_comments, tags = await self._comment_context(oid, analysis_info)
+        request = await self.video_evaluate.comment_watch_request(analysis_info, hot_comments, tags)
+        if request:
+            analysis_info["_comment_request"] = request
+
     async def _send_proactive_video_comment(self, watch_round, video, oid, analysis_info, video_description, actions):
         bvid = video["bvid"]
-        hot_comments = await self.bili_comments._get_hot_comments(oid) if oid else []
-        tags = await self.bili_videos._get_video_tags(bvid) if bvid else []
-        proactive_comment = await self.video_evaluate._generate_proactive_comment(
-            analysis_info, video_description, hot_comments, tags)
+        if "_comment_draft" in analysis_info:
+            # 视频模型看的时候已经写了；空字符串是它选了不评。
+            proactive_comment = analysis_info["_comment_draft"] or None
+            logger.info(f"[BiliBot] 💬 用视频模型看完时写的评论（{'想评' if proactive_comment else '选了不评'}）")
+        else:
+            hot_comments, tags = await self._comment_context(oid, analysis_info)
+            proactive_comment = await self.video_evaluate._generate_proactive_comment(
+                analysis_info, video_description, hot_comments, tags)
         sync = self.dynamic_post.comment_syncs()
         if not proactive_comment:
             return

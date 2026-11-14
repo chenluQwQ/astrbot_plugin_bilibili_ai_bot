@@ -43,6 +43,15 @@ def seg(text, at=1):
     return json.dumps({"timeline": [{"at": at, "text": text}], "impression": f"{text}的印象", "audio": "有人在讲话"}, ensure_ascii=False)
 
 
+def seg_comment(text, comment, decision="comment", at=1):
+    """视频模型兼写评论时的一段记录。"""
+    value = json.loads(seg(text, at))
+    return json.dumps({"comment": {"decision": decision, "text": comment}, **value}, ensure_ascii=False)
+
+
+COMMENT_REQUEST = {"_comment_request": {"system_prompt": "人设", "prompt": "评论的写法和热评"}}
+
+
 def rejected(kind, reason="不行"):
     return {"rejection": kind, "reason": reason}
 
@@ -125,12 +134,12 @@ class Probe(VideoParts, BiliParts):
         self.calls.append(["client"])
         return self.script.get("client")
 
-    async def _astrbot_multimodal_generate(self, provider_id, content, max_tokens=250):
-        self.calls.append(["multimodal", provider_id, self._parts(content), max_tokens])
+    async def _astrbot_multimodal_generate(self, provider_id, content, max_tokens=250, **kwargs):
+        self.calls.append(["multimodal", provider_id, self._parts(content), max_tokens, *([kwargs] if kwargs else [])])
         return self._model_answer("multimodal")
 
-    async def _vision_call(self, client, model, content, max_tokens=250):
-        self.calls.append(["vision", model, self._parts(content), max_tokens])
+    async def _vision_call(self, client, model, content, max_tokens=250, **kwargs):
+        self.calls.append(["vision", model, self._parts(content), max_tokens, *([kwargs] if kwargs else [])])
         return self._model_answer("vision")
 
     def _model_answer(self, name):
@@ -257,6 +266,12 @@ SCENES = {
     "timeline/time_outside_segment_rejected": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("编的", at=500), summary="总结")),
     "timeline/heard_nothing_noted": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": True}, multimodal=json.dumps({"timeline": [{"at": 3, "text": "有人在切木板"}], "impression": "做木工", "audio": "听不到"}, ensure_ascii=False))),
     "timeline/frames_get_timed_subtitles": (ANALYZE, (INFO,), dict(config=VISION, subtitle_lines=[[{"from": 2.0, "to": 4.0, "content": "先量尺寸"}, {"from": 70.0, "to": 72.0, "content": "片外"}]], summary=['{"relevant": true}'], multimodal=seg("画面"))),
+    # 视频模型兼写评论：最后一段那次写，带人设
+    "draft/single_segment_writes_comment": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "4:30 那里装反的腿笑死"))),
+    "draft/skip_is_kept": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "", decision="skip"))),
+    "draft/bad_comment_keeps_timeline": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "x" * 601))),
+    "draft/last_segment_sees_earlier": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg_comment("二段", "第二段那个转折没想到")], summary=["汇总"])),
+    "draft/frames_also_write": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=VISION, multimodal=seg_comment("画面", "截图里那把椅子好看"))),
     "timeline/audio_off_strips_track": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": False}, multimodal=seg("直读"))),
     # 视频直读
     "direct/auto_first_works": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("直读"), summary="整合")),

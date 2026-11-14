@@ -170,13 +170,15 @@ class Vision:
             self._image_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
         return self._image_vision_client
 
-    async def _vision_call(self, client, model, content_parts, max_tokens=250):
-        """通用视觉模型调用"""
+    async def _vision_call(self, client, model, content_parts, max_tokens=250, system_prompt=""):
+        """通用视觉模型调用。``system_prompt``：看完直接写评论时带上人设。"""
         set_call_diagnostic(reason="视觉模型返回空内容", model=safe_detail(model, self.config, 100))
         try:
+            messages = [{"role": "system", "content": system_prompt}] if system_prompt else []
+            messages.append({"role": "user", "content": content_parts})
             resp = await client.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": content_parts}],
+                messages=messages,
                 max_tokens=max_tokens,
             )
             return resp.choices[0].message.content.strip() if resp.choices else None
@@ -234,17 +236,16 @@ class Vision:
             logger.error(f"[BiliBot] 图片识别失败: {e}")
             return ""
 
-    async def _astrbot_multimodal_generate(self, provider_id, content_parts, max_tokens=250):
-        """通过 AstrBot provider 进行多模态调用"""
+    async def _astrbot_multimodal_generate(self, provider_id, content_parts, max_tokens=250, system_prompt=""):
+        """通过 AstrBot provider 进行多模态调用。``system_prompt``：看完直接写评论时带上人设。"""
         set_call_diagnostic(reason="视觉提供商未配置" if not provider_id else "视觉模型返回空内容", provider=safe_detail(provider_id, self.config, 100))
         if not provider_id:
             return None
         try:
-            resp = await self.context.llm_generate(
-                chat_provider_id=provider_id,
-                prompt=content_parts,
-                max_tokens=max_tokens,
-            )
+            kwargs = {"chat_provider_id": provider_id, "prompt": content_parts, "max_tokens": max_tokens}
+            if system_prompt:
+                kwargs["system_prompt"] = system_prompt
+            resp = await self.context.llm_generate(**kwargs)
             if resp and resp.completion_text:
                 return resp.completion_text.strip()
         except Exception as e:

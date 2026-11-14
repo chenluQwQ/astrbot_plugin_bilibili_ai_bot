@@ -24,11 +24,26 @@ AUDIO_LIMIT = 80
 # 视频模型收不到音轨时，audio 会写这个（提示词里要求的）。
 NO_AUDIO_WORDS = ("听不到", "没有收到声音", "无法听到", "收不到声音")
 
-SEGMENT_SCHEMA_PROMPT = """只输出一个 JSON 对象，不要代码块、不要别的文字：
-{"timeline": [{"at": 秒数, "text": "这一刻画面里有什么、谁说了什么"}], "impression": "看完这一段的整体印象，一两句", "audio": "这段声音里有什么：有人讲话（大概在讲什么）/只有音乐/没声音；收不到声音就写「听不到」"}
-at 是这一段里的第几秒（数字，从 0 开始），按时间顺序，最多 24 条；text 每条 160 字以内，把看到的和听到的写在一起。
+_SEGMENT_RULES = """at 是这一段里的第几秒（数字，从 0 开始），按时间顺序，最多 24 条；text 每条 160 字以内，把看到的和听到的写在一起。
 
 这份记录之后要拿来聊这个视频、回答别人问的细节，所以记具体的东西：出现了什么人、什么东西，说了哪句话（尽量记原话），提到的名字、数字、结论，发生了什么意外或转折。「UP主开始讲解」「画面切换」「背景音乐响起」这种放在哪个视频里都成立的话，之后什么也回答不了，不用记；没有新内容的时刻就跳过，不用凑满条数。只写这段里确实看到、听到的，没听清的就不写，编出来的细节会被当真拿去说。"""
+
+_RECORD_FIELDS = (
+    '"timeline": [{"at": 秒数, "text": "这一刻画面里有什么、谁说了什么"}], '
+    '"impression": "看完这一段的整体印象，一两句", '
+    '"audio": "这段声音里有什么：有人讲话（大概在讲什么）/只有音乐/没声音；收不到声音就写「听不到」"'
+)
+
+SEGMENT_SCHEMA_PROMPT = (
+    "只输出一个 JSON 对象，不要代码块、不要别的文字：\n{" + _RECORD_FIELDS + "}\n" + _SEGMENT_RULES
+)
+
+# 视频模型和写评论的模型是同一个时，看最后一段那次顺便把评论写了：说的话在前，记录在后。
+SEGMENT_WITH_COMMENT_SCHEMA_PROMPT = (
+    "只输出一个 JSON 对象，不要代码块、不要别的文字，先写评论再写记录：\n{"
+    '"comment": {"decision": "comment|skip", "text": "评论正文；长评分段用\\n换行；skip 时留空"}, '
+    + _RECORD_FIELDS + "}\n" + _SEGMENT_RULES
+)
 
 
 class VideoTimelineError(ValueError):
@@ -51,14 +66,27 @@ def clock(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"
 
 
-def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = None) -> dict[str, Any]:
-    """校验一段的输出；秒数换成原视频里的秒数。超出这段长度的条目算模型编的，整段作废。"""
+def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = None, *,
+                        with_comment: bool = False) -> dict[str, Any]:
+    """校验一段的输出；秒数换成原视频里的秒数。超出这段长度的条目算模型编的，整段作废。
+
+    ``with_comment``：这段还要顺便写评论。评论格式不对只丢评论（``comment`` 为 None），记录照收；
+    想评论是正文，选了 skip 是空字符串。
+    """
     try:
         value = json.loads(_strip_fence(raw))
     except (TypeError, ValueError) as exc:
         raise VideoTimelineError("invalid_json") from exc
-    if not isinstance(value, dict) or set(value) != SEGMENT_KEYS:
+    keys = SEGMENT_KEYS | ({"comment"} if with_comment else set())
+    if not isinstance(value, dict) or not SEGMENT_KEYS <= set(value) <= keys:
         raise VideoTimelineError("segment_schema_mismatch")
+    comment = None
+    if with_comment and isinstance(value.get("comment"), dict):
+        from .content_protocol import ContentProtocolError, parse_proactive_comment
+        try:
+            comment = parse_proactive_comment(json.dumps(value["comment"], ensure_ascii=False))["text"]
+        except ContentProtocolError:
+            comment = None
     timeline = value["timeline"]
     if not isinstance(timeline, list) or not timeline:
         raise VideoTimelineError("timeline_empty")
@@ -84,7 +112,10 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     audio = value["audio"]
     if not isinstance(audio, str) or not audio.strip() or len(audio.strip()) > AUDIO_LIMIT:
         raise VideoTimelineError("audio_invalid")
-    return {"timeline": entries, "impression": impression.strip(), "audio": audio.strip()}
+    out = {"timeline": entries, "impression": impression.strip(), "audio": audio.strip()}
+    if with_comment:
+        out["comment"] = comment
+    return out
 
 
 def heard_nothing(audio: str) -> bool:
