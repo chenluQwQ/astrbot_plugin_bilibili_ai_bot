@@ -42,6 +42,7 @@ OWNERS = {
     "_oid_to_bvid": "bili_videos",
     "_get_video_info": "bili_videos",
     "_get_video_subtitles": "bili_videos",
+    "_get_video_subtitle_lines": "bili_videos",
     "_get_video_tags": "bili_videos",
     "_get_video_oid": "bili_videos",
     "_like_video": "bili_videos",
@@ -52,6 +53,7 @@ OWNERS = {
     "_post_dynamic_text": "bili_dynamics",
     "_post_dynamic_with_image": "bili_dynamics",
     "_repost_video": "bili_dynamics",
+    "_repost_dynamic": "bili_dynamics",
     "get_up_recent_dynamics": "bili_dynamics",
     "get_following_updates": "bili_dynamics",
 }

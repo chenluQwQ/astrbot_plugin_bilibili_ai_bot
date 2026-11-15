@@ -46,6 +46,12 @@ def _plugin(layered=None):
     return types.SimpleNamespace(app=app)
 
 
+def _pool_plugin(pool):
+    plugin = _plugin()
+    plugin.app.dynamic_post = types.SimpleNamespace(idea_pool=lambda: pool)
+    return plugin
+
+
 def _ask(date=""):
     today.request = types.SimpleNamespace(query={"date": date} if date else {})
 
@@ -253,6 +259,47 @@ class TodayDeleteCommentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self._delete("12345"))["status"], "error")
         self.assertEqual((await self._delete("abc"))["status"], "error")
         self.assertEqual(self.deletes, [])
+
+
+class TodayIdeaPoolTests(unittest.IsolatedAsyncioTestCase):
+    """动态池子只读：那天进池或状态变了的；看今天时带上所有还在等的。"""
+
+    def _pool(self):
+        from core.domain.dynamic_ideas import DynamicIdeas
+        pool = DynamicIdeas.in_memory()
+        now = datetime.now().timestamp()
+        day_ago = now - 86400
+        old = pool.add(key="BV1abcdefghi", kind="分享", source="proactive", title="昨天看的", angle="开头", now=day_ago)
+        pool.add(key="feed:x", kind="转述", source="feed", title="新版本", up_name="某项目", angle="能导出了",
+                 link="https://example.com/v2", now=now)
+        posted = pool.add(key="dyn:9", kind="转发", source="dynamic_watch", title="招募", now=day_ago)
+        pool.mark_posted(posted, now=day_ago + 60)
+        return pool, old
+
+    async def test_today_lists_waiting_and_today(self):
+        pool, _ = self._pool()
+        _ask()
+        data = (await today.handle_get_today(_pool_plugin(pool)))["data"]
+        rows = {item["title"]: item for item in data["ideas"]}
+        self.assertEqual(set(rows), {"新版本", "昨天看的"})  # 昨天发掉的那条今天不列
+        feed = rows["新版本"]
+        self.assertEqual((feed["kind"], feed["source"], feed["link"], feed["state"], feed["changed"]),
+                         ("转述", "站外订阅", "https://example.com/v2", "pending", ""))
+        self.assertEqual(len(feed["created"]), 5)  # 今天的只写时分
+        self.assertEqual(rows["昨天看的"]["bvid"], "BV1abcdefghi")
+        self.assertIn("-", rows["昨天看的"]["created"])  # 别的日子带月日
+
+    async def test_other_day_has_no_waiting_extra(self):
+        pool, _ = self._pool()
+        _ask(YESTERDAY)
+        data = (await today.handle_get_today(_pool_plugin(pool)))["data"]
+        rows = {item["title"]: item for item in data["ideas"]}
+        self.assertEqual(set(rows), {"昨天看的", "招募"})
+        self.assertEqual((rows["招募"]["state"], rows["招募"]["source"], rows["招募"]["bvid"]), ("posted", "关注动态", ""))
+
+    async def test_no_pool_no_ideas(self):
+        _ask()
+        self.assertEqual((await today.handle_get_today(_plugin()))["data"]["ideas"], [])
 
 
 if __name__ == "__main__":

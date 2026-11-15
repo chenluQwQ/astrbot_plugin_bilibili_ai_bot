@@ -9,7 +9,10 @@ from ..infra.host_view import HostView
 
 
 class ReplyGate(HostView):
-    HOST_API = frozenset({"models", "reply_log", "schedule_rules", "settings"})
+    HOST_API = frozenset({"bili_http", "bili_videos", "models", "reply_log", "schedule_rules", "settings"})
+
+    # 评论区是不是 Bot 自己的，查过的记在这里，同一个评论区不重复请求
+    _OWN_CONTENT_CACHE_SIZE = 500
 
     _AD_PATTERNS = (
         r"(?:加|\+)(?:微|v|vx|q|qq)",
@@ -36,6 +39,60 @@ class ReplyGate(HostView):
                     cls._INVALID_AD_PATTERNS_LOGGED.add(pattern)
                     logger.error(f"[BiliBot] 已跳过无效广告过滤规则 {pattern!r}: {exc}")
         return False
+
+    async def _is_own_content(self, oid, comment_type) -> bool:
+        """这个评论区是不是在 Bot 自己的视频或动态下面。查不到当作不是，下次再查。"""
+        bot_mid = str(self.settings.get("DEDE_USER_ID") or "").strip()
+        if not bot_mid or not oid:
+            return False
+        try:
+            kind = int(comment_type)
+        except (TypeError, ValueError):
+            return False
+        key = (str(oid), kind)
+        cache = getattr(self, "_own_content_cache", None)
+        if cache is None:
+            cache = self._own_content_cache = {}
+        if key in cache:
+            return cache[key]
+        try:
+            author = await self._content_author_mid(oid, kind)
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 查评论区是谁的失败（oid={oid} type={kind}）：{exc}")
+            author = ""
+        if not author:
+            return False
+        if len(cache) >= self._OWN_CONTENT_CACHE_SIZE:
+            cache.clear()
+        cache[key] = author == bot_mid
+        return cache[key]
+
+    async def _content_author_mid(self, oid, kind) -> str:
+        """评论区所在内容的作者 UID：1 是视频，11 是图文相簿，17 是动态；别的类型不查。"""
+        if kind == 1:
+            info = await self.bili_videos._get_video_info(oid)
+            return str((info or {}).get("owner_mid") or "")
+        if kind == 17:
+            d, _ = await self.bili_http._http_get(
+                "https://api.bilibili.com/x/polymer/web-dynamic/v1/detail",
+                params={"id": oid, "timezone_offset": -480},
+            )
+            if isinstance(d, dict) and d.get("code") == 0:
+                item = (d.get("data") or {}).get("item") or {}
+                return str(((item.get("modules") or {}).get("module_author") or {}).get("mid") or "")
+            return ""
+        if kind == 11:
+            for url in (
+                f"https://api.bilibili.com/x/dynamic/feed/draw/doc_detail?doc_id={oid}",
+                f"https://api.vc.bilibili.com/link_draw/v1/doc/detail?doc_id={oid}",
+            ):
+                d, _ = await self.bili_http._http_get(url)
+                if isinstance(d, dict) and d.get("code") == 0:
+                    user = (d.get("data") or {}).get("user") or {}
+                    mid = str(user.get("uid", user.get("mid", "")) or "")
+                    if mid:
+                        return mid
+        return ""
 
     def _today_reply_count(self, channel="comment"):
         return self.reply_log.today_count(channel)

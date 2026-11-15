@@ -40,6 +40,7 @@ from .features._abuse_alert import AbuseAlert
 from .features._memo_tool import MemoTool
 from .features._self_memory_tool import SelfMemoryTool
 from .features.memo_review import MemoReview
+from .features.dynamic_sources import DynamicSources
 from .features.favorite_digest import FavoriteDigest
 from .features._tell_owner import TellOwner
 from .features._owner_feedback import OwnerFeedback
@@ -230,6 +231,7 @@ def assemble(bot):
     bot.abuse_alert = AbuseAlert(bot)
     bot.comment_reply = CommentReply(bot)
     bot.dynamic_post = DynamicPost(bot)
+    bot.dynamic_sources = DynamicSources(bot)
     bot.share_links = ShareLinks(bot)
     bot.qq_chat = QQChat(bot)
     bot.share_session = ShareSession(bot)

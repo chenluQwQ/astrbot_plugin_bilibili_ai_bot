@@ -7,14 +7,23 @@
 
 - 3 天没发就过期；待发最多 10 条，满了挤掉最旧的
 - 同一个视频（``key``）同时只有一条待发，后来的不进
-- 类型是吐槽、段子、搬运、分享；搬运是转发这个视频配一句话，只有 B站视频能搬运
+- 类型是吐槽、段子、分享、转发、转述。转发是把这个视频原样转发到自己的动态、配一句话，只有 B站视频能转发；
+  转述是站外内容用自己的话讲一遍。看视频、番剧标的只会是前四种里能用的
+- 旧版本叫「搬运」的就是转发，打开时改名
+- 站外来的（``source`` 是 ``feed`` / ``search``）带原链接 ``link``，``key`` 是 ``feed:`` / ``search:`` 开头的指纹
+- 关注动态巡视来的（``source`` 是 ``dynamic_watch``）只有转发一种，``key`` 是 ``dyn:动态id``
 """
 from __future__ import annotations
 
 import sqlite3
 import time
 
-KINDS = ("吐槽", "段子", "搬运", "分享")
+KINDS = ("吐槽", "段子", "分享", "转发", "转述")
+# 看视频时能标的：转述是站外内容用的。
+VIDEO_KINDS = ("吐槽", "段子", "分享", "转发")
+REPOST = "转发"
+# 旧名字：模型偶尔还会写，旧表里也有。
+KIND_ALIASES = {"搬运": REPOST}
 DEFAULT_KIND = "分享"
 EXPIRE_SECONDS = 3 * 24 * 3600
 MAX_PENDING = 10
@@ -27,16 +36,26 @@ _DDL = (
     " title TEXT NOT NULL DEFAULT '', up_name TEXT NOT NULL DEFAULT '', pic TEXT NOT NULL DEFAULT '',"
     " score REAL, review TEXT NOT NULL DEFAULT '', angle TEXT NOT NULL DEFAULT '',"
     " summary TEXT NOT NULL DEFAULT '', state TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',"
-    " created_at REAL NOT NULL, state_at REAL NOT NULL)"
+    " created_at REAL NOT NULL, state_at REAL NOT NULL, link TEXT NOT NULL DEFAULT '')"
 )
 _COLUMNS = ("id", "key", "kind", "source", "title", "up_name", "pic", "score", "review", "angle",
-            "summary", "state", "reason", "created_at", "state_at")
+            "summary", "state", "reason", "created_at", "state_at", "link")
+# 站外来源：订阅地址、搜索关键词。
+EXTERNAL_SOURCES = ("feed", "search")
+# 关注的人的动态：转发它。
+FOLLOWED_DYNAMIC = "dynamic_watch"
+DYNAMIC_KEY_PREFIX = "dyn:"
 
 
 class DynamicIdeas:
     def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
         self._conn.execute(_DDL)
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(dynamic_ideas)")}
+        if "link" not in columns:  # 早期的表没有原链接这一列
+            self._conn.execute("ALTER TABLE dynamic_ideas ADD COLUMN link TEXT NOT NULL DEFAULT ''")
+        for old, new in KIND_ALIASES.items():
+            self._conn.execute("UPDATE dynamic_ideas SET kind=? WHERE kind=?", (new, old))
         self._conn.commit()
 
     @classmethod
@@ -62,13 +81,25 @@ class DynamicIdeas:
         ).fetchall()
         return [dict(zip(_COLUMNS, row)) for row in rows]
 
+    def touched(self, start: float, end: float, *, with_pending: bool = False, now: float | None = None) -> list[dict]:
+        """这段时间里进池、或者状态变了（发了、作废、过期）的，最新进池的在前；``with_pending`` 时还带上所有待发的。
+        给 WebUI「今天」页看。"""
+        self._expire(time.time() if now is None else now)
+        rows = self._conn.execute(
+            f"SELECT {', '.join(_COLUMNS)} FROM dynamic_ideas"
+            " WHERE (created_at>=? AND created_at<?) OR (state_at>=? AND state_at<?) OR (? AND state=?)"
+            " ORDER BY created_at DESC, id DESC",
+            (start, end, start, end, 1 if with_pending else 0, PENDING),
+        ).fetchall()
+        return [dict(zip(_COLUMNS, row)) for row in rows]
+
     def all(self) -> list[dict]:
         rows = self._conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM dynamic_ideas ORDER BY id").fetchall()
         return [dict(zip(_COLUMNS, row)) for row in rows]
 
     # ── 写 ──
     def add(self, *, key: str, kind: str, source: str, title: str = "", up_name: str = "", pic: str = "",
-            score=None, review: str = "", angle: str = "", summary: str = "",
+            score=None, review: str = "", angle: str = "", summary: str = "", link: str = "",
             now: float | None = None) -> int | None:
         """放进池子，返回编号；同一个 key 已经在等着发了就不进，返回 None。"""
         key = str(key or "").strip()
@@ -84,10 +115,10 @@ class DynamicIdeas:
             return None
         cursor = self._conn.execute(
             "INSERT INTO dynamic_ideas (key, kind, source, title, up_name, pic, score, review, angle, summary,"
-            " state, created_at, state_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " state, created_at, state_at, link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (key, kind, source, str(title or ""), str(up_name or ""), str(pic or ""),
              None if score is None else float(score), str(review or ""), str(angle or ""),
-             str(summary or ""), PENDING, now, now),
+             str(summary or ""), PENDING, now, now, str(link or "")),
         )
         idea_id = cursor.lastrowid
         overflow = self._conn.execute(

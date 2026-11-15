@@ -128,7 +128,7 @@ class ContentProtocolTests(unittest.TestCase):
         self.assertEqual((wish["dynamic_angle"], wish["dynamic_kind"]), ("这集的停顿", "吐槽"))
         for bad in (
             ',"want_dynamic":true,"dynamic_angle":"","dynamic_kind":"吐槽"',
-            ',"want_dynamic":true,"dynamic_angle":"x","dynamic_kind":"搬运"',  # 番剧不能搬运
+            ',"want_dynamic":true,"dynamic_angle":"x","dynamic_kind":"转发"',  # 番剧不能转发
             ',"want_dynamic":false,"dynamic_angle":"x","dynamic_kind":""',
             ',"want_dynamic":true',  # 三个字段要么都有要么都没有
         ):

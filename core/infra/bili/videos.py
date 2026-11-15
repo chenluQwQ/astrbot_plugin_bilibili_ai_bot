@@ -60,14 +60,23 @@ class BiliVideos(BiliApi):
         return None
 
     async def _get_video_subtitles(self, bvid, cid):
-        """获取视频字幕文本。B站偶尔返回别的视频的字幕，见 ``_own_subtitle_tracks``。"""
+        """获取视频字幕文本（拼成一段、不带时间）。"""
+        lines = await self._get_video_subtitle_lines(bvid, cid)
+        full_text = " ".join(line["content"] for line in lines)
+        if len(full_text) > 2000:
+            full_text = full_text[:2000] + "…（字幕过长已截断）"
+        return full_text
+
+    async def _get_video_subtitle_lines(self, bvid, cid):
+        """获取带时间的字幕：``[{"from": 秒, "to": 秒, "content": 文字}]``。
+        B站偶尔返回别的视频的字幕，见 ``_own_subtitle_tracks``。"""
         if not bvid or not cid:
-            return ""
+            return []
         try:
             aid = await self._get_video_oid(bvid)
             if not aid:
                 logger.warning(f"[BiliBot] 字幕跳过：查不到 aid bvid={bvid}")
-                return ""
+                return []
             # 实测（2026-11-01）：不签名的 player/v2 会串别的视频的字幕，wbi/v2 没有串过。
             d, _ = await self._wbi_get(
                 "https://api.bilibili.com/x/player/wbi/v2",
@@ -76,14 +85,14 @@ class BiliVideos(BiliApi):
             if not isinstance(d, dict) or d.get("code") != 0:
                 code = d.get("code") if isinstance(d, dict) else "?"
                 logger.warning(f"[BiliBot] 字幕接口报错: bvid={bvid} code={code}")
-                return ""
+                return []
             data = d.get("data") or {}
             subtitles = _own_subtitle_tracks(
                 data.get("subtitle", {}).get("subtitles", []), aid, cid, bvid
             )
             if not subtitles:
                 logger.info(f"[BiliBot] 没有可用字幕: bvid={bvid} need_login={data.get('need_login_subtitle')}")
-                return ""
+                return []
             # 优先中文字幕，并保留轨道信息供日志排查 B站自动字幕错配。
             selected_subtitle = None
             for s in subtitles:
@@ -99,25 +108,29 @@ class BiliVideos(BiliApi):
             # 获取字幕JSON
             sub_data, _ = await self._http_get(sub_url)
             if not isinstance(sub_data, dict):
-                return ""
+                return []
             body = sub_data.get("body", [])
             if not body:
-                return ""
-            # 拼接字幕文本，限制长度
-            lines = [item.get("content", "") for item in body if item.get("content")]
-            full_text = " ".join(lines)
-            if len(full_text) > 2000:
-                full_text = full_text[:2000] + "…（字幕过长已截断）"
+                return []
+            lines = []
+            for item in body:
+                if not isinstance(item, dict) or not item.get("content"):
+                    continue
+                try:
+                    start, stop = float(item.get("from") or 0), float(item.get("to") or 0)
+                except (TypeError, ValueError):
+                    start = stop = 0.0
+                lines.append({"from": start, "to": stop, "content": str(item["content"])})
             lan = selected_subtitle.get("lan", "?")
             subtitle_id = selected_subtitle.get("id_str") or selected_subtitle.get("id", "?")
             logger.info(
                 f"[BiliBot] 📝 获取候选字幕: bvid={bvid} cid={cid} "
-                f"lan={lan} id={subtitle_id} {len(lines)}条 {len(full_text)}字"
+                f"lan={lan} id={subtitle_id} {len(lines)}条 {sum(len(line['content']) for line in lines)}字"
             )
-            return full_text
+            return lines
         except Exception as e:
             logger.warning(f"[BiliBot] 字幕获取失败: bvid={bvid} {e}")
-            return ""
+            return []
 
     async def _get_video_tags(self, bvid):
         try:

@@ -237,18 +237,19 @@ def reply_schema_instruction(*, tools: list[str] | None = None, tell_owner: bool
     tool_union = "|".join(dict.fromkeys(tool_names))
     instruction = (
         "只输出一个完整JSON对象，不要Markdown、解释或额外字段。格式必须严格为：\n"
-        '{"decision":"reply|ignore|observe","reply":"唯一可发送文本",'
+        '{"decision":"reply|ignore|observe","reply":"你要说的话",'
         '"score_delta":0,"impression":"","user_facts":[],'
         '"signals":{"interaction_type":"normal|advice|correction|criticism|teasing|attack|threat|other",'
         '"feedback_type":"none|suggestion|correction|criticism|teasing|attack|threat|other",'
         '"attack_level":0,"feedback_topic":null,"reflection_candidate":null,"confidence":0.9},'
         f'"tool_request":{{"name":"{tool_union}","query":""}}'
         + (',"tell_owner":null' if tell_owner else "") + "}\n"
-        "reply是唯一会发给用户的字段，绝不能把signals、评分、工具、分析或JSON写进reply。"
-        "正常不想回复用ignore；只观察并记住但不回复用observe；这两种情况下reply、impression、"
-        "user_facts均为空，score_delta为0，tool_request必须为none。"
-        "reflection_candidate只有明确建议、纠错或重复反馈时才填写"
+        "reply 里的字会原样发出去，所以只放你要说的话；分数、分析、工具这些写在别的字段。"
+        "不想回就用 ignore；想记住但不回就用 observe。这两种不发东西，reply、impression、user_facts 留空，"
+        "score_delta 为 0，tool_request 为 none。"
+        "signals 是给后台看的：这条是什么类型的互动、算不算批评或攻击。熟人开玩笑要按关系看，别只凭某个词就当成攻击。"
+        "reflection_candidate 平时为 null；只有对方明确提建议、纠正你、或者反复提同一件事时，才填"
         '{"event":"发生了什么","possible_mistake":"哪里可能做错了","next_time":"以后怎么做"}，'
-        "普通交流必须为null。熟人玩笑要结合关系判断，不要只凭敏感词当攻击。"
+        "这样以后能改。"
     )
     return instruction + (TELL_OWNER_INSTRUCTION if tell_owner else "")

@@ -86,7 +86,7 @@ class MemoryRecall(HostView):
         if match:
             user_said = match.group(1).strip()
             bot_said = match.group(2).strip()
-            return f"[{t}]{video_tag} {name}(uid:{uid})：{user_said}\n[{t}] Bot：{bot_said}"
+            return f"[{t}]{video_tag} {name}(uid:{uid})：{user_said}\n[{t}] 我：{bot_said}"
         return f"[{t}]{video_tag} {text}"
 
     @staticmethod
@@ -115,7 +115,7 @@ class MemoryRecall(HostView):
             match = re.search(r'说：(.+?)\s*\|\s*Bot回复：(.+)$', text)
             if match:
                 groups[key].append(f"  [{t}] {name}：{match.group(1).strip()}")
-                groups[key].append(f"  [{t}] Bot：{match.group(2).strip()}")
+                groups[key].append(f"  [{t}] 我：{match.group(2).strip()}")
             else:
                 groups[key].append(f"  [{t}] {text}")
         lines = []

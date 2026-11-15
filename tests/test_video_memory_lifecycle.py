@@ -51,6 +51,7 @@ class _Bot:
         self._memory = memories
         self.memories = self
         self.memory_entry = self  # 假的 MemoryEntry：规则就写在下面
+        self.settings = types.SimpleNamespace(get=lambda key: "")
 
     # 假的 Memories：records 就是 _memory
     @property

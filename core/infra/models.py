@@ -40,6 +40,14 @@ class Models:
     async def _generation_llm_call(self, prompt, **kwargs):
         return await self._gateway.purpose_call("GENERATION", prompt, **kwargs)
 
+    def generation_route(self):
+        """写评论这类人设文字实际走哪个模型，见 ``LLMGateway.purpose_route``。"""
+        return self._gateway.purpose_route("GENERATION")
+
+    async def generation_tool_loop(self, prompt, system_prompt="", **kwargs):
+        """用生成模型跑工具循环；生成模型配的是独立 API 时不给工具，见 ``LLMGateway.purpose_tool_loop``。"""
+        return await self._gateway.purpose_tool_loop("GENERATION", prompt, system_prompt, **kwargs)
+
     async def _get_system_prompt(self):
         settings = self._host.settings
         base_prompt = ""

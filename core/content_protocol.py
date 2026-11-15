@@ -31,10 +31,14 @@ def _object(raw: str) -> dict[str, Any]:
     return value
 
 
-def _public_text(value: Any, *, field: str, limit: int, required: bool) -> str:
+def _public_text(value: Any, *, field: str, limit: int, required: bool, paragraphs: bool = False) -> str:
     if not isinstance(value, str):
         raise ContentProtocolError(f"{field}_must_be_string")
-    text = re.sub(r"[\r\n]+", " ", value).strip()
+    if paragraphs:
+        # 长评可以分段：保留换行，多个空行并成一个。
+        text = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]*\r?\n[ \t]*", "\n", value)).strip()
+    else:
+        text = re.sub(r"[\r\n]+", " ", value).strip()
     if required and not text:
         raise ContentProtocolError(f"{field}_required")
     if len(text) > limit:
@@ -50,6 +54,10 @@ def _public_text(value: Any, *, field: str, limit: int, required: bool) -> str:
     return text
 
 
+# 主动评论最长几个字。B站评论上限 1000 字；段评、补充写到 500-600 字就够了。
+PROACTIVE_COMMENT_LIMIT = 600
+
+
 def parse_proactive_comment(raw: str) -> dict[str, Any]:
     value = _object(raw)
     if set(value) != {"decision", "text"}:
@@ -57,7 +65,8 @@ def parse_proactive_comment(raw: str) -> dict[str, Any]:
     decision = str(value.get("decision") or "").strip().lower()
     if decision not in {"comment", "skip"}:
         raise ContentProtocolError("invalid_comment_decision")
-    text = _public_text(value.get("text"), field="text", limit=80, required=decision == "comment")
+    text = _public_text(value.get("text"), field="text", limit=PROACTIVE_COMMENT_LIMIT,
+                        required=decision == "comment", paragraphs=True)
     if decision == "skip" and text:
         raise ContentProtocolError("skipped_comment_has_text")
     return {"decision": decision, "text": text}
@@ -184,6 +193,36 @@ def parse_video_impressions(raw: str, expected_ids) -> dict[str, str]:
     return impressions
 
 
+def parse_memory_importance(raw: str) -> int:
+    """写记忆前模型给的重要度：``{"importance": 1-10}``，别的字段一律不收。"""
+    value = _object(raw)
+    if set(value) != {"importance"}:
+        raise ContentProtocolError("memory_importance_schema_mismatch")
+    importance = value["importance"]
+    if isinstance(importance, bool) or not isinstance(importance, int) or not 1 <= importance <= 10:
+        raise ContentProtocolError("memory_importance_out_of_range")
+    return importance
+
+
+def parse_video_score(raw: str) -> int:
+    """回复评论时顺带看的视频，看完给的分：``{"score": 1-10}``，别的字段一律不收。"""
+    value = _object(raw)
+    if set(value) != {"score"}:
+        raise ContentProtocolError("video_score_schema_mismatch")
+    score = value["score"]
+    if isinstance(score, bool) or not isinstance(score, int) or not 1 <= score <= 10:
+        raise ContentProtocolError("video_score_out_of_range")
+    return score
+
+
+def parse_bangumi_season_summary(raw: str, limit: int) -> str:
+    """一季番剧的总结：``{"summary": "..."}``，超过 ``limit`` 字或带内部标记的不收。"""
+    value = _object(raw)
+    if set(value) != {"summary"}:
+        raise ContentProtocolError("bangumi_summary_schema_mismatch")
+    return _public_text(value["summary"], field="summary", limit=limit, required=True)
+
+
 DYNAMIC_IMAGE_CHOICES = {"none", "generate", "video_cover"}
 
 
@@ -259,7 +298,7 @@ def parse_dynamic_content(
 
 
 BANGUMI_DYNAMIC_KEYS = {"want_dynamic", "dynamic_angle", "dynamic_kind"}
-# 番剧没有可转发的视频稿件，不能搬运。
+# 番剧没有可转发的视频稿件，不能转发。
 BANGUMI_DYNAMIC_KINDS = ("吐槽", "段子", "分享")
 
 
@@ -312,7 +351,7 @@ def parse_bangumi_evaluation(raw: str) -> dict[str, Any]:
 
 PROACTIVE_COMMENT_SCHEMA_PROMPT = (
     '只输出完整JSON：{"decision":"comment|skip","text":"评论正文"}。'
-    "真有一个具体细节想回应才用comment；不想硬评或资料不足用skip且text留空。"
+    "想说就用comment；没有真想说的就用skip，text留空。长评分段用\\n换行。"
 )
 
 RECOMMENDATION_SCHEMA_PROMPT = (

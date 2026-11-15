@@ -83,7 +83,25 @@ _PUBLIC_READ_TOOLS = {
 _PERSONA_ADMIN_TOOLS = {
     "bili_owner_feedback",
 }
-_QQ_PLATFORMS = {"aiocqhttp", "qq", "qqofficial", "napcat", "onebot"}
+# QQ 系平台的身份都记成 qq:号码。QQ 官方机器人在 AstrBot 里上报的平台名是 qq_official（带下划线）。
+_QQ_PLATFORMS = {"aiocqhttp", "qq", "qqofficial", "qq_official", "napcat", "onebot"}
+# 不是聊天平台的事件：B站评论和私信为了跑工具循环也包成 AstrBot 事件（infra/bili_event.py），
+# 发消息的是 B站陌生人，绝不能按聊天私聊算。
+_NON_CHAT_PLATFORMS = {"bilibili", "bili", "sys", "system", "unknown"}
+
+
+def _chat_namespace(platform: str) -> str | None:
+    """聊天平台在身份里的前缀；不认的返回 None（拒绝）。
+
+    QQ 系统一成 ``qq``，沿用原来的身份和会话；其他平台用自己的名字，
+    这样别的平台上的 12345 不会被当成 QQ 号 12345，管理员名单也就串不了。
+    其他平台的管理员只认 AstrBot 自己的管理员名单（事件上的 is_admin）。
+    """
+    if platform in _QQ_PLATFORMS:
+        return "qq"
+    if not platform or platform in _NON_CHAT_PLATFORMS:
+        return None
+    return platform
 
 
 class LayeredRuntime:
@@ -210,7 +228,7 @@ class LayeredRuntime:
             return default
 
     def caller_from_tool_context(self, context: Any) -> Caller | None:
-        """Resolve a trusted QQ caller from the real AstrBot tool context.
+        """Resolve a trusted chat caller (QQ or another AstrBot platform) from the real AstrBot tool context.
 
         Tool arguments and message text never participate in identity resolution.
         Unknown platforms, unknown scenes and missing senders fail closed.
@@ -225,8 +243,11 @@ class LayeredRuntime:
             self._event_value(event, "get_platform_name", "")
             or (origin_parts[0] if origin_parts else "")
         ).strip().lower()
-        if platform not in _QQ_PLATFORMS:
+        namespace = _chat_namespace(platform)
+        if namespace is None:
             return None
+        # QQ 沿用原来的会话键；其他平台带上平台名，不和 QQ 的同号会话混在一起。
+        prefix = "" if namespace == "qq" else f"{namespace}:"
         sender = str(self._event_value(event, "get_sender_id", "") or "").strip()
         if not sender:
             return None
@@ -245,16 +266,16 @@ class LayeredRuntime:
             if not channel:
                 return None
             scope = Scope.QQ_GROUP
-            session_key = f"group:{channel}"
+            session_key = f"group:{prefix}{channel}"
         elif "friend" in kind or "private" in kind:
             scope = Scope.QQ_PRIVATE
-            session_key = f"user:{sender}"
+            session_key = f"user:{prefix}{sender}"
         else:
             return None
 
         account_id = str(self._get("DEDE_USER_ID", "") or "default").strip()
         caller = self.identity.resolve(
-            "qq",
+            namespace,
             sender,
             scope,
             display_name=str(self._event_value(event, "get_sender_name", "") or ""),
@@ -308,7 +329,7 @@ class LayeredRuntime:
                 self._event_value(event, "get_platform_name", "")
                 or origin.split(":", 1)[0]
             ).strip().lower()
-            if platform and platform not in _QQ_PLATFORMS:
+            if platform and _chat_namespace(platform) is None:
                 return Decision(False, "不支持的调用平台，工具调用已拒绝")
             return Decision(False, "无法确认真实调用者或会话，工具调用已拒绝")
 

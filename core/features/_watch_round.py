@@ -30,7 +30,7 @@ class WatchPolicy:
 PROACTIVE_WATCH = WatchPolicy(
     name="proactive", follows_up=True, recommends_to_owner=True, records_discovery=True,
     collects_dynamic_ideas=True, writes_shared_video_cache=True, tags_comment_log=False,
-    fixed_source="", default_seen_source="proactive", memory_subject="Bot",
+    fixed_source="", default_seen_source="proactive", memory_subject="我",
     icon="📝", summary_icon="📊", warn_prefix="",
 )
 
@@ -39,7 +39,7 @@ PROACTIVE_WATCH = WatchPolicy(
 SPECIAL_FOLLOW_WATCH = WatchPolicy(
     name="special_follow", follows_up=False, recommends_to_owner=True, records_discovery=False,
     collects_dynamic_ideas=True, writes_shared_video_cache=True, tags_comment_log=True,
-    fixed_source="special_follow", default_seen_source="special_follow", memory_subject="特别关注",
+    fixed_source="special_follow", default_seen_source="special_follow", memory_subject="我在特别关注里",
     icon="⭐", summary_icon="⭐", warn_prefix="⭐ ",
 )
 

@@ -107,7 +107,7 @@ class DynamicWritingTests(unittest.TestCase):
     def test_automatic_dynamic_can_explicitly_choose_silence(self):
         host, result = self._write(['{"decision":"skip","text":"","need_image":false,"image_prompt":""}'], human_initiated=False)
         self.assertEqual(result["decision"], "skip")
-        self.assertIn("定时时刻本身不是发布理由", host.prompts[0])
+        self.assertIn("定时到了不是发的理由", host.prompts[0])
         self.assertIn("近期没有足够具体", host.prompts[0])
 
     def test_can_search_before_posting(self):
@@ -126,7 +126,7 @@ class DynamicWritingTests(unittest.TestCase):
         })
         self.assertIsNone(result)
         self.assertEqual(len(host.queries), 1)
-        self.assertIn("本次不能再搜索", host.prompts[1])
+        self.assertIn("这次不能再查了", host.prompts[1])
 
     def test_without_web_search_never_offers_search(self):
         host, result = self._write(['{"decision":"search","text":"","search_query":"x","image":"none","image_prompt":""}'])
@@ -147,7 +147,7 @@ class DynamicWritingTests(unittest.TestCase):
         self.assertIn("结尾反转早有伏笔", host.prompts[0])
         self.assertIn("自定义风格：短句", host.prompts[0])
         self.assertNotIn("B站动态的感觉", host.prompts[0])
-        self.assertIn("不能编造外出", host.prompts[0])
+        self.assertIn("别写别人能查证的具体真事", host.prompts[0])
 
     def test_scheduled_dynamic_respects_post_chance(self):
         host = WriterHost([], {"DYNAMIC_POST_CHANCE": 0})

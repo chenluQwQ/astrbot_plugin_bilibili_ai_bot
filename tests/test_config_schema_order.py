@@ -72,18 +72,19 @@ class ConfigSchemaOrderTests(unittest.TestCase):
 
     def test_video_memory_switch_precedes_lifecycle_windows(self):
         self.assert_contiguous([
-            "VIDEO_VISUAL_ANALYSIS_POLICY",
             "ENABLE_VIDEO_LONG_TERM_MEMORY",
             "VIDEO_MEMORY_DETAIL_DAYS",
             "VIDEO_MEMORY_FADE_DAYS",
             "VIDEO_LOW_SCORE_FORGET_BELOW",
             "VIDEO_LOW_SCORE_FORGET_DAYS",
+            "MEMORY_LOW_SCORE_KEEP_DAYS",
+            "MEMORY_LONG_TERM_KEEP_DAYS",
         ])
         self.assertTrue(self.schema["ENABLE_VIDEO_LONG_TERM_MEMORY"]["default"])
         self.assertEqual(self.schema["VIDEO_MEMORY_DETAIL_DAYS"]["default"], 15)
-        self.assertEqual(self.schema["VIDEO_MEMORY_FADE_DAYS"]["default"], 90)
+        self.assertEqual(self.schema["VIDEO_MEMORY_FADE_DAYS"]["default"], 180)
         self.assertEqual(self.schema["VIDEO_LOW_SCORE_FORGET_BELOW"]["default"], 5)
-        self.assertEqual(self.schema["VIDEO_LOW_SCORE_FORGET_DAYS"]["default"], 30)
+        self.assertEqual(self.schema["VIDEO_LOW_SCORE_FORGET_DAYS"]["default"], 15)
 
     def test_sections_follow_webui_categories(self):
         # 管理页「全部配置」按 ALL_CONFIG_GROUPS 的顺序分组；schema 也按同样的分类、同样的顺序排，

@@ -86,7 +86,7 @@ class AbuseAlert(HostView):
                 f"- 你的回复：{bot_reply[:150]}\n\n"
                 f"请用你自己的语气和性格向主人描述这件事，要包含对方的UID（{mid}），"
                 f"最后问主人要不要拉黑这个人。\n"
-                f"语气自然，像在跟亲近的人撒娇/倾诉，不要用模板化格式，2~4句话。"
+                f"像平时跟主人说话那样说，不用列格式，2~4句话。"
             )
             msg = await self.models._llm_call(gen_prompt, system_prompt=sp, max_tokens=200)
             if not msg or len(msg) > 500:

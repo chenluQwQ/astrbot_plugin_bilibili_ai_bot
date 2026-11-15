@@ -38,6 +38,21 @@ ALWAYS = {**VISION, "VIDEO_VISUAL_ANALYSIS_POLICY": "always"}
 DIRECT = {**ALWAYS, "VIDEO_VISION_FORMAT": "auto"}
 
 
+def seg(text, at=1, sensitive=False):
+    """视频模型一段的记录（按时间记的 JSON）。"""
+    return json.dumps({"timeline": [{"at": at, "text": text}], "impression": f"{text}的印象", "audio": "有人在讲话",
+                       "sensitive": sensitive, "comment_hint": f"{text}适合写段评"}, ensure_ascii=False)
+
+
+def seg_comment(text, comment, decision="comment", at=1):
+    """视频模型兼写评论时的一段记录。"""
+    value = json.loads(seg(text, at))
+    return json.dumps({"comment": {"decision": decision, "text": comment}, **value}, ensure_ascii=False)
+
+
+COMMENT_REQUEST = {"_comment_request": {"system_prompt": "人设", "prompt": "评论的写法和热评"}}
+
+
 def rejected(kind, reason="不行"):
     return {"rejection": kind, "reason": reason}
 
@@ -96,6 +111,10 @@ class Probe(VideoParts, BiliParts):
         self.calls.append(["subtitles", bvid, cid])
         return self._next("subtitles", "")
 
+    async def _get_video_subtitle_lines(self, bvid, cid):
+        self.calls.append(["subtitle_lines", bvid, cid])
+        return self._next("subtitle_lines", [])
+
     async def _should_search_for_video(self, info, extra):
         self.calls.append(["should_search", extra])
         return self._next("should_search", "")
@@ -116,12 +135,12 @@ class Probe(VideoParts, BiliParts):
         self.calls.append(["client"])
         return self.script.get("client")
 
-    async def _astrbot_multimodal_generate(self, provider_id, content, max_tokens=250):
-        self.calls.append(["multimodal", provider_id, self._parts(content), max_tokens])
+    async def _astrbot_multimodal_generate(self, provider_id, content, max_tokens=250, **kwargs):
+        self.calls.append(["multimodal", provider_id, self._parts(content), max_tokens, *([kwargs] if kwargs else [])])
         return self._model_answer("multimodal")
 
-    async def _vision_call(self, client, model, content, max_tokens=250):
-        self.calls.append(["vision", model, self._parts(content), max_tokens])
+    async def _vision_call(self, client, model, content, max_tokens=250, **kwargs):
+        self.calls.append(["vision", model, self._parts(content), max_tokens, *([kwargs] if kwargs else [])])
         return self._model_answer("vision")
 
     def _model_answer(self, name):
@@ -220,42 +239,58 @@ SCENES = {
     "subtitle/check_garbled_keeps": (ANALYZE, (INFO,), dict(subtitles="字幕", summary=["不是 JSON", "总结"])),
     "text/summary_empty_uses_title": (ANALYZE, (INFO,), dict(summary="")),
     # 要不要看画面
-    "policy/subtitle_skips_media": (ANALYZE, (INFO,), dict(config=VISION, subtitles="字幕", summary=['{"relevant": true}', "总结"])),
-    "policy/always_uses_media": (ANALYZE, (INFO,), dict(config=ALWAYS, subtitles="字幕", summary=['{"relevant": true}', "整合"], frames=2, multimodal="画面")),
+    "policy/subtitle_skips_media": (ANALYZE, (INFO,), dict(config={**VISION, "VIDEO_VISUAL_ANALYSIS_POLICY": "when_text_insufficient"}, subtitles="字幕", summary=['{"relevant": true}', "总结"])),
+    "policy/always_uses_media": (ANALYZE, (INFO,), dict(config=ALWAYS, subtitles="字幕", summary=['{"relevant": true}', "整合"], frames=2, multimodal=seg("画面"))),
     # 媒体：配置和前置失败
     "media/not_configured": (ANALYZE, (INFO,), dict(config={})),
     "media/download_failed": (ANALYZE, (INFO,), dict(config=VISION, download=None)),
     "media/no_segments": (ANALYZE, (INFO,), dict(config=VISION, segments=0)),
     "media/slice_raises": (ANALYZE, (INFO,), dict(config=VISION, segments=RuntimeError("切坏了"))),
-    "media/legacy_segment_seconds": (ANALYZE, (INFO,), dict(config={**VISION, "VIDEO_SEGMENT_MINUTES": 0, "VIDEO_SEGMENT_SEC": 120}, multimodal="画面")),
+    "media/legacy_segment_seconds": (ANALYZE, (INFO,), dict(config={**VISION, "VIDEO_SEGMENT_MINUTES": 0, "VIDEO_SEGMENT_SEC": 120}, multimodal=seg("画面"))),
     # 截帧
-    "frames/provider_ok_then_merge": (ANALYZE, (INFO,), dict(config=VISION, multimodal="画面", summary="整合后")),
-    "frames/merge_empty_keeps_visual": (ANALYZE, (INFO,), dict(config=VISION, multimodal="画面", summary="")),
-    "frames/falls_back_to_client": (ANALYZE, (INFO,), dict(config=VISION, client="c", multimodal=None, vision="客户端看到的")),
+    "frames/provider_ok_then_merge": (ANALYZE, (INFO,), dict(config=VISION, multimodal=seg("画面"), summary="整合后")),
+    "frames/merge_empty_keeps_visual": (ANALYZE, (INFO,), dict(config=VISION, multimodal=seg("画面"), summary="")),
+    "frames/falls_back_to_client": (ANALYZE, (INFO,), dict(config=VISION, client="c", multimodal=None, vision=seg("客户端看到的"))),
     "frames/none_extracted": (ANALYZE, (INFO,), dict(config=VISION, frames=0)),
     "frames/model_empty": (ANALYZE, (INFO,), dict(config=VISION, multimodal=None)),
     "frames/unavailable_marks_dead": (ANALYZE, (INFO,), dict(config=VISION, multimodal=rejected("unavailable", "没权限"))),
     "frames/dead_stops_remaining": (ANALYZE, (INFO,), dict(config=VISION, segments=3, multimodal=rejected("unavailable", "没权限"))),
     # 多段
-    "segments/consolidated": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=["一段", "二段"], summary=["汇总", "整合"])),
-    "segments/consolidation_empty_joins": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=["一段", "二段"], summary=["", "整合"])),
-    "segments/one_fails_is_partial": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=[None, "二段"], summary="整合")),
-    "segments/long_video_is_partial": (ANALYZE, ({**INFO, "duration": 9000},), dict(config=VISION, multimodal="画面", summary="整合")),
-    "segments/partial_prefix_restored": (ANALYZE, ({**INFO, "duration": 9000},), dict(config=VISION, multimodal="画面", summary="没有前缀的整合")),
+    "segments/consolidated": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=[seg("一段"), seg("二段")], summary=["汇总", "整合"])),
+    "segments/consolidation_empty_joins": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=[seg("一段"), seg("二段")], summary=["", "整合"])),
+    "segments/one_fails_is_partial": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=[None, seg("二段")], summary="整合")),
+    "segments/long_video_is_partial": (ANALYZE, ({**INFO, "duration": 9000},), dict(config=VISION, multimodal=seg("画面"), summary="整合")),
+    "segments/partial_prefix_restored": (ANALYZE, ({**INFO, "duration": 9000},), dict(config=VISION, multimodal=seg("画面"), summary="没有前缀的整合")),
     "segments/all_fail": (ANALYZE, (INFO,), dict(config=VISION, segments=2, multimodal=None)),
+    # 按时间记：格式、声音、截图配字幕
+    "timeline/garbled_direct_fails_segment": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal="一段散文，不是 JSON", summary="总结")),
+    "timeline/time_outside_segment_rejected": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("编的", at=500), summary="总结")),
+    "timeline/heard_nothing_noted": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": True}, multimodal=json.dumps({"timeline": [{"at": 3, "text": "有人在切木板"}], "impression": "做木工", "audio": "听不到", "sensitive": False, "comment_hint": "可以聊工具"}, ensure_ascii=False))),
+    "timeline/frames_get_timed_subtitles": (ANALYZE, (INFO,), dict(config=VISION, subtitle_lines=[[{"from": 2.0, "to": 4.0, "content": "先量尺寸"}, {"from": 70.0, "to": 72.0, "content": "片外"}]], summary=['{"relevant": true}'], multimodal=seg("画面"))),
+    # 视频模型兼写评论：最后一段那次写，带人设
+    "draft/single_segment_writes_comment": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "4:30 那里装反的腿笑死"))),
+    "draft/skip_is_kept": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "", decision="skip"))),
+    "draft/bad_comment_keeps_timeline": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "x" * 601))),
+    "draft/last_segment_sees_earlier": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg_comment("二段", "第二段那个转折没想到")], summary=["汇总"])),
+    "draft/frames_also_write": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=VISION, multimodal=seg_comment("画面", "截图里那把椅子好看"))),
+    "hint/sensitive_from_model": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("发布会", sensitive=True))),
+    "hint/sensitive_from_partition": (ANALYZE, ({**INFO, "tname": "热点"},), dict(config=DIRECT, multimodal=seg("新闻"))),
+    "hint/segments_merged_as_json": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg("二段", sensitive=True)], summary=['{"impression": "合起来的印象", "comment_hint": "适合补充"}'])),
+    "hint/merge_garbled_keeps_last_hint": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg("二段")], summary=["不是 JSON"])),
+    "timeline/audio_off_strips_track": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": False}, multimodal=seg("直读"))),
     # 视频直读
-    "direct/auto_first_works": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal="直读", summary="整合")),
-    "direct/auto_probes_until_works": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("unsupported"), rejected("unsupported"), "直读"], summary="整合")),
-    "direct/locks_format_for_next_segment": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[rejected("unsupported"), "一段", "二段"], summary=["汇总", "整合"])),
-    "direct/all_unsupported_uses_frames": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("unsupported")] * 4 + ["帧"], summary="整合")),
-    "direct/skip_remembered_next_segment": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[rejected("unsupported")] * 4 + ["帧一", "帧二"], summary=["汇总", "整合"])),
+    "direct/auto_first_works": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("直读"), summary="整合")),
+    "direct/auto_probes_until_works": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("unsupported"), rejected("unsupported"), seg("直读")], summary="整合")),
+    "direct/locks_format_for_next_segment": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[rejected("unsupported"), seg("一段"), seg("二段")], summary=["汇总", "整合"])),
+    "direct/all_unsupported_uses_frames": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("unsupported")] * 4 + [seg("帧")], summary="整合")),
+    "direct/skip_remembered_next_segment": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[rejected("unsupported")] * 4 + [seg("帧一"), seg("帧二")], summary=["汇总", "整合"])),
     "direct/unavailable_stops": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=rejected("unavailable", "没权限"))),
-    "direct/too_large_uses_frames": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("too_large", "太大"), "帧"], summary="整合")),
-    "direct/other_error_tries_next": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("other", "抖了"), "直读"], summary="整合")),
-    "direct/fixed_format": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "gemini"}, multimodal="直读", summary="整合")),
-    "direct/file_format": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "file"}, multimodal="直读", summary="整合")),
-    "direct/qwen_format": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "qwen", "VIDEO_VISION_FPS": 4}, multimodal="直读", summary="整合")),
-    "direct/client_fallback": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "openai"}, client="c", multimodal=None, vision="客户端直读", summary="整合")),
+    "direct/too_large_uses_frames": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("too_large", "太大"), seg("帧")], summary="整合")),
+    "direct/other_error_tries_next": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=[rejected("other", "抖了"), seg("直读")], summary="整合")),
+    "direct/fixed_format": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "gemini"}, multimodal=seg("直读"), summary="整合")),
+    "direct/file_format": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "file"}, multimodal=seg("直读"), summary="整合")),
+    "direct/qwen_format": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "qwen", "VIDEO_VISION_FPS": 4}, multimodal=seg("直读"), summary="整合")),
+    "direct/client_fallback": (ANALYZE, (INFO,), dict(config={**ALWAYS, "VIDEO_VISION_FORMAT": "openai"}, client="c", multimodal=None, vision=seg("客户端直读"), summary="整合")),
     # 视频记忆缓存
     "cached/miss": ("_cached_video_memory", (BV,), {}),
     "cached/hit": ("_cached_video_memory", (BV,), dict(files=cache_entry())),

@@ -86,7 +86,7 @@ const NAV_ITEMS = [
 
 const PAGE_KEYS = {
   interaction: [
-    "ENABLE_REPLY", "POLL_INTERVAL", "REPLY_COOLDOWN", "REPLY_PROBABILITY_PERCENT", "REPLY_ALWAYS_UIDS", "ENABLE_SIMILAR_SKIP",
+    "ENABLE_REPLY", "POLL_INTERVAL", "REPLY_COOLDOWN", "REPLY_PROBABILITY_PERCENT", "REPLY_ALWAYS_UIDS", "REPLY_OWN_CONTENT_ALWAYS", "ENABLE_SIMILAR_SKIP",
     "REPLY_SIMILARITY_PERCENT", "ENABLE_BILI_EMOTES", "CUSTOM_REPLY_INSTRUCTION",
     "ENABLE_INTEREST_BASED_REPLY", "INTEREST_SELECTION_PROMPT", "FILTER_LOW_VALUE_MESSAGES",
     "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES", "INTEREST_APPLY_TO_PRIVATE",
@@ -108,12 +108,12 @@ const PAGE_KEYS = {
     "PROACTIVE_COMMENT_DAILY_LIMIT", "PROACTIVE_FOLLOW_UIDS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO",
     "PROACTIVE_VIDEO_POOLS", "ENABLE_PROACTIVE_LLM_PREFILTER", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS",
     "PROACTIVE_LIKE", "PROACTIVE_LIKE_MIN_SCORE", "PROACTIVE_COIN", "PROACTIVE_COIN_MIN_SCORE",
-    "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE", "COMMENT_SYNC_DYNAMIC",
+    "PROACTIVE_FAV", "PROACTIVE_FAV_MIN_SCORE", "PROACTIVE_COMMENT", "PROACTIVE_COMMENT_MIN_SCORE", "PROACTIVE_SENSITIVE_COMMENT_CHANCE", "COMMENT_SYNC_DYNAMIC",
     "PROACTIVE_FOLLOW", "PROACTIVE_FOLLOW_MIN_SCORE", "CUSTOM_PROACTIVE_INSTRUCTION",
-    "VIDEO_VISUAL_ANALYSIS_POLICY", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS",
+    "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_AUDIO",
     "ENABLE_BANGUMI", "BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT",
     "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW", "ENABLE_DYNAMIC", "DYNAMIC_TIMES_COUNT", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS",
-    "DYNAMIC_POST_CHANCE", "DYNAMIC_FROM_VIDEO", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_PROMPT",
+    "DYNAMIC_POST_CHANCE", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_PROMPT",
     "DYNAMIC_TOPICS", "CUSTOM_DYNAMIC_INSTRUCTION",
     "ENABLE_DYNAMIC_WATCH", "DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT",
     "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT",
@@ -131,6 +131,8 @@ const PAGE_KEYS = {
     "ENABLE_AFFECTION", "ENABLE_MOOD", "PROFILE_AFFECTION_LINE", "ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY",
     "FAVORITE_PROFILE_MIN_LEVEL", "FAVORITE_PROFILE_FRIENDS_PER_WEEK", "AFFECTION_PROMPT_SPECIAL", "AFFECTION_PROMPT_CLOSE",
     "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD",
+    "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS",
+    "MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS",
   ],
   security: [
     "ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS",
@@ -342,7 +344,7 @@ function buildMock() {
       events: previewEvents,
     },
     scheduleStats: { total: previewEvents.length, completed: previewCompleted, remaining: previewEvents.length - previewCompleted, next: previewNext, minimum_gap_minutes: 45 },
-    memory: { total: 1248, comment: 876, private: 192, self: 180, isolation_mode: "isolated", safe_share: false },
+    memory: { total: 1248, comment: 640, private: 192, summary: 236, video: 120, bangumi: 24, dynamic: 30, live: 6, other: 0, self: 180, isolation_mode: "isolated", safe_share: false },
     memoryCleanup: { running: false, pending: 320, share_previews: 12 },
     interest: {
       report: "兴趣预览：暂无真实运行数据；请连接插件后查看。",
@@ -378,7 +380,7 @@ function buildMock() {
     today: {
       date: "2026-08-14", today: "2026-08-14", days: ["2026-08-14", "2026-08-13"],
       videos: [
-        { time: "10:12", bvid: "BV1PREVIEW01", title: "示例视频：一分钟看懂潮汐", up_name: "示例UP", score: 8, score_reason: "动画把引力讲得很直观。", mood: "好奇", review: "月亮拉着海水跑那段动画太直观了，原来一天两次涨潮是这么来的。看完想找潮汐表看看今天几点涨潮。", actions: ["👍点赞", "💬评论"], tname: "科普", failed: false },
+        { time: "10:12", bvid: "BV1PREVIEW01", title: "示例视频：一分钟看懂潮汐", up_name: "示例UP", score: 8, mood: "好奇", review: "月亮拉着海水跑那段动画太直观了，原来一天两次涨潮是这么来的。看完想找潮汐表看看今天几点涨潮。", actions: ["👍点赞", "💬评论"], tname: "科普", failed: false },
         { time: "10:20", bvid: "BV1PREVIEW02", title: "示例视频：评价失败的一条", up_name: "示例UP2", score: null, score_reason: "", mood: "", review: "", actions: [], tname: "", failed: true },
       ],
       comments: [
@@ -387,6 +389,11 @@ function buildMock() {
         { time: "16:02", kind: "reply", text: "下次一起看", to_user: "", to_text: "", bvid: "", title: "", result: "unknown", rpid: "", deletable: false, delete_state: "" },
       ],
       dynamics: [{ time: "16:30", text: "今天学会了看潮汐表，原来涨潮时间每天都会往后挪一点。", has_image: false, kind: "分享", bvid: "BV1PREVIEW01", title: "示例视频：一分钟看懂潮汐" }],
+      ideas: [
+        { id: 3, kind: "转述", source: "站外订阅", title: "示例项目 v2.1 发布", up_name: "示例项目", angle: "终于能导出了", bvid: "", link: "https://example.com/v21", state: "pending", reason: "", created: "11:02", changed: "" },
+        { id: 2, kind: "转发", source: "关注动态", title: "示例UP的招募动态", up_name: "示例UP", angle: "有兴趣的可以去试试", bvid: "", link: "", state: "expired", reason: "3 天没发", created: "08-11 20:15", changed: "09:00" },
+        { id: 1, kind: "分享", source: "看视频", title: "示例视频：一分钟看懂潮汐", up_name: "示例UP", angle: "月亮拉海水那段", bvid: "BV1PREVIEW01", link: "", state: "posted", reason: "", created: "10:12", changed: "16:30" },
+      ],
       bangumi: [{ time: "12:10", title: "示例番剧", season_id: "1", ep_index: "3", ep_title: "海边的约定", score: 7, mood: "放松", review: "节奏慢慢的，海边那段配乐很舒服。", comment: "这集的海好好看", failed: false }],
     },
     cache: { total_bytes: 18874368, buckets: { images: { label: "临时图片", bytes: 5242880 }, videos: { label: "临时视频", bytes: 12582912 }, search: { label: "联网搜索缓存", bytes: 1048576 }, qr: { label: "登录二维码", bytes: 2048 } }, protected: ["B站 Cookie 与扫码登录状态", "记忆与用户画像", "好感度", "日程和运行数据库"] },
@@ -1035,7 +1042,7 @@ const OPTION_LABELS = {
   ABUSE_ALERT_MODE: { off: "关闭", score: "按好感度变化判断", model: "再用模型确认" },
   DAILY_SUMMARY_MODE: { archive: "只写进记忆", qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
   WEEKLY_SUMMARY_MODE: { qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
-  VIDEO_VISUAL_ANALYSIS_POLICY: { when_text_insufficient: "文字信息不足时才看画面", always: "每次都看画面" },
+  VIDEO_VISUAL_ANALYSIS_POLICY: { when_text_insufficient: "有字幕就只读字幕", always: "每次都看视频" },
   IMAGE_GEN_BACKEND: { openai: "OpenAI 兼容接口", novelai: "NovelAI" },
   WEB_SEARCH_BACKEND: { tavily: "Tavily", firecrawl: "Firecrawl", grok: "Grok", perplexity: "Perplexity", bocha: "博查", custom: "自定义接口" },
   VIDEO_VISION_FORMAT: { auto: "自动探测", openai: "OpenAI video_url", file: "OpenAI file", qwen: "通义千问 / vLLM", gemini: "Gemini 兼容层", none: "不直读，只截帧" },
@@ -1057,6 +1064,8 @@ const UI_COPY = {
   WEEKLY_SUMMARY_MODE: { hint: "也可以用 /bili周总结 手动发" },
   VIDEO_VISUAL_ANALYSIS_POLICY: { hint: "先看标题、简介、字幕、标签和热评，不够再截帧看画面；每次都看画面更费钱" },
   VIDEO_VISION_PROVIDER_ID: { hint: "选一个能看图的 AstrBot 模型（如 GLM-4.5V）。留空只用文字信息；和独立 API 同时填时优先用这里" },
+  VIDEO_VISUAL_ANALYSIS_POLICY: { hint: "每次都看：视频模型看画面、听声音；有字幕就只读字幕：省钱，但不知道画面" },
+  VIDEO_VISION_AUDIO: { hint: "上传给视频模型的片段带声音，模型能听到讲话和音乐；截图分析听不到" },
   VIDEO_VISION_FORMAT: { hint: "按你的模型或网关支持的选。不确定就选「自动探测」：挨个试，第一个成功的记下来。选错也不会坏，会自动改用截帧" },
   IMAGE_GEN_BACKEND: { hint: "NovelAI 只在手动 /bili动态 时能生图" },
 };
@@ -1886,7 +1895,7 @@ function renderInterestConfigSection() {
 
 function renderInteraction() {
   return `${pageHead("INTERACTION", "回复与互动", "B站评论和私信怎么回、回谁、多久回一次，以及 QQ 里的视频分享解析。", statusPill(`${fmt(state.stats.filtered_today)} 条已过滤`, "green"))}
-    ${renderConfigSection("评论回复", "自动回复B站评论的开关、频率和补充提示词", ["ENABLE_REPLY", "REPLY_PROBABILITY_PERCENT", "REPLY_COOLDOWN", "POLL_INTERVAL", "REPLY_ALWAYS_UIDS", "ENABLE_SIMILAR_SKIP", "REPLY_SIMILARITY_PERCENT", "ENABLE_BILI_EMOTES", "CUSTOM_REPLY_INSTRUCTION"], "controller")}
+    ${renderConfigSection("评论回复", "自动回复B站评论的开关、频率和补充提示词", ["ENABLE_REPLY", "REPLY_PROBABILITY_PERCENT", "REPLY_COOLDOWN", "POLL_INTERVAL", "REPLY_ALWAYS_UIDS", "REPLY_OWN_CONTENT_ALWAYS", "ENABLE_SIMILAR_SKIP", "REPLY_SIMILARITY_PERCENT", "ENABLE_BILI_EMOTES", "CUSTOM_REPLY_INSTRUCTION"], "controller")}
     ${renderInterestConfigSection()}
     ${renderConfigSection("回复前查资料", "回复评论前可以搜索、看视频简介字幕热评、去看别人推荐的视频。能用哪些查询工具在「工具与安全」页设置。/bili测试查询 BV号 可以试一次（不发评论），/bili日志 查询 看记录", ["COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS", "COMMENT_WATCH_VIDEO_DAILY_LIMIT"], "search")}
     <div class="two-column">
@@ -1911,10 +1920,10 @@ const EVENT_STYLES = {
 };
 
 const AUTONOMY_CAPABILITIES = [
-  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_PROVIDER_ID", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"] },
+  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_AUDIO", "VIDEO_VISION_PROVIDER_ID", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"] },
   { id: "prefilter", title: "视频来源与标题筛选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "开关控制看之前是否先按标题筛一遍；视频从哪里来（关注、视频池、搜索、口味）也在这里设置。", dependency: "需要先开主动看视频", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS"] },
   { id: "bangumi", title: "追番", icon: "video", toggle: "ENABLE_BANGUMI", description: "按日程看番剧、写评价、按评分评论和追番。要同时打开「主动追番」才会排进日程。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
-  { id: "dynamic", title: "发动态", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按日程发 B站动态，内容来自看过的视频、番剧和攒下的想法。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },
+  { id: "dynamic", title: "发动态", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按日程发 B站动态，内容来自看过的视频、番剧、站外订阅和搜索攒下的想法。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },
   { id: "dynamic-watch", title: "看关注动态", icon: "search", toggle: "ENABLE_DYNAMIC_WATCH", description: "按日程查看关注的人新发的图文动态和视频投稿。", keys: ["DYNAMIC_WATCH_TIMES_COUNT", "DYNAMIC_WATCH_DAILY_LIMIT", "DYNAMIC_WATCH_SPECIAL_ONLY", "DYNAMIC_WATCH_INCLUDE_VIDEO_POSTS", "DYNAMIC_WATCH_INTEREST_PROMPT"] },
   { id: "special-follow", title: "特别关注", icon: "star", toggle: "SPECIAL_FOLLOW_ENABLED", description: "单独检查特别关注的人有没有发新内容。Bot 自己排日程时按每天次数，固定计划时按设定的时刻。", keys: ["SPECIAL_FOLLOW_TIMES_COUNT"] },
   { id: "owner-share", title: "给主人分享", icon: "heart", toggle: "ENABLE_OWNER_RECOMMEND", description: "看到喜欢的视频时发给主人；也可以让主人在 QQ 里看到 Bot 正在做什么（做完就清掉，不进长期记忆）。", dependency: "需要先开主动看视频", keys: ["RECOMMEND_OWNER_DELIVERY", "OWNER_QQ_UMO", "RECOMMEND_OWNER_MIN_SCORE", "RECOMMEND_OWNER_DAILY_LIMIT", "RECOMMEND_OWNER_MIN_GAP_MINUTES", "ASK_OWNER_FEEDBACK_CHANCE", "CUSTOM_RECOMMEND_INSTRUCTION", "ENABLE_CROSS_PLATFORM_ACTIVITY_STATUS"] },
@@ -2275,6 +2284,12 @@ function videoLink(bvid, title) {
   return /^BV[0-9A-Za-z]{10}$/.test(bvid || "") ? `<a href="https://www.bilibili.com/video/${esc(bvid)}" target="_blank" rel="noopener noreferrer">${text}</a>` : text;
 }
 
+// 站外链接只认 http/https，别的（javascript: 之类）只显示文字
+function outerLink(url, text) {
+  const label = esc(text || url);
+  return /^https?:\/\/[^\s"'<>]+$/i.test(url || "") ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
+}
+
 function todayScore(score, failed) {
   return failed ? statusPill("评价失败", "red") : score === null || score === undefined || score === "" ? "" : `<span class="today-score">${esc(score)}<small>/10</small></span>`;
 }
@@ -2318,7 +2333,32 @@ function renderTodayDynamic(item) {
   return timelineItem(item, "star", `
     <div class="tl-head"><h3>发了一条动态</h3>${tags.length ? `<div class="tl-tags">${tags.map((tag) => `<span>${esc(tag)}</span>`).join("")}</div>` : ""}</div>
     <p class="tl-text">${esc(item.text)}</p>
-    ${item.bvid || item.title ? `<p class="tl-meta">关于 ${videoLink(item.bvid, item.title ? `《${item.title}》` : item.bvid)}</p>` : ""}`, "is-dynamic");
+    ${item.link ? `<p class="tl-meta">关于 ${outerLink(item.link, item.title ? `《${item.title}》` : item.link)}</p>`
+      : item.bvid || item.title ? `<p class="tl-meta">关于 ${videoLink(item.bvid, item.title ? `《${item.title}》` : item.bvid)}</p>` : ""}`, "is-dynamic");
+}
+
+const IDEA_STATES = { pending: ["等着发", "violet"], posted: ["发了", "green"], dropped: ["作废", "neutral"], expired: ["过期", "neutral"] };
+
+function renderTodayIdea(item) {
+  const [label, tone] = IDEA_STATES[item.state] || [item.state, "neutral"];
+  const title = item.link ? outerLink(item.link, item.title || item.link)
+    : videoLink(item.bvid, item.title || item.bvid || "（没有标题）");
+  const from = [item.source, item.up_name].filter(Boolean).map(esc).join(" · ");
+  const when = [item.created && `${esc(item.created)} 进池`, item.changed && `${esc(item.changed)} ${esc(label)}`].filter(Boolean).join(" · ");
+  return `<article class="idea-item">
+    <div class="tl-head"><h3>${title}</h3>${statusPill(label, tone)}</div>
+    <div class="tl-tags"><span>${esc(item.kind)}</span>${from ? `<span>${from}</span>` : ""}</div>
+    ${item.angle ? `<p class="tl-text">想说：${esc(item.angle)}</p>` : ""}
+    <p class="tl-meta">${when}${item.reason ? ` · ${esc(item.reason)}` : ""}</p>
+  </article>`;
+}
+
+function renderTodayIdeas(ideas, isToday) {
+  if (!ideas.length) return "";
+  const waiting = ideas.filter((item) => item.state === "pending").length;
+  const subtitle = isToday ? "还在等的，和今天进池、发掉、作废、过期的" : "那天进池、发掉、作废、过期的";
+  return `<section class="card idea-pool">${sectionHead("动态池子", subtitle, "lightning", isToday ? statusPill(`${waiting} 条在等`, "violet") : "")}
+    <div class="idea-list">${ideas.map(renderTodayIdea).join("")}</div></section>`;
 }
 
 function renderTodayBangumi(item) {
@@ -2333,7 +2373,7 @@ function renderTodayBangumi(item) {
 
 function renderToday() {
   const t = state.today || {};
-  const videos = t.videos || [], comments = t.comments || [], dynamics = t.dynamics || [], bangumi = t.bangumi || [];
+  const videos = t.videos || [], comments = t.comments || [], dynamics = t.dynamics || [], bangumi = t.bangumi || [], ideas = t.ideas || [];
   const isToday = t.date === t.today;
   const days = t.days || [];
   const index = days.indexOf(t.date);
@@ -2356,7 +2396,8 @@ function renderToday() {
     </header>
     <div class="today-chips">${chip(videos.length, "看了 # 个视频")}${chip(comments.length, "发了 # 条评论")}${chip(bangumi.length, "看了 # 集番")}${chip(dynamics.length, "发了 # 条动态")}${unknown ? `<span class="today-chip is-warn">${fmt(unknown)} 条评论不确定发没发出去</span>` : ""}</div>
     ${entries.length ? `<section class="card timeline">${entries.map(([, html]) => html).join("")}</section>`
-      : `<section class="today-empty"><strong>(｡･ω･｡)</strong><p>${isToday ? "还没开始今天的冲浪" : "这天什么都没做，在发呆"}</p></section>`}`;
+      : `<section class="today-empty"><strong>(｡･ω･｡)</strong><p>${isToday ? "还没开始今天的冲浪" : "这天什么都没做，在发呆"}</p></section>`}
+    ${renderTodayIdeas(ideas, isToday)}`;
 }
 
 function renderMemory() {
@@ -2364,10 +2405,14 @@ function renderMemory() {
   const isolation = m.isolation_mode === "safe_share" ? "安全共享" : "平台隔离";
   return `${pageHead("MEMORY", "记忆与关系", "记忆数量、用户画像和好感度，以及相关设置。", button("刷新数据", "refresh-memory", "refresh"))}
     <section class="metrics-grid four">
-      ${metricCard("记忆总量", fmt(m.total), "长期记忆记录", "memory-card", "blue")}
-      ${metricCard("评论记忆", fmt(m.comment), "来自评论区互动", "message", "pink")}
-      ${metricCard("私信记忆", fmt(m.private), "来自B站私信", "user", "violet")}
-      ${metricCard("自我经历", fmt(m.self), isolation, "heart", "orange")}
+      ${metricCard("记忆总量", fmt(m.total), num(m.other) ? `全部记忆，其中 ${fmt(m.other)} 条不属于下面几类` : "全部记忆", "memory-card", "blue")}
+      ${metricCard("评论", fmt(m.comment), "B站评论区里的对话", "message", "pink")}
+      ${metricCard("私信", fmt(m.private), "B站私信里的对话", "user", "violet")}
+      ${metricCard("对话总结", fmt(m.summary), "同一个人、同一个评论区的对话多了压缩成的总结", "save", "blue")}
+      ${metricCard("视频", fmt(m.video), "看过的视频，包括回复评论时顺带看的", "video", "orange")}
+      ${metricCard("番剧", fmt(m.bangumi), "看过的番剧，进长期后每个系列一条", "star", "pink")}
+      ${metricCard("动态", fmt(m.dynamic), "看到的动态和自己发的动态", "lightning", "violet")}
+      ${metricCard("直播", fmt(m.live), "直播间里的事件", "play", "orange")}
     </section>
     <section class="memory-grid">
       <article class="card relationship-card">
@@ -2385,6 +2430,7 @@ function renderMemory() {
         </article>
       </aside>
     </section>
+    ${renderConfigSection("记忆清理", "记忆按评分和天数分阶段删除，删除前都会备份；看过的视频不会因此重看", ["MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"], "trash")}
     ${renderConfigSection("好感度与画像", "好感度到了画像门槛的人才会记画像；每个好感等级用哪段提示词也在这里", ["ENABLE_AFFECTION", "ENABLE_MOOD", "PROFILE_AFFECTION_LINE", "AFFECTION_PROMPT_SPECIAL", "AFFECTION_PROMPT_CLOSE", "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD"], "heart")}
     ${renderConfigSection("看收藏夹修正画像", "每周一次，读主人和好感高的人公开的收藏夹，用来修正画像", ["ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY", "FAVORITE_PROFILE_MIN_LEVEL", "FAVORITE_PROFILE_FRIENDS_PER_WEEK"], "star")}`;
 }
@@ -2543,12 +2589,12 @@ function renderBasics() {
     }).join("") || `<div class="card empty-search">${icon("search")}<strong>没有匹配的配置</strong><span>换一个关键词试试。</span></div>`}</div>`;
 }
 
-const ALL_CONFIG_GROUPS = ["账号与主人", "人设与模型", "评论回复", "回复筛选", "回复时查资料与记事", "私信", "主动看视频", "番剧", "发动态", "关注动态与特别关注", "日程与作息", "好感度与画像", "工具调用", "分享解析", "给主人分享", "日报与周报", "性格演化", "联网搜索", "视觉模型", "图片生成", "记忆向量", "安全与隐私", "行为限流", "融合插件", "系统"];
+const ALL_CONFIG_GROUPS = ["账号与主人", "人设与模型", "评论回复", "回复筛选", "回复时查资料与记事", "私信", "主动看视频", "番剧", "发动态", "关注动态与特别关注", "日程与作息", "好感度与画像", "记忆清理", "工具调用", "分享解析", "给主人分享", "日报与周报", "性格演化", "联网搜索", "视觉模型", "图片生成", "记忆向量", "安全与隐私", "行为限流", "融合插件", "系统"];
 
 const ALL_CONFIG_GROUP_ICONS = {
   "账号与主人": "user", "人设与模型": "heart", "评论回复": "message", "回复筛选": "star", "回复时查资料与记事": "search",
   "私信": "message", "主动看视频": "play", "番剧": "video", "发动态": "message", "关注动态与特别关注": "star",
-  "日程与作息": "clock", "好感度与画像": "heart", "工具调用": "controller", "分享解析": "arrow-right", "给主人分享": "heart",
+  "日程与作息": "clock", "好感度与画像": "heart", "记忆清理": "trash", "工具调用": "controller", "分享解析": "arrow-right", "给主人分享": "heart",
   "日报与周报": "calendar", "性格演化": "star", "联网搜索": "search", "视觉模型": "video", "图片生成": "sun",
   "记忆向量": "memory-card", "安全与隐私": "shield", "行为限流": "clock", "融合插件": "controller", "系统": "settings",
 };

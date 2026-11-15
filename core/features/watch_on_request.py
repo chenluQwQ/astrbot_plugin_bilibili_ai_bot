@@ -7,6 +7,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 from ..infra.host_view import HostView
+from ..video_timeline import watch_digest
 
 
 class WatchOnRequest(HostView):
@@ -69,7 +70,7 @@ class WatchOnRequest(HostView):
             cached_summary = str(cached.get("summary", "") or "").strip()
             preview_only = cached.get("content_analyzed") is False or (cached.get("source") == "group_share" and not cached.get("content_analyzed"))
             if (cached_analysis or cached_summary) and not force_rewatch and not preview_only:
-                video_description = self.video_watch._clip_media_text(cached_analysis or cached_summary, 1600)
+                video_description = self.video_watch._clip_media_text(cached_analysis or cached_summary, 3500)
                 score = cached.get("score")
                 score_reason = str(cached.get("score_reason", "") or "")
                 mood = cached.get("mood", "平静")
@@ -104,7 +105,7 @@ class WatchOnRequest(HostView):
                 logger.info(f"[BiliBot] 🎬 开始观看私信分享视频：《{vi.get('title', '')}》")
                 analysis_info["_force_rewatch"] = force_rewatch or removed_bad_cache
                 video_description = self.video_watch._clip_media_text(
-                    await self.video_watch._analyze_video_with_vision(analysis_info), 1600
+                    await self.video_watch._analyze_video_with_vision(analysis_info), 3500
                 )
                 if analysis_info.get("_analysis_from_cache"):
                     return await self._watch_video_and_save_memory(actual_bvid, memory_source=memory_source)
@@ -129,7 +130,7 @@ class WatchOnRequest(HostView):
                     "owner_mid": str(vi.get("owner_mid", "")),
                     "tname": vi.get("tname", ""),
                     "analysis": video_description,
-                    "summary": self.video_watch._clip_media_text(video_description, 220),
+                    "summary": watch_digest(video_description, 220),
                     "score": score,
                     "score_reason": score_reason,
                     "mood": mood,
@@ -153,7 +154,8 @@ class WatchOnRequest(HostView):
                     memory_text = (
                         f"[{now_str}] 视频摘要《{vi.get('title', '')}》"
                         f"(UP主:{vi.get('owner_name', '')}) 评分:{score}/10 "
-                        f"理由:{score_reason[:80]} 感想:{review[:80]} 内容:{video_description[:220]}"
+                        + (f"理由:{score_reason[:80]} " if score_reason else "")
+                        + f"感想:{review[:80]} 内容:{watch_digest(video_description, 220)}"
                     )
                     if preference_signals:
                         memory_text += " 兴趣信号:" + "、".join(
@@ -178,8 +180,8 @@ class WatchOnRequest(HostView):
                 f"内容详情：{video_description[:800]}\n"
                 f"我的感受：{review[:200]}\n"
                 f"个人评分：{str(score) + '/10' if score is not None else '未取得可靠评分，未评分'} | 心情：{mood}\n"
-                f"评分理由：{score_reason}\n"
-                f"oid={oid}"
+                + (f"评分理由：{score_reason}\n" if score_reason else "")
+                + f"oid={oid}"
             )
             share_info = dict(vi)
             share_info.update({"bvid": actual_bvid, "aid": oid, "oid": oid})

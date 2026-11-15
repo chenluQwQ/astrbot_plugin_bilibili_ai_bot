@@ -34,7 +34,7 @@ class ReplyAftermath(HostView):
     HOST_API = frozenset({"memory_docs", 
         "affection", "bili_comments", "bili_users", "bili_videos", "blocklist", "event_runtime",
         "json_store", "layered_runtime", "memory_compress", "memory_writer", "milestones",
-        "profile_candidates", "reply_log", "roles", "security_log", "settings", "user_profiles",
+        "profile_candidates", "reply_gate", "reply_log", "roles", "security_log", "settings", "user_profiles",
     })
 
     async def _commit_reply_signals(
@@ -121,7 +121,7 @@ class ReplyAftermath(HostView):
             await self._commit_reply_consequences(
                 outcome, mid=mid, username=username, content=content,
                 oid=oid, rpid=rpid, thread_id=thread_id, result=result,
-                own_rpid=getattr(getattr(sent, "value", None), "rpid", 0),
+                own_rpid=getattr(getattr(sent, "value", None), "rpid", 0), comment_type=comment_type,
             )
         return sent.success
 
@@ -217,7 +217,7 @@ class ReplyAftermath(HostView):
                 f"[BiliBot] 拉黑动作未确认成功：{username}({mid})"
             )
 
-    async def _commit_reply_consequences(self, outcome, *, mid, username, content, oid, rpid, thread_id, result, own_rpid=0):
+    async def _commit_reply_consequences(self, outcome, *, mid, username, content, oid, rpid, thread_id, result, own_rpid=0, comment_type=1):
         """阶段 15：回复确认送达后才提交的全部后果，都在这里。"""
         sd = outcome.delta
         if outcome.affection_enabled:
@@ -275,6 +275,7 @@ class ReplyAftermath(HostView):
         await self.memory_writer._save_memory_record(
             rpid, thread_id, mid, username, content, outcome.text,
             oid=oid, bvid=outcome.bvid, video_title=outcome.video_title,
+            own_content=await self.reply_gate._is_own_content(oid, comment_type),
         )
         await self.memory_compress.compress_thread(thread_id)
         await self.memory_compress.compress_oid(oid)

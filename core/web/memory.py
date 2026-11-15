@@ -16,11 +16,25 @@ async def handle_memory_stats(plugin: Any):
         stats = app_of(plugin).memory_api.stats() if app_of(plugin).memory_api else {"total": await app_of(plugin).count_memories()}
         layered = app_of(plugin).layered_runtime
         layered_count = await layered.memories.total_count() if layered and layered.is_open else 0
+        app = app_of(plugin)
+        entry = app.memory_entry
+
+        def kind(item):
+            """记忆页按这个分卡片：评论、私信、总结、视频、番剧、动态、直播，其余算「其他」。"""
+            memory_type = entry._normalize_memory_entry(item).get("memory_type", "chat")
+            if memory_type == "user_summary" or entry._is_derived_memory(item):
+                return "summary"
+            if memory_type == "chat":
+                return "private" if "private" in str(item.get("source", "")).lower() else "comment"
+            return memory_type if memory_type in {"video", "bangumi", "dynamic", "live"} else "other"
+
+        by_kind = {name: 0 for name in ("comment", "private", "summary", "video", "bangumi", "dynamic", "live", "other")}
+        for item in await app.memories.find():
+            by_kind[kind(item)] += 1
         data = {
             **stats,
-            "comment": int(stats.get("type_chat", 0)),
-            "private": await app_of(plugin).count_memories(where=lambda item: str(item.get("source", "")).startswith("private")),
-            "self": await app_of(plugin).count_memories(user_id="self"),
+            **by_kind,
+            "self": await app.count_memories(user_id="self"),
             "isolation_mode": _config_value(plugin, "MEMORY_ISOLATION_MODE", "isolated"),
             "safe_share": bool(_config_value(plugin, "ENABLE_SAFE_CROSS_PLATFORM_MEMORY", False)),
             "layered_total": layered_count,

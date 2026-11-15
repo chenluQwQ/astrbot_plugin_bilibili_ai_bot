@@ -158,7 +158,7 @@ class WeeklySummaryTests(unittest.TestCase):
         self.assertIn("📌 本周切片", bot.prompt)
         self.assertIn("🎢 意外与反差", bot.prompt)
         self.assertIn("不要每件都四平八稳", bot.prompt)
-        self.assertIn("说话方式", bot.prompt)
+        self.assertIn("怎么写你自己的话", bot.prompt)
         self.assertNotIn("微叙事", bot.prompt)
         self.assertIn("不能充当正文", bot.prompt)
         self.assertIn("疑似错配字幕", bot.prompt)
