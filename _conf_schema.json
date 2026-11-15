@@ -833,7 +833,6 @@
       "step": 0.05
     }
   },
-
   "COMMENT_SYNC_DYNAMIC": {
     "description": "【主动看视频】主动发的评论同时转发到动态",
     "type": "bool",
@@ -2135,6 +2134,12 @@
     "type": "bool",
     "default": false,
     "hint": "允许联网查资料。需要先填好下面的搜索服务和密钥。"
+  },
+  "KB_LOOKUP_IDS": {
+    "description": "【知识库查询】允许查询的知识库（UUID，每行一个，最多 3 个）",
+    "type": "list",
+    "default": [],
+    "hint": "填写 AstrBot「知识库」里资料库的 UUID；只读查询，用于写评论时补充设定/语料资料。留空表示不启用该工具。同名重建的知识库不会继承权限，改过 UUID 后需更新这里。"
   },
   "WEB_SEARCH_BACKEND": {
     "description": "【联网搜索】搜索后端",

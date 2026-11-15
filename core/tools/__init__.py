@@ -4,7 +4,7 @@
 按组分在 ``recall``、``share``、``lookup``、``watch``、``actions``、``bangumi``、``feedback``；共用的在 ``_kit``。
 工具只经 ``BotApp``（``core/app.py``）的公开方法用插件。
 """
-from . import actions, bangumi, feedback, lookup, recall, share, watch
+from . import actions, bangumi, feedback, knowledge, lookup, recall, share, watch
 from ._kit import ToolKit
 from .watch import WATCH_INLINE_WAIT, WATCH_MAX_JOBS, WATCH_PENDING_MESSAGE  # noqa: F401
 
@@ -20,6 +20,7 @@ def create_tools(plugin):
     BiliActionTool, BlockBiliUserTool = actions.build(kit)
     BiliBangumiTool, = bangumi.build(kit, SearchBilibiliTool)
     OwnerFeedbackTool, = feedback.build(kit)
+    knowledge_tools = knowledge.build(kit) if getattr(plugin, "knowledge", None) else ()
 
     # ── 实际执行守卫：开关、可信身份、分层授权与一次性写确认 ──
 
@@ -76,4 +77,6 @@ def create_tools(plugin):
     # 私信分享工具默认隐藏，只有管理员显式开启后才注册给 LLM。
     if plugin.settings.get("BILI_PRIVATE_SHARE_TOOL_ENABLED"):
         tools.append(WatchAndShareVideoPrivateTool())
+    # 知识库查询：管理员配置了授权资料库（KB_LOOKUP_IDS）才注册。
+    tools.extend(knowledge_tools)
     return [_guard_tool(t) for t in tools]

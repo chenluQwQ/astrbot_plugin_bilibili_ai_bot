@@ -95,6 +95,7 @@ from .infra.environment import Environment
 from .infra.models import Models
 from .infra.process import Processes
 from .infra.qq_chat import QQChat
+from .infra.knowledge import KnowledgeLookup
 from .infra.search import WebSearch
 from .infra.summary_image import SummaryImage
 from .infra.vision import Vision
@@ -216,6 +217,7 @@ def assemble(bot):
     bot.reply_context = ReplyContext(bot)
     bot.web_search = WebSearch(bot, JsonFile(WEB_SEARCH_CACHE_FILE))
     bot.search_judge = SearchJudge(bot)
+    bot.knowledge = KnowledgeLookup(bot)
     bot.app = BotApp(bot)
     bot.memo_tool = MemoTool(bot)
     bot.self_memory_tool = SelfMemoryTool(bot)
