@@ -11,6 +11,7 @@ from astrbot.api.star import Context
 from ..app import app_of
 from ._common import Handler, PLUGIN_NAME
 from .account import handle_account_info, handle_account_logout, handle_qr_generate, handle_qr_poll
+from .browse import handle_browse_failed, handle_browse_log, handle_browse_replies
 from .config_page import handle_get_config, handle_get_config_schema, handle_save_config
 from .extension_pages import (
     handle_extension_action, handle_extension_page, handle_extension_refresh,
@@ -79,6 +80,9 @@ def register_webui(plugin_instance: Any, context: Context):
         ("schedule/override", "POST", handle_schedule_override, "Save edited today's schedule"),
         ("today", "GET", handle_get_today, "What BiliBot did on one day"),
         ("today/comment/delete", "POST", handle_delete_comment, "Delete one comment BiliBot posted"),
+        ("browse/log", "GET", handle_browse_log, "Watched videos, thoughts and comments"),
+        ("browse/replies", "GET", handle_browse_replies, "Reply details per row"),
+        ("browse/failed", "GET", handle_browse_failed, "Evaluation failure details"),
         ("security/stats", "GET", handle_security_stats, "BiliBot security statistics"),
         ("tools/available", "GET", handle_available_tools, "Available AstrBot tools for BiliBot"),
         ("extensions", "GET", handle_extensions_list, "List isolated BiliBot extensions"),

@@ -49,6 +49,7 @@ const state = {
   gallery: {},
   today: {},
   todayDate: "",
+  browse: { range: "today", includeFailed: false, data: { items: [], counts: {} }, detail: null, expanded: new Set() },
   interest: {},
   security: {},
   cache: {},
@@ -75,6 +76,7 @@ const state = {
 const NAV_ITEMS = [
   ["overview", "house", "总览", "健康、配额与运行监控"],
   ["today", "calendar", "今天", "看过的视频、发过的评论、动态和番剧"],
+  ["browse", "video", "浏览日志", "看过的视频、当时的想法和留下的评论"],
   ["interaction", "message", "回复与互动", "评论、私信与分享解析"],
   ["autonomy", "clock", "主动与作息", "看视频、番剧、动态和每天的日程"],
   ["memory", "memory-card", "记忆与关系", "记忆、画像、心情与好感度"],
@@ -836,6 +838,8 @@ async function refreshPageData(page) {
   } else if (page === "today") {
     state.today = await apiGet("today", state.todayDate ? { date: state.todayDate } : {}) || {};
     state.todayDate = state.today.date || "";
+  } else if (page === "browse") {
+    state.browse.data = await apiGet("browse/log", { range: state.browse.range || "today", include_failed: state.browse.includeFailed ? 1 : 0 }) || { items: [], counts: {} };
   } else if (page === "account") {
     state.account = await apiGet("account/info") || {};
   } else if (page === "interaction") {
@@ -999,9 +1003,10 @@ function statusPill(label, tone = "neutral") {
   return `<span class="status-pill ${tone}"><i></i>${esc(label)}</span>`;
 }
 
-function metricCard(label, value, foot, iconName, tone = "blue", progress = null, quota = null) {
+function metricCard(label, value, foot, iconName, tone = "blue", progress = null, quota = null, action = "") {
   const meter = progress === null ? "" : `<div class="metric-meter"><div><span>今日用量</span>${quota === null ? "" : `<b>${esc(value)} / ${esc(quota)}</b>`}</div><div class="micro-progress"><i style="width:${clamp(progress, 0, 100)}%"></i></div></div>`;
-  return `<article class="metric-card tone-${tone}"><div class="metric-top"><span class="metric-icon">${icon(iconName)}</span><span>${esc(label)}</span></div><strong>${esc(value)}</strong><p>${esc(foot)}</p>${meter}</article>`;
+  const clickable = action ? ` data-action="${action}" style="cursor:pointer"` : "";
+  return `<article class="metric-card tone-${tone}"${clickable}><div class="metric-top"><span class="metric-icon">${icon(iconName)}</span><span>${esc(label)}</span></div><strong>${esc(value)}</strong><p>${esc(foot)}</p>${meter}</article>`;
 }
 
 function sectionHead(title, subtitle = "", iconName = "settings", extra = "") {
@@ -1537,6 +1542,7 @@ function renderPage(page) {
   return {
     overview: renderOverview,
     today: renderToday,
+    browse: renderBrowse,
     interaction: renderInteraction,
     autonomy: renderAutonomy,
     memory: renderMemory,
@@ -2400,6 +2406,180 @@ function renderToday() {
     ${renderTodayIdeas(ideas, isToday)}`;
 }
 
+// ── 浏览日志页（移植自 1.x）：按视频聚合想法、评论与回复 ──────
+function renderBrowse() {
+  const data = state.browse.data || {};
+  const counts = data.counts || {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  const range = data.range || state.browse.range || "today";
+  const tabs = [["today", "今日"], ["yesterday", "昨日"], ["7d", "近7天"]];
+  return `${pageHead("BROWSE", "浏览日志", "看过的视频、当时的想法和留下的评论，按时间倒序；同一视频只保留最新一次记录。", button("刷新", "refresh-browse", "refresh"))}
+    <section class="browse-toolbar">
+      <div class="browse-tabs">${tabs.map(([key, label]) => `<button class="browse-tab ${range === key ? "is-active" : ""}" data-browse-range="${key}" type="button" aria-selected="${range === key}">${esc(label)}</button>`).join("")}</div>
+      <div class="browse-toolbar-right">
+        <button class="browse-failed-toggle ${state.browse.includeFailed ? "is-active" : ""}" data-action="browse-toggle-failed" type="button">${icon("lightning")}含评价失败 ${fmt(counts.failed)}</button>
+        <span class="browse-range-caption">${esc(data.start || "")} → ${esc(data.end || "")}</span>
+      </div>
+    </section>
+    <section class="metrics-grid four">
+      ${metricCard("看过视频", fmt(counts.videos), "去重后的视频数", "video", "blue")}
+      ${metricCard("留下评论", fmt(counts.comments), "看片后主动评论条数", "message", "pink")}
+      ${metricCard("评论区回复", fmt(counts.replies), "点开看每一条回复", "user", "violet", null, null, "browse-detail-replies")}
+      ${metricCard("评价失败", fmt(counts.failed), "点开看失败原因", "lightning", num(counts.failed) ? "red" : "green", null, null, "browse-detail-failed")}
+    </section>
+    <section class="card browse-card">
+      ${sectionHead("浏览明细", `${data.label || "今日"} · 共 ${items.length} 个视频`, "video", statusPill(`${fmt(counts.candidates)} 次抓取`, "blue"))}
+      <div class="browse-list">${items.length ? items.map(renderBrowseItem).join("") : `<div class="empty-inline">这个区间还没有浏览记录。</div>`}</div>
+    </section>`;
+}
+
+function renderBrowseItem(item) {
+  const failed = item.status === "failed";
+  const score = num(item.score);
+  const tone = failed ? "red" : score >= 7 ? "green" : "blue";
+  const scoreText = failed ? "评价失败" : item.score === null || item.score === undefined || item.score === "" ? "未评分" : `${score} 分`;
+  const metaBits = [item.up_name ? `UP ${item.up_name}` : "", item.tname, item.source_detail].filter(Boolean);
+  const replies = Array.isArray(item.replies) ? item.replies : [];
+  const title = videoLink(item.bvid, item.title || item.bvid || "未记录标题");
+  return `<article class="browse-item tone-${tone}">
+    <div class="browse-head">
+      <span class="browse-time">${esc(item.time || "未知时间")}</span>
+      ${statusPill(scoreText, tone)}
+      ${item.mood ? statusPill(item.mood, "violet") : ""}
+      ${(item.actions || []).map((action) => `<span class="browse-chip">${esc(action)}</span>`).join("")}
+    </div>
+    ${title}
+    ${metaBits.length ? `<div class="browse-meta">${metaBits.map((bit) => `<span>${esc(bit)}</span>`).join("")}</div>` : ""}
+    ${item.thought ? `<div class="browse-quote"><b>想法</b><p>${esc(item.thought)}</p></div>` : ""}
+    ${item.review ? `<div class="browse-quote soft"><b>感受</b><p>${esc(item.review)}</p></div>` : ""}
+    ${item.comment ? `<div class="browse-quote comment"><b>我的评论</b><p>${esc(item.comment)}</p></div>` : ""}
+    ${replies.length ? `<div class="browse-replies">${replies.slice(0, 3).map((reply) => `<p><b>回复 @${esc(reply.username || "对方")}</b>：${esc(reply.content || "")} → ${esc(reply.reply || "")}</p>`).join("")}${replies.length > 3 ? `<p class="browse-more">还有 ${replies.length - 3} 条，点上方「评论区回复」看全部</p>` : ""}</div>` : ""}
+  </article>`;
+}
+
+// ── 浏览日志明细抽屉：评论区回复 / 评价失败 ──────────────────
+const BROWSE_DETAIL_META = {
+  replies: { title: "评论区回复明细", subtitle: "一条回复一行，按时间倒序；点标题可直接打开视频", icon: "user" },
+  failed: { title: "评价失败明细", subtitle: "紧凑列出失败要点，展开单条可看具体原因与上下文", icon: "lightning" },
+};
+
+async function openBrowseDetail(kind) {
+  if (!BROWSE_DETAIL_META[kind]) return;
+  state.browse.detail = { kind, data: null, loading: true, error: "" };
+  state.browse.expanded = new Set();
+  renderBrowseDetailDrawer();
+  const endpoint = kind === "replies" ? "browse/replies" : "browse/failed";
+  try {
+    const data = await apiGet(endpoint, { range: state.browse.range || "today" });
+    if (state.browse.detail?.kind === kind) state.browse.detail = { kind, data: data || {}, loading: false, error: "" };
+  } catch (error) {
+    if (state.browse.detail?.kind === kind) state.browse.detail = { kind, data: null, loading: false, error: error.message || "读取失败" };
+  }
+  renderBrowseDetailDrawer();
+}
+
+function renderBrowseDetailDrawer() {
+  const detail = state.browse.detail;
+  if (!detail) return;
+  const meta = BROWSE_DETAIL_META[detail.kind];
+  const data = detail.data || {};
+  const body = detail.loading
+    ? `<div class="detail-loading">${icon("refresh")}<span>正在读取明细…</span></div>`
+    : detail.error
+      ? `<div class="detail-loading is-error">${icon("shield")}<span>${esc(detail.error)}</span></div>`
+      : detail.kind === "replies" ? renderReplyDetailBody(data) : renderFailureDetailBody(data);
+  const rangeLabel = data.label || (state.browse.range === "yesterday" ? "昨日" : state.browse.range === "7d" ? "近7天" : "今日");
+  modalRoot.innerHTML = `<div class="drawer-backdrop" data-detail-backdrop><aside class="autonomy-drawer detail-drawer" role="dialog" aria-modal="true" aria-labelledby="detail-drawer-title">
+    <header><span class="drawer-icon">${icon(meta.icon)}</span><div><small>${esc(rangeLabel)} · ${detail.kind === "replies" ? "REPLIES" : "EVALUATION FAILURES"}</small><h2 id="detail-drawer-title">${esc(meta.title)}</h2><p>${esc(meta.subtitle)}</p></div><button class="modal-close" data-detail-close type="button" aria-label="关闭">×</button></header>
+    <div class="detail-body">${body}</div>
+    <footer><button class="button soft" data-detail-close type="button">关闭</button></footer>
+  </aside></div>`;
+  const close = () => {
+    modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-closing");
+    window.setTimeout(() => {
+      modalRoot.innerHTML = "";
+      state.browse.detail = null;
+    }, 200);
+  };
+  modalRoot.querySelectorAll("[data-detail-close]").forEach((node) => node.addEventListener("click", close));
+  modalRoot.querySelector("[data-detail-backdrop]")?.addEventListener("click", (event) => { if (event.target === event.currentTarget) close(); });
+  modalRoot.querySelectorAll("[data-fail-toggle]").forEach((node) => node.addEventListener("click", () => {
+    const key = node.dataset.failToggle;
+    if (state.browse.expanded.has(key)) state.browse.expanded.delete(key);
+    else state.browse.expanded.add(key);
+    renderBrowseDetailDrawer();
+  }));
+  requestAnimationFrame(() => modalRoot.querySelector(".drawer-backdrop")?.classList.add("is-visible"));
+}
+
+function renderReplyDetailBody(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const byChannel = data.by_channel || {};
+  const chips = Object.entries(byChannel).map(([key, count]) => `<span class="detail-chip">${esc({ comment: "评论区", private: "私信", live: "直播弹幕" }[key] || key)} ${fmt(count)}</span>`).join("");
+  if (!items.length) return `<div class="detail-empty">${icon("message")}<strong>这个区间没有回复记录</strong><span>换个时间范围，或等下一次互动后再看。</span></div>`;
+  return `<div class="detail-summary"><span>共 ${fmt(data.count ?? items.length)} 条</span>${chips}${(data.count || 0) > items.length ? `<span class="detail-warn">仅显示最近 ${fmt(items.length)} 条</span>` : ""}</div>
+    <div class="reply-detail-list">${items.map((item) => `<article class="reply-detail-row">
+      <div class="reply-detail-head">
+        <span class="browse-time">${esc(item.time || "")}</span>
+        <span class="browse-chip">${esc(item.channel_label || "评论区回复")}</span>
+        ${num(item.score_delta) ? statusPill(`好感 ${num(item.score_delta) > 0 ? "+" : ""}${num(item.score_delta)}`, num(item.score_delta) > 0 ? "green" : "red") : ""}
+        ${videoLink(item.bvid, item.title || item.bvid || "未记录视频")}
+      </div>
+      <div class="reply-detail-pair">
+        <p class="reply-detail-in"><b>@${esc(item.username || "对方")}</b>${esc(item.content || "（未记录原文）")}</p>
+        <p class="reply-detail-out"><b>我回</b>${esc(item.reply || "（未记录回复）")}</p>
+      </div>
+    </article>`).join("")}</div>`;
+}
+
+function renderFailureDetailBody(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const stages = Array.isArray(data.by_stage) ? data.by_stage : [];
+  const reasons = Array.isArray(data.top_reason) ? data.top_reason : [];
+  if (!items.length) return `<div class="detail-empty">${icon("shield")}<strong>这个区间没有评价失败</strong><span>要么抓取的视频都解析成功，要么还没开始抓取。</span></div>`;
+  return `<div class="detail-summary">
+      <span>共 ${fmt(data.count ?? items.length)} 条</span>
+      ${stages.map((item) => `<span class="detail-chip">${esc(item.label)} ${fmt(item.count)}</span>`).join("")}
+      ${(data.count || 0) > items.length ? `<span class="detail-warn">仅显示最近 ${fmt(items.length)} 条</span>` : ""}
+    </div>
+    ${reasons.length ? `<div class="fail-reason-bar">${reasons.map((item) => `<span>${esc(item.label)}<b>${fmt(item.count)}</b></span>`).join("")}</div>` : ""}
+    <div class="fail-list">${items.map((item, index) => renderFailureRow(item, index)).join("")}</div>`;
+}
+
+function renderFailureRow(item, index) {
+  const key = `${item.time}|${item.bvid}|${index}`;
+  const open = state.browse.expanded.has(key);
+  const pairs = [
+    ["失败阶段", item.stage_label || item.stage || "未记录"],
+    ["失败原因", item.reason_label || "未记录原因"],
+    ["原因代码", item.reason || "—"],
+    ["分析依据", item.analysis_basis_label || "未记录"],
+    ["耗时", item.elapsed_seconds === null || item.elapsed_seconds === undefined ? "—" : `${item.elapsed_seconds}s`],
+    ["模型路由", [item.model_route, item.model_provider].filter(Boolean).join(" / ") || "未记录"],
+    ["返回长度", item.response_chars === null || item.response_chars === undefined ? "—" : `${item.response_chars} 字符`],
+    ["命中缓存", item.from_cache ? "是" : "否"],
+    ["来源", [item.source, item.source_detail].filter(Boolean).join(" · ") || "未记录"],
+  ];
+  const detail = open ? `<div class="fail-detail">
+      <div class="fail-detail-grid">${pairs.map(([label, value]) => `<div><span>${esc(label)}</span><b>${esc(String(value))}</b></div>`).join("")}</div>
+      ${item.missing_fields?.length ? `<div class="fail-detail-block"><span>缺失字段</span><div class="fail-tags">${item.missing_fields.map((field) => `<i>${esc(field)}</i>`).join("")}</div></div>` : ""}
+      ${item.media_errors?.length ? `<div class="fail-detail-block"><span>媒体获取过程</span><ul>${item.media_errors.map((err) => `<li><b>${esc(err.stage || "步骤")}</b>${esc(err.reason || "")}</li>`).join("")}</ul></div>` : ""}
+      <div class="fail-detail-block"><span>上下文</span><p>Bot 抓到了《${esc(item.title || "未知视频")}》${item.up_name ? `（UP ${esc(item.up_name)}）` : ""}，但没拿到可用于评价的内容，因此这一条被判定为评价失败、不计入想法与评论。</p></div>
+      ${item.url ? `<div class="fail-detail-actions"><a class="button soft" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${icon("video")}打开视频链接</a></div>` : ""}
+    </div>` : "";
+  return `<article class="fail-row ${open ? "is-open" : ""}">
+    <div class="fail-line">
+      <span class="fail-time">${esc((item.time || "").slice(5) || "—")}</span>
+      <span class="fail-bv">${esc(item.bvid || "—")}</span>
+      <span class="fail-title" title="${esc(item.title || "")}">${esc(item.title || "未知视频")}</span>
+      <span class="fail-tag">${esc(item.stage_label || "未分类")}</span>
+      <span class="fail-tag is-reason">${esc(item.reason_label || "未记录原因")}</span>
+      <button class="fail-toggle" data-fail-toggle="${esc(key)}" type="button" aria-expanded="${open}">${open ? "收起" : "展开"}</button>
+    </div>
+    ${detail}
+  </article>`;
+}
+
 function renderMemory() {
   const m = state.memory || {};
   const isolation = m.isolation_mode === "safe_share" ? "安全共享" : "平台隔离";
@@ -2737,6 +2917,12 @@ function bindStepperControls(root = content) {
 function bindContent() {
   bindConfigControls();
   if (state.currentPage === "autonomy") bindRingInteractions();
+  if (state.currentPage === "browse") {
+    content.querySelectorAll("[data-browse-range]").forEach((node) => node.addEventListener("click", () => {
+      state.browse.range = node.dataset.browseRange;
+      refreshAndRender("browse", "");
+    }));
+  }
   content.querySelectorAll("[data-action]").forEach((node) => node.addEventListener("click", () => handleAction(node.dataset.action, node)));
   content.querySelector("[data-today-date]")?.addEventListener("change", (event) => {
     state.todayDate = event.target.value;
@@ -2856,6 +3042,14 @@ async function handleAction(action, source = null) {
   if (action === "discard") return discardDraft();
   if (action === "refresh-memory") return refreshAndRender("memory", "记忆数据已刷新");
   if (action === "refresh-today") return refreshAndRender("today", "已刷新");
+  if (action === "refresh-browse") return refreshAndRender("browse", "浏览日志已刷新");
+  if (action === "browse-detail-replies") return openBrowseDetail("replies");
+  if (action === "browse-detail-failed") return openBrowseDetail("failed");
+  if (action === "browse-toggle-failed") {
+    state.browse.includeFailed = !state.browse.includeFailed;
+    await refreshAndRender("browse", "");
+    return;
+  }
   if (action === "today-now") { state.todayDate = ""; return refreshAndRender("today", "回到今天"); }
   if (action === "delete-comment") return deleteTodayComment(source?.dataset.rpid || "");
   if (action === "refresh-security") return refreshAndRender("security", "安全审计已刷新");
