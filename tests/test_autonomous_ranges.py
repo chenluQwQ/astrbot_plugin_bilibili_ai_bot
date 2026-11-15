@@ -503,6 +503,19 @@ def _check_video_cache_uses_detail_long_term_and_faded_stages():
     assert not probe.video_watch._compact_video_cache(cache)
 
 
+def _check_round_cap_does_not_limit_daily_video_count():
+    # #81：每天几轮（5）不能当成每天几个视频（30）
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    probe = ProactiveProbe({
+        "PROACTIVE_DAILY_LIMIT": 30, "PROACTIVE_TIMES_COUNT": 5, "AUTONOMOUS_PROACTIVE_DAILY_MAX": 5,
+        "PROACTIVE_VIDEO_COUNT": 10, "PROACTIVE_COMMENT_DAILY_LIMIT": 3,
+    })
+    budget = probe.proactive_browse._proactive_round_budget
+    assert budget([{"time": now}] * 5)[0] == 10
+    assert budget([{"time": now}] * 25)[0] == 5
+    assert budget([{"time": now}] * 30)[0] is None
+
+
 def _check_concrete_preference_signals_feed_search_fallback():
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     history = [{
@@ -1066,6 +1079,7 @@ class AutonomousRangeTests(unittest.TestCase):
     test_budget_prefers_daily_max_over_legacy_limit = staticmethod(_check_budget_prefers_daily_max_over_legacy_limit)
     test_budget_falls_back_to_legacy_limit_for_upgraded_configs = staticmethod(_check_budget_falls_back_to_legacy_limit_for_upgraded_configs)
     test_budget_keeps_smaller_dynamic_limit = staticmethod(_check_budget_keeps_smaller_dynamic_limit)
+    test_round_cap_does_not_limit_daily_video_count = staticmethod(_check_round_cap_does_not_limit_daily_video_count)
     test_autonomous_range_preserves_explicit_legacy_zero = staticmethod(_check_autonomous_range_preserves_explicit_legacy_zero)
     test_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist = staticmethod(_check_bili_private_tool_ceiling_rejects_parse_video_even_from_old_allowlist)
     test_config_schema_has_no_duplicate_keys = staticmethod(_check_config_schema_has_no_duplicate_keys)
