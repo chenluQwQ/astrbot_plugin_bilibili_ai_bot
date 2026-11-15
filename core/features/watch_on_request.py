@@ -154,7 +154,8 @@ class WatchOnRequest(HostView):
                     memory_text = (
                         f"[{now_str}] 视频摘要《{vi.get('title', '')}》"
                         f"(UP主:{vi.get('owner_name', '')}) 评分:{score}/10 "
-                        f"理由:{score_reason[:80]} 感想:{review[:80]} 内容:{watch_digest(video_description, 220)}"
+                        + (f"理由:{score_reason[:80]} " if score_reason else "")
+                        + f"感想:{review[:80]} 内容:{watch_digest(video_description, 220)}"
                     )
                     if preference_signals:
                         memory_text += " 兴趣信号:" + "、".join(
@@ -179,8 +180,8 @@ class WatchOnRequest(HostView):
                 f"内容详情：{video_description[:800]}\n"
                 f"我的感受：{review[:200]}\n"
                 f"个人评分：{str(score) + '/10' if score is not None else '未取得可靠评分，未评分'} | 心情：{mood}\n"
-                f"评分理由：{score_reason}\n"
-                f"oid={oid}"
+                + (f"评分理由：{score_reason}\n" if score_reason else "")
+                + f"oid={oid}"
             )
             share_info = dict(vi)
             share_info.update({"bvid": actual_bvid, "aid": oid, "oid": oid})

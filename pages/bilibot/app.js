@@ -371,7 +371,7 @@ function buildMock() {
     today: {
       date: "2026-08-14", today: "2026-08-14", days: ["2026-08-14", "2026-08-13"],
       videos: [
-        { time: "10:12", bvid: "BV1PREVIEW01", title: "示例视频：一分钟看懂潮汐", up_name: "示例UP", score: 8, score_reason: "动画把引力讲得很直观。", mood: "好奇", review: "月亮拉着海水跑那段动画太直观了，原来一天两次涨潮是这么来的。看完想找潮汐表看看今天几点涨潮。", actions: ["👍点赞", "💬评论"], tname: "科普", failed: false },
+        { time: "10:12", bvid: "BV1PREVIEW01", title: "示例视频：一分钟看懂潮汐", up_name: "示例UP", score: 8, mood: "好奇", review: "月亮拉着海水跑那段动画太直观了，原来一天两次涨潮是这么来的。看完想找潮汐表看看今天几点涨潮。", actions: ["👍点赞", "💬评论"], tname: "科普", failed: false },
         { time: "10:20", bvid: "BV1PREVIEW02", title: "示例视频：评价失败的一条", up_name: "示例UP2", score: null, score_reason: "", mood: "", review: "", actions: [], tname: "", failed: true },
       ],
       comments: [

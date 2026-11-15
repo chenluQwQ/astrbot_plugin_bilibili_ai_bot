@@ -325,11 +325,10 @@ class PostingAndRatingTests(unittest.IsolatedAsyncioTestCase):
         prompt = bot._llm_call.call_args.args[0]
         self.assertNotIn("大部分视频应该落在5-7分", prompt)
         self.assertNotIn("相邻档位", prompt)
-        self.assertIn("一句就够", prompt)
         self.assertIn("一律用「」", prompt)
-        self.assertIn("说话方式", prompt)
-        self.assertIn("写给自己的", prompt)
-        self.assertIn("最决定这个分的是哪一点", prompt)
+        self.assertIn("怎么写你自己的话", prompt)
+        self.assertIn("记给你自己的", prompt)
+        self.assertNotIn("score_reason", prompt)
         # 固定说明在前、这个视频在后，最后一句是要它写
         self.assertLess(prompt.index("【先写感受】"), prompt.index("【这个视频】"))
         self.assertTrue(prompt.rstrip().endswith("只输出 JSON。"))

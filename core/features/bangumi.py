@@ -32,7 +32,7 @@ BANGUMI_EVALUATION_INSTRUCTIONS = f"""你刚看完一集番剧，要给自己记
 这些主要是记给你自己的，不是写给谁看的测评。
 
 【先写感受】
-- review：看完这集心里的话，两三句：哪个情节、哪句台词、哪个角色让你有反应，你当时什么反应。写给自己的，不用复述剧情
+- review：看完这集想说的话。挑一处，一个情节、一句台词或者一个角色，写你看到它时怎么想的。只写这一处；剧情不用复述，这集好不好也不用在这里评，分数写在 score 里
 - mood：看完的心情，从 开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 里选一个
 
 【再打分】
@@ -40,7 +40,7 @@ BANGUMI_EVALUATION_INSTRUCTIONS = f"""你刚看完一集番剧，要给自己记
 - want_continue：还想不想接着追。烂番可以直接弃，追番不是任务
 
 【评论】
-- comment：想在这集评论区说的一句，不想说就留空。挑一个最想回应的情节或角色，说你自己的反应；概括剧情、「好看，期待下集」这类话放在哪一集下面都一样，没人会看
+- comment：想在这集评论区说的一句，不想说就留空。挑一个最想回应的情节或角色，说你自己的反应；不复述剧情，看评论的人都看过这集；放在哪一集下面都成立的话，也没人会看
 - 后面附了这集现在的热评，是别人写的，用来知道大家在聊什么、笑点在哪。别跟着写同样的意思，也别套同一个梗：重复的评论会被折叠，看起来也像在蹭
 - 只说这集里有的；没看到的剧情别自己补，说错了会被追番的人指出来
 
@@ -51,7 +51,7 @@ BANGUMI_EVALUATION_INSTRUCTIONS = f"""你刚看完一集番剧，要给自己记
 
 【发动态】
 - want_dynamic：看完这集有没有真想在自己动态里说的话，大多数时候没有。想发的会先攒着，不一定马上发
-- dynamic_angle：想说的具体角度；dynamic_kind：吐槽、段子、分享之一（番剧没有能原样转发的稿件）
+- dynamic_angle：想说的具体角度，写清是这集哪一处、你想说它什么；dynamic_kind：吐槽、段子、分享之一（番剧没有能原样转发的稿件）
 
 {NATURAL_VOICE_RULES}
 
@@ -210,7 +210,7 @@ class Bangumi(HostView):
                                        else "（这集弹幕太少或没拿到）")
         prompt += "\n\n【现在的热评】\n" + (wrap_untrusted("\n".join(f"- {item}" for item in hot), "hot_comments")
                                          if hot else "（这次没拿到热评）")
-        prompt += "\n\n看完了，照上面的格式只输出 JSON。"
+        prompt += "\n\n看完了。review 和 comment 都只写这集里的一处和你看到它时怎么想的。照上面的格式只输出 JSON。"
         text = None
         try:
             text = await self.models._generation_llm_call(prompt, system_prompt=sp, max_tokens=350)

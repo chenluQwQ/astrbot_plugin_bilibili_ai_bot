@@ -57,7 +57,8 @@ class VideoContext(HostView):
                     )
                 ctx = f"【当前视频·从观看记忆读取】\n标题：{c.get('title', '')}\nUP主：{c.get('owner_name', '')}（UID:{c.get('owner_mid', '')}）\n分区：{c.get('tname', '')}\n简介：{c.get('desc', '')[:150]}\n内容概括：{self.video_watch._clip_media_text(cached_summary, 240)}"
                 if c.get("score") is not None:
-                    ctx += f"\n当时评分：{c.get('score')}/10；理由：{c.get('score_reason', '')}；感想：{c.get('review', '')}"
+                    reason = c.get('score_reason') or ''
+                    ctx += f"\n当时评分：{c.get('score')}/10；" + (f"理由：{reason}；" if reason else "") + f"感想：{c.get('review', '')}"
                 tags = await self.bili_videos._get_video_tags(bvid)
                 comments = await self.bili_comments._get_hot_comments(oid)
                 if tags:
