@@ -345,7 +345,7 @@ class WatchVideo(HostView):
             f"[{log_entry['time']}] {watch_round.memory_subject}看了视频《{video.get('title', '')}》"
             f"(UP主:{video.get('up_name', '')}) "
             f"评分:{score}/10 心情:{mood} "
-            f"理由:{score_reason[:80]} 感想:{review[:80]} "
+            + (f"理由:{score_reason[:80]} " if score_reason else "") + f"感想:{review[:80]} "
             f"内容:{watch_digest(video_description, 120)}"
         )
         if preference_signals:

@@ -4,7 +4,7 @@ from astrbot.api.star import StarTools
 
 PLUGIN_NAME = "astrbot_plugin_bilibili_ai_bot"
 # 和 metadata.yaml 的 version 保持一致（tests/test_plugin_version.py 检查）
-PLUGIN_VERSION = "2.3.0"
+PLUGIN_VERSION = "2.3.1"
 DATA_DIR = str(StarTools.get_data_dir(PLUGIN_NAME))
 LAYERED_DB_FILE = os.path.join(DATA_DIR, "bilibot.sqlite3")
 REPLIED_FILE = os.path.join(DATA_DIR, "replied.json")
@@ -161,12 +161,10 @@ DEFAULT_DYNAMIC_TOPICS = [
 
 # 动态发布的风格说明；可在配置 DYNAMIC_PROMPT 中整段替换。
 # 不可伪造经历、不公开私密内容等硬性规则另行附加，不受替换影响。
-DEFAULT_DYNAMIC_PROMPT = """B站动态的感觉：
-- 像忽然想起一件具体的小事、一个念头或一句吐槽，随手发出来。像在完成「发动态」任务的，读的人一眼就看得出来
-- 一条只说一件事，先让人看懂发生了什么或你在想什么。故作深沉、写成谜语、硬升华，别人看不懂也不想懂
-- 不用运营口吻、鸡汤结尾、打卡式开场，也不用每条都问大家怎么看：那是账号在营业，不是人在说话
-- 长短看内容，没那么多可说就短
-- 现在几点只是背景，和内容有关再带上"""
+DEFAULT_DYNAMIC_PROMPT = """B站动态怎么写：
+一条只说一件具体的事：一件小事、一个念头或者一句吐槽。先让人看懂发生了什么、你在想什么，看不懂的话别人不会接。
+写完这件事就停：不用在结尾讲道理或升华，不用每条都问大家怎么看，开头也不用打招呼或报时间。
+长短看内容，没那么多可说就短。现在几点只是背景，和内容有关再提。"""
 
 OWNER_RECOMMEND_LOG_FILE = os.path.join(DATA_DIR, "owner_recommend_log.json")
 CREATOR_ACTIVITY_FILE = os.path.join(DATA_DIR, "creator_extension_activity.json")
