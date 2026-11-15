@@ -32,7 +32,6 @@ async def handle_get_stats(plugin: Any):
         )
         private_replies = sum(1 for item in reply_log if item.get("channel") == "private")
         dynamic_posts = len(_today_entries(_read(app_of(plugin).dynamic_log, []), "time", "timestamp"))
-        proactive_entries = _today_entries(_read(app_of(plugin).proactive_log, []), "time", "timestamp")
         security_entries = _today_entries(app_of(plugin).security_log.entries(), "time", "timestamp")
         memory_stats = app_of(plugin).memory_api.stats() if app_of(plugin).memory_api else {"total": await app_of(plugin).count_memories()}
         profiles = app_of(plugin).user_profiles.all()
@@ -54,11 +53,11 @@ async def handle_get_stats(plugin: Any):
         if not warnings:
             warnings.append({"level": "success", "title": "未发现重大问题", "detail": "账号、调度与运行时状态未出现需要立即处理的异常。"})
 
-        proactive_max = int(_config_value(plugin, "PROACTIVE_DAILY_LIMIT", 0) or 0)
-        if _config_value(plugin, "ENABLE_AUTONOMOUS_DAILY_PLAN", False):
-            autonomous_limit = int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_MAX", proactive_max) or 0)
-            if autonomous_limit > 0:
-                proactive_max = min([value for value in (proactive_max, autonomous_limit) if value > 0], default=autonomous_limit)
+        # 卡片单位是「轮」：上限和日程一样取 PROACTIVE_TIMES_COUNT 与自主上限的较小值，已用数今天触发过的轮次
+        round_limit = max(0, int(_config_value(plugin, "PROACTIVE_TIMES_COUNT", 0) or 0))
+        round_cap = max(0, int(_config_value(plugin, "AUTONOMOUS_PROACTIVE_DAILY_MAX", round_limit) or 0))
+        proactive_max = min(round_limit, round_cap)
+        proactive_rounds = sum(1 for item in events if item.get("kind") == "proactive" and item.get("triggered"))
 
         data = {
             "running": running,
@@ -76,7 +75,7 @@ async def handle_get_stats(plugin: Any):
             "dynamic_posts_today": dynamic_posts,
             "videos_today": _count_today(plugin, "watch"),
             "bangumi_today": _count_today(plugin, "bangumi"),
-            "proactive_used": len(proactive_entries),
+            "proactive_used": proactive_rounds,
             "proactive_max": proactive_max,
             "memory_total": int(memory_stats.get("total", 0)),
             "profiles_total": len(profiles) if isinstance(profiles, dict) else 0,
