@@ -13,6 +13,9 @@ class Probe(VideoParts):
         self.timeouts = []
 
     async def _run_process(self, *args, **kwargs):
+        # CDN 线路探测用的是 yt-dlp -J，不参与下载超时断言。
+        if "-J" in args:
+            return 1, "", "probe unavailable"
         self.timeouts.append(kwargs.get("timeout"))
         return self.results.pop(0) if self.results else (1, "", "failed")
 

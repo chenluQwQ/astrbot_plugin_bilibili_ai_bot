@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import math
 
@@ -129,6 +130,26 @@ class Vision:
         return self._embed_client
 
     async def _get_embedding(self, text):
+        provider_id = str(self.settings.get("EMBED_PROVIDER_ID") or "").strip()
+        if provider_id:
+            # 使用宿主向量接口，复用 AstrBot 已配置的向量模型与密钥。
+            try:
+                provider = self.context.get_provider_by_id(provider_id)
+                if not callable(getattr(provider, "get_embedding", None)):
+                    return None
+                timeout = max(3, min(60, int(
+                    self.settings.get("EMBED_TIMEOUT_SECONDS") or 10)))
+                vector = await asyncio.wait_for(provider.get_embedding(text), timeout)
+                if not vector:
+                    return None
+                # 没配 embedding_dimensions 的 Provider 会返回 0，此时不按维度拦截。
+                expected = provider.get_dim()
+                if expected and len(vector) != expected:
+                    return None
+                return vector
+            except Exception as e:
+                logger.warning(f"[BiliBot] Embedding 暂不可用，本次跳过向量检索: {redact_proxy_error(e, self.config)}")
+                return None
         client = self._get_embed_client()
         if not client:
             return None

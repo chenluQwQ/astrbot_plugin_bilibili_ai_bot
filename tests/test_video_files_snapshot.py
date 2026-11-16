@@ -37,6 +37,10 @@ class Probe(VideoParts):
         return str(value).replace(self.folder, "<DIR>")
 
     async def _run_process(self, *command, timeout=None):
+        # 线路探测（yt-dlp -J）不改变直连下载的命令快照：这里让它直接失败，
+        # 走原有的格式回退链；镜像分支由 test_cdn_mirror.py 单独覆盖。
+        if "-J" in command:
+            return 1, "", "probe unavailable"
         step = self.script.pop(0) if self.script else (0, "", "")
         code, stdout, stderr, *files = step
         call = {"command": [self._clean(part) for part in command], "timeout": timeout}
