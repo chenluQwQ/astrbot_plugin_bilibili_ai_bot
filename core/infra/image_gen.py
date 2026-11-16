@@ -35,7 +35,50 @@ class ImageGen(HostView):
         configured_base = str(self.settings.get("IMAGE_GEN_API_BASE") or "").strip()
         base_url = normalize_openai_base_url(configured_base) if configured_base else ""
         model = str(self.settings.get("IMAGE_GEN_MODEL") or "").strip()
+        # 有的生图模型只有 /images/generations，不认对话接口里的 modalities
+        if backend == "openai_images":
+            return "openai_images", api_key, base_url, model
         return "openai", api_key, base_url, model
+
+    @staticmethod
+    def _pick_openai_images_result(data):
+        """从 /images/generations 的返回里取第一张：(图片字节, None) 或 (None, 下载地址)。"""
+        items = data.get("data") if isinstance(data, dict) else None
+        item = items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else {}
+        if item.get("b64_json"):
+            return base64.b64decode(item["b64_json"]), None
+        url = str(item.get("url") or "").strip()
+        return None, (url or None)
+
+    async def _generate_openai_images(self, prompt, api_key, base_url, model):
+        url = f"{base_url}/images/generations"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {"model": model, "prompt": prompt}
+        async with plugin_http_session(self.config) as s:
+            async with s.post(url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=180)) as r:
+                if r.status != 200:
+                    message = (await r.read()).decode("utf-8", errors="ignore")
+                    logger.error(f"[BiliBot] 图片生成HTTP {r.status}: {message[:300]}")
+                    return None
+                data = await r.json()
+            if isinstance(data, dict) and data.get("error"):
+                logger.error(f"[BiliBot] 图片生成API错误: {data['error']}")
+                return None
+            img_data, img_url = self._pick_openai_images_result(data)
+            if img_data is None and img_url:
+                async with s.get(img_url, timeout=aiohttp.ClientTimeout(total=60)) as r:
+                    if r.status == 200:
+                        img_data = await r.read()
+                    else:
+                        logger.error(f"[BiliBot] 下载生成的图片失败 HTTP {r.status}")
+        if not img_data:
+            logger.warning("[BiliBot] 图片生成返回无图片")
+            return None
+        save_path = os.path.join(TEMP_IMAGE_DIR, f"dynamic_{int(time.time())}.png")
+        with open(save_path, "wb") as f:
+            f.write(img_data)
+        logger.info(f"[BiliBot] 🖼️ 图片生成成功（{len(img_data) // 1024}KB）")
+        return save_path
 
     @staticmethod
     def _decode_novelai_image(body: bytes, content_type: str) -> bytes:
@@ -147,6 +190,12 @@ class ImageGen(HostView):
                 return await self._generate_novelai_image(styled_prompt, api_key, base_url, model)
             except Exception as e:
                 logger.error(f"[BiliBot] NovelAI 图片生成异常: {e}")
+                return None
+        if backend == "openai_images":
+            try:
+                return await self._generate_openai_images(styled_prompt, api_key, base_url, model)
+            except Exception as e:
+                logger.error(f"[BiliBot] 图片生成异常: {e}")
                 return None
         url = f"{base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}

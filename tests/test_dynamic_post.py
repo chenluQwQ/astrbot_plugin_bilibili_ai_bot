@@ -58,6 +58,96 @@ class NovelAIImageTests(unittest.TestCase):
         self.assertEqual(self.Recording.received, ("token", "https://image.novelai.net", "nai-diffusion-4-5-full"))
 
 
+class OpenAIImagesTests(unittest.TestCase):
+    """只有 /images/generations 的生图模型：单独的后端，定时动态也能配图。"""
+
+    class Recording(ImageGen):
+        received = None
+
+        async def _generate_openai_images(self, prompt, api_key, base_url, model):
+            type(self).received = (prompt, api_key, base_url, model)
+            return "generated.png"
+
+    CONFIG = {
+        "IMAGE_GEN_BACKEND": "openai_images",
+        "IMAGE_GEN_API_KEY": "key",
+        "IMAGE_GEN_API_BASE": "https://images.example.com",
+        "IMAGE_GEN_MODEL": "image-model",
+    }
+
+    def test_config_keeps_backend_and_normalizes_base(self):
+        self.assertEqual(
+            _image_gen(self.CONFIG).config_tuple(),
+            ("openai_images", "key", "https://images.example.com/v1", "image-model"),
+        )
+
+    def test_automatic_dynamic_task_uses_images_endpoint(self):
+        self.Recording.received = None
+        result = asyncio.run(_image_gen(self.CONFIG, self.Recording).generate("a cat", human_initiated=False))
+        self.assertEqual(result, "generated.png")
+        prompt, *rest = self.Recording.received
+        self.assertTrue(prompt.endswith("a cat"))
+        self.assertEqual(rest, ["key", "https://images.example.com/v1", "image-model"])
+
+    def test_missing_model_skips(self):
+        self.Recording.received = None
+        config = dict(self.CONFIG, IMAGE_GEN_MODEL="")
+        self.assertIsNone(asyncio.run(_image_gen(config, self.Recording).generate("a cat")))
+        self.assertIsNone(self.Recording.received)
+
+    def test_default_backend_still_uses_chat_completions(self):
+        self.assertEqual(_image_gen(dict(self.CONFIG, IMAGE_GEN_BACKEND="openai")).config_tuple()[0], "openai")
+
+    def test_result_b64_and_url(self):
+        pick = ImageGen._pick_openai_images_result
+        self.assertEqual(pick({"data": [{"b64_json": base64.b64encode(b"png").decode()}]}), (b"png", None))
+        self.assertEqual(pick({"data": [{"url": "https://cdn.example.com/a.png"}]}), (None, "https://cdn.example.com/a.png"))
+        self.assertEqual(pick({"data": []}), (None, None))
+        self.assertEqual(pick({}), (None, None))
+
+    def test_request_and_saved_file(self):
+        from aiohttp import web
+        import tempfile
+        import core.infra.image_gen as image_gen_module
+
+        expected = b"\x89PNG\r\n\x1a\nimages-endpoint"
+        seen = {}
+
+        async def generations(request):
+            seen["auth"] = request.headers.get("Authorization")
+            seen["body"] = await request.json()
+            return web.json_response({"data": [{"b64_json": base64.b64encode(expected).decode()}]})
+
+        async def scenario():
+            app = web.Application()
+            app.router.add_post("/v1/images/generations", generations)
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, "127.0.0.1", 0)
+            await site.start()
+            port = site._server.sockets[0].getsockname()[1]
+            try:
+                config = dict(self.CONFIG, IMAGE_GEN_API_BASE=f"http://127.0.0.1:{port}")
+                return await _image_gen(config).generate("a cat")
+            finally:
+                await runner.cleanup()
+
+        original = image_gen_module.TEMP_IMAGE_DIR
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_gen_module.TEMP_IMAGE_DIR = temp_dir
+            try:
+                path = asyncio.run(scenario())
+            finally:
+                image_gen_module.TEMP_IMAGE_DIR = original
+            self.assertIsNotNone(path)
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), expected)
+        self.assertEqual(seen["auth"], "Bearer key")
+        self.assertEqual(seen["body"]["model"], "image-model")
+        self.assertTrue(seen["body"]["prompt"].endswith("a cat"))
+        self.assertNotIn("modalities", seen["body"])
+
+
 class WriterHost(MemoryParts):
     schedule_rules = ScheduleParts.schedule_rules
     daily_plan = ScheduleParts.daily_plan

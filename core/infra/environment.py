@@ -42,7 +42,9 @@ class Environment(HostView):
                 "proactive_video_media": proactive_media_ready and bool(video_provider_id or video_api_ready),
                 "proactive_video_fallback_text": bool(self.settings.get("LLM_PROVIDER_ID")),
                 "dynamic_image_generation": image_gen_ready,
-                "image_gen_backend": "novelai" if image_gen_backend in ("novelai", "nai") else "openai",
+                "image_gen_backend": "novelai" if image_gen_backend in ("novelai", "nai") else (
+                    "openai_images" if image_gen_backend == "openai_images" else "openai"
+                ),
                 "web_search": bool(self.settings.get("ENABLE_WEB_SEARCH") and self.settings.get("WEB_SEARCH_API_KEY")),
                 "web_search_backend": (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip() if self.settings.get("ENABLE_WEB_SEARCH") else "",
                 "web_search_judge": bool(self.settings.get("WEB_SEARCH_JUDGE_PROVIDER_ID")),

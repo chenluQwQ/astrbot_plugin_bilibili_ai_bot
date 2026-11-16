@@ -106,6 +106,7 @@ class ProviderConfigSchemaTests(unittest.TestCase):
         self.assertIn("firecrawl", schema["WEB_SEARCH_BACKEND"]["options"])
         self.assertIn("grok", schema["WEB_SEARCH_BACKEND"]["options"])
         self.assertIn("novelai", schema["IMAGE_GEN_BACKEND"]["options"])
+        self.assertIn("openai_images", schema["IMAGE_GEN_BACKEND"]["options"])
 
 
 if __name__ == "__main__":

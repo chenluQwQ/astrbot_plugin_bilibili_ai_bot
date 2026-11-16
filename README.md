@@ -230,7 +230,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`VIDEO_VISION_API_KEY`       |可选|视频分析视觉模型 API Key                                                     |
 |`IMAGE_VISION_PROVIDER_ID`   |可选|图片识别优先走 AstrBot 模型提供商，失败会退回独立 API                                    |
 |`IMAGE_VISION_API_KEY`       |可选|图片识别视觉模型 API Key                                                     |
-|`IMAGE_GEN_BACKEND`          |可选|图片生成后端：`openai` / `novelai`；默认 `openai`                              |
+|`IMAGE_GEN_BACKEND`          |可选|图片生成后端：`openai`（走 `/chat/completions`）/ `openai_images`（走 `/images/generations`）/ `novelai`；默认 `openai` |
 |`IMAGE_GEN_API_KEY`          |可选|图片生成 API Key；NovelAI 填 Persistent API Token                            |
 |`IMAGE_GEN_API_BASE`         |可选|留空使用后端官方默认地址；也可填写兼容代理地址                                          |
 |`IMAGE_GEN_MODEL`            |可选|OpenAI 后端默认 `black-forest-labs/flux-schnell`；NovelAI 默认 `nai-diffusion-4-5-full`|
@@ -294,6 +294,8 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 > 💡 视觉模型留空时，视频分析回退为纯文本 LLM 分析，图片识别则跳过。
 >
 > 💡 Firecrawl 只需选择 `firecrawl` 并填写 API Key；Grok 选择 `grok` 并填写 xAI API Key。两者的 Base URL 留空即可走官方接口。
+>
+> 💡 生图后端怎么选：能在聊天回复里直接给图的模型选 `openai`（走 `/chat/completions`）；只能生图、不能聊天的模型选 `openai_images`（走 `/images/generations`）。两者地址、Key、模型名填法一样，定时动态都能配图。
 >
 > 💡 NovelAI 选择 `novelai` 并填写 Persistent API Token；受 NovelAI 官方真人触发规则限制，只在手动 `/bili动态` 时生成图片，定时动态会自动改发纯文字。
 >
