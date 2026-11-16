@@ -4,9 +4,13 @@
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import os
 import re
 import shutil
+import time
+from urllib.parse import urlsplit, urlunsplit
 
 from astrbot.api import logger
 
@@ -26,9 +30,69 @@ def _yt_dlp_error(stderr):
     return re.split(r"[;,.]? *please report this issue", text, flags=re.IGNORECASE)[0]
 
 
+# 有的机器连不上 B 站分到的视频线路。各线路的路径和签名通用，换个域名就能下到同一份文件，
+# 所以直连全失败时探一下线路，不通就换下面这几个镜像。
+_CDN_SUFFIX = ".bilivideo.com"
+_CDN_MIRROR_HOSTS = (
+    "upos-sz-mirrorcos.bilivideo.com",
+    "upos-sz-estgcos.bilivideo.com",
+    "upos-sz-estgoss.bilivideo.com",
+)
+_CDN_PROBE_TIMEOUT = 3
+# 换镜像下成功以后，这么久之内的下载直接先走镜像，不再先在不通的线路上等。
+_CDN_MIRROR_STICKY_SECONDS = 3600
+
+
+def _cdn_host(url):
+    """B 站视频线路的域名；不是视频线路就返回空串。"""
+    try:
+        host = urlsplit(str(url)).hostname or ""
+    except ValueError:
+        return ""
+    return host if host.endswith(_CDN_SUFFIX) else ""
+
+
+def _swap_host(url, host):
+    parts = urlsplit(str(url))
+    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
+def _drop_cookies(value):
+    """视频信息里 yt-dlp 会带上 cookie（``cookies`` 字段和请求头里的 Cookie），写文件前去掉。"""
+    if isinstance(value, dict):
+        cleaned = {}
+        for key, item in value.items():
+            if key == "cookies":
+                continue
+            if key == "http_headers" and isinstance(item, dict):
+                cleaned[key] = {k: v for k, v in item.items() if str(k).lower() != "cookie"}
+                continue
+            cleaned[key] = _drop_cookies(item)
+        return cleaned
+    if isinstance(value, list):
+        return [_drop_cookies(item) for item in value]
+    return value
+
+
+async def _reachable_host(hosts):
+    """同时连各域名的 443，按给的顺序返回第一个连得上的。"""
+    async def probe(host):
+        try:
+            _, writer = await asyncio.wait_for(asyncio.open_connection(host, 443), timeout=_CDN_PROBE_TIMEOUT)
+            writer.close()
+            return True
+        except Exception:
+            return False
+
+    results = await asyncio.gather(*(probe(host) for host in hosts))
+    return next((host for host, ok in zip(hosts, results) if ok), "")
+
+
 class VideoFiles:
     def __init__(self, host):
         self._host = host
+        self._mirror_until = 0.0
 
     @property
     def config(self):
@@ -141,7 +205,14 @@ class VideoFiles:
             return None
 
         last_err = ""
+        # 配了代理时下载走代理，从本机直连探线路说明不了什么，就不换镜像。
+        try_mirror = not proxy_args
         try:
+            if try_mirror and time.monotonic() < getattr(self, "_mirror_until", 0.0):
+                try_mirror = False  # 先走过镜像了，直连也失败的话不再探第二次
+                fp = await self._download_from_mirror(bvid, max_height, cookie_file, output_dir, duration)
+                if fp:
+                    return fp
             formats = self._format_fallbacks(max_height)
             total_formats = len(formats)
             for format_index, fmt in enumerate(formats, start=1):
@@ -185,6 +256,10 @@ class VideoFiles:
                     f"[BiliBot] 格式 {format_index}/{total_formats} 下载失败({bvid})，"
                     f"{next_step}: {last_err[:80]}"
                 )
+            if try_mirror:
+                fp = await self._download_from_mirror(bvid, max_height, cookie_file, output_dir, duration)
+                if fp:
+                    return fp
         finally:
             try:
                 os.remove(cookie_file)
@@ -194,6 +269,83 @@ class VideoFiles:
         set_call_diagnostic(reason=safe_detail(last_err, self.config))
         logger.warning(f"[BiliBot] 视频下载全部失败({bvid}): {safe_detail(last_err, self.config)}")
         return None
+
+    async def _download_from_mirror(self, bvid, max_height, cookie_file, output_dir, duration):
+        """探线路、必要时换镜像下载。下到了就记住一小时内先走镜像；没下到就清掉这个记号。"""
+        try:
+            fp = await self._download_via_mirror(bvid, max_height, cookie_file, output_dir=output_dir, duration=duration)
+        except Exception as exc:
+            logger.info(f"[BiliBot] 换镜像下载出错({bvid}): {exception_detail(exc, self.config)[:120]}")
+            fp = None
+        self._mirror_until = time.monotonic() + _CDN_MIRROR_STICKY_SECONDS if fp else 0.0
+        return fp
+
+    async def _download_via_mirror(self, bvid, max_height, cookie_file, *, output_dir=None, duration=None):
+        """原线路有一个连得上就返回 None（不是线路的问题）；都连不上才换成能连上的镜像域名下载。"""
+        download_dir = output_dir or TEMP_VIDEO_DIR
+        # 不用 bvid 开头：_cleanup_partial_downloads 会删掉 bvid 开头的文件
+        info_file = os.path.join(download_dir, f"_cdn_{bvid}.json")
+        try:
+            code, stdout, _ = await self._run_process(
+                "yt-dlp", "-J", "--no-playlist",
+                "--cookies", cookie_file,
+                "--add-header", "Referer: https://www.bilibili.com",
+                f"https://www.bilibili.com/video/{bvid}",
+                timeout=60,
+            )
+            if code != 0 or not str(stdout).strip():
+                return None
+            try:
+                info = json.loads(stdout)
+            except ValueError:
+                return None
+            if not isinstance(info, dict):
+                return None
+            entries = [item for item in (info.get("formats") or []) if isinstance(item, dict)]
+            hosts = list(dict.fromkeys(host for item in entries if (host := _cdn_host(item.get("url")))))
+            if not hosts or await _reachable_host(hosts):
+                return None
+            mirror = await _reachable_host([host for host in _CDN_MIRROR_HOSTS if host not in hosts])
+            if not mirror:
+                logger.info(f"[BiliBot] 视频线路和镜像都连不上({bvid})")
+                return None
+            for item in entries:
+                for key in ("url", "manifest_url"):
+                    if _cdn_host(item.get(key)):
+                        item[key] = _swap_host(item[key], mirror)
+                for fragment in item.get("fragments") or []:
+                    if isinstance(fragment, dict) and _cdn_host(fragment.get("url")):
+                        fragment["url"] = _swap_host(fragment["url"], mirror)
+            fd = os.open(info_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(_drop_cookies(info), handle, ensure_ascii=False)
+            logger.info(f"[BiliBot] 视频线路连不上({bvid})，改走 {mirror}")
+            output_template = os.path.join(download_dir, f"{bvid}.%(ext)s")
+            timeout = self._video_download_timeout(duration)
+            for fmt in self._format_fallbacks(max_height):
+                self._cleanup_partial_downloads(bvid, output_dir=output_dir)
+                code, _, _ = await self._run_process(
+                    "yt-dlp", "--load-info-json", info_file,
+                    "-o", output_template,
+                    "--format", fmt,
+                    "--no-playlist", "--merge-output-format", "mp4",
+                    "--recode-video", "mp4",
+                    "--limit-rate", "2M",
+                    timeout=timeout,
+                )
+                if code == 0:
+                    fp = self._pick_downloaded_video_file(bvid, output_dir=output_dir)
+                    if fp:
+                        logger.info(f"[BiliBot] 视频下载成功({bvid})，线路 {mirror}，格式: {fmt}")
+                        return fp
+                elif code == 124 and timeout > self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT:
+                    break
+            return None
+        finally:
+            try:
+                os.remove(info_file)
+            except OSError:
+                pass
 
     def _cleanup_partial_downloads(self, bvid, output_dir=None):
         """清理某个 bvid 的残留下载文件（不删 cookie）"""
