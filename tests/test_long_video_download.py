@@ -13,6 +13,9 @@ class Probe(VideoParts):
         self.timeouts = []
 
     async def _run_process(self, *args, **kwargs):
+        # 直连全失败后会用 yt-dlp -J 探一次线路，不算下载，不参与超时断言。
+        if "-J" in args:
+            return 1, "", "probe unavailable"
         self.timeouts.append(kwargs.get("timeout"))
         return self.results.pop(0) if self.results else (1, "", "failed")
 

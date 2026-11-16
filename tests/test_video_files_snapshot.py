@@ -37,6 +37,9 @@ class Probe(VideoParts):
         return str(value).replace(self.folder, "<DIR>")
 
     async def _run_process(self, *command, timeout=None):
+        # 直连全失败后的线路探测（yt-dlp -J）不进快照，让它直接失败；换镜像由 test_cdn_mirror.py 测。
+        if "-J" in command:
+            return 1, "", "probe unavailable"
         step = self.script.pop(0) if self.script else (0, "", "")
         code, stdout, stderr, *files = step
         call = {"command": [self._clean(part) for part in command], "timeout": timeout}

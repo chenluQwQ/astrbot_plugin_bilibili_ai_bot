@@ -2394,11 +2394,17 @@
     "editor_language": "markdown",
     "editor_theme": "vs-dark"
   },
+  "EMBED_PROVIDER_ID": {
+    "description": "【记忆向量】记忆向量：AstrBot 向量模型 ID",
+    "type": "string",
+    "default": "",
+    "hint": "填 AstrBot「服务提供商」里配好的向量模型 ID，填了就用它，下面的 API Key、地址、模型名不用填；留空时用下面的独立 API。换了向量模型以后，以前存的记忆向量和新模型对不上，按意思找回旧记忆会变差。"
+  },
   "EMBED_API_KEY": {
     "description": "【记忆向量】记忆向量 API Key",
     "type": "string",
     "default": "",
-    "hint": "把记忆转成向量，按意思检索记忆。不填只能按关键词匹配，找到的相关记忆会少很多。"
+    "hint": "把记忆转成向量，按意思检索记忆。这里和上面的 AstrBot 向量模型都不填，就只能按关键词匹配，找到的相关记忆会少很多。"
   },
   "EMBED_API_BASE": {
     "description": "【记忆向量】记忆向量 API 地址",

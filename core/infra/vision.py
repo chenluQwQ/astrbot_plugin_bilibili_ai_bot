@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import math
 
@@ -112,23 +113,46 @@ class Vision:
                 return None
             from openai import AsyncOpenAI
             base_url = normalize_openai_base_url(self.settings.get("EMBED_API_BASE"))
-            try:
-                timeout = max(
-                    3,
-                    min(60, int(self.settings.get("EMBED_TIMEOUT_SECONDS") or 10)),
-                )
-            except (TypeError, ValueError):
-                timeout = 10
             self._embed_client = AsyncOpenAI(
                 api_key=api_key,
                 base_url=base_url,
-                timeout=timeout,
+                timeout=self._embed_timeout(),
                 max_retries=0,
                 **openai_proxy_kwargs(self.config),
             )
         return self._embed_client
 
+    def _embed_timeout(self):
+        try:
+            return max(3, min(60, int(self.settings.get("EMBED_TIMEOUT_SECONDS") or 10)))
+        except (TypeError, ValueError):
+            return 10
+
+    async def _host_embedding(self, provider_id, text):
+        """用 AstrBot 里配好的向量模型。找不到、出错、维度不对都返回 None，这次就不做向量检索。"""
+        try:
+            provider = self.context.get_provider_by_id(provider_id)
+            if not callable(getattr(provider, "get_embedding", None)):
+                logger.warning(f"[BiliBot] 没找到向量模型 {provider_id}，本次跳过向量检索")
+                return None
+            vector = await asyncio.wait_for(provider.get_embedding(text), self._embed_timeout())
+            if not vector:
+                return None
+            # 没配维度的向量模型 get_dim() 是 0，这时不按维度拦。
+            get_dim = getattr(provider, "get_dim", None)
+            expected = get_dim() if callable(get_dim) else 0
+            if expected and len(vector) != expected:
+                logger.warning(f"[BiliBot] 向量维度 {len(vector)} 和模型配置的 {expected} 不一致，本次跳过向量检索")
+                return None
+            return list(vector)
+        except Exception as e:
+            logger.warning(f"[BiliBot] Embedding 暂不可用，本次跳过向量检索: {redact_proxy_error(e, self.config)}")
+            return None
+
     async def _get_embedding(self, text):
+        provider_id = str(self.settings.get("EMBED_PROVIDER_ID") or "").strip()
+        if provider_id:
+            return await self._host_embedding(provider_id, text)
         client = self._get_embed_client()
         if not client:
             return None
