@@ -27,6 +27,9 @@ class Tier(str, Enum):
     PRIVATE_READ = "private_read"  # 需要账号凭据的读取
     WRITE = "write"  # 改变平台状态或发出内容
     PERSONA_ADMIN = "persona_admin"  # 记忆/人格/画像管理，永不对外
+    #: 让 Bot 现在去做它按作息本来就会做的事（刷视频、看番）。只给管理员，不用确认；
+    #: 过程中的点赞评论照常走 Bot 自己的次数和开关。
+    ADMIN_TRIGGER = "admin_trigger"
 
 
 #: 各层级要求的最低角色。公开读取开了 SECURITY_ALLOW_NON_ADMIN_READ_TOOLS 才降到陌生人。
@@ -35,7 +38,14 @@ _MIN_ROLE: dict[Tier, Role] = {
     Tier.PRIVATE_READ: Role.ADMIN,
     Tier.WRITE: Role.ADMIN,
     Tier.PERSONA_ADMIN: Role.ADMIN,
+    Tier.ADMIN_TRIGGER: Role.ADMIN,
 }
+
+#: 管理员在哪些通道能让 Bot 去刷视频、看番、代为操作账号。QQ 群里的身份来自平台，不是消息文字；
+#: B站评论和私信不在这里，主人在那边说话也不算。
+_ADMIN_CHAT_SCOPES = frozenset({Scope.ADMIN, Scope.QQ_PRIVATE, Scope.QQ_GROUP})
+#: 「其他人也能请 Bot 去看」开着时，非管理员可以用的看视频工具（另加 ADMIN_TRIGGER 一级）。
+_NON_ADMIN_WATCH_TOOLS = frozenset({"watch_video"})
 
 
 @dataclass(frozen=True)
@@ -109,6 +119,9 @@ class ToolGate:
     def _non_admin_read_enabled(self) -> bool:
         return bool(self._get("SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", False))
 
+    def _non_admin_watch_enabled(self) -> bool:
+        return bool(self._get("SECURITY_ALLOW_NON_ADMIN_WATCH", False))
+
     def _external_allowlist(self) -> set[str]:
         raw = self._get("SECURITY_EXTERNAL_TOOL_ALLOWLIST", []) or []
         if isinstance(raw, str):
@@ -134,13 +147,20 @@ class ToolGate:
                 return Decision(False, "记忆与人格管理工具仅管理员可用")
             return Decision(True)
 
+        if spec.tier is Tier.ADMIN_TRIGGER:
+            if caller.scope not in _ADMIN_CHAT_SCOPES:
+                return Decision(False, f"通道 {caller.scope.value} 不能让 Bot 去刷视频、看番")
+            if caller.role < Role.ADMIN and not self._non_admin_watch_enabled():
+                return Decision(False, "只有管理员能让 Bot 去刷视频、看番（SECURITY_ALLOW_NON_ADMIN_WATCH）")
+            return Decision(True)
+
         if spec.tier is Tier.WRITE:
             if not self._write_enabled():
                 return Decision(False, "写工具未启用（SECURITY_ENABLE_WRITE_TOOLS）")
-            if not policy.allow_write_tools:
+            if caller.scope not in _ADMIN_CHAT_SCOPES:
                 return Decision(False, f"通道 {caller.scope.value} 不允许写操作")
-            if not caller.is_admin:
-                return Decision(False, "写操作需要管理员在受信通道确认")
+            if caller.role < Role.ADMIN:
+                return Decision(False, "代为操作B站账号只有管理员能用")
             return Decision(True)
 
         if spec.tier is Tier.PRIVATE_READ:
@@ -152,6 +172,13 @@ class ToolGate:
                 )
             if caller.role < _MIN_ROLE[Tier.PRIVATE_READ]:
                 return Decision(False, "权限不足")
+            return Decision(True)
+
+        if (
+            spec.name in _NON_ADMIN_WATCH_TOOLS
+            and self._non_admin_watch_enabled()
+            and caller.scope in _ADMIN_CHAT_SCOPES
+        ):
             return Decision(True)
 
         # PUBLIC_READ：默认只有管理员能用；放开给别人以后，不可信通道仍只放开显式 allowlist 中的工具。

@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.layered_runtime import LayeredRuntime  # noqa: E402
+from core.security.toolgate import Tier  # noqa: E402
 from core.settings import Settings
 from core.domain.affection import Affection
 from core.storage.json_file import JsonFile
@@ -76,6 +77,8 @@ class ToolExecutionSecurityTests(unittest.TestCase):
             "OWNER_NAME": "owner",
             "ENABLE_LLM_TOOLS": True,
             "SECURITY_ENABLE_WRITE_TOOLS": True,
+            # 下面的确认流程测试按开着确认写；默认关着的情况单独测
+            "SECURITY_WRITE_REQUIRE_CONFIRM": True,
             "SECURITY_ENABLE_PRIVATE_READ_TOOLS": True,
             "SECURITY_EXTERNAL_TOOL_ALLOWLIST": [],
             "SECURITY_EMERGENCY_STOP": False,
@@ -263,18 +266,82 @@ class ToolExecutionSecurityTests(unittest.TestCase):
         self.assertIn("私密", followed)
         self.plugin.bili_dynamics.get_following_updates.assert_not_awaited()
 
-    def test_composite_bangumi_watch_and_proactive_browse_are_writes(self):
+    def test_group_user_cannot_trigger_bangumi_watch_or_browse(self):
         event = FakeEvent(group="777")
         watched = run(
             self.tools["bili_bangumi"].call(
                 tool_context(event), action="watch", season_id=123
             )
         )
-        self.assertIn("写操作", watched)
+        self.assertIn("只有管理员", watched)
         browsed = run(self.tools["bili_watch_videos"].call(tool_context(event)))
-        self.assertIn("写操作", browsed)
+        self.assertIn("只有管理员", browsed)
         self.plugin.bangumi.watch_on_request.assert_not_awaited()
         self.plugin.activities._run_activity_now.assert_not_called()
+
+    def test_admin_triggers_bangumi_watch_and_browse_without_confirmation(self):
+        # 写工具总开关关着也能用：刷视频、看番是 Bot 作息里本来就做的事
+        self.config["SECURITY_ENABLE_WRITE_TOOLS"] = False
+        for event in (FakeEvent(admin=True), FakeEvent(group="777", admin=True)):
+            spec = self.runtime.tool_spec_for_call(
+                "bili_bangumi", {"action": "watch", "season_id": 123}
+            )
+            decision = run(self.runtime.authorize_tool_call(
+                "bili_bangumi", tool_context(event), {"action": "watch", "season_id": 123}
+            ))
+            self.assertTrue(decision.allowed, decision.reason)
+            self.assertIs(spec.tier, Tier.ADMIN_TRIGGER)
+            decision = run(self.runtime.authorize_tool_call(
+                "bili_watch_videos", tool_context(event), {}
+            ))
+            self.assertTrue(decision.allowed, decision.reason)
+        self.assertIsNone(run(self.runtime.pending_confirmations.take(
+            self.runtime.caller_from_tool_context(tool_context(FakeEvent(admin=True))).session_id
+        )))
+
+    def test_admin_writes_directly_when_confirmation_is_off(self):
+        self.config["SECURITY_WRITE_REQUIRE_CONFIRM"] = False
+        for event in (FakeEvent(admin=True), FakeEvent(group="777", admin=True)):
+            decision = run(self.runtime.authorize_tool_call(
+                "bili_action", tool_context(event), {"action": "like", "target": "BV1test"}
+            ))
+            self.assertTrue(decision.allowed, decision.reason)
+        decision = run(self.runtime.authorize_tool_call(
+            "bili_action", tool_context(FakeEvent(group="777")), {"action": "like", "target": "BV1test"}
+        ))
+        self.assertFalse(decision.allowed)
+
+    def test_others_can_ask_to_watch_only_when_switch_is_on(self):
+        self.config["SECURITY_ENABLE_WRITE_TOOLS"] = False
+        for event in (FakeEvent(group="777"), FakeEvent(sender="20002")):
+            for name, kwargs in (
+                ("watch_video", {"bvid": "BV1test"}),
+                ("bili_watch_videos", {}),
+                ("bili_bangumi", {"action": "watch", "season_id": 1}),
+            ):
+                self.config["SECURITY_ALLOW_NON_ADMIN_WATCH"] = False
+                denied = run(self.runtime.authorize_tool_call(name, tool_context(event), kwargs))
+                self.assertFalse(denied.allowed, name)
+                self.config["SECURITY_ALLOW_NON_ADMIN_WATCH"] = True
+                allowed = run(self.runtime.authorize_tool_call(name, tool_context(event), kwargs))
+                self.assertTrue(allowed.allowed, f"{name}: {allowed.reason}")
+            # 开了看视频也不等于能查别的、能动账号
+            self.assertFalse(run(self.runtime.authorize_tool_call(
+                "search_bilibili", tool_context(event), {"keyword": "x"}
+            )).allowed)
+            self.config["SECURITY_ENABLE_WRITE_TOOLS"] = True
+            self.assertFalse(run(self.runtime.authorize_tool_call(
+                "bili_action", tool_context(event), {"action": "like", "target": "BV1test"}
+            )).allowed)
+            self.config["SECURITY_ENABLE_WRITE_TOOLS"] = False
+
+    def test_emergency_stop_also_stops_admin_triggers(self):
+        self.config["SECURITY_EMERGENCY_STOP"] = True
+        decision = run(self.runtime.authorize_tool_call(
+            "bili_watch_videos", tool_context(FakeEvent(admin=True)), {}
+        ))
+        self.assertFalse(decision.allowed)
+        self.assertIn("紧急停止", decision.reason)
 
     def _confirmed_comment(self, target, text="测试正文"):
         event = FakeEvent(sender="10001", admin=True, message="去评论")
