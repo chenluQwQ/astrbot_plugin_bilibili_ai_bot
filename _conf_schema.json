@@ -817,7 +817,8 @@
       "max": 10,
       "step": 1
     }
-  },  "PROACTIVE_SENSITIVE_COMMENT_CHANCE": {
+  },
+  "PROACTIVE_SENSITIVE_COMMENT_CHANCE": {
     "description": "【主动看视频】政治时事类视频的评论概率",
     "type": "float",
     "default": 0.3,
@@ -833,7 +834,6 @@
       "step": 0.05
     }
   },
-
   "COMMENT_SYNC_DYNAMIC": {
     "description": "【主动看视频】主动发的评论同时转发到动态",
     "type": "bool",
@@ -1654,7 +1654,16 @@
     "description": "【工具调用】QQ 里可以让 Bot 调用B站工具",
     "type": "bool",
     "default": false,
-    "hint": "默认关闭。开启后在 QQ 聊天里可以让 Bot 查视频、查UP主、搜番剧、看视频等。默认只有管理员能用，下面几项控制谁能用、能用到什么程度。"
+    "hint": "默认关闭。开启后在 QQ 聊天里可以让 Bot 查视频、查UP主、搜番剧、看视频、刷视频、看番。默认只有管理员能用，下面几项控制别人能用什么、能不能代为操作B站账号。"
+  },
+  "SECURITY_ALLOW_NON_ADMIN_WATCH": {
+    "description": "【工具调用】其他人也能请 Bot 去看视频、刷视频、看番",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。开启后 QQ 私聊和群里的其他人也能请 Bot 去看某个视频、刷一轮视频或看一集番，去不去由 Bot 自己决定。看过的视频直接用记忆，同时最多看 3 个；刷视频、看番照常受每天次数限制。",
+    "condition": {
+      "ENABLE_LLM_TOOLS": true
+    }
   },
   "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS": {
     "description": "【工具调用】非管理员也能用查询类工具",
@@ -1678,9 +1687,18 @@
     "description": "【工具调用】允许代为操作B站账号",
     "type": "bool",
     "default": false,
-    "hint": "默认关闭。开启后管理员可以让 Bot 点赞、投币、收藏、评论、关注、拉黑等；每次都要管理员在 QQ 私聊里回复「确认」才会执行。",
+    "hint": "默认关闭。开启后管理员可以在 QQ 私聊或群里让 Bot 点赞、投币、收藏、评论、关注、拉黑，说了就做；其他人用不了。",
     "condition": {
       "ENABLE_LLM_TOOLS": true
+    }
+  },
+  "SECURITY_WRITE_REQUIRE_CONFIRM": {
+    "description": "【工具调用】代为操作B站账号前先让管理员确认",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭。开启后每次点赞、评论等操作先列出要做什么，管理员在 QQ 私聊回复「确认」才执行，回复「取消」放弃。",
+    "condition": {
+      "SECURITY_ENABLE_WRITE_TOOLS": true
     }
   },
   "BILI_ALLOW_SEARCH_TOOLS": {

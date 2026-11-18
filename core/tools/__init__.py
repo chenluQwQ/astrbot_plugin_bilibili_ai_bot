@@ -28,13 +28,11 @@ def create_tools(plugin):
         if tool.name in {
             "bili_action",
             "bili_block_user",
-            "bili_watch_videos",
             "watch_and_share_video_private",
-            "bili_bangumi",
         }:
             tool.description = (
-                f"{tool.description} Write subactions require admin confirmation; "
-                "after the user's exact '确认' reply, repeat the call with identical arguments."
+                f"{tool.description} If the result asks the admin to confirm, wait for the user's "
+                "exact '确认' reply, then repeat the call with identical arguments."
             )
 
         async def guarded_call(context, **kwargs):

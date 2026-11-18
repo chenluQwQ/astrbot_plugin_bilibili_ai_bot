@@ -134,7 +134,8 @@ const PAGE_KEYS = {
     "MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS",
   ],
   security: [
-    "ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS",
+    "ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_WATCH", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS",
+    "SECURITY_ENABLE_WRITE_TOOLS", "SECURITY_WRITE_REQUIRE_CONFIRM",
     "BILI_ALLOW_SEARCH_TOOLS", "BILI_TOOL_ALLOWLIST", "BILI_TOOL_AUDIT_ENABLED",
     "BILI_TOOL_ISOLATION_ENABLED", "BILI_PROMPT_INJECTION_DEFENSE", "MEMORY_ISOLATION_MODE",
     "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES",
@@ -284,10 +285,12 @@ const MOCK_FIELDS = {
   LLM_CIRCUIT_COOLDOWN_SECONDS: ["【模型可靠性】熔断冷却时间（秒）", "int", 120],
   USE_ASTRBOT_PERSONA: ["【人设】使用 AstrBot 自带人设", "bool", true],
   CUSTOM_SYSTEM_PROMPT: ["【人设】自定义系统提示词", "text", ""],
-  ENABLE_LLM_TOOLS: ["【功能开关】启用 LLM 工具", "bool", false],
-  SECURITY_ALLOW_NON_ADMIN_READ_TOOLS: ["【安全与工具】允许非管理员使用只读工具", "bool", false],
-  SECURITY_ENABLE_PRIVATE_READ_TOOLS: ["【安全与工具】允许账号私密读取工具", "bool", false],
-  SECURITY_ENABLE_WRITE_TOOLS: ["【安全与工具】允许 B站写操作工具", "bool", false],
+  ENABLE_LLM_TOOLS: ["【工具调用】QQ 里可以让 Bot 调用B站工具", "bool", false],
+  SECURITY_ALLOW_NON_ADMIN_WATCH: ["【工具调用】其他人也能请 Bot 去看视频、刷视频、看番", "bool", false],
+  SECURITY_ALLOW_NON_ADMIN_READ_TOOLS: ["【工具调用】非管理员也能用查询类工具", "bool", false],
+  SECURITY_ENABLE_PRIVATE_READ_TOOLS: ["【工具调用】允许读取账号私密数据", "bool", false],
+  SECURITY_ENABLE_WRITE_TOOLS: ["【工具调用】允许代为操作B站账号", "bool", false],
+  SECURITY_WRITE_REQUIRE_CONFIRM: ["【工具调用】代为操作B站账号前先让管理员确认", "bool", false],
   ENABLE_PERSONALITY_EVOLUTION: ["【实验性】启用旧版每日性格演化", "bool", false],
   EVOLVE_HOUR: ["【性格演化】触发时间（0-23点）", "int", 1],
   EMBED_MODEL: ["【高级·记忆】Embedding 模型名称", "string", "text-embedding-3-small"],
@@ -1888,7 +1891,7 @@ const EVENT_STYLES = {
 };
 
 const AUTONOMY_CAPABILITIES = [
-  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_AUDIO"] },
+  { id: "proactive", title: "主动看视频", icon: "play", toggle: "ENABLE_PROACTIVE", description: "在日程安排的时间段里找视频看，按评分决定点赞、投币、收藏、评论和关注。在 QQ 里叫 Bot 去看、让别人也能叫，在「工具与安全」页最上面。", keys: ["PROACTIVE_TIMES_COUNT", "PROACTIVE_VIDEO_COUNT", "PROACTIVE_DAILY_LIMIT", "PROACTIVE_COMMENT_DAILY_LIMIT", "COMMENT_SYNC_DYNAMIC", "CUSTOM_PROACTIVE_INSTRUCTION", "VIDEO_VISUAL_ANALYSIS_POLICY", "VIDEO_VISION_AUDIO"] },
   { id: "prefilter", title: "视频来源与标题筛选", icon: "search", toggle: "ENABLE_PROACTIVE_LLM_PREFILTER", description: "开关控制看之前是否先按标题筛一遍；视频从哪里来（关注、视频池、搜索、口味）也在这里设置。", dependency: "需要先开主动看视频", keys: ["PROACTIVE_FOLLOW_UIDS", "PROACTIVE_VIDEO_POOLS", "PROACTIVE_SEARCH_QUERY_PROMPT", "PROACTIVE_TASTE_WINDOW_DAYS", "PROACTIVE_PREFERENCE_HALF_LIFE_DAYS", "PROACTIVE_PREFERENCE_DAY_CHANCE", "PROACTIVE_EXPLORATION_RATIO", "PROACTIVE_LLM_PREFILTER_MAX_REJECTS"] },
   { id: "bangumi", title: "追番", icon: "video", toggle: "ENABLE_BANGUMI", description: "按日程看番剧、写评价、按评分评论和追番。要同时打开「主动追番」才会排进日程。", keys: ["BANGUMI_PROACTIVE", "BANGUMI_POOLS", "BANGUMI_EPISODE_COUNT", "BANGUMI_CONTINUE_SCORE", "BANGUMI_DAILY_LIMIT", "BANGUMI_COMMENT", "BANGUMI_AUTO_FOLLOW"] },
   { id: "dynamic", title: "发动态", icon: "message", toggle: "ENABLE_DYNAMIC", description: "按日程发 B站动态，内容来自看过的视频、番剧、站外订阅和搜索攒下的想法。", keys: ["DYNAMIC_TIMES_COUNT", "DYNAMIC_POST_CHANCE", "DYNAMIC_DAILY_COUNT", "DYNAMIC_MIN_INTERVAL_DAYS", "DYNAMIC_FROM_VIDEO", "DYNAMIC_FEED_URLS", "DYNAMIC_SEARCH_KEYWORDS", "DYNAMIC_WEB_SEARCH_MAX", "DYNAMIC_TOPICS", "DYNAMIC_PROMPT", "CUSTOM_DYNAMIC_INSTRUCTION"] },
@@ -2471,8 +2474,8 @@ function renderSecurity() {
   const isolated = currentValue("BILI_TOOL_ISOLATION_ENABLED") !== false;
   const memoryMode = currentValue("MEMORY_ISOLATION_MODE") || "isolated";
   return `${pageHead("TOOLS & SECURITY", "工具与安全", "Bot 能调用哪些工具，以及B站内容和 QQ 之间的权限隔离、隐私和风控。", button("刷新审计", "refresh-security", "refresh"))}
-    ${renderConfigSection("QQ 里的工具调用", "在 QQ 聊天里让 Bot 查B站视频、UP主、番剧，或代为操作B站账号。默认只有管理员能用", ["ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS", "BILI_TOOL_AUDIT_ENABLED"], "controller")}
-    <section class="card section-card tool-access-card">${sectionHead("B站评论和私信里的工具调用", "Bot 回复B站评论、私信时能不能先查资料。只开放只读查询，不会执行命令或写操作", "controller")}
+    ${renderConfigSection("QQ 里叫 Bot 做事", "在 QQ 私聊或群里让 Bot 查视频、看视频、刷视频、看番，或代为点赞评论。管理员说了就做；别人能用什么看下面几项", ["ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_WATCH", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS", "SECURITY_WRITE_REQUIRE_CONFIRM", "BILI_TOOL_AUDIT_ENABLED"], "controller")}
+    <section class="card section-card tool-access-card">${sectionHead("B站评论和私信里的工具调用", "Bot 回复B站评论、私信时能不能先查资料、去看别人提到的视频（名单里勾上看视频）。只开放只读查询，不会执行命令或写操作", "controller")}
       ${renderFields(["COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS", "BILI_ALLOW_SEARCH_TOOLS"])}
       ${renderToolSummary()}
     </section>

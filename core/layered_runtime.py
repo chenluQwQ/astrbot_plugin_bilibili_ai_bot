@@ -44,7 +44,6 @@ from .storage import (
 _WRITE_TOOLS = {
     "bili_action",
     "bili_block_user",
-    "bili_watch_videos",
     "watch_and_share_video_private",
     # Legacy/direct names remain closed if they are registered again.
     "post_comment",
@@ -52,6 +51,11 @@ _WRITE_TOOLS = {
     "coin_video",
     "fav_video",
     "follow_up",
+}
+# 让 Bot 现在去刷视频/看番：本来作息里就会做，管理员说一声就去，不用回「确认」。
+# bili_bangumi 的 watch 子动作在 tool_spec_for_call 里归到这一级。
+_ADMIN_TRIGGER_TOOLS = {
+    "bili_watch_videos",
     "bili_watch_bangumi",
 }
 _PRIVATE_READ_TOOLS = {
@@ -201,6 +205,9 @@ class LayeredRuntime:
                 tier, read_only, needs_capability = Tier.PUBLIC_READ, True, False
             elif name in _PERSONA_ADMIN_TOOLS:
                 tier, read_only, needs_capability = Tier.PERSONA_ADMIN, True, False
+            elif name in _ADMIN_TRIGGER_TOOLS:
+                # 不算只读：紧急停止开着时也拦住
+                tier, read_only, needs_capability = Tier.ADMIN_TRIGGER, False, False
             else:
                 continue
             self.tool_gate.register(
@@ -303,13 +310,13 @@ class LayeredRuntime:
             if action == "updates":
                 tier = Tier.PRIVATE_READ
             elif action == "watch":
-                tier = Tier.WRITE
+                tier = Tier.ADMIN_TRIGGER
         if tier is base.tier:
             return base
         return replace(
             base,
             tier=tier,
-            read_only=tier is not Tier.WRITE,
+            read_only=tier not in (Tier.WRITE, Tier.ADMIN_TRIGGER),
             needs_capability=tier is Tier.WRITE,
         )
 
@@ -349,6 +356,10 @@ class LayeredRuntime:
             return Decision(True)
         if not self.is_open:
             return await deny("授权服务未启动，写操作已拒绝")
+        if not self._get("SECURITY_WRITE_REQUIRE_CONFIRM", False):
+            # 默认管理员说了就做；想每次都确认再打开开关
+            await self.tool_gate.audit("tool_call", caller, name, "allow", "admin_direct")
+            return Decision(True)
 
         args = dict(kwargs or {})
         target = next(

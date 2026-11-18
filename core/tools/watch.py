@@ -202,7 +202,7 @@ def build(kit):
     @dataclass
     class WatchVideosTool(FunctionTool[AstrAgentContext]):
         name: str = "bili_watch_videos"
-        description: str = "Trigger proactive video browsing on Bilibili. Use when user asks to watch/browse videos."
+        description: str = "Trigger proactive video browsing on Bilibili when someone asks you to watch/browse videos. Whether to go is your own call."
         parameters: dict = Field(default_factory=lambda: {
             "type": "object",
             "properties": {},
