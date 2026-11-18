@@ -8,3 +8,7 @@ Pillow>=9.0
 qrcode>=7.4
 yt-dlp>=2025.1.0
 packaging>=23.2
+# 分镜本地OCR（Python 3.13+ 暂不可用，运行时明确拒识文字）。
+rapidocr_onnxruntime==1.4.4; python_version < "3.13"
+onnxruntime==1.23.2; python_version < "3.13"
+opencv-python==4.11.0.86; python_version < "3.13"

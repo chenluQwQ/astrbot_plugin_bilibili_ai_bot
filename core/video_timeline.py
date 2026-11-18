@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from typing import Any
 
 
@@ -47,6 +48,22 @@ SEGMENT_WITH_COMMENT_SCHEMA_PROMPT = (
     '"comment": {"decision": "comment|skip", "text": "评论正文；长评分段用\\n换行；skip 时留空"}, '
     + _RECORD_FIELDS + "}\n" + _SEGMENT_RULES
 )
+
+def storyboard_schema_prompt(with_comment=False):
+    """分镜只让模型选帧描述画面；文字、秒数由本地结果提供。"""
+    fields = _RECORD_FIELDS.replace(
+        '"timeline": [{"at": 秒数, "text": "这一刻画面里有什么、谁说了什么"}]',
+        '"timeline": [{"frame_id": 宫格编号, "visual": "这一帧的人、物体及动作"}]',
+    )
+    comment = ('"comment": {"decision": "comment|skip", "text": "评论正文；skip 时留空"}, '
+               if with_comment else "")
+    return (
+        "只输出一个 JSON 对象，不要代码块、不要别的文字：\n{" + comment + fields + "}\n"
+        "frame_id 必须是清单里的整数编号，至少一条、每帧最多一条，不写秒数。visual 每条160字以内，"
+        "只描述人、物体、动作或界面布局，不抄写或猜测字幕、菜单、名字、数字。"
+        "画面文字由程序单独保存，本地OCR未确认的文字不得补全，也不能混入印象或评论。"
+        "只收到截图，audio 固定写「听不到」。"
+    )
 
 
 class VideoTimelineError(ValueError):
@@ -124,6 +141,64 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
            "sensitive": value["sensitive"], "comment_hint": hint.strip()}
     if with_comment:
         out["comment"] = comment
+    return out
+
+
+def parse_storyboard_watch(raw, board, offset=0.0, length=None, *, with_comment=False):
+    """严格按采样帧绑定秒数；OCR原文直接入档，模型不能重写文字或重分配文字时间。"""
+    try:
+        value = json.loads(_strip_fence(raw))
+    except (TypeError, ValueError) as exc:
+        raise VideoTimelineError("invalid_json") from exc
+    if not isinstance(value, dict) or not isinstance(value.get("timeline"), list):
+        raise VideoTimelineError("segment_schema_mismatch")
+    times = board.get("selected_timestamps") or []
+    if not times or any(
+        isinstance(at, bool) or not isinstance(at, (int, float)) or not math.isfinite(at)
+        or at < 0 or (length is not None and at > length)
+        for at in times
+    ):
+        raise VideoTimelineError("storyboard_times_invalid")
+    mapped, used = [], set()
+    for item in value["timeline"]:
+        if not isinstance(item, dict) or set(item) != {"frame_id", "visual"}:
+            raise VideoTimelineError("storyboard_entry_mismatch")
+        frame_id = item["frame_id"]
+        if isinstance(frame_id, bool) or not isinstance(frame_id, int) or not 1 <= frame_id <= len(times):
+            raise VideoTimelineError("storyboard_frame_invalid")
+        if frame_id in used:
+            raise VideoTimelineError("storyboard_frame_duplicate")
+        used.add(frame_id)
+        visual = item["visual"]
+        if not isinstance(visual, str) or not visual.strip() or len(visual.strip()) > ENTRY_LIMIT:
+            raise VideoTimelineError("timeline_text_invalid")
+        # 字幕/标签引用不允许绕过OCR；保留同条描述中独立的画面句，避免连动作一起丢掉。
+        text_markers = r'字幕|字样|写着|写有|文字|标题|标注|标签|菜单|名称|名为|叫做|屏幕显示|[“”「」"A-Za-z0-9]'
+        if re.search(text_markers, visual):
+            visual = "。".join(part.strip() for part in re.split(r"[；;。]", visual)
+                              if part.strip() and not re.search(text_markers, part))
+            visual = visual or "画面含文字，原文见本地OCR记录"
+        mapped.append({"at": times[frame_id - 1], "text": visual})
+    # 复用旧解析器验证其余字段，保持视频直读/逐帧的原有契约。
+    value["timeline"] = mapped
+    out = parse_segment_watch(json.dumps(value, ensure_ascii=False), offset, length, with_comment=with_comment)
+    out["audio"] = "听不到"
+    ocr = board.get("ocr") or {}
+    if len(ocr.get("frames") or []) != len(times):
+        raise VideoTimelineError("storyboard_ocr_frames_mismatch")
+    for frame_id, frame in enumerate(ocr["frames"], start=1):
+        if type(frame.get("frame_id")) is not int or frame["frame_id"] != frame_id:
+            raise VideoTimelineError("storyboard_ocr_frame_invalid")
+        at = float(times[frame_id - 1]) + float(offset or 0)
+        if not isinstance(frame.get("texts"), list):
+            raise VideoTimelineError("storyboard_ocr_text_invalid")
+        for text in frame["texts"]:
+            if not isinstance(text, str) or not text.strip() or len(text) > ENTRY_LIMIT:
+                raise VideoTimelineError("storyboard_ocr_text_invalid")
+            out["timeline"].append((at, "画面文字（本地OCR）：「" + text + "」"))
+        if frame.get("status") not in {"ok", "no_text"}:
+            out["timeline"].append((at, ("其余画面文字" if frame["texts"] else "画面文字") + "：无法可靠辨认"))
+    out["timeline"].sort(key=lambda entry: entry[0])
     return out
 
 
