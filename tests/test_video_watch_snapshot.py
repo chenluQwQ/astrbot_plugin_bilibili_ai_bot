@@ -199,7 +199,13 @@ class Probe(VideoParts, BiliParts):
 
     async def _run_process(self, *command, timeout=None):
         code = self._next("clip_code", 0)
-        self.calls.append(["ffmpeg", [str(part).replace(self.folder, "<DIR>") for part in command[1:-1]], code])
+        args = [
+            str(part).replace(self.folder, "<DIR>").replace("\\", "/")
+            if self.folder in str(part)
+            else str(part)
+            for part in command[1:-1]
+        ]
+        self.calls.append(["ffmpeg", args, code])
         if not code:
             Path(command[-1]).write_bytes(b"clip")
         return code, "", ""

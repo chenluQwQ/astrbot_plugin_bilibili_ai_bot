@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import re
 import shutil
@@ -370,7 +371,8 @@ class VideoFiles:
             video_path, timeout=60,
         )
         try:
-            return float(stdout.strip()) if code == 0 and stdout.strip() else 0.0
+            duration = float(stdout.strip()) if code == 0 and stdout.strip() else 0.0
+            return duration if math.isfinite(duration) and duration > 0 else 0.0
         except ValueError:
             return 0.0
 
@@ -424,7 +426,7 @@ class VideoFiles:
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "35",
                 seg_path, timeout=max(300, int(segment_sec)),
             )
-            if code == 0 and os.path.exists(seg_path):
+            if code == 0 and os.path.exists(seg_path) and os.path.getsize(seg_path) > 0:
                 segments.append(seg_path)
             else:
                 logger.warning(f"[BiliBot] 切片{i}失败: {stderr[:100] if stderr else 'unknown'}")
@@ -450,6 +452,8 @@ class VideoFiles:
             duration = float(stdout.strip()) if code == 0 and stdout.strip() else 30.0
         except ValueError:
             duration = 30.0
+        if not math.isfinite(duration) or duration <= 0:
+            duration = 30.0
         frames = []
         for i in range(count):
             ts = duration * (i + 1) / (count + 1)
@@ -459,7 +463,7 @@ class VideoFiles:
                 "-vframes", "1", "-vf", "scale=360:-2", "-q:v", "8",
                 frame_path, timeout=120,
             )
-            if code == 0 and os.path.exists(frame_path):
+            if code == 0 and os.path.exists(frame_path) and os.path.getsize(frame_path) > 0:
                 frames.append(frame_path)
         return frames
 

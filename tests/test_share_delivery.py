@@ -294,5 +294,173 @@ class SessionLookupTests(unittest.IsolatedAsyncioTestCase):
         )
 
 
+class _DummyCommandFilter:
+    pass
+
+
+class ShareCommandExclusionTests(unittest.IsolatedAsyncioTestCase):
+    def _probe(self):
+        probe = ShareProbe(["/fake/video.mp4"])
+        probe.config["BILI_SHARE_PARSE_SEND_VIDEO"] = False
+        probe.share_links._extract_bili_share_target = AsyncMock(return_value={"bvid": "BV12C4y1H7e9"})
+        probe.share._get_video_info_by_share_target = AsyncMock(return_value={
+            "bvid": "BV12C4y1H7e9", "title": "测试视频", "duration": 77,
+        })
+        return probe
+
+    def _event(self, message_str, *, raw_message_str=None, chain=None, extras=None, scene="FriendMessage"):
+        extras = dict(extras or {})
+        evt = Event(scene)
+        evt.message_str = message_str
+        evt.message_obj = types.SimpleNamespace(
+            message_str=raw_message_str,
+            message=chain or [],
+            raw_message=None,
+        )
+        evt.stopped = False
+        evt.get_extra = lambda key=None, default=None: extras if key is None else extras.get(key, default)
+        evt.stop_event = lambda: setattr(evt, "stopped", True)
+        return evt
+
+    async def _run_auto_share(self, probe, event, *, stop_on_handled=False):
+        handled = False
+        results = []
+        async for item in probe.share._handle_bili_share(event, trigger_mode="auto"):
+            handled = True
+            results.append(item)
+        if stop_on_handled and handled:
+            event.stop_event()
+        return results, handled
+
+    def test_registered_commands_cover_all_main_commands(self):
+        import ast
+        from pathlib import Path
+        from core.features.share import REGISTERED_BILI_COMMANDS
+
+        main_path = Path(__file__).resolve().parents[1] / "main.py"
+        tree = ast.parse(main_path.read_text(encoding="utf-8-sig"))
+        cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "BiliBiliBot")
+        main_cmds = {
+            ast.literal_eval(dec.args[0])
+            for node in cls.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            for dec in node.decorator_list
+            if isinstance(dec, ast.Call) and getattr(dec.func, "attr", "") == "command"
+        }
+        self.assertEqual(main_cmds - set(REGISTERED_BILI_COMMANDS), set())
+
+    async def test_stripped_bili_commands_are_not_intercepted(self):
+        # 模拟 WakingCheckStage 剥离前导 "/" 后的事件；私聊下不能产出结果也不能 stop_event。
+        for stripped in (
+            "bili测试查询 BV12C4y1H7e9 这个视频讲啥",
+            "bili主动 https://b23.tv/abc123",
+            "bili状态 BV12C4y1H7e9",
+            "bili日志 查询 BV12C4y1H7e9",
+            "bili解析 BV12C4y1H7e9",
+            "biliUMO BV12C4y1H7e9",
+            "biliumo BV12C4y1H7e9",
+            "bili记忆 BV12C4y1H7e9",
+        ):
+            with self.subTest(stripped=stripped):
+                probe = self._probe()
+                event = self._event(
+                    stripped,
+                    raw_message_str="/" + stripped,
+                    chain=[types.SimpleNamespace(type="plain", text="/" + stripped)],
+                    extras={"handlers_parsed_params": {"main_cmd": {}}},
+                )
+                results, handled = await self._run_auto_share(probe, event, stop_on_handled=True)
+                self.assertFalse(handled)
+                self.assertEqual(results, [])
+                self.assertFalse(event.stopped)
+                probe.share_links._extract_bili_share_target.assert_not_awaited()
+                self.assertEqual(probe.share_session._pending_bili_shares, {})
+
+    async def test_prefixless_bili_commands_without_extras_are_also_excluded(self):
+        # 即使没有 message_obj.message_str 和 extras（例如私聊无前缀或单测构造），也不误拦截。
+        for text in (
+            "bili测试查询 BV12C4y1H7e9",
+            "bili主动 https://b23.tv/xyz",
+            "bili状态",
+            "bili日志 视频 BV12C4y1H7e9",
+        ):
+            with self.subTest(text=text):
+                probe = self._probe()
+                event = self._event(text)
+                results, handled = await self._run_auto_share(probe, event, stop_on_handled=True)
+                self.assertFalse(handled)
+                self.assertEqual(results, [])
+                self.assertFalse(event.stopped)
+
+    async def test_other_commands_detected_via_raw_prefix_chain_or_extras(self):
+        cases = [
+            # 其他插件斜杠命令：WakingCheckStage 剥去 "/" 后仍可在 message_obj.message_str 看到
+            self._event("othercmd BV12C4y1H7e9", raw_message_str="/othercmd BV12C4y1H7e9"),
+            # message_obj.message_str 为空，但消息链里 At/Reply 后的首个文本以 "/" 开头
+            self._event(
+                "othercmd BV12C4y1H7e9",
+                chain=[
+                    types.SimpleNamespace(type="at", qq="10000"),
+                    types.SimpleNamespace(type="reply", id="1"),
+                    types.SimpleNamespace(type="plain", text="/othercmd BV12C4y1H7e9"),
+                ],
+            ),
+            # 自定义 wake_prefix（如 "!"）：通过 activated_handlers 中的 CommandFilter 识别
+            self._event(
+                "othercmd BV12C4y1H7e9",
+                raw_message_str="!othercmd BV12C4y1H7e9",
+                extras={
+                    "activated_handlers": [
+                        types.SimpleNamespace(
+                            event_filters=[type("CommandFilter", (), {})()]
+                        )
+                    ]
+                },
+            ),
+        ]
+        for idx, event in enumerate(cases):
+            with self.subTest(case=idx):
+                probe = self._probe()
+                results, handled = await self._run_auto_share(probe, event, stop_on_handled=True)
+                self.assertFalse(handled)
+                self.assertEqual(results, [])
+                self.assertFalse(event.stopped)
+
+    async def test_natural_chat_and_miniapp_shares_still_trigger(self):
+        cases = [
+            ("看看这个 BV12C4y1H7e9", None, None, None),
+            ("https://www.bilibili.com/video/BV12C4y1H7e9", None, None, None),
+            ("https://b23.tv/abc123", None, None, None),
+            ("bilibili.com/video/BV12C4y1H7e9", None, None, None),
+            ("bili记忆力真好 BV12C4y1H7e9", None, None, None),
+            ("bilibot帮我看看 BV12C4y1H7e9", None, None, None),
+            # 小程序 JSON 卡片没有纯文本，也必须正常解析
+            ("", "", [types.SimpleNamespace(type="json", data='{"url":"https://b23.tv/abc"}')], None),
+            # 昵称唤醒词不是命令：handlers_parsed_params 为空且无 CommandFilter
+            ("看看 BV12C4y1H7e9", "小助手 看看 BV12C4y1H7e9", None, {"handlers_parsed_params": {}}),
+        ]
+        for msg, raw, chain, extras in cases:
+            with self.subTest(msg=msg, raw=raw):
+                probe = self._probe()
+                event = self._event(msg, raw_message_str=raw, chain=chain, extras=extras)
+                results, handled = await self._run_auto_share(probe, event, stop_on_handled=True)
+                self.assertTrue(handled)
+                self.assertEqual(len(results), 1)
+                self.assertIn("B站视频解析", results[0][0].text)
+                self.assertTrue(event.stopped)
+
+    async def test_manual_trigger_still_works_when_message_is_bili_parse(self):
+        probe = self._probe()
+        event = self._event("bili解析 BV12C4y1H7e9", raw_message_str="/bili解析 BV12C4y1H7e9")
+        results = [
+            item
+            async for item in probe.share._handle_bili_share(
+                event, text_override="BV12C4y1H7e9", trigger_mode="manual", show_errors=True
+            )
+        ]
+        self.assertEqual(len(results), 1)
+        self.assertIn("B站视频解析", results[0][0].text)
+
+
 if __name__ == "__main__":
     unittest.main()

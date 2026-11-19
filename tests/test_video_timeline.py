@@ -46,9 +46,57 @@ class ParseTests(unittest.TestCase):
             parse_segment_watch(raw([{"at": True, "text": "a"}]))
 
     def test_time_outside_segment_rejected_with_slack(self):
-        parse_segment_watch(raw([{"at": 64, "text": "a"}]), length=60)
+        out = parse_segment_watch(raw([{"at": 64, "text": "a"}]), length=60)
+        self.assertEqual(out["timeline"], [(60.0, "a")])
         with self.assertRaisesRegex(VideoTimelineError, "outside"):
             parse_segment_watch(raw([{"at": 70, "text": "a"}]), length=60)
+
+    def test_video_absolute_timestamps_accepted_without_double_offset(self):
+        # 提示词含「原视频的 05:00–10:00」时，模型可能直接输出原视频绝对秒数。
+        seg1 = parse_segment_watch(
+            raw([{"at": 305, "text": "开场"}, {"at": 420, "text": "转折"}, {"at": 595, "text": "结尾"}]),
+            offset=300,
+            length=300,
+        )
+        self.assertEqual(seg1["timeline"], [(305.0, "开场"), (420.0, "转折"), (595.0, "结尾")])
+
+        seg5 = parse_segment_watch(
+            raw([{"at": 1510, "text": "第五段"}, {"at": 1790, "text": "收尾"}]),
+            offset=1500,
+            length=300,
+        )
+        self.assertEqual(seg5["timeline"], [(1510.0, "第五段"), (1790.0, "收尾")])
+
+        # 绝对秒数在段起止边界附近轻微抖动时应钳回本段区间。
+        jittered = parse_segment_watch(
+            raw([{"at": 297, "text": "前边界"}, {"at": 450, "text": "中"}, {"at": 608, "text": "后边界"}]),
+            offset=300,
+            length=300,
+        )
+        self.assertEqual(jittered["timeline"], [(300.0, "前边界"), (450.0, "中"), (600.0, "后边界")])
+
+        # 全部落在 offset 之上且超过段长（但未超过 300+slack）也应判为绝对秒数，避免重复加 offset。
+        near_start = parse_segment_watch(
+            raw([{"at": 302, "text": "开头"}, {"at": 310, "text": "接着"}]),
+            offset=300,
+            length=300,
+        )
+        self.assertEqual(near_start["timeline"], [(302.0, "开头"), (310.0, "接着")])
+
+    def test_long_segment_slack_scales_and_clamps_relative_timestamps(self):
+        out = parse_segment_watch(raw([{"at": 10, "text": "前"}, {"at": 308, "text": "尾"}]), offset=300, length=300)
+        self.assertEqual(out["timeline"], [(310.0, "前"), (600.0, "尾")])
+
+    def test_mixed_or_far_outside_segment_timestamps_still_rejected(self):
+        for payload in (
+            raw([{"at": 10, "text": "混用相对"}, {"at": 450, "text": "混用绝对"}]),
+            raw([{"at": 700, "text": "超出当前段"}]),
+        ):
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(VideoTimelineError, "outside"):
+                    parse_segment_watch(payload, offset=300, length=300)
+        with self.assertRaisesRegex(VideoTimelineError, "outside"):
+            parse_segment_watch(raw([{"at": 325, "text": "过远"}]), offset=0, length=300)
 
 
 class FormatTests(unittest.TestCase):

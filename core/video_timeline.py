@@ -13,6 +13,8 @@ import json
 import math
 from typing import Any
 
+from .infra.text import repair_llm_json
+
 
 TIMELINE_MARK = "【时间线】"
 PARTIAL_MARK = "【仅分析部分视频片段，不能确认全部内容】"
@@ -67,6 +69,45 @@ def clock(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"
 
 
+def _segment_time_slack(length: float) -> float:
+    """长片段允许按时长比例放宽时间漂移余量（5~15 秒）。"""
+    return max(5.0, min(15.0, max(0.0, float(length)) * 0.05))
+
+
+def _resolve_segment_timestamps(
+    raw_entries: list[tuple[float, str]],
+    offset: float,
+    length: float | None,
+) -> list[tuple[float, str]]:
+    """统一段内相对秒数与模型偶尔输出的原视频绝对秒数，并将边界抖动钳入段内。"""
+    base_offset = float(offset or 0)
+    if length is None:
+        return [(at + base_offset, text) for at, text in raw_entries]
+
+    seg_len = max(0.0, float(length))
+    slack = _segment_time_slack(seg_len)
+    upper_rel = seg_len + slack
+    ats = [at for at, _ in raw_entries]
+
+    fits_relative = all(at <= upper_rel for at in ats)
+    fits_absolute = base_offset > 0 and all(
+        (base_offset - slack) <= at <= (base_offset + upper_rel) for at in ats
+    )
+    use_absolute = fits_absolute and (
+        not fits_relative
+        or (base_offset >= seg_len and all(at >= base_offset for at in ats) and any(at > seg_len for at in ats))
+    )
+    if not fits_relative and not use_absolute:
+        raise VideoTimelineError("timeline_at_outside_segment")
+
+    resolved = []
+    for at, text in raw_entries:
+        rel_at = (at - base_offset) if use_absolute else at
+        clamped_rel = max(0.0, min(seg_len, rel_at))
+        resolved.append((base_offset + clamped_rel, text))
+    return resolved
+
+
 def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = None, *,
                         with_comment: bool = False) -> dict[str, Any]:
     """校验一段的输出；秒数换成原视频里的秒数。超出这段长度的条目算模型编的，整段作废。
@@ -76,8 +117,11 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     """
     try:
         value = json.loads(_strip_fence(raw))
-    except (TypeError, ValueError) as exc:
-        raise VideoTimelineError("invalid_json") from exc
+    except (TypeError, ValueError):
+        try:
+            value = json.loads(repair_llm_json(str(raw or "")))
+        except (TypeError, ValueError) as exc:
+            raise VideoTimelineError("invalid_json") from exc
     keys = SEGMENT_KEYS | ({"comment"} if with_comment else set())
     if not isinstance(value, dict) or not SEGMENT_KEYS <= set(value) <= keys:
         raise VideoTimelineError("segment_schema_mismatch")
@@ -93,19 +137,17 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
         raise VideoTimelineError("timeline_empty")
     if len(timeline) > MAX_ENTRIES:
         raise VideoTimelineError("timeline_too_long")
-    entries = []
+    raw_entries = []
     for item in timeline:
         if not isinstance(item, dict) or set(item) != {"at", "text"}:
             raise VideoTimelineError("timeline_entry_mismatch")
         at, text = item["at"], item["text"]
         if isinstance(at, bool) or not isinstance(at, (int, float)) or not math.isfinite(at) or at < 0:
             raise VideoTimelineError("timeline_at_invalid")
-        # 模型标秒数常有一两秒误差，留 5 秒余量。
-        if length is not None and at > length + 5:
-            raise VideoTimelineError("timeline_at_outside_segment")
         if not isinstance(text, str) or not text.strip() or len(text.strip()) > ENTRY_LIMIT:
             raise VideoTimelineError("timeline_text_invalid")
-        entries.append((float(at) + float(offset or 0), text.strip()))
+        raw_entries.append((float(at), text.strip()))
+    entries = _resolve_segment_timestamps(raw_entries, offset, length)
     entries.sort(key=lambda entry: entry[0])
     impression = value["impression"]
     if not isinstance(impression, str) or not impression.strip() or len(impression.strip()) > IMPRESSION_LIMIT:
