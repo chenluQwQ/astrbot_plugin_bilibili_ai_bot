@@ -156,7 +156,7 @@ class DraftFlowTests(unittest.IsolatedAsyncioTestCase):
 
 
 class HintAndSensitiveTests(unittest.IsolatedAsyncioTestCase):
-    async def test_hint_and_sensitive_reach_comment_writer(self):
+    async def test_sensitive_reaches_comment_writer_without_hint(self):
         bot = Bot()
         bot._llm_call = AsyncMock()
         bot._get_system_prompt = AsyncMock(return_value="人设")
@@ -164,7 +164,8 @@ class HintAndSensitiveTests(unittest.IsolatedAsyncioTestCase):
         info = {**INFO, "cid": 0, "_comment_hint": "适合补充茶具的知识", "_sensitive": True}
         await VideoEvaluate(bot)._generate_proactive_comment(info, "印象")
         material = bot._generation_llm_call.call_args.args[0].split('<video_material trust="untrusted">', 1)[1]
-        self.assertIn("评论建议（只是参考）：适合补充茶具的知识", material)
+        self.assertNotIn("适合补充茶具的知识", material)
+        self.assertNotIn("评论建议", material)
         self.assertIn("不表态、不站队", material)
 
     def test_sensitive_videos_pass_by_chance(self):
