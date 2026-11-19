@@ -8,6 +8,25 @@ import re
 from ..infra.host_view import HostView
 
 
+REGISTERED_BILI_COMMANDS = (
+    "bili解析", "bili登录", "bili确认", "bili状态", "bili计划", "bili分区",
+    "bili启动", "bili停止", "bili主动", "bili开关", "bili刷新", "bili记忆",
+    "bili清算", "bili周总结", "bili清理老化", "bili联动", "bili迁移记忆",
+    "bili好感", "bili拉黑", "bili解黑", "bili黑名单", "bili清理", "bili清理旧",
+    "bili导出", "bili性格", "bili兴趣", "bili性格编辑", "bili性格删除",
+    "bili性格回滚", "bili测试查询", "bili日志", "bili永久记忆", "bili备忘录",
+    "bili动态", "bili看番", "bili番剧记忆", "biliUMO", "bili帮助", "bili绑定",
+    "bili解绑",
+)
+_BILI_COMMAND_RE = re.compile(
+    r"^(?:"
+    + "|".join(re.escape(cmd) for cmd in sorted(REGISTERED_BILI_COMMANDS, key=len, reverse=True))
+    + r")(?:\s|$)",
+    re.IGNORECASE,
+)
+_COMMAND_FILTER_NAMES = frozenset({"CommandFilter", "CommandGroupFilter"})
+
+
 class ShareHandler(HostView):
     """群聊、私聊的每条消息都会进来；自动、手动命令、LLM 工具三种触发。"""
 
@@ -15,6 +34,77 @@ class ShareHandler(HostView):
         "bili_videos", "qq_chat", "settings", "share_delivery", "share_links", "share_reaction",
         "share_session",
     })
+
+    @staticmethod
+    def _component_type_name(comp) -> str:
+        if isinstance(comp, dict):
+            return str(comp.get("type", "")).lower()
+        raw_type = getattr(comp, "type", None)
+        if raw_type is not None:
+            val = getattr(raw_type, "value", raw_type)
+            if isinstance(val, str) and val.strip():
+                return val.strip().lower()
+        return type(comp).__name__.lower()
+
+    @classmethod
+    def _plain_component_text(cls, comp):
+        cname = cls._component_type_name(comp)
+        if isinstance(comp, dict):
+            if cname in {"plain", "text"}:
+                data = comp.get("data")
+                if isinstance(data, dict) and isinstance(data.get("text"), str):
+                    return data["text"]
+                if isinstance(comp.get("text"), str):
+                    return comp["text"]
+            return None
+        if cname in {"plain", "text"} or isinstance(getattr(comp, "text", None), str):
+            return str(getattr(comp, "text", ""))
+        return None
+
+    @staticmethod
+    def _is_command_text(text) -> bool:
+        stripped = str(text or "").strip()
+        if not stripped:
+            return False
+        return stripped.startswith("/") or bool(_BILI_COMMAND_RE.match(stripped))
+
+    @classmethod
+    def _is_command_event(cls, event) -> bool:
+        """判断消息是否为命令；WakingCheckStage 会剥离 wake_prefix（如 /），需同时查原始前缀和已激活命令。"""
+        if cls._is_command_text(getattr(event, "message_str", "")):
+            return True
+
+        msg_obj = getattr(event, "message_obj", None)
+        raw_msg = getattr(msg_obj, "message_str", None)
+        if isinstance(raw_msg, str) and cls._is_command_text(raw_msg):
+            return True
+
+        chain = getattr(msg_obj, "message", None)
+        if isinstance(chain, (list, tuple)):
+            for comp in chain:
+                cname = cls._component_type_name(comp)
+                if cname in {"at", "atall", "reply"}:
+                    continue
+                text = cls._plain_component_text(comp)
+                if text is None:
+                    break
+                if text.strip():
+                    if cls._is_command_text(text):
+                        return True
+                    break
+
+        get_extra = getattr(event, "get_extra", None)
+        if callable(get_extra):
+            parsed_params = get_extra("handlers_parsed_params")
+            if isinstance(parsed_params, dict) and parsed_params:
+                return True
+            activated = get_extra("activated_handlers")
+            if isinstance(activated, (list, tuple)):
+                for handler in activated:
+                    for flt in getattr(handler, "event_filters", None) or ():
+                        if type(flt).__name__ in _COMMAND_FILTER_NAMES:
+                            return True
+        return False
 
     async def _handle_bili_share(
         self,
@@ -33,10 +123,7 @@ class ShareHandler(HostView):
             "llm": ("BILI_SHARE_PARSE_LLM_TRIGGER_ENABLED", "LLM解析"),
         }
         trigger_key, trigger_label = trigger_keys.get(trigger_mode, trigger_keys["auto"])
-        msg = (event.message_str or "").strip()
-        if text_override is None and (
-            msg.startswith("/") or re.match(r"^bili解析(?:\s|$)", msg, re.IGNORECASE)
-        ):
+        if text_override is None and trigger_mode == "auto" and self._is_command_event(event):
             return
         text = str(text_override) if text_override is not None else self.share_links._collect_share_text(event)
         if not text.strip() and trigger_mode in ("manual", "llm"):
