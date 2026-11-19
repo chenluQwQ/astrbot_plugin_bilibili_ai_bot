@@ -244,6 +244,27 @@ class DynamicWritingTests(unittest.TestCase):
         self.assertFalse(DynamicPost(host)._admitted(False, False, False))
         self.assertEqual(host.prompts, [])
 
+    def _chance_after(self, days_ago, config=None):
+        from datetime import datetime, timedelta
+        host = WriterHost([], {"DYNAMIC_POST_CHANCE": 35, **(config or {})})
+        entries = [] if days_ago is None else [{"time": (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M"), "text": "旧"}]
+        host.dynamic_log = DynamicLog(ActivityLog("dynamic", file=types.SimpleNamespace(read=lambda default: entries)))
+        return DynamicPost(host)._scheduled_chance()
+
+    def test_post_chance_rises_each_day_without_post(self):
+        self.assertEqual(self._chance_after(None), 35)
+        self.assertEqual(self._chance_after(1), 35)
+        self.assertEqual(self._chance_after(2), 70)
+        self.assertEqual(self._chance_after(3), 100)
+        self.assertEqual(self._chance_after(10), 100)
+
+    def test_post_chance_rise_starts_after_min_interval(self):
+        self.assertEqual(self._chance_after(3, {"DYNAMIC_MIN_INTERVAL_DAYS": 3}), 35)
+        self.assertEqual(self._chance_after(4, {"DYNAMIC_MIN_INTERVAL_DAYS": 3}), 70)
+
+    def test_zero_chance_stays_zero(self):
+        self.assertEqual(self._chance_after(9, {"DYNAMIC_POST_CHANCE": 0}), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
