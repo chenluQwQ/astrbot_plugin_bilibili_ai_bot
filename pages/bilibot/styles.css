@@ -901,8 +901,8 @@ button:disabled { cursor: wait; opacity: .58; transform: none !important; }
 .now-pointer { pointer-events: none; filter: drop-shadow(0 5px 6px rgba(29,39,61,.18)); }
 .now-pointer-halo { fill: rgba(62,79,116,.12); }
 .now-pointer-cone { fill: #24324e; stroke: rgba(255,255,255,.96); stroke-width: 1.6; stroke-linejoin: round; }
-.ring-event { stroke-dasharray: 100; stroke-dashoffset: 100; animation: ringSegmentIn .68s var(--ease) var(--segment-delay) both; }
-@keyframes ringSegmentIn { to { stroke-dashoffset: 0; } }
+.ring-event { stroke-dasharray: 100; stroke-dashoffset: 0; animation: ringSegmentIn .68s var(--ease) var(--segment-delay) both; }
+@keyframes ringSegmentIn { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 .ring-event.is-active { stroke-width: 27; transform: scale(1.045); }
 .ring-center b { max-width: 155px; line-height: 1.35; }
 
