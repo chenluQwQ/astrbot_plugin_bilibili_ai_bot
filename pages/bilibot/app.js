@@ -1036,7 +1036,7 @@ const OPTION_LABELS = {
   DAILY_SUMMARY_MODE: { archive: "只写进记忆", qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
   WEEKLY_SUMMARY_MODE: { qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
   VIDEO_VISUAL_ANALYSIS_POLICY: { when_text_insufficient: "有字幕就只读字幕", always: "每次都看视频" },
-  IMAGE_GEN_BACKEND: { openai: "OpenAI 兼容接口", novelai: "NovelAI" },
+  IMAGE_GEN_BACKEND: { openai: "OpenAI 兼容接口（chat/completions）", openai_images: "OpenAI 兼容接口（images/generations）", novelai: "NovelAI" },
   WEB_SEARCH_BACKEND: { tavily: "Tavily", firecrawl: "Firecrawl", grok: "Grok", perplexity: "Perplexity", bocha: "博查", custom: "自定义接口" },
   VIDEO_VISION_FORMAT: { auto: "自动探测", openai: "OpenAI video_url", file: "OpenAI file", qwen: "通义千问 / vLLM", gemini: "Gemini 兼容层", none: "不直读，只截帧" },
 };
@@ -1058,7 +1058,7 @@ const UI_COPY = {
   VIDEO_VISUAL_ANALYSIS_POLICY: { hint: "每次都看：视频模型看画面、听声音；有字幕就只读字幕：省钱，但不知道画面" },
   VIDEO_VISION_AUDIO: { hint: "上传给视频模型的片段带声音，模型能听到讲话和音乐；截图分析听不到" },
   VIDEO_VISION_FORMAT: { hint: "按你的模型或网关支持的选。不确定就选「自动探测」：挨个试，第一个成功的记下来。选错也不会坏，会自动改用截帧" },
-  IMAGE_GEN_BACKEND: { hint: "NovelAI 只在手动 /bili动态 时能生图" },
+  IMAGE_GEN_BACKEND: { hint: "能在聊天回复里直接给图的模型选 chat/completions；只能生图、不能聊天的模型选 images/generations。NovelAI 只在手动 /bili动态 时能生图" },
 };
 
 // schema 的 condition 只能写「等于」；这几项要的是「不等于」，只在管理页里藏
