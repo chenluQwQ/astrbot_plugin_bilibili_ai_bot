@@ -727,7 +727,14 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
                     if isinstance(probed, (int, float)) and math.isfinite(probed) and probed > 0:
                         length = float(probed)
             span = f"原视频的 {clock(offset)}–{clock(offset + length)}" if length else ""
-            where = f"这是切片后的{label}（{span}）。" if label else "这是完整视频。"
+            if label:
+                where = (
+                    f"这是切片后的{label}（{span}；本段片长 {int(round(length))} 秒，at 从 0 开始记本段内秒数）。"
+                    if length
+                    else f"这是切片后的{label}。"
+                )
+            else:
+                where = "这是完整视频。"
             material = wrap_untrusted(
                 f"标题：{video_info.get('title', '未知')}\n分区：{video_info.get('tname', '')}\n"
                 f"简介：{str(video_info.get('desc', '') or '无')[:300]}",

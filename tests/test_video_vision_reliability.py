@@ -539,6 +539,59 @@ class VideoWatchReliabilityTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(res3["mode"], "frames")
             self.assertEqual(calls[-1], ["image_url"] * 12 + ["text"])
 
+    async def test_multi_segment_video_accepts_absolute_and_relative_timelines(self):
+        host = _Host(
+            {
+                "VIDEO_VISION_PROVIDER_ID": "gem",
+                "VIDEO_VISION_FORMAT": "auto",
+                "VIDEO_SEGMENT_MINUTES": 5,
+                "VIDEO_SEGMENT_MAX_COUNT": 10,
+            }
+        )
+        host._summary_llm_call = AsyncMock(
+            return_value='{"impression": "完整七段看完了"}'
+        )
+        host._llm_call = AsyncMock(side_effect=AssertionError("不应回退到 _llm_call"))
+        host.models = host
+        host.bili_videos._get_video_oid = AsyncMock(return_value=123)
+        host.bili_videos._get_video_tags = AsyncMock(return_value=[])
+        host.bili_comments._get_hot_comments = AsyncMock(return_value=[])
+        host.bili_videos._get_video_subtitle_lines = AsyncMock(return_value=[])
+        with tempfile.TemporaryDirectory() as folder:
+            video = Path(folder) / "BV1BKpP6NELo.mp4"
+            video.write_bytes(b"mp4")
+            segs = []
+            for i in range(7):
+                sp = Path(folder) / f"BV1BKpP6NELo_seg{i}.mp4"
+                sp.write_bytes(b"seg")
+                segs.append(str(sp))
+
+            host.video_files._download_video = AsyncMock(return_value=str(video))
+            host.video_files._slice_video_segments = AsyncMock(return_value=segs)
+            host.video_files._cleanup_video_artifacts = lambda *_a, **_kw: None
+
+            # 第 1、2、3、5 段（0-based）故意输出原视频绝对秒数，第 0、4、6 段输出段内相对秒数。
+            absolute_segments = {1, 2, 3, 5}
+            prompts = []
+
+            async def answer(_pid, content, **_kw):
+                idx = len(prompts)
+                prompts.append(content[-1]["text"])
+                offset = idx * 300
+                at = offset + 25 if idx in absolute_segments else 25
+                return _seg_json(f"第{idx}段内容", at=at)
+
+            host._astrbot_multimodal_generate = AsyncMock(side_effect=answer)
+            info = {"bvid": "BV1BKpP6NELo", "title": "长视频", "desc": "", "tname": "科技", "duration": 1950}
+            result = await host.video_watch._analyze_video_with_vision_inner(info)
+
+        self.assertEqual(info["analysis_basis"], "video_media")
+        self.assertNotIn("仅分析部分视频片段", result)
+        for idx, expected_clock in enumerate(["[00:25]", "[05:25]", "[10:25]", "[15:25]", "[20:25]", "[25:25]", "[30:25]"]):
+            self.assertIn(f"{expected_clock} 第{idx}段内容", result)
+        self.assertIn("本段片长 300 秒，at 从 0 开始记本段内秒数", prompts[1])
+        self.assertIn("本段片长 150 秒，at 从 0 开始记本段内秒数", prompts[6])
+
 
 if __name__ == "__main__":
     unittest.main()
