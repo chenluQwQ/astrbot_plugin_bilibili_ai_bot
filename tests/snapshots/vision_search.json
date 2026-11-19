@@ -905,7 +905,9 @@
    {
     "openai_client": {
      "api_key": "key",
-     "base_url": "https://img.example/v1"
+     "base_url": "https://img.example/v1",
+     "max_retries": 0,
+     "timeout": 90
     }
    }
   ],
@@ -1255,7 +1257,9 @@
    {
     "openai_client": {
      "api_key": "key",
-     "base_url": "https://img.example/v1"
+     "base_url": "https://img.example/v1",
+     "max_retries": 0,
+     "timeout": 90
     }
    },
    {
@@ -1303,7 +1307,9 @@
    {
     "openai_client": {
      "api_key": "key",
-     "base_url": "https://img.example/v1"
+     "base_url": "https://img.example/v1",
+     "max_retries": 0,
+     "timeout": 90
     }
    },
    {
@@ -1335,7 +1341,9 @@
    {
     "openai_client": {
      "api_key": "key",
-     "base_url": "https://img.example/v1"
+     "base_url": "https://img.example/v1",
+     "max_retries": 0,
+     "timeout": 90
     }
    },
    {
@@ -1401,7 +1409,9 @@
    {
     "openai_client": {
      "api_key": "key",
-     "base_url": "https://img.example/v1"
+     "base_url": "https://img.example/v1",
+     "max_retries": 0,
+     "timeout": 90
     }
    },
    {
@@ -1482,10 +1492,25 @@
     "url": "https://c"
    },
    {
+    "headers": {
+     "Referer": "https://www.bilibili.com"
+    },
+    "http": "GET",
+    "json": null,
+    "timeout": 10,
+    "url": "https://d"
+   },
+   {
     "provider": {
      "chat_provider_id": "p",
      "max_tokens": 100,
      "prompt": [
+      {
+       "image_url": {
+        "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
+       },
+       "type": "image_url"
+      },
       {
        "image_url": {
         "url": "data:image/jpeg;base64,aW1hZ2UtYnl0ZXM="
@@ -1785,7 +1810,9 @@
    {
     "openai_client": {
      "api_key": "k",
-     "base_url": "https://v.example/v1"
+     "base_url": "https://v.example/v1",
+     "max_retries": 0,
+     "timeout": 90
     }
    }
   ],

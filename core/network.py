@@ -110,6 +110,8 @@ async def close_plugin_clients(plugin):
     for name in ("_embed_client", "_video_vision_client", "_image_vision_client", "_web_search_client"):
         client = getattr(plugin, name, None)
         setattr(plugin, name, None)
+        if hasattr(plugin, f"{name}_fingerprint"):
+            setattr(plugin, f"{name}_fingerprint", None)
         if client is not None:
             try:
                 await client.close()

@@ -27,8 +27,41 @@ def get_call_diagnostic():
     return dict(_call.get() or {})
 
 
+def exception_status_code(exc):
+    """从异常对象读取 HTTP 状态码（兼容 ``.status_code``、``.code`` 与 ``.status``）。"""
+    for attr in ("status_code", "code", "status"):
+        val = getattr(exc, attr, None)
+        if isinstance(val, int) and not isinstance(val, bool) and 100 <= val <= 599:
+            return val
+    return None
+
+
+def merge_call_diagnostics(first, second):
+    """双路由同时失败时合并诊断，保留主路由与备用路由的失败原因。"""
+    first = dict(first or {})
+    second = dict(second or {})
+    if not first.get("reason"):
+        return second
+    if not second.get("reason"):
+        return first
+    merged = dict(second)
+    if first["reason"] != second["reason"]:
+        merged["reason"] = f"主路由: {first['reason']}；备用路由: {second['reason']}"
+    r1 = first.get("rejection") or "other"
+    r2 = second.get("rejection") or "other"
+    if r1 == r2:
+        merged["rejection"] = r1
+    elif {r1, r2} == {"unavailable", "unsupported"}:
+        merged["rejection"] = "unsupported"
+    elif "too_large" in (r1, r2) and "other" not in (r1, r2):
+        merged["rejection"] = "too_large"
+    else:
+        merged["rejection"] = "other"
+    return merged
+
+
 def exception_detail(exc, config):
-    status = getattr(exc, "status_code", None)
+    status = exception_status_code(exc)
     prefix = type(exc).__name__ + (f" HTTP {status}" if isinstance(status, int) else "")
     return safe_detail(f"{prefix}: {exc}", config)
 
