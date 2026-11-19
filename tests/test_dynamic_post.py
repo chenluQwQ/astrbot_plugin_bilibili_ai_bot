@@ -197,7 +197,8 @@ class DynamicWritingTests(unittest.TestCase):
     def test_automatic_dynamic_can_explicitly_choose_silence(self):
         host, result = self._write(['{"decision":"skip","text":"","need_image":false,"image_prompt":""}'], human_initiated=False)
         self.assertEqual(result["decision"], "skip")
-        self.assertIn("定时到了不是发的理由", host.prompts[0])
+        self.assertIn("实在没什么想说的，可以不发", host.prompts[0])
+        self.assertNotIn("大多数时候不发", host.prompts[0])
         self.assertIn("近期没有足够具体", host.prompts[0])
 
     def test_can_search_before_posting(self):
