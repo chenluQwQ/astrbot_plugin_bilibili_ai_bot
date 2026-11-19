@@ -41,7 +41,7 @@ DIRECT = {**ALWAYS, "VIDEO_VISION_FORMAT": "auto"}
 def seg(text, at=1, sensitive=False):
     """视频模型一段的记录（按时间记的 JSON）。"""
     return json.dumps({"timeline": [{"at": at, "text": text}], "impression": f"{text}的印象", "audio": "有人在讲话",
-                       "sensitive": sensitive, "comment_hint": f"{text}适合写段评"}, ensure_ascii=False)
+                       "sensitive": sensitive}, ensure_ascii=False)
 
 
 def seg_comment(text, comment, decision="comment", at=1):
@@ -265,7 +265,7 @@ SCENES = {
     # 按时间记：格式、声音、截图配字幕
     "timeline/garbled_direct_fails_segment": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal="一段散文，不是 JSON", summary="总结")),
     "timeline/time_outside_segment_rejected": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("编的", at=500), summary="总结")),
-    "timeline/heard_nothing_noted": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": True}, multimodal=json.dumps({"timeline": [{"at": 3, "text": "有人在切木板"}], "impression": "做木工", "audio": "听不到", "sensitive": False, "comment_hint": "可以聊工具"}, ensure_ascii=False))),
+    "timeline/heard_nothing_noted": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": True}, multimodal=json.dumps({"timeline": [{"at": 3, "text": "有人在切木板"}], "impression": "做木工", "audio": "听不到", "sensitive": False}, ensure_ascii=False))),
     "timeline/frames_get_timed_subtitles": (ANALYZE, (INFO,), dict(config=VISION, subtitle_lines=[[{"from": 2.0, "to": 4.0, "content": "先量尺寸"}, {"from": 70.0, "to": 72.0, "content": "片外"}]], summary=['{"relevant": true}'], multimodal=seg("画面"))),
     # 视频模型兼写评论：最后一段那次写，带人设
     "draft/single_segment_writes_comment": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=DIRECT, multimodal=seg_comment("直读", "4:30 那里装反的腿笑死"))),
@@ -275,8 +275,8 @@ SCENES = {
     "draft/frames_also_write": (ANALYZE, ({**INFO, **COMMENT_REQUEST},), dict(config=VISION, multimodal=seg_comment("画面", "截图里那把椅子好看"))),
     "hint/sensitive_from_model": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("发布会", sensitive=True))),
     "hint/sensitive_from_partition": (ANALYZE, ({**INFO, "tname": "热点"},), dict(config=DIRECT, multimodal=seg("新闻"))),
-    "hint/segments_merged_as_json": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg("二段", sensitive=True)], summary=['{"impression": "合起来的印象", "comment_hint": "适合补充"}'])),
-    "hint/merge_garbled_keeps_last_hint": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg("二段")], summary=["不是 JSON"])),
+    "hint/segments_merged_as_json": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg("二段", sensitive=True)], summary=['{"impression": "合起来的印象"}'])),
+    "hint/merge_garbled_joins_impressions": (ANALYZE, (INFO,), dict(config=DIRECT, segments=2, multimodal=[seg("一段"), seg("二段")], summary=["不是 JSON"])),
     "timeline/audio_off_strips_track": (ANALYZE, (INFO,), dict(config={**DIRECT, "VIDEO_VISION_AUDIO": False}, multimodal=seg("直读"))),
     # 视频直读
     "direct/auto_first_works": (ANALYZE, (INFO,), dict(config=DIRECT, multimodal=seg("直读"), summary="整合")),

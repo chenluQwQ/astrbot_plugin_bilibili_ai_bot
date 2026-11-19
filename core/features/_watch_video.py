@@ -395,8 +395,6 @@ class WatchVideo(HostView):
                 "search_keywords": search_keywords,
                 "time": log_entry["time"],
             }
-            if analysis_info.get("_comment_hint"):
-                vc[bvid]["comment_hint"] = analysis_info["_comment_hint"]
             if analysis_info.get("_sensitive"):
                 vc[bvid]["sensitive"] = True
             self.memory_docs.video_memory.write(vc)
