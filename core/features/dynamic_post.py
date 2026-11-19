@@ -235,7 +235,7 @@ class DynamicPost(HostView):
             if has_ideas:
                 logger.info("[BiliBot] 池子里有攒着想说的，不看发布意愿")
                 return True
-            chance = self._post_chance()
+            chance = self._scheduled_chance()
             if random.randint(1, 100) > chance:
                 logger.info(f"[BiliBot] 这次定时没有发动态的兴致（发布意愿 {chance}%），跳过")
                 return False
@@ -255,12 +255,24 @@ class DynamicPost(HostView):
                 limits.append(plan_limit)
         return min(limits) if limits else 0
 
-    def post_due(self):
+    def _min_interval_days(self):
         try:
-            days = max(1, min(30, int(self.settings.get("DYNAMIC_MIN_INTERVAL_DAYS"))))
+            return max(1, min(30, int(self.settings.get("DYNAMIC_MIN_INTERVAL_DAYS"))))
         except (TypeError, ValueError):
-            days = 1
-        return self.dynamic_log.interval_passed(days)
+            return 1
+
+    def post_due(self):
+        return self.dynamic_log.interval_passed(self._min_interval_days())
+
+    def _scheduled_chance(self):
+        """定时机会的发布概率：到了能发的那天是设置的概率，之后每多一天没发再加一次，加到 100 为止。
+        不然 35% 能连着好几天都掷不中。设成 0 就一直是 0。"""
+        base = self._post_chance()
+        since = self.dynamic_log.days_since_last_post()
+        if not base or since is None:
+            return base
+        missed = max(0, since - self._min_interval_days())
+        return min(100, base * (1 + missed))
 
     # ── 配图 ──
     async def _prepare_image(self, image, image_prompt, human_initiated, idea):
@@ -470,7 +482,7 @@ class DynamicPost(HostView):
             "资料只用来核实和补充，照抄过来就不是你的话了。\n" if search_rounds else ""
         )
         # 照缓存排：固定的（写什么、风格、规矩、配图、补充提示词）在前，每次变的（时间心情、发过的、素材、池子、触发方式）在后。
-        prompt = f"""你在想现在要不要发一条B站动态。发不发都行，大多数时候不发：定时到了不是发的理由，只有真有想说的具体事、或者想到一个段子时才发。
+        prompt = f"""你在想现在要不要发一条B站动态。有想说的具体事、或者想到一个段子，就可以发；实在没什么想说的，可以不发。
 
 【可以写什么】挑一个和手上素材最合的，不用每种都写：
 {topic_text}

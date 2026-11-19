@@ -76,8 +76,8 @@ const NAV_ITEMS = [
   ["today", "calendar", "今天", "看过的视频、发过的评论、动态和番剧"],
   ["interaction", "message", "回复与互动", "评论、私信与分享解析"],
   ["autonomy", "clock", "主动与作息", "看视频、番剧、动态和每天的日程"],
-  ["memory", "memory-card", "记忆与关系", "记忆、画像、心情与好感度"],
-  ["security", "controller", "工具与安全", "工具调用、权限隔离与风控"],
+  ["memory", "memory-card", "记忆与关系", "记忆、画像、好感度、备忘和记忆隔离"],
+  ["security", "controller", "工具与安全", "工具调用、权限隔离、风控和限流"],
   ["account", "user", "账号连接", "扫码登录与主人身份"],
   ["basics", "settings", "基础设置", "人设、模型与长期配置"],
   ["allconfig", "menu", "全部配置", "全部配置按大类折叠浏览"],
@@ -89,8 +89,7 @@ const PAGE_KEYS = {
     "REPLY_SIMILARITY_PERCENT", "ENABLE_BILI_EMOTES", "CUSTOM_REPLY_INSTRUCTION",
     "ENABLE_INTEREST_BASED_REPLY", "INTEREST_SELECTION_PROMPT", "FILTER_LOW_VALUE_MESSAGES",
     "FILTER_DUPLICATE_MESSAGES", "FILTER_AD_MESSAGES", "INTEREST_APPLY_TO_PRIVATE",
-    "COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS", "COMMENT_WATCH_VIDEO_DAILY_LIMIT", "ENABLE_MEMO", "MEMO_DAILY_TASKS", "MEMO_MAX_PENDING",
-    "ENABLE_SELF_MEMORY", "SELF_MEMORY_OWNER_ONLY", "ENABLE_TELL_OWNER", "TELL_OWNER_QQ_UMO", "TELL_OWNER_DAILY_LIMIT", "TELL_OWNER_GAP_HOURS",
+    "COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS", "COMMENT_WATCH_VIDEO_DAILY_LIMIT",
     "ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS",
     "PRIVATE_MESSAGE_AUTO_REPLY", "ENABLE_PRIVATE_PSEUDO_STREAM", "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION", "PRIVATE_MESSAGE_POLL_INTERVAL",
     "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", "PRIVATE_MESSAGE_ACTIVE_WINDOW", "PRIVATE_MESSAGE_MAX_PER_POLL",
@@ -124,7 +123,6 @@ const PAGE_KEYS = {
     "AUTONOMOUS_DYNAMIC_DAILY_MAX", "AUTONOMOUS_PROACTIVE_DAILY_MAX", "AUTONOMOUS_MIN_ACTION_GAP_MINUTES",
     "FIXED_PROACTIVE_WINDOWS", "FIXED_PROACTIVE_TIMES",
     "FIXED_DYNAMIC_TIMES", "FIXED_DYNAMIC_WATCH_TIMES", "FIXED_BANGUMI_TIMES", "FIXED_SPECIAL_FOLLOW_TIMES",
-    "BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS",
   ],
   memory: [
     "ENABLE_AFFECTION", "ENABLE_MOOD", "PROFILE_AFFECTION_LINE", "ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY",
@@ -132,17 +130,19 @@ const PAGE_KEYS = {
     "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD",
     "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS",
     "MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS",
+    "ENABLE_MEMO", "MEMO_DAILY_TASKS", "MEMO_MAX_PENDING", "ENABLE_SELF_MEMORY", "SELF_MEMORY_OWNER_ONLY",
+    "ENABLE_TELL_OWNER", "TELL_OWNER_QQ_UMO", "TELL_OWNER_DAILY_LIMIT", "TELL_OWNER_GAP_HOURS",
+    "MEMORY_ISOLATION_MODE", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES", "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT",
   ],
   security: [
     "ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_WATCH", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS",
     "SECURITY_ENABLE_WRITE_TOOLS", "SECURITY_WRITE_REQUIRE_CONFIRM",
     "BILI_ALLOW_SEARCH_TOOLS", "BILI_TOOL_ALLOWLIST", "BILI_TOOL_AUDIT_ENABLED",
-    "BILI_TOOL_ISOLATION_ENABLED", "BILI_PROMPT_INJECTION_DEFENSE", "MEMORY_ISOLATION_MODE",
-    "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES",
-    "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT", "PRIVATE_MESSAGE_AUTO_BLOCK",
+    "BILI_TOOL_ISOLATION_ENABLED", "BILI_PROMPT_INJECTION_DEFENSE", "PRIVATE_MESSAGE_AUTO_BLOCK",
     "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS", "PRIVATE_MESSAGE_TRUSTED_DOMAINS", "ABUSE_ALERT_MODE",
     "ABUSE_ALERT_QQ_UMO", "ABUSE_ALERT_SCORE_THRESHOLD", "ENABLE_AUTO_BLOCK", "BLOCK_WHITELIST_UIDS",
     "AUTO_BLOCK_SCORE", "AUTO_BLOCK_NEGATIVE_TIMES",
+    "BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS",
   ],
   account: ["OWNER_MID", "OWNER_NAME", "OWNER_BILI_NAME"],
 };
@@ -1870,10 +1870,6 @@ function renderInteraction() {
     ${renderInterestConfigSection()}
     ${renderConfigSection("回复前查资料", "回复评论前可以搜索、看视频简介字幕热评、去看别人推荐的视频。能用哪些查询工具在「工具与安全」页设置。/bili测试查询 BV号 可以试一次（不发评论），/bili日志 查询 看记录", ["COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS", "COMMENT_WATCH_VIDEO_DAILY_LIMIT"], "search")}
     <div class="two-column">
-      ${renderConfigSection("备忘录与永久记忆", "回复时 Bot 可以把别人推荐的内容记成备忘、之后排进日程去看；也可以改自己的永久记忆", ["ENABLE_MEMO", "MEMO_DAILY_TASKS", "MEMO_MAX_PENDING", "ENABLE_SELF_MEMORY", "SELF_MEMORY_OWNER_ONLY"], "memory-card")}
-      ${renderConfigSection("转告主人", "遇到特别想吐槽或分享的评论、私信，在 QQ 上发给主人", ["ENABLE_TELL_OWNER", "TELL_OWNER_QQ_UMO", "TELL_OWNER_DAILY_LIMIT", "TELL_OWNER_GAP_HOURS"], "heart")}
-    </div>
-    <div class="two-column">
       ${renderConfigSection("私信回复", "回复谁、怎么回，以及私信专用的补充提示词", ["ENABLE_PRIVATE_MESSAGES", "PRIVATE_MESSAGE_REPLY_SCOPE", "PRIVATE_MESSAGE_REPLY_WHITELIST_UIDS", "PRIVATE_MESSAGE_AUTO_REPLY", "ENABLE_PRIVATE_PSEUDO_STREAM", "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION"], "user")}
       ${renderConfigSection("私信检查频率", "多久查一次新私信、每次处理多少条", ["PRIVATE_MESSAGE_POLL_INTERVAL", "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL", "PRIVATE_MESSAGE_ACTIVE_WINDOW", "PRIVATE_MESSAGE_MAX_PER_POLL", "PRIVATE_MESSAGE_MAX_MESSAGE_AGE"], "clock")}
     </div>
@@ -2237,8 +2233,7 @@ function renderAutonomy() {
       </article>
       <aside class="schedule-side"><article class="card event-card">${sectionHead("今日事件", `${completedCount} 已完成 · ${upcomingCount} 待执行${overdueCount ? ` · ${overdueCount} 已错过` : ""}${invalidCount ? ` · ${invalidCount} 时间无效` : ""}`, "calendar")}${renderSelectedEvent(events)}${renderEventList(events)}${renderBeginnerGuide()}</article></aside>
     </section>
-    ${renderPlanModeCard(plan, autonomous, events)}
-    ${renderConfigSection("对外动作总限流", "评论、私信、点赞、发动态等所有对外动作合计的上限，防止几个功能加起来刷屏", ["BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS"], "shield")}`;
+    ${renderPlanModeCard(plan, autonomous, events)}`;
 }
 
 // 「今天」页：一条时间线，日志里记了什么就显示什么，点评和评论都不截断。唯一的写操作是删自己发的评论。
@@ -2368,7 +2363,7 @@ function renderToday() {
 function renderMemory() {
   const m = state.memory || {};
   const isolation = m.isolation_mode === "safe_share" ? "安全共享" : "平台隔离";
-  return `${pageHead("MEMORY", "记忆与关系", "记忆数量、用户画像和好感度，以及相关设置。", button("刷新数据", "refresh-memory", "refresh"))}
+  return `${pageHead("MEMORY", "记忆与关系", "记忆数量、用户画像和好感度；备忘录、转告主人、B站和 QQ 之间的记忆隔离也在这里。", button("刷新数据", "refresh-memory", "refresh"))}
     <section class="metrics-grid four">
       ${metricCard("记忆总量", fmt(m.total), num(m.other) ? `全部记忆，其中 ${fmt(m.other)} 条不属于下面几类` : "全部记忆", "memory-card", "blue")}
       ${metricCard("评论", fmt(m.comment), "B站评论区里的对话", "message", "pink")}
@@ -2387,7 +2382,6 @@ function renderMemory() {
       <aside class="memory-side">
         <article class="card memory-policy">${sectionHead("记忆隔离", "B站和 QQ 之间的记忆现在是否相通", "lock")}
           <div class="policy-status"><span class="policy-icon">${icon(m.isolation_mode === "safe_share" ? "unlock" : "lock")}</span><div><strong>${esc(isolation)}</strong><p>${m.safe_share ? "仅给主人侧共享经过硬脱敏的无害趣事。" : "B站与 QQ/AstrBot 的具体记忆默认互不注入。"}</p></div></div>
-          <button class="button soft wide" data-page-target="security" type="button">${icon("shield")}打开记忆隔离设置</button>
         </article>
         <article class="card memory-maintenance">${sectionHead("记忆维护", "清理超过保留周期的老化记录", "trash")}
           <p>清理不会删除仍在保留期内的记忆，也不会重置用户好感度。</p>${button("清理过期记忆", "purge-memory", "trash", "danger")}
@@ -2397,7 +2391,12 @@ function renderMemory() {
     </section>
     ${renderConfigSection("记忆清理", "记忆按评分和天数分阶段删除，删除前都会备份；看过的视频不会因此重看", ["MEMORY_LOW_SCORE_KEEP_DAYS", "MEMORY_LONG_TERM_KEEP_DAYS", "ENABLE_VIDEO_LONG_TERM_MEMORY", "VIDEO_MEMORY_DETAIL_DAYS", "VIDEO_MEMORY_FADE_DAYS", "VIDEO_LOW_SCORE_FORGET_BELOW", "VIDEO_LOW_SCORE_FORGET_DAYS"], "trash")}
     ${renderConfigSection("好感度与画像", "好感度到了画像门槛的人才会记画像；每个好感等级用哪段提示词也在这里", ["ENABLE_AFFECTION", "ENABLE_MOOD", "PROFILE_AFFECTION_LINE", "AFFECTION_PROMPT_SPECIAL", "AFFECTION_PROMPT_CLOSE", "AFFECTION_PROMPT_FRIEND", "AFFECTION_PROMPT_NORMAL", "AFFECTION_PROMPT_STRANGER", "AFFECTION_PROMPT_COLD"], "heart")}
-    ${renderConfigSection("看收藏夹修正画像", "每周一次，读主人和好感高的人公开的收藏夹，用来修正画像", ["ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY", "FAVORITE_PROFILE_MIN_LEVEL", "FAVORITE_PROFILE_FRIENDS_PER_WEEK"], "star")}`;
+    ${renderConfigSection("看收藏夹修正画像", "每周一次，读主人和好感高的人公开的收藏夹，用来修正画像", ["ENABLE_FAVORITE_PROFILE", "FAVORITE_PROFILE_DAY", "FAVORITE_PROFILE_MIN_LEVEL", "FAVORITE_PROFILE_FRIENDS_PER_WEEK"], "star")}
+    <div class="two-column">
+      ${renderConfigSection("备忘录与永久记忆", "回复时 Bot 可以把别人推荐的内容记成备忘、之后排进日程去看；也可以改自己的永久记忆", ["ENABLE_MEMO", "MEMO_DAILY_TASKS", "MEMO_MAX_PENDING", "ENABLE_SELF_MEMORY", "SELF_MEMORY_OWNER_ONLY"], "memory-card")}
+      ${renderConfigSection("转告主人", "遇到特别想吐槽或分享的评论、私信，在 QQ 上发给主人", ["ENABLE_TELL_OWNER", "TELL_OWNER_QQ_UMO", "TELL_OWNER_DAILY_LIMIT", "TELL_OWNER_GAP_HOURS"], "heart")}
+    </div>
+    ${renderConfigSection("记忆隔离与隐私", "B站和 QQ 的记忆默认互不相通；打开共享后也只给主人看脱敏后的摘要", ["MEMORY_ISOLATION_MODE", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES", "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT"], "memory-card")}`;
 }
 
 function renderMemoryCleanup() {
@@ -2473,7 +2472,7 @@ function refreshToolSummary() {
 function renderSecurity() {
   const isolated = currentValue("BILI_TOOL_ISOLATION_ENABLED") !== false;
   const memoryMode = currentValue("MEMORY_ISOLATION_MODE") || "isolated";
-  return `${pageHead("TOOLS & SECURITY", "工具与安全", "Bot 能调用哪些工具，以及B站内容和 QQ 之间的权限隔离、隐私和风控。", button("刷新审计", "refresh-security", "refresh"))}
+  return `${pageHead("TOOLS & SECURITY", "工具与安全", "Bot 能调用哪些工具，B站内容和 QQ 之间的权限隔离、风控，以及所有对外动作的总限流。", button("刷新审计", "refresh-security", "refresh"))}
     ${renderConfigSection("QQ 里叫 Bot 做事", "在 QQ 私聊或群里让 Bot 查视频、看视频、刷视频、看番，或代为点赞评论。管理员说了就做；别人能用什么看下面几项", ["ENABLE_LLM_TOOLS", "SECURITY_ALLOW_NON_ADMIN_WATCH", "SECURITY_ALLOW_NON_ADMIN_READ_TOOLS", "SECURITY_ENABLE_PRIVATE_READ_TOOLS", "SECURITY_ENABLE_WRITE_TOOLS", "SECURITY_WRITE_REQUIRE_CONFIRM", "BILI_TOOL_AUDIT_ENABLED"], "controller")}
     <section class="card section-card tool-access-card">${sectionHead("B站评论和私信里的工具调用", "Bot 回复B站评论、私信时能不能先查资料、去看别人提到的视频（名单里勾上看视频）。只开放只读查询，不会执行命令或写操作", "controller")}
       ${renderFields(["COMMENT_CONTEXT_ENABLED", "COMMENT_CONTEXT_MAX_CALLS", "BILI_ALLOW_SEARCH_TOOLS"])}
@@ -2487,11 +2486,9 @@ function renderSecurity() {
       ${metricCard("记忆策略", memoryMode === "safe_share" ? "安全共享" : "平台隔离", "仅向主人侧开放脱敏摘要", "memory-card", "orange")}
     </section>
     ${renderConfigSection("权限隔离与注入防护", "把评论、私信、视频标题当作不可信内容，不让它们改变 Bot 的指令或拿到额外权限", ["BILI_TOOL_ISOLATION_ENABLED", "BILI_PROMPT_INJECTION_DEFENSE"], "shield")}
-    <div class="two-column">
-      ${renderConfigSection("记忆隔离与隐私", "B站和 QQ 的记忆默认互不相通；打开共享后也只给主人看脱敏后的摘要", ["MEMORY_ISOLATION_MODE", "ENABLE_PRIVACY_REDACTION", "MEMORY_BLOCKED_PREFIXES", "MEMORY_BLOCKED_KEYWORDS", "CROSS_PLATFORM_MEMORY_PROMPT"], "memory-card")}
-      ${renderConfigSection("恶意告警与自动拉黑", "有人恶意骚扰时通知主人，达到条件自动拉黑", ["ABUSE_ALERT_MODE", "ABUSE_ALERT_QQ_UMO", "ABUSE_ALERT_SCORE_THRESHOLD", "ENABLE_AUTO_BLOCK", "BLOCK_WHITELIST_UIDS", "AUTO_BLOCK_SCORE", "AUTO_BLOCK_NEGATIVE_TIMES"], "lightning")}
-    </div>
-    ${renderConfigSection("私信安全", "危险私信自动拉黑、拉黑白名单和可信链接域名", ["PRIVATE_MESSAGE_AUTO_BLOCK", "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS", "PRIVATE_MESSAGE_TRUSTED_DOMAINS"], "user")}`;
+    ${renderConfigSection("恶意告警与自动拉黑", "有人恶意骚扰时通知主人，达到条件自动拉黑", ["ABUSE_ALERT_MODE", "ABUSE_ALERT_QQ_UMO", "ABUSE_ALERT_SCORE_THRESHOLD", "ENABLE_AUTO_BLOCK", "BLOCK_WHITELIST_UIDS", "AUTO_BLOCK_SCORE", "AUTO_BLOCK_NEGATIVE_TIMES"], "lightning")}
+    ${renderConfigSection("私信安全", "危险私信自动拉黑、拉黑白名单和可信链接域名", ["PRIVATE_MESSAGE_AUTO_BLOCK", "PRIVATE_MESSAGE_BLOCK_WHITELIST_UIDS", "PRIVATE_MESSAGE_TRUSTED_DOMAINS"], "user")}
+    ${renderConfigSection("对外动作总限流", "评论、私信、点赞、发动态等所有对外动作合计的上限，防止几个功能加起来刷屏", ["BEHAVIOR_BUDGET_ENABLED", "BEHAVIOR_GLOBAL_MAX_PER_MINUTE", "BEHAVIOR_GLOBAL_DAILY_LIMIT", "BEHAVIOR_ACTION_TIMEOUT_SECONDS"], "shield")}`;
 }
 
 function renderAccount() {

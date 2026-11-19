@@ -113,7 +113,7 @@
     "description": "【人设与模型】总结模型：独立 API 地址",
     "type": "string",
     "default": "",
-    "hint": "OpenAI 兼容接口地址。只填根地址时自动补 /v1；带了其他路径（如 /api/v3）则原样使用。留空使用 https://api.openai.com/v1。"
+    "hint": "留空用 https://api.openai.com/v1。只填根地址会自动补 /v1，带了其他路径（如 /api/v3）原样使用。"
   },
   "SUMMARY_MODEL": {
     "description": "【人设与模型】总结模型：独立 API 模型名",
@@ -138,7 +138,7 @@
     "description": "【人设与模型】生成模型：独立 API 地址",
     "type": "string",
     "default": "",
-    "hint": "OpenAI 兼容接口地址。只填根地址时自动补 /v1；带了其他路径（如 /api/v3）则原样使用。留空使用 https://api.openai.com/v1。"
+    "hint": "留空用 https://api.openai.com/v1。只填根地址会自动补 /v1，带了其他路径（如 /api/v3）原样使用。"
   },
   "GENERATION_MODEL": {
     "description": "【人设与模型】生成模型：独立 API 模型名",
@@ -236,7 +236,7 @@
     "description": "【评论回复】回复里可以带B站表情",
     "type": "bool",
     "default": false,
-    "hint": "评论和私信回复末尾可以带一个B站表情（如 [doge]、[吃瓜]），由模型按语气决定带不带。只使用插件内置的通用表情，其他方括号代码发送前会删掉；涉及伤亡、求助、严肃纠错的话题不带。"
+    "hint": "回复末尾可以带一个B站表情（如 [doge]），模型按语气决定。严肃话题不带，插件没有的表情代码会删掉。"
   },
   "CUSTOM_REPLY_INSTRUCTION": {
     "description": "【评论回复】评论回复的补充提示词",
@@ -299,7 +299,7 @@
     "description": "【回复时查资料与记事】B站评论回复前可以查资料",
     "type": "bool",
     "default": true,
-    "hint": "回复评论前可以调用工具：搜索、读视频简介/字幕/热评、去看相关视频。关闭后只根据已有信息回复。需要聊天模型支持工具调用。/bili日志 查询 查看记录，/bili测试查询 BV号 可以试一次（不发评论）。"
+    "hint": "回复评论前可以搜索、读视频简介字幕热评、去看相关视频。需要聊天模型支持工具调用；/bili测试查询 BV号 可以试一次。"
   },
   "COMMENT_CONTEXT_MAX_CALLS": {
     "description": "【回复时查资料与记事】每条评论最多调用几次工具",
@@ -314,7 +314,7 @@
     "description": "【回复时查资料与记事】每天最多去看几个评论里推荐的视频",
     "type": "int",
     "default": 3,
-    "hint": "评论里有人发了其他视频的 BV 号时，Bot 可以决定去看，看完再回复（在后台进行，不影响其他评论）。每条评论最多看 1 个，算一次工具调用。0 表示关闭。还需要B站工具白名单里有 watch_video。",
+    "hint": "评论里有人发了别的视频，Bot 可以先去看再回复，每条评论最多看 1 个。0 表示关闭；工具白名单里要有 watch_video。",
     "condition": {
       "COMMENT_CONTEXT_ENABLED": true
     }
@@ -323,7 +323,7 @@
     "description": "【回复时查资料与记事】回复时可以记备忘",
     "type": "bool",
     "default": true,
-    "hint": "回复评论、私信时，Bot 对别人推荐的视频、番剧、UP主感兴趣，可以记成备忘，之后排进每日计划去看。好感为负的人推荐的不记；同一个人每天最多 2 条（主人不限）；3 天没看自动过期。/bili备忘录 查看。"
+    "hint": "别人推荐的视频、番剧、UP主，Bot 感兴趣就记成备忘，之后排进日程去看，3 天没看就过期。/bili备忘录 查看。"
   },
   "MEMO_DAILY_TASKS": {
     "description": "【回复时查资料与记事】每天最多安排几条备忘",
@@ -362,7 +362,7 @@
     "description": "【回复时查资料与记事】把特别的评论、私信转告给主人",
     "type": "bool",
     "default": false,
-    "hint": "回复时一并判断（不额外调用模型）：遇到特别离谱或特别值得分享的评论、私信，在 QQ 上给主人发一句评价并附上原文片段；不回复的消息也可以转告。恶意攻击走「恶意告警」，不在这里。"
+    "hint": "遇到特别离谱或值得分享的评论、私信，在 QQ 上发给主人看，附原文片段。不额外调用模型；恶意攻击走「恶意告警」。"
   },
   "TELL_OWNER_QQ_UMO": {
     "description": "【回复时查资料与记事】转告发到哪个 QQ 会话（UMO）",
@@ -443,7 +443,7 @@
     "description": "【私信】一条回复分成几条发",
     "type": "bool",
     "default": false,
-    "hint": "回复生成并检查通过后，按句子拆成最多 3 条，每条间隔 1-4 秒发出。不到 16 个字或带链接的不拆。第一条发送失败算整条失败，后面几条失败不会重发。私信接口容易被风控，发得越多越容易触发，按需开启。"
+    "hint": "私信回复按句子拆成最多 3 条，隔 1-4 秒发出，更像真人。私信接口容易风控，条数越多越容易触发。"
   },
   "CUSTOM_PRIVATE_MESSAGE_INSTRUCTION": {
     "description": "【私信】私信回复的补充提示词",
@@ -623,7 +623,7 @@
     "description": "【主动看视频】搜索词生成提示词",
     "type": "text",
     "default": "为这一次B站浏览选择1至3个具体搜索词，覆盖不同题材。可以延续有实际观看依据的兴趣，也要尝试近期少看的内容。反复看的主题可以继续保留，也留意别的有趣内容，不要只换一个同义词重复搜。",
-    "hint": "Bot 根据最近看过的视频和评分决定搜什么。默认会保留真正喜欢的题材，各个方向轮流搜；连续两次没有尝试新方向时，有 35% 的概率优先搜新方向。不会删掉原有兴趣。",
+    "hint": "Bot 根据最近看过的视频和评分决定搜什么，喜欢的题材轮流搜，偶尔试新方向。这里可以补充你想让它多搜什么。",
     "condition": {
       "ENABLE_PROACTIVE": true
     },
@@ -838,7 +838,7 @@
     "description": "【主动看视频】主动发的评论同时转发到动态",
     "type": "bool",
     "default": false,
-    "hint": "主动看视频、追番、QQ 里让 Bot 发的评论勾选B站的「同时转发到我的动态」；回复别人的评论不转发。转发产生的动态不占每天的动态条数和最短间隔；同一视频攒下的动态想法会作废，避免重复发。",
+    "hint": "Bot 自己发的评论勾上「同时转发到我的动态」，回复别人的不转发。转发出的动态不占每天的动态条数。",
     "condition": {
       "PROACTIVE_COMMENT": true
     }
@@ -888,7 +888,7 @@
       "when_text_insufficient",
       "always"
     ],
-    "hint": "每次都看（always）：视频模型看画面、听声音，按时间记下内容；有字幕也看。文字信息不够时才看（when_text_insufficient）：有字幕就只读字幕，省钱但只知道说了什么、不知道画面。"
+    "hint": "每次都看：视频模型看画面、听声音。文字不够时才看：有字幕就只读字幕，省钱但不知道画面。"
   },
   "VIDEO_VISION_AUDIO": {
     "description": "【主动看视频】视频模型听声音",
@@ -1039,7 +1039,7 @@
     "default": 35,
     "min": 0,
     "max": 100,
-    "hint": "每次定时机会先按这个概率决定要不要写，之后模型仍可以选择不发。0 表示只在看完视频想发或手动要求时发。",
+    "hint": "每次定时机会先按这个概率决定要不要写，之后模型仍可以选择不发。一天没发，第二天概率再加一次这个数，直到 100。0 表示只在看完视频想发或手动要求时发。",
     "condition": {
       "ENABLE_DYNAMIC": true
     },
@@ -1053,7 +1053,7 @@
     "description": "【发动态】看完视频想发时可以发动态",
     "type": "bool",
     "default": true,
-    "hint": "看视频、特别关注、追番时，模型可以标记「想发动态」（吐槽、段子、分享、转发），看关注的人的动态时可以标记想转发，先存起来，3 天没发就过期。每轮主动看视频结束后、以及定时机会到了时，会先从存下的想法里挑一条发。受每日条数限制，同一视频只发一次。关闭后不再存新想法。",
+    "hint": "看视频、追番、看关注动态时，Bot 可以把想说的记下来，之后发成动态，3 天没发就过期。同一视频只发一次。",
     "condition": {
       "ENABLE_DYNAMIC": true
     }
@@ -1073,7 +1073,7 @@
     "description": "【发动态】站外订阅地址（每行一个）",
     "type": "list",
     "default": [],
-    "hint": "RSS 或 Atom 地址，比如项目的更新记录、新闻站。醒着时每天最多看 2 次，每个地址只看最新 5 条，觉得值得说的存成「转述」类想法，发的时候末尾附原链接。留空不看。",
+    "hint": "RSS 或 Atom 地址，比如新闻站。每天最多看 2 次，值得说的会写成动态并附原链接。留空不看。",
     "condition": {
       "ENABLE_DYNAMIC": true
     }
@@ -1091,7 +1091,7 @@
     "description": "【发动态】动态类型（每行一个）",
     "type": "list",
     "default": [],
-    "hint": "留空使用默认：吐槽、段子、日常、分享、转发、转述。模型每次挑一个最适合手上素材的。日常可以按人设写，不能写别人能查证的假事。转发（原样转发视频或关注的人的动态）只在看的时候标记了想转发才会发；转述只在站外订阅或搜索攒下了想法时才会发。",
+    "hint": "留空用默认：吐槽、段子、日常、分享、转发、转述。模型每次挑一个最合适的；日常不能编别人能查证的假事。",
     "condition": {
       "ENABLE_DYNAMIC": true
     }
@@ -1457,7 +1457,7 @@
     "default": 20,
     "min": 1,
     "max": 100,
-    "hint": "默认 20。好感度达到过这个分数（含）的人才会建画像：回复时记下的印象和事实（每人每天最多 5 条）在每晚整理时写进画像。达到过一次就一直保留，之后分数下降也不删。从没达到过的人，每晚整理时删除画像（删除前备份，好感度和聊天记忆不变）。",
+    "hint": "好感度达到过这个分数的人才会建画像，达到过一次就一直保留。没达到过的人，每晚整理时删掉画像（会先备份）。",
     "condition": {
       "ENABLE_AFFECTION": true
     }
@@ -1466,7 +1466,7 @@
     "description": "【好感度与画像】每周看收藏夹修正画像",
     "type": "bool",
     "default": true,
-    "hint": "每周一次（休眠期间），读取主人和好感较高的人公开的收藏夹，只看上次之后新收藏的视频，用来补充口味标签、去掉不符合的旧标签。私密收藏夹读不到。每周最多调用一次模型。",
+    "hint": "每周一次，在休眠时读主人和好感高的人公开收藏夹里的新视频，用来修正口味标签。私密收藏夹读不到。",
     "condition": {
       "ENABLE_AFFECTION": true
     }
@@ -1588,7 +1588,7 @@
     "description": "【记忆清理】保存视频长期记忆",
     "type": "bool",
     "default": true,
-    "hint": "开启后看过的视频会写成可按意思检索的记忆：前 15 天保留完整印象，之后降低检索权重；第 15 天删除低分的，第 90 天删除 7 分以下的，第 180 天只留 8 分以上的并精简为 BV 号和一句话印象。Bot 自己的视频各个天数加倍。关闭时仍保留视频分析缓存。"
+    "hint": "看过的视频写成能按意思找回的记忆，按评分和天数逐步精简，规则见下面几项。关闭后仍保留视频分析缓存。"
   },
   "VIDEO_MEMORY_DETAIL_DAYS": {
     "description": "【记忆清理】视频记忆完整保留天数",
@@ -1607,7 +1607,7 @@
     "default": 180,
     "min": 30,
     "max": 730,
-    "hint": "默认 180 天。到期后只留评分 8 分以上的视频记忆，并且只保留 BV 号和看完时写的一句话印象（多留一句感想），只在高度相关时才会被检索到；其余的删除（删除前备份）。看过的记录不删除，不会重复看。不会小于上一项。",
+    "hint": "到期后只留 8 分以上的视频记忆，精简成 BV 号和一句印象；其余删除（先备份）。看过的记录不删，不会重看。",
     "condition": {
       "ENABLE_VIDEO_LONG_TERM_MEMORY": true
     }
@@ -1640,7 +1640,7 @@
     "default": 7,
     "min": 1,
     "max": 90,
-    "hint": "默认 7 天。评论、私信聊天和动态记忆评分 3 分及以下的，记下满这么多天后删除（删除前备份）；2 分及以下的当晚就删，不受这项影响。Bot 自己的视频、动态和它们评论区里的聊天，天数加倍。"
+    "hint": "评论、私信和动态里 3 分及以下的记忆，满这么多天后删除（先备份）；2 分及以下当晚就删。Bot 自己的内容天数加倍。"
   },
   "MEMORY_LONG_TERM_KEEP_DAYS": {
     "description": "【记忆清理】聊天和动态只留高分的天数",
@@ -1654,13 +1654,13 @@
     "description": "【工具调用】QQ 里可以让 Bot 调用B站工具",
     "type": "bool",
     "default": false,
-    "hint": "默认关闭。开启后在 QQ 聊天里可以让 Bot 查视频、查UP主、搜番剧、看视频、刷视频、看番。默认只有管理员能用，下面几项控制别人能用什么、能不能代为操作B站账号。"
+    "hint": "在 QQ 里可以让 Bot 查视频、看视频、刷视频、看番。默认只有管理员能用，别人能用什么看下面几项。"
   },
   "SECURITY_ALLOW_NON_ADMIN_WATCH": {
     "description": "【工具调用】其他人也能请 Bot 去看视频、刷视频、看番",
     "type": "bool",
     "default": false,
-    "hint": "默认关闭。开启后 QQ 私聊和群里的其他人也能请 Bot 去看某个视频、刷一轮视频或看一集番，去不去由 Bot 自己决定。看过的视频直接用记忆，同时最多看 3 个；刷视频、看番照常受每天次数限制。",
+    "hint": "QQ 里其他人也能请 Bot 看视频、刷视频或看番，去不去由 Bot 决定。同时最多看 3 个，照常受每天次数限制。",
     "condition": {
       "ENABLE_LLM_TOOLS": true
     }
@@ -1761,7 +1761,7 @@
     "description": "【分享解析】允许模型调用解析工具",
     "type": "bool",
     "default": true,
-    "hint": "模型可以调用 bili_parse_video，把解析卡片和视频发到当前会话。还需要开启「QQ 里可以让 Bot 调用B站工具」。也可以用 /bili开关 LLM解析 切换。",
+    "hint": "模型可以自己调用解析，把卡片和视频发到当前会话。还要打开「QQ 里可以让 Bot 调用B站工具」。",
     "condition": {
       "ENABLE_BILI_SHARE_PARSE": true
     }
@@ -1863,7 +1863,7 @@
       "bili_private_and_qq",
       "all"
     ],
-    "hint": "B站私信（private_message）/ QQ 私聊（qq_private）/ 评论区 @ 主人（comment，其他人也看得到，不建议）。QQ 发到「主人 QQ 私聊 UMO」。",
+    "hint": "B站私信、QQ 私聊，或在评论区 @主人（别人也看得到，不建议）。QQ 私聊发到「主人 QQ 私聊 UMO」。",
     "condition": {
       "ENABLE_PROACTIVE": true,
       "ENABLE_OWNER_RECOMMEND": true
@@ -2248,7 +2248,7 @@
     "description": "【视觉模型】视频直接上传的接口格式",
     "type": "string",
     "default": "none",
-    "hint": "auto：依次尝试下列格式，第一个成功的就固定使用（最通用，第一次会多花几次请求）| openai：标准 video_url | file：OpenAI file part | qwen：video_url + fps | gemini：通过 image_url 传视频 | none：不直接上传，只截图分析。选错不会出错，被拒绝后自动改用截图。",
+    "hint": "选 auto 就行：会依次试各种格式，用第一个成功的。选错也不会出错，被拒绝后自动改用截图。",
     "options": [
       "auto",
       "openai",
@@ -2313,7 +2313,7 @@
     "description": "【图片生成】生图后端",
     "type": "string",
     "default": "openai",
-    "hint": "OpenAI 兼容接口 /chat/completions（openai，能在聊天回复里直接给图的模型）/ OpenAI 兼容接口 /images/generations（openai_images，只能生图、不能聊天的模型）/ NovelAI 官方接口（novelai，只在手动 /bili动态 时生图）。",
+    "hint": "能在聊天里直接回图的模型选 chat/completions；只能生图的选 images/generations。NovelAI 只在手动 /bili动态 时用。",
     "options": [
       "openai",
       "openai_images",
@@ -2419,7 +2419,7 @@
     "description": "【记忆向量】记忆向量：AstrBot 向量模型 ID",
     "type": "string",
     "default": "",
-    "hint": "填 AstrBot「服务提供商」里配好的向量模型 ID，填了就用它，下面的 API Key、地址、模型名不用填；留空时用下面的独立 API。换了向量模型以后，以前存的记忆向量和新模型对不上，按意思找回旧记忆会变差。"
+    "hint": "选 AstrBot 里配好的向量模型，选了就不用填下面的 API。换模型后旧记忆按意思找回会变差。"
   },
   "EMBED_API_KEY": {
     "description": "【记忆向量】记忆向量 API Key",
@@ -2568,7 +2568,7 @@
     "description": "【安全与隐私】通知发到哪个 QQ 会话（UMO）",
     "type": "string",
     "default": "",
-    "hint": "留空发到「主人 QQ 私聊 UMO」。格式 platform:FriendMessage:QQ号，例如 default:FriendMessage:123456789。"
+    "hint": "留空发到「主人 QQ 私聊 UMO」。格式如 default:FriendMessage:123456789。"
   },
   "ABUSE_ALERT_SCORE_THRESHOLD": {
     "description": "【安全与隐私】通知的扣分线",
@@ -2654,7 +2654,7 @@
     "description": "【系统】代理地址（可选）",
     "type": "string",
     "default": "",
-    "hint": "留空不使用代理。例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080，支持账号密码；填代理服务地址，不是订阅链接。作用于本插件的B站请求、视频下载，以及独立配置的搜索、生图、视觉和记忆向量 API；AstrBot 模型提供商仍用它自己的代理设置。保存后重载插件生效。Docker 里 127.0.0.1 指容器本身，代理在宿主机上时要填容器能访问的地址。"
+    "hint": "留空不用代理。例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080，填代理地址不是订阅链接。用在B站请求和视频下载上，保存后重载插件生效；Docker 里要填容器能访问到的地址。"
   },
   "ENABLE_YTDLP_AUTO_UPDATE": {
     "description": "【系统】每周自动更新 yt-dlp",
@@ -2663,13 +2663,13 @@
     "hint": "B站改接口后旧版 yt-dlp 可能下载不了视频。开启后每周用 pip 更新一次（只更新这一个包）。默认关闭，因为这相当于定期在插件环境里安装新代码。"
   },
   "FIXED_PROACTIVE_TIMES": {
-    "description": "【固定计划】主动浏览准确时刻",
+    "description": "【日程与作息】主动看视频的准确时刻（旧）",
     "type": "list",
     "default": [
       "10:30",
       "19:30"
     ],
-    "hint": "旧版兼容字段；WebUI 已改用主动浏览时间段。",
+    "hint": "旧版设置，已改用「主动看视频的时间段」。",
     "deprecated": true,
     "condition": {
       "ENABLE_AUTONOMOUS_DAILY_PLAN": false
@@ -2876,12 +2876,12 @@
     "invisible": true
   },
   "PROACTIVE_COMMENT_COUNT": {
-    "description": "【主动看片·互动】每个视频最多主动评论几条",
+    "description": "【主动看视频】每个视频最多评论几条",
     "type": "int",
     "default": 1,
     "min": 0,
     "max": 1,
-    "hint": "管理页里已合并：并进「主动评论」开关；打开主动评论或番剧评论时自动保证至少 1。",
+    "hint": "打开主动评论或番剧评论时自动为 1。",
     "condition": {
       "ENABLE_PROACTIVE": true,
       "PROACTIVE_COMMENT": true
@@ -2895,20 +2895,20 @@
     "invisible": true
   },
   "ENABLE_SAFE_CROSS_PLATFORM_MEMORY": {
-    "description": "【记忆隔离】允许安全的 B站记忆向主人侧共享",
+    "description": "【安全与隐私】允许把安全的 B站记忆共享给主人侧（旧）",
     "type": "bool",
     "default": false,
-    "hint": "管理页里已合并：跟着「跨平台记忆策略」走：选安全共享就是开。",
+    "hint": "旧版设置，已改用「跨平台记忆策略」。",
     "deprecated": true,
     "invisible": true
   },
   "AUTONOMOUS_PROACTIVE_DAILY_MAX": {
-    "description": "【自主安排·上限】每日主动浏览轮次最多几轮",
+    "description": "【日程与作息】每天最多看几轮视频（自主计划）",
     "type": "int",
     "default": 4,
     "min": 0,
     "max": 30,
-    "hint": "管理页里已合并：跟着「每天最多安排几轮浏览」写，两个取小的。",
+    "hint": "和「每天最多看几轮」取较小的那个。",
     "condition": {
       "ENABLE_AUTONOMOUS_DAILY_PLAN": true
     },
@@ -2916,12 +2916,12 @@
     "deprecated": true
   },
   "AUTONOMOUS_DYNAMIC_DAILY_MAX": {
-    "description": "【自主安排·上限】每日发布动态最多几条",
+    "description": "【日程与作息】每天最多发几条动态（自主计划）",
     "type": "int",
     "default": 2,
     "min": 0,
     "max": 20,
-    "hint": "管理页里已合并：跟着「每天最多发几条动态」写，两个取小的。",
+    "hint": "和「每天最多发几条动态」取较小的那个。",
     "condition": {
       "ENABLE_AUTONOMOUS_DAILY_PLAN": true
     },

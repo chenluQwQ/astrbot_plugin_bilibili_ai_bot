@@ -34,7 +34,8 @@ class DynamicLog:
         """池子里的想法（BV 号或 ``ep:`` 番剧集）发过没有；旧日志只有 ``bvid``。"""
         return bool(key) and any(key in (item.get("bvid"), item.get("idea_key")) for item in self.entries())
 
-    def interval_passed(self, days: int) -> bool:
+    def days_since_last_post(self) -> int | None:
+        """离最近一条算数的动态过了几天（今天发的是 0）；没发过返回 None。"""
         today = datetime.now().date()
         for item in reversed(self.entries()):
             if _not_counted(item):
@@ -44,9 +45,13 @@ class DynamicLog:
             except ValueError:
                 continue
             # 未来日期（改时区或手改日志）不能让动态永久停摆。
-            if 0 <= (today - posted).days < days:
-                return False
-        return True
+            if (today - posted).days >= 0:
+                return (today - posted).days
+        return None
+
+    def interval_passed(self, days: int) -> bool:
+        since = self.days_since_last_post()
+        return since is None or since >= days
 
     def record(self, entry: dict) -> None:
         self._log.append(entry)
