@@ -13,6 +13,8 @@ import json
 import math
 from typing import Any
 
+from .infra.text import repair_llm_json
+
 
 TIMELINE_MARK = "【时间线】"
 PARTIAL_MARK = "【仅分析部分视频片段，不能确认全部内容】"
@@ -108,8 +110,11 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     """
     try:
         value = json.loads(_strip_fence(raw))
-    except (TypeError, ValueError) as exc:
-        raise VideoTimelineError("invalid_json") from exc
+    except (TypeError, ValueError):
+        try:
+            value = json.loads(repair_llm_json(str(raw or "")))
+        except (TypeError, ValueError) as exc:
+            raise VideoTimelineError("invalid_json") from exc
     keys = SEGMENT_KEYS | ({"comment"} if with_comment else set())
     if not isinstance(value, dict) or not SEGMENT_KEYS <= set(value) <= keys:
         raise VideoTimelineError("segment_schema_mismatch")
