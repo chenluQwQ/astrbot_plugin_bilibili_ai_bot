@@ -96,6 +96,10 @@ class WebSearch:
                 result = await self._search_bocha(query, api_key, max_results)
             elif backend == "custom":
                 result = await self._search_custom(query, max_results)
+            elif backend == "exa":
+                result = await self._search_exa(query, api_key, max_results)
+            elif backend == "deepseek":
+                result = await self._search_deepseek(query, api_key, max_results)
             else:
                 logger.warning(f"[BiliBot] 未知搜索后端: {backend}")
                 return ""
@@ -339,3 +343,104 @@ class WebSearch:
         except Exception as e:
             logger.error(f"[BiliBot] 自定义搜索接口调用失败: {redact_proxy_error(e, self.config)}")
             return ""
+
+    @staticmethod
+    def _format_exa_results(data: dict, max_results: int) -> str:
+        """Exa /search 的结果：每条标题、链接，加摘录（没有摘录就用正文或摘要）。"""
+        results = data.get("results", []) if isinstance(data, dict) else []
+        snippets = []
+        for item in (results if isinstance(results, list) else [])[:max_results]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "网页结果").strip()
+            url = str(item.get("url") or "").strip()
+            highlights = item.get("highlights")
+            if isinstance(highlights, list) and highlights:
+                description = " … ".join(str(h) for h in highlights if h)
+            else:
+                description = str(item.get("summary") or item.get("text") or "")
+            description = re.sub(r"\s+", " ", description).strip()[:500]
+            label = f"[{title}]({url})" if url else title
+            snippets.append(f"- {label}: {description}" if description else f"- {label}")
+        return "\n".join(snippets)
+
+    async def _search_exa(self, query: str, api_key: str, max_results: int) -> str:
+        base_url = str(self.settings.get("WEB_SEARCH_API_BASE") or "https://api.exa.ai").strip().rstrip("/")
+        url = base_url if base_url.lower().endswith("/search") else f"{base_url}/search"
+        payload = {
+            "query": query,
+            "numResults": max_results,
+            "type": "auto",
+            "contents": {"highlights": {"maxCharacters": 500}},
+        }
+        async with plugin_http_session(self.config) as s:
+            async with s.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json", "x-api-key": api_key},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] Exa HTTP {r.status}: {body[:200]}")
+                    return ""
+                data = await r.json(content_type=None)
+        return self._format_exa_results(data, max_results)
+
+    @staticmethod
+    def _format_deepseek_response(data: dict, max_results: int) -> str:
+        """对话接口带联网工具的回复：正文，加上正文里没出现过的引用和搜索来源。"""
+        choices = data.get("choices") if isinstance(data, dict) else None
+        message = choices[0].get("message") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
+        if not isinstance(message, dict):
+            return ""
+        text = str(message.get("content") or "").strip()
+        sources = []
+
+        def add(url, title):
+            url = str(url or "").strip()
+            if url and url not in {item[0] for item in sources}:
+                sources.append((url, str(title or url).strip()))
+
+        for annotation in message.get("annotations") or []:
+            cite = annotation.get("url_citation") if isinstance(annotation, dict) else None
+            if isinstance(cite, dict):
+                add(cite.get("url"), cite.get("title"))
+        for tool_call in message.get("server_tool_calls") or []:
+            for call in (tool_call.get("calls") or []) if isinstance(tool_call, dict) else []:
+                for source in (call.get("sources") or []) if isinstance(call, dict) else []:
+                    if isinstance(source, dict):
+                        add(source.get("url"), source.get("title"))
+        uncited = [(url, title) for url, title in sources if url not in text][:max_results]
+        if uncited:
+            listed = "\n".join(f"- [{title}]({url})" for url, title in uncited)
+            text = f"{text}\n\n相关来源：\n{listed}" if text else listed
+        return text
+
+    async def _search_deepseek(self, query: str, api_key: str, max_results: int) -> str:
+        base_url = str(self.settings.get("WEB_SEARCH_API_BASE") or "https://api.deepseek.com").strip().rstrip("/")
+        url = base_url if base_url.lower().endswith("/chat/completions") else f"{base_url}/chat/completions"
+        model = str(self.settings.get("WEB_SEARCH_MODEL") or "deepseek-flash").strip()
+        payload = {
+            "model": model,
+            "messages": [{
+                "role": "user",
+                "content": f"请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：{query}",
+            }],
+            "tools": [{"type": "deepseek_web_search"}],
+            "thinking": {"type": "disabled"},
+            "max_tokens": 600,
+        }
+        async with plugin_http_session(self.config) as s:
+            async with s.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] DeepSeek 搜索 HTTP {r.status}: {body[:300]}")
+                    return ""
+                data = await r.json(content_type=None)
+        return self._format_deepseek_response(data, max_results)

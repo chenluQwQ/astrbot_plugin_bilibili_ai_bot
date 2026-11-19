@@ -222,6 +222,160 @@
   },
   "result": "模型回答"
  },
+ "deepseek/base_model": {
+  "cache": {
+   "deepseek:问题": {
+    "result": "只有回答",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "max_tokens": 600,
+     "messages": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "model": "m",
+     "thinking": {
+      "type": "disabled"
+     },
+     "tools": [
+      {
+       "type": "deepseek_web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://d.example/v1/chat/completions"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "只有回答"
+ },
+ "deepseek/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "max_tokens": 600,
+     "messages": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "model": "deepseek-flash",
+     "thinking": {
+      "type": "disabled"
+     },
+     "tools": [
+      {
+       "type": "deepseek_web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://api.deepseek.com/chat/completions"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "deepseek/no_choices": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "max_tokens": 600,
+     "messages": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "model": "deepseek-flash",
+     "thinking": {
+      "type": "disabled"
+     },
+     "tools": [
+      {
+       "type": "deepseek_web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://api.deepseek.com/chat/completions"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "deepseek/ok": {
+  "cache": {
+   "deepseek:问题": {
+    "result": "回答 https://a\n\n相关来源：\n- [来源二](https://b)\n- [来源三](https://c)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Authorization": "Bearer key",
+     "Content-Type": "application/json"
+    },
+    "http": "POST",
+    "json": {
+     "max_tokens": 600,
+     "messages": [
+      {
+       "content": "请联网搜索并用中文简洁回答，保留关键来源；正文尽量控制在300字以内。\n\n问题：问题",
+       "role": "user"
+      }
+     ],
+     "model": "deepseek-flash",
+     "thinking": {
+      "type": "disabled"
+     },
+     "tools": [
+      {
+       "type": "deepseek_web_search"
+      }
+     ]
+    },
+    "timeout": 60,
+    "url": "https://api.deepseek.com/chat/completions"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "回答 https://a\n\n相关来源：\n- [来源二](https://b)\n- [来源三](https://c)"
+ },
  "embed/bad_timeout": {
   "cache": null,
   "calls": [
@@ -304,6 +458,100 @@
    0.5,
    0.5
   ]
+ },
+ "exa/base_search": {
+  "cache": {
+   "exa:问题": {
+    "result": "- [t1](https://a): h 1 … h2\n- [t2](https://b): 正文",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "x-api-key": "key"
+    },
+    "http": "POST",
+    "json": {
+     "contents": {
+      "highlights": {
+       "maxCharacters": 500
+      }
+     },
+     "numResults": 2,
+     "query": "问题",
+     "type": "auto"
+    },
+    "timeout": 30,
+    "url": "https://e.example/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [t1](https://a): h 1 … h2\n- [t2](https://b): 正文"
+ },
+ "exa/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "x-api-key": "key"
+    },
+    "http": "POST",
+    "json": {
+     "contents": {
+      "highlights": {
+       "maxCharacters": 500
+      }
+     },
+     "numResults": 2,
+     "query": "问题",
+     "type": "auto"
+    },
+    "timeout": 30,
+    "url": "https://api.exa.ai/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "exa/ok": {
+  "cache": {
+   "exa:问题": {
+    "result": "- [t1](https://a): h 1 … h2\n- [t2](https://b): 正文",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "x-api-key": "key"
+    },
+    "http": "POST",
+    "json": {
+     "contents": {
+      "highlights": {
+       "maxCharacters": 500
+      }
+     },
+     "numResults": 2,
+     "query": "问题",
+     "type": "auto"
+    },
+    "timeout": 30,
+    "url": "https://api.exa.ai/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [t1](https://a): h 1 … h2\n- [t2](https://b): 正文"
  },
  "fetch/404": {
   "cache": null,

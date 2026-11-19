@@ -13,7 +13,7 @@ B站 AI Bot 插件 for [AstrBot](https://github.com/AstrBotDevs/AstrBot) — 让
 - **动态评论区回复** — 在你发布的动态下收到评论也会自动回复，不只限于视频评论
 - **图片识别** — 评论中的图片自动识别内容后参与回复
 - **视频上下文** — 自动获取被评论视频的信息，支持视觉模型分析视频封面 / 内容
-- **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Firecrawl / Grok（xAI 原生 Web Search）/ Perplexity / 博查 / 自定义 OpenAI 兼容接口
+- **联网查询** — 评论涉及时事、新知、特定事件时自动判断是否需要联网搜索，支持 Tavily / Firecrawl / Grok（xAI 原生 Web Search）/ Perplexity / 博查 / Exa / DeepSeek（模型联网）/ 自定义 OpenAI 兼容接口
 - **B站私信回复** — 监听新的纯文字和视频分享私信；回复模型可按需调用工具查询UP/视频/番剧/关注动态或联网搜索（次数和评论区共用上限），要看视频时先短回应、看完再回复，最多发送两条；精确发送 `new` 可重置当前私信上下文
 - **私信安全隔离** — 不明外链、IP 链接和疑似色情引流不会进入 LLM，可自动调用 B站拉黑；支持只回复主人、白名单或全部安全用户
 
@@ -190,7 +190,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 - 视频视觉模型：`VIDEO_VISION_PROVIDER_ID` 或 `VIDEO_VISION_API_KEY + VIDEO_VISION_MODEL`
 - 图片识别模型：`IMAGE_VISION_PROVIDER_ID` 或 `IMAGE_VISION_API_KEY + IMAGE_VISION_MODEL`
 - 动态配图模型：`IMAGE_GEN_BACKEND + IMAGE_GEN_API_KEY`；NovelAI 留空模型名时用它自己的默认模型，OpenAI 兼容后端必须填写模型名，否则跳过配图
-- 联网查询后端：`WEB_SEARCH_API_KEY`（按 `WEB_SEARCH_BACKEND` 选择 Tavily / Firecrawl / Grok / Perplexity / 博查 / 自定义）
+- 联网查询后端：`WEB_SEARCH_API_KEY`（按 `WEB_SEARCH_BACKEND` 选择 Tavily / Firecrawl / Grok / Perplexity / 博查 / Exa / DeepSeek / 自定义）
 
 ### 5. 缺失依赖时的退化行为
 
@@ -236,10 +236,10 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`IMAGE_GEN_API_BASE`         |可选|留空使用后端官方默认地址；也可填写兼容代理地址                                          |
 |`IMAGE_GEN_MODEL`            |可选|OpenAI 后端默认 `black-forest-labs/flux-schnell`；NovelAI 默认 `nai-diffusion-4-5-full`|
 |`ENABLE_WEB_SEARCH`          |可选|启用联网查询（回复时按需搜索最新信息）                                                  |
-|`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `firecrawl` / `grok` / `perplexity` / `bocha` / `custom`|
+|`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `firecrawl` / `grok` / `perplexity` / `bocha` / `exa` / `deepseek` / `custom`|
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
-|`WEB_SEARCH_API_BASE`        |可选|Firecrawl / Grok / custom 可填写自建服务或兼容代理；留空使用官方地址                       |
-|`WEB_SEARCH_MODEL`           |可选|Grok 默认 `grok-4.6`，Perplexity 默认 `sonar`；custom 按接口填写                    |
+|`WEB_SEARCH_API_BASE`        |可选|Firecrawl / Grok / Exa / DeepSeek / custom 可填写自建服务或兼容代理；留空使用官方地址                       |
+|`WEB_SEARCH_MODEL`           |可选|Grok 默认 `grok-4.6`，DeepSeek 默认 `deepseek-flash`，Perplexity 默认 `sonar`；custom 按接口填写                    |
 |`ENABLE_LLM_TOOLS`           |可选|启用 QQ 等 AstrBot 聊天平台中的 B站 LLM 工具；默认关闭，实际调用仍按真实事件授权                 |
 |`SECURITY_ALLOW_NON_ADMIN_READ_TOOLS`|可选|允许非管理员使用公开只读工具；默认关闭，只有管理员能调工具|
 |`SECURITY_ENABLE_PRIVATE_READ_TOOLS`|可选|允许读取账号私密数据；默认关闭，仍只给可信会话里的管理员                    |

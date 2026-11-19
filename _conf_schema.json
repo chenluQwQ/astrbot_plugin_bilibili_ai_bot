@@ -2158,13 +2158,15 @@
     "description": "【联网搜索】搜索后端",
     "type": "string",
     "default": "tavily",
-    "hint": "Firecrawl 返回网页摘要；Grok 使用 xAI Responses API 的原生 web_search。",
+    "hint": "Firecrawl、Exa 返回网页摘要；Grok、DeepSeek 由模型联网搜索后回答，附带来源。",
     "options": [
       "tavily",
       "firecrawl",
       "grok",
       "perplexity",
       "bocha",
+      "exa",
+      "deepseek",
       "custom"
     ],
     "condition": {
@@ -2184,16 +2186,16 @@
     "description": "【联网搜索】搜索 API Base URL（可选）",
     "type": "string",
     "default": "",
-    "hint": "留空使用后端官方地址；Firecrawl/Grok/custom 可填写兼容代理或自建地址。",
+    "hint": "留空使用后端官方地址；Firecrawl/Grok/Exa/DeepSeek/custom 可填写兼容代理或自建地址。",
     "condition": {
       "ENABLE_WEB_SEARCH": true
     }
   },
   "WEB_SEARCH_MODEL": {
-    "description": "【联网搜索】搜索模型名（Grok / custom / perplexity）",
+    "description": "【联网搜索】搜索模型名（Grok / DeepSeek / custom / perplexity）",
     "type": "string",
     "default": "",
-    "hint": "Grok 默认 grok-4.6；Perplexity 默认 sonar；custom 按你的接口填写。",
+    "hint": "Grok 默认 grok-4.6；DeepSeek 默认 deepseek-flash；Perplexity 默认 sonar；custom 按你的接口填写。",
     "condition": {
       "ENABLE_WEB_SEARCH": true
     }

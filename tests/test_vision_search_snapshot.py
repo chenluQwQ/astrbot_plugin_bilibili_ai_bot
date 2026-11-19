@@ -182,6 +182,14 @@ GROK = {"output_text": "回答", "output": [{"type": "message", "content": [{
     "type": "output_text", "text": "回答二", "annotations": [{"url_citation": {"url": "https://a", "title": "来源"}}],
 }]}], "citations": ["https://b"]}
 BOCHA = {"data": {"summary": "总结", "webPages": {"value": [{"name": "n1", "summary": "s1"}, {"name": "n2", "snippet": "s2"}]}}}
+EXA = {"results": [
+    {"title": "t1", "url": "https://a", "highlights": ["  h  1 ", "h2"]}, {"title": "t2", "url": "https://b", "text": "正文"}, {"url": "https://c"},
+]}
+DEEPSEEK = {"choices": [{"message": {
+    "content": "回答 https://a",
+    "annotations": [{"type": "url_citation", "url_citation": {"url": "https://a", "title": "来源一"}}, {"url_citation": {"url": "https://b", "title": "来源二"}}],
+    "server_tool_calls": [{"calls": [{"sources": [{"title": "来源二", "url": "https://b"}, {"title": "来源三", "url": "https://c"}, {"title": "来源四", "url": "https://d"}]}]}],
+}}]}
 JUDGE_YES = '```json\n{"need_search": true, "query": "查这个"}\n```'
 JUDGE_NO = '{"need_search": false, "query": ""}'
 VIDEO = {"title": "标题", "desc": "简介", "tname": "分区", "owner_name": "UP"}
@@ -237,6 +245,13 @@ SCENES = {
     "perplexity/ok": ("_web_search", ("问题",), {"config": search("perplexity")}),
     "perplexity/empty": ("_web_search", ("问题",), {"config": search("perplexity"), "openai": None}),
     "perplexity/error": ("_web_search", ("问题",), {"config": search("perplexity"), "openai": RuntimeError("断了")}),
+    "exa/ok": ("_web_search", ("问题",), {"config": search("exa"), "http": (200, EXA)}),
+    "exa/base_search": ("_web_search", ("问题",), {"config": search("exa", WEB_SEARCH_API_BASE="https://e.example/search/"), "http": (200, EXA)}),
+    "exa/http_error": ("_web_search", ("问题",), {"config": search("exa"), "http": (401, {})}),
+    "deepseek/ok": ("_web_search", ("问题",), {"config": search("deepseek"), "http": (200, DEEPSEEK)}),
+    "deepseek/base_model": ("_web_search", ("问题",), {"config": search("deepseek", WEB_SEARCH_API_BASE="https://d.example/v1", WEB_SEARCH_MODEL="m"), "http": (200, {"choices": [{"message": {"content": "只有回答"}}]})}),
+    "deepseek/no_choices": ("_web_search", ("问题",), {"config": search("deepseek"), "http": (200, {"choices": []})}),
+    "deepseek/http_error": ("_web_search", ("问题",), {"config": search("deepseek"), "http": (500, {})}),
     "bocha/ok": ("_web_search", ("问题",), {"config": search("bocha"), "http": (200, BOCHA)}),
     "bocha/results": ("_web_search", ("问题",), {"config": search("bocha"), "http": (200, {"results": [{"title": "t", "content": "c"}]})}),
     "bocha/http_error": ("_web_search", ("问题",), {"config": search("bocha"), "http": (500, {})}),

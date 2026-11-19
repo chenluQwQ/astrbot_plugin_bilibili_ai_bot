@@ -105,6 +105,8 @@ class ProviderConfigSchemaTests(unittest.TestCase):
         schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
         self.assertIn("firecrawl", schema["WEB_SEARCH_BACKEND"]["options"])
         self.assertIn("grok", schema["WEB_SEARCH_BACKEND"]["options"])
+        self.assertIn("exa", schema["WEB_SEARCH_BACKEND"]["options"])
+        self.assertIn("deepseek", schema["WEB_SEARCH_BACKEND"]["options"])
         self.assertIn("novelai", schema["IMAGE_GEN_BACKEND"]["options"])
         self.assertIn("openai_images", schema["IMAGE_GEN_BACKEND"]["options"])
 

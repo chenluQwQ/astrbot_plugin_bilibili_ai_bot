@@ -1037,7 +1037,7 @@ const OPTION_LABELS = {
   WEEKLY_SUMMARY_MODE: { qq: "QQ 私聊发给主人", dynamic: "发成 B站动态", both: "QQ + B站动态" },
   VIDEO_VISUAL_ANALYSIS_POLICY: { when_text_insufficient: "有字幕就只读字幕", always: "每次都看视频" },
   IMAGE_GEN_BACKEND: { openai: "OpenAI 兼容接口（chat/completions）", openai_images: "OpenAI 兼容接口（images/generations）", novelai: "NovelAI" },
-  WEB_SEARCH_BACKEND: { tavily: "Tavily", firecrawl: "Firecrawl", grok: "Grok", perplexity: "Perplexity", bocha: "博查", custom: "自定义接口" },
+  WEB_SEARCH_BACKEND: { tavily: "Tavily", firecrawl: "Firecrawl", grok: "Grok", perplexity: "Perplexity", bocha: "博查", exa: "Exa", deepseek: "DeepSeek", custom: "自定义接口" },
   VIDEO_VISION_FORMAT: { auto: "自动探测", openai: "OpenAI video_url", file: "OpenAI file", qwen: "通义千问 / vLLM", gemini: "Gemini 兼容层", none: "不直读，只截帧" },
 };
 
