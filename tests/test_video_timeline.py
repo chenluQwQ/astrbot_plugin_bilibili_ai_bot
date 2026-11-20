@@ -26,7 +26,7 @@ class ParseTests(unittest.TestCase):
     def test_rejects(self):
         cases = {
             "invalid_json": "随便写的一段话",
-            "segment_schema_mismatch": json.dumps({"timeline": [{"at": 1, "text": "a"}], "impression": "x"}),
+            "segment_schema_mismatch": json.dumps({"timeline": [{"at": 1, "text": "a"}]}),
             "timeline_empty": raw([]),
             "timeline_entry_mismatch": raw([{"time": 1, "text": "a"}]),
             "timeline_at_invalid": raw([{"at": "00:01", "text": "a"}]),

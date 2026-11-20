@@ -22,7 +22,7 @@ class PrivatePoll(HostView):
     """长期对象：``_private_message_*`` 这些退避状态在它身上。"""
 
     HOST_API = frozenset({
-        "bili_messages", "event_runtime", "private_inbox", "private_reply", "settings",
+        "bili_http", "bili_messages", "event_runtime", "private_inbox", "private_reply", "settings",
     })
 
     def __init__(self, host):
@@ -36,6 +36,7 @@ class PrivatePoll(HostView):
         self._private_message_success_streak = 0
         self._private_message_last_activity_at = 0.0
         self._private_message_last_warned_backoff = 0
+        self._private_message_seen_rate_limit_seq = 0
 
     @staticmethod
     def _private_json_text(raw):
@@ -330,6 +331,18 @@ class PrivatePoll(HostView):
             return float(delay) + random.uniform(0, min(15.0, float(delay) * 0.2))
 
         now = time.monotonic()
+        shared_until = float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0)
+        shared_seq = int(getattr(self.bili_http, "rate_limit_seq", 0) or 0)
+        if shared_seq > self._private_message_seen_rate_limit_seq and now < shared_until:
+            self._private_message_seen_rate_limit_seq = shared_seq
+            delay_until = shared_until + random.uniform(0, 15.0)
+            if delay_until > self._private_message_next_poll_at:
+                self._private_message_next_poll_at = delay_until
+            wait_secs = max(1, int(self._private_message_next_poll_at - now))
+            logger.info(
+                f"[BiliBot] 账号处于 B站 -509 频控冷却，私信轮询同步延后约 {wait_secs} 秒"
+            )
+            return
         if now < getattr(self, "_private_message_next_poll_at", 0.0):
             return
         last_activity = float(
@@ -362,6 +375,12 @@ class PrivatePoll(HostView):
                 self._private_message_backoff_seconds = backoff
                 self._private_message_success_streak = 0
                 self._private_message_next_poll_at = time.monotonic() + jittered(backoff)
+                note_rl = getattr(self.bili_http, "note_rate_limit", None)
+                if callable(note_rl):
+                    note_rl("private_messages", min_seconds=backoff)
+                    self._private_message_seen_rate_limit_seq = int(
+                        getattr(self.bili_http, "rate_limit_seq", 0) or 0
+                    )
                 if backoff != int(
                     getattr(self, "_private_message_last_warned_backoff", 0) or 0
                 ):
