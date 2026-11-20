@@ -17,6 +17,8 @@ from typing import Any
 TIMELINE_MARK = "【时间线】"
 PARTIAL_MARK = "【仅分析部分视频片段，不能确认全部内容】"
 SEGMENT_KEYS = {"timeline", "impression", "audio", "sensitive"}
+REQUIRED_SEGMENT_KEYS = {"timeline", "impression"}
+DEFAULT_SEGMENT_AUDIO = "听不到"
 MAX_ENTRIES = 24
 ENTRY_LIMIT = 160
 IMPRESSION_LIMIT = 300
@@ -79,8 +81,9 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     except (TypeError, ValueError) as exc:
         raise VideoTimelineError("invalid_json") from exc
     keys = SEGMENT_KEYS | ({"comment"} if with_comment else set())
-    if not isinstance(value, dict) or not SEGMENT_KEYS <= set(value) <= keys:
+    if not isinstance(value, dict) or not REQUIRED_SEGMENT_KEYS <= set(value):
         raise VideoTimelineError("segment_schema_mismatch")
+    value = {key: value[key] for key in keys if key in value}
     comment = None
     if with_comment and isinstance(value.get("comment"), dict):
         from .content_protocol import ContentProtocolError, parse_proactive_comment
@@ -95,7 +98,7 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
         raise VideoTimelineError("timeline_too_long")
     entries = []
     for item in timeline:
-        if not isinstance(item, dict) or set(item) != {"at", "text"}:
+        if not isinstance(item, dict) or not {"at", "text"} <= set(item):
             raise VideoTimelineError("timeline_entry_mismatch")
         at, text = item["at"], item["text"]
         if isinstance(at, bool) or not isinstance(at, (int, float)) or not math.isfinite(at) or at < 0:
@@ -110,13 +113,22 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     impression = value["impression"]
     if not isinstance(impression, str) or not impression.strip() or len(impression.strip()) > IMPRESSION_LIMIT:
         raise VideoTimelineError("impression_invalid")
-    audio = value["audio"]
-    if not isinstance(audio, str) or not audio.strip() or len(audio.strip()) > AUDIO_LIMIT:
+    raw_audio = value.get("audio")
+    if raw_audio is None:
+        audio = DEFAULT_SEGMENT_AUDIO
+    elif not isinstance(raw_audio, str) or not raw_audio.strip() or len(raw_audio.strip()) > AUDIO_LIMIT:
         raise VideoTimelineError("audio_invalid")
-    if not isinstance(value["sensitive"], bool):
+    else:
+        audio = raw_audio.strip()
+    raw_sensitive = value.get("sensitive")
+    if raw_sensitive is None:
+        sensitive = False
+    elif not isinstance(raw_sensitive, bool):
         raise VideoTimelineError("sensitive_must_be_bool")
-    out = {"timeline": entries, "impression": impression.strip(), "audio": audio.strip(),
-           "sensitive": value["sensitive"]}
+    else:
+        sensitive = raw_sensitive
+    out = {"timeline": entries, "impression": impression.strip(), "audio": audio,
+           "sensitive": sensitive}
     if with_comment:
         out["comment"] = comment
     return out
