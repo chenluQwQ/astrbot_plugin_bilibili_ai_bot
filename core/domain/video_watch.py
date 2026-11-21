@@ -28,7 +28,8 @@ from ..security.redact import wrap_untrusted
 from ..video_diagnostics import exception_detail, get_call_diagnostic, media_failure, set_call_diagnostic
 from ..infra.text import normalize_openai_base_url
 from ..video_timeline import (
-    SEGMENT_SCHEMA_PROMPT, SEGMENT_WITH_COMMENT_SCHEMA_PROMPT, VideoTimelineError, clock, format_subtitle_lines,
+    SEGMENT_SCHEMA_PROMPT, SEGMENT_WITH_COMMENT_SCHEMA_PROMPT, WATCH_TEXT_MAX, WATCH_TEXT_PER_SEGMENT,
+    VideoTimelineError, clock, format_subtitle_lines,
     format_timeline, format_watch, heard_nothing, parse_segment_watch, sensitive_partition, watch_digest,
 )
 
@@ -439,8 +440,9 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             return ("api", base, model)
         return None
 
-    _SEGMENT_MAX_TOKENS = 2500
-    _WATCH_TEXT_LIMIT = 3500
+    # 一段最多写 SEGMENT_TEXT_LIMIT 个字，加上 JSON 格式、印象和顺手写的评论，2500 不够；
+    # 给不够会写到一半被截断、JSON 不完整，整段作废。
+    _SEGMENT_MAX_TOKENS = 6000
 
     async def _analyze_video_media(self, video_info):
         set_call_diagnostic()
@@ -527,7 +529,8 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             else:
                 impression = await self._consolidate_segment_analyses(
                     video_info, [item["impression"] for item in watched])
-            text = format_watch(impression, self._fit_timeline(impression, entries), partial=partial)
+            limit = min(WATCH_TEXT_MAX, WATCH_TEXT_PER_SEGMENT * len(watched))
+            text = format_watch(impression, self._fit_timeline(impression, entries, limit), partial=partial)
             logger.info(f"[BiliBot] 📹 看完 {len(watched)} 段，时间线 {len(entries)} 条")
             return text
 
@@ -540,10 +543,11 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             for seg in segments:
                 self.video_files._cleanup_video_artifacts(seg)
 
-    def _fit_timeline(self, impression, entries):
+    @staticmethod
+    def _fit_timeline(impression, entries, limit):
         """时间线太长时均匀抽掉一些条目，整段存档不超过上限；开头结尾都留着。"""
         entries = sorted(entries, key=lambda entry: entry[0])
-        while len(entries) > 2 and len(format_watch(impression, entries)) > self._WATCH_TEXT_LIMIT:
+        while len(entries) > 2 and len(format_watch(impression, entries)) > limit:
             entries = entries[::2] if len(entries) % 2 else entries[::2] + entries[-1:]
         return entries
 

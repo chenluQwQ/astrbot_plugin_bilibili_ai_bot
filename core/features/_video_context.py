@@ -4,6 +4,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 from ..infra.host_view import HostView
+from ..video_timeline import WATCH_TEXT_MAX
 
 
 class VideoContext(HostView):
@@ -79,7 +80,7 @@ class VideoContext(HostView):
             )
             return ctx, seen_trace
         logger.info(f"[BiliBot] 📹 新视频，分析中：《{vi['title']}》by {vi['owner_name']}")
-        analysis = self.video_watch._clip_media_text(await self.video_watch._analyze_video_with_vision(vi), 1600)
+        analysis = self.video_watch._clip_media_text(await self.video_watch._analyze_video_with_vision(vi), WATCH_TEXT_MAX)
         logger.info(f"[BiliBot] 📹 分析结果：{analysis[:60]}...")
         analyzed_at = datetime.now().strftime("%Y-%m-%d %H:%M")
         cache_entry = {"bvid": bvid, "title": vi["title"], "desc": vi.get("desc", "")[:200], "owner_name": vi["owner_name"], "owner_mid": str(vi["owner_mid"]), "tname": vi["tname"], "analysis": analysis, "summary": self.video_watch._clip_media_text(analysis, 360), "time": analyzed_at, "analysis_basis": vi.get("analysis_basis", "legacy"), "content_analyzed": vi.get("analysis_basis") != "metadata"}
@@ -104,7 +105,7 @@ class VideoContext(HostView):
                 f"video:{bvid}", memory_text, memory_type="video",
                 extra={"bvid": bvid, "owner_mid": str(vi["owner_mid"]), "owner_name": vi.get("owner_name", ""), "video_title": vi["title"], "analysis_basis": vi.get("analysis_basis", "legacy"), "content_analyzed": vi.get("analysis_basis") != "metadata", **scored},
             )
-        ctx = f"【当前视频】\n标题：{vi['title']}\nUP主：{vi['owner_name']}（UID:{vi['owner_mid']}）\n分区：{vi['tname']}\n简介：{vi.get('desc', '')[:150]}\n内容概括：{analysis}"
+        ctx = f"【当前视频】\n标题：{vi['title']}\nUP主：{vi['owner_name']}（UID:{vi['owner_mid']}）\n分区：{vi['tname']}\n简介：{vi.get('desc', '')[:150]}\n内容概括：{self.video_watch._clip_media_text(analysis, 1600)}"
         tags = await self.bili_videos._get_video_tags(bvid)
         comments = await self.bili_comments._get_hot_comments(oid)
         if tags:

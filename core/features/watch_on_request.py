@@ -7,7 +7,7 @@ from datetime import datetime
 
 from astrbot.api import logger
 from ..infra.host_view import HostView
-from ..video_timeline import watch_digest
+from ..video_timeline import WATCH_TEXT_MAX, watch_digest
 
 
 class WatchOnRequest(HostView):
@@ -70,7 +70,7 @@ class WatchOnRequest(HostView):
             cached_summary = str(cached.get("summary", "") or "").strip()
             preview_only = cached.get("content_analyzed") is False or (cached.get("source") == "group_share" and not cached.get("content_analyzed"))
             if (cached_analysis or cached_summary) and not force_rewatch and not preview_only:
-                video_description = self.video_watch._clip_media_text(cached_analysis or cached_summary, 3500)
+                video_description = self.video_watch._clip_media_text(cached_analysis or cached_summary, WATCH_TEXT_MAX)
                 score = cached.get("score")
                 score_reason = str(cached.get("score_reason", "") or "")
                 mood = cached.get("mood", "平静")
@@ -105,7 +105,7 @@ class WatchOnRequest(HostView):
                 logger.info(f"[BiliBot] 🎬 开始观看私信分享视频：《{vi.get('title', '')}》")
                 analysis_info["_force_rewatch"] = force_rewatch or removed_bad_cache
                 video_description = self.video_watch._clip_media_text(
-                    await self.video_watch._analyze_video_with_vision(analysis_info), 3500
+                    await self.video_watch._analyze_video_with_vision(analysis_info), WATCH_TEXT_MAX
                 )
                 if analysis_info.get("_analysis_from_cache"):
                     return await self._watch_video_and_save_memory(actual_bvid, memory_source=memory_source)
