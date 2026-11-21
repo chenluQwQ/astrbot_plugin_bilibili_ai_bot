@@ -28,10 +28,9 @@ class ParseTests(unittest.TestCase):
             "invalid_json": "随便写的一段话",
             "segment_schema_mismatch": json.dumps({"timeline": [{"at": 1, "text": "a"}], "impression": "x"}),
             "timeline_empty": raw([]),
-            "timeline_too_long": raw([{"at": i, "text": "a"} for i in range(25)]),
             "timeline_entry_mismatch": raw([{"time": 1, "text": "a"}]),
             "timeline_at_invalid": raw([{"at": "00:01", "text": "a"}]),
-            "timeline_text_invalid": raw([{"at": 1, "text": "字" * 161}]),
+            "timeline_text_invalid": raw([{"at": 1, "text": "  "}]),
             "impression_invalid": raw([{"at": 1, "text": "a"}], impression=""),
             "audio_invalid": raw([{"at": 1, "text": "a"}], audio=""),
             "sensitive_must_be_bool": raw([{"at": 1, "text": "a"}], sensitive="否"),
@@ -40,6 +39,22 @@ class ParseTests(unittest.TestCase):
             with self.subTest(reason):
                 with self.assertRaisesRegex(VideoTimelineError, reason):
                     parse_segment_watch(text)
+
+    def test_overlong_fields_clipped_not_rejected(self):
+        """模型写得比建议长时这段照收，只截断；一段 1000 多字的记录不该整段丢掉。"""
+        out = parse_segment_watch(raw([{"at": 1, "text": "字" * 1200}], impression="印" * 1500, audio="声" * 500))
+        self.assertTrue(out["timeline"][0][1].endswith("…"))
+        self.assertLessEqual(len(out["timeline"][0][1]), 501)
+        self.assertLessEqual(len(out["impression"]), 801)
+        self.assertLessEqual(len(out["audio"]), 301)
+
+    def test_many_entries_thinned_keeping_ends(self):
+        out = parse_segment_watch(raw([{"at": i, "text": str(i)} for i in range(200)]))
+        self.assertEqual(len(out["timeline"]), 80)
+        self.assertEqual(out["timeline"][0], (0.0, "0"))
+        self.assertEqual(out["timeline"][-1], (199.0, "199"))
+        out = parse_segment_watch(raw([{"at": i, "text": "a"} for i in range(30)]))
+        self.assertEqual(len(out["timeline"]), 30)
 
     def test_bool_is_not_a_second(self):
         with self.assertRaises(VideoTimelineError):

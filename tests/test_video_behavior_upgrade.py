@@ -111,6 +111,21 @@ class VideoRecallTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cached["memory_stage"], "faded")
         self.assertEqual(cached["time"], original)
 
+    async def test_memory_fallback_drops_vector_before_writing_cache(self):
+        """视频缓存没了、只剩长期记忆时，记忆里的 float32 向量不能跟着写进 JSON 缓存。"""
+        from array import array
+        bot = Bot()
+        bot.files[config.VIDEO_MEMORY_FILE] = {}
+        bot.video_watch.memories.records.append({
+            "rpid": "tool_watch:" + BV, "bvid": BV, "memory_type": "video", "text": "看过榫卯抽屉",
+            "video_title": "榫卯", "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "embedding": array("f", [0.1, 0.2]), "_sqlite_id": 7,
+        })
+        item = bot.video_watch._cached_video_memory(BV)
+        self.assertNotIn("embedding", item)
+        self.assertNotIn("_sqlite_id", item)
+        json.dumps(bot.files[config.VIDEO_MEMORY_FILE], ensure_ascii=False)
+
     async def test_ledger_only_never_rewatches(self):
         bot = Bot()
         await bot.watch_on_request._watch_video_and_save_memory(BV)

@@ -17,10 +17,12 @@ from typing import Any
 TIMELINE_MARK = "【时间线】"
 PARTIAL_MARK = "【仅分析部分视频片段，不能确认全部内容】"
 SEGMENT_KEYS = {"timeline", "impression", "audio", "sensitive"}
-MAX_ENTRIES = 24
-ENTRY_LIMIT = 160
-IMPRESSION_LIMIT = 300
-AUDIO_LIMIT = 80
+# 提示词里给模型的是建议（最多 24 条、每条 160 字）。模型写多了不作废这段，超出下面的上限才截断；
+# 整条视频的存档长度另外由 ``_fit_timeline`` 抽条目控制。
+ENTRY_HARD_LIMIT = 500
+IMPRESSION_HARD_LIMIT = 800
+AUDIO_HARD_LIMIT = 300
+MAX_ENTRIES_HARD = 80
 # 视频模型收不到音轨时，audio 会写这个（提示词里要求的）。
 NO_AUDIO_WORDS = ("听不到", "没有收到声音", "无法听到", "收不到声音")
 
@@ -60,6 +62,19 @@ def _strip_fence(raw: str) -> str:
     return text
 
 
+def _clip(text: str, limit: int) -> str:
+    text = text.strip()
+    return text if len(text) <= limit else text[:limit].rstrip() + "…"
+
+
+def _thin(items: list, limit: int) -> list:
+    """条目太多时均匀留 ``limit`` 条，开头结尾都在。"""
+    if len(items) <= limit:
+        return items
+    step = (len(items) - 1) / (limit - 1)
+    return [items[round(i * step)] for i in range(limit)]
+
+
 def clock(seconds: float) -> str:
     seconds = max(0, int(seconds))
     hours, rest = divmod(seconds, 3600)
@@ -69,7 +84,8 @@ def clock(seconds: float) -> str:
 
 def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = None, *,
                         with_comment: bool = False) -> dict[str, Any]:
-    """校验一段的输出；秒数换成原视频里的秒数。超出这段长度的条目算模型编的，整段作废。
+    """校验一段的输出；秒数换成原视频里的秒数。超出这段长度的条目算模型编的，整段作废；
+    字数、条数超过建议只截断，不作废。
 
     ``with_comment``：这段还要顺便写评论。评论格式不对只丢评论（``comment`` 为 None），记录照收；
     想评论是正文，选了 skip 是空字符串。
@@ -91,8 +107,6 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     timeline = value["timeline"]
     if not isinstance(timeline, list) or not timeline:
         raise VideoTimelineError("timeline_empty")
-    if len(timeline) > MAX_ENTRIES:
-        raise VideoTimelineError("timeline_too_long")
     entries = []
     for item in timeline:
         if not isinstance(item, dict) or set(item) != {"at", "text"}:
@@ -103,19 +117,21 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
         # 模型标秒数常有一两秒误差，留 5 秒余量。
         if length is not None and at > length + 5:
             raise VideoTimelineError("timeline_at_outside_segment")
-        if not isinstance(text, str) or not text.strip() or len(text.strip()) > ENTRY_LIMIT:
+        if not isinstance(text, str) or not text.strip():
             raise VideoTimelineError("timeline_text_invalid")
-        entries.append((float(at) + float(offset or 0), text.strip()))
+        entries.append((float(at) + float(offset or 0), _clip(text, ENTRY_HARD_LIMIT)))
     entries.sort(key=lambda entry: entry[0])
+    entries = _thin(entries, MAX_ENTRIES_HARD)
     impression = value["impression"]
-    if not isinstance(impression, str) or not impression.strip() or len(impression.strip()) > IMPRESSION_LIMIT:
+    if not isinstance(impression, str) or not impression.strip():
         raise VideoTimelineError("impression_invalid")
     audio = value["audio"]
-    if not isinstance(audio, str) or not audio.strip() or len(audio.strip()) > AUDIO_LIMIT:
+    if not isinstance(audio, str) or not audio.strip():
         raise VideoTimelineError("audio_invalid")
     if not isinstance(value["sensitive"], bool):
         raise VideoTimelineError("sensitive_must_be_bool")
-    out = {"timeline": entries, "impression": impression.strip(), "audio": audio.strip(),
+    out = {"timeline": entries, "impression": _clip(impression, IMPRESSION_HARD_LIMIT),
+           "audio": _clip(audio, AUDIO_HARD_LIMIT),
            "sensitive": value["sensitive"]}
     if with_comment:
         out["comment"] = comment
