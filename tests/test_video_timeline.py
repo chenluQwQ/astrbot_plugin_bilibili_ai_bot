@@ -3,7 +3,7 @@ import json
 import unittest
 
 from core.video_timeline import (
-    PARTIAL_MARK, TIMELINE_MARK, VideoTimelineError, clock, format_subtitle_lines, format_watch, heard_nothing,
+    PARTIAL_MARK, SEGMENT_SCHEMA_PROMPT, SEGMENT_TEXT_HINT, SEGMENT_TEXT_LIMIT, TIMELINE_MARK, VideoTimelineError, clock, format_subtitle_lines, format_watch, heard_nothing,
     parse_segment_watch, watch_digest,
 )
 
@@ -40,21 +40,30 @@ class ParseTests(unittest.TestCase):
                 with self.assertRaisesRegex(VideoTimelineError, reason):
                     parse_segment_watch(text)
 
-    def test_overlong_fields_clipped_not_rejected(self):
-        """模型写得比建议长时这段照收，只截断；一段 1000 多字的记录不该整段丢掉。"""
-        out = parse_segment_watch(raw([{"at": 1, "text": "字" * 1200}], impression="印" * 1500, audio="声" * 500))
-        self.assertTrue(out["timeline"][0][1].endswith("…"))
-        self.assertLessEqual(len(out["timeline"][0][1]), 501)
+    def test_over_hint_kept_as_is(self):
+        """提示词说 1500 字，模型写到 2400 也照收，一个字不动。"""
+        timeline = [{"at": i, "text": "字" * 240} for i in range(10)]
+        out = parse_segment_watch(raw(timeline))
+        self.assertEqual(len(out["timeline"]), 10)
+        self.assertEqual(sum(len(t) for _, t in out["timeline"]), 2400)
+
+    def test_over_limit_thinned_keeping_ends(self):
+        out = parse_segment_watch(raw([{"at": i, "text": f"{i:03d}" + "字" * 97} for i in range(60)]))
+        texts = [t for _, t in out["timeline"]]
+        self.assertLessEqual(sum(map(len, texts)), SEGMENT_TEXT_LIMIT)
+        self.assertTrue(texts[0].startswith("000"))
+        self.assertTrue(texts[-1].startswith("059"))
+
+    def test_one_huge_entry_clipped_not_rejected(self):
+        out = parse_segment_watch(raw([{"at": 1, "text": "字" * 5000}], impression="印" * 1500, audio="声" * 500))
+        self.assertLessEqual(len(out["timeline"][0][1]), SEGMENT_TEXT_LIMIT + 1)
         self.assertLessEqual(len(out["impression"]), 801)
         self.assertLessEqual(len(out["audio"]), 301)
 
-    def test_many_entries_thinned_keeping_ends(self):
-        out = parse_segment_watch(raw([{"at": i, "text": str(i)} for i in range(200)]))
-        self.assertEqual(len(out["timeline"]), 80)
-        self.assertEqual(out["timeline"][0], (0.0, "0"))
-        self.assertEqual(out["timeline"][-1], (199.0, "199"))
-        out = parse_segment_watch(raw([{"at": i, "text": "a"} for i in range(30)]))
-        self.assertEqual(len(out["timeline"]), 30)
+    def test_prompt_states_the_smaller_number(self):
+        self.assertIn(str(SEGMENT_TEXT_HINT), SEGMENT_SCHEMA_PROMPT)
+        self.assertNotIn(str(SEGMENT_TEXT_LIMIT), SEGMENT_SCHEMA_PROMPT)
+        self.assertLess(SEGMENT_TEXT_HINT, SEGMENT_TEXT_LIMIT)
 
     def test_bool_is_not_a_second(self):
         with self.assertRaises(VideoTimelineError):

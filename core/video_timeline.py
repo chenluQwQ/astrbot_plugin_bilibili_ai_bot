@@ -17,16 +17,20 @@ from typing import Any
 TIMELINE_MARK = "【时间线】"
 PARTIAL_MARK = "【仅分析部分视频片段，不能确认全部内容】"
 SEGMENT_KEYS = {"timeline", "impression", "audio", "sensitive"}
-# 提示词里给模型的是建议（最多 24 条、每条 160 字）。模型写多了不作废这段，超出下面的上限才截断；
-# 整条视频的存档长度另外由 ``_fit_timeline`` 抽条目控制。
-ENTRY_HARD_LIMIT = 500
+# 一段时间线所有 text 加起来的字数：提示词里跟模型说 SEGMENT_TEXT_HINT，程序到 SEGMENT_TEXT_LIMIT 才动手
+# （均匀抽掉中间的条目，还超就截断）。中间留的余量是故意的，模型写超一点照收。
+SEGMENT_TEXT_HINT = 1500
+SEGMENT_TEXT_LIMIT = 2500
 IMPRESSION_HARD_LIMIT = 800
 AUDIO_HARD_LIMIT = 300
-MAX_ENTRIES_HARD = 80
+# 整条视频存档：每看一段留这么多（记录 + 时间戳 + 印象），段数乘上去；``_fit_timeline`` 按它抽条目。
+WATCH_TEXT_PER_SEGMENT = 3000
+# 视频最多切的段数配置再大，存档也不超过这个；调用方截存档文本时用它，别再写死更小的数。
+WATCH_TEXT_MAX = 30000
 # 视频模型收不到音轨时，audio 会写这个（提示词里要求的）。
 NO_AUDIO_WORDS = ("听不到", "没有收到声音", "无法听到", "收不到声音")
 
-_SEGMENT_RULES = """at 是这一段里的第几秒（数字，从 0 开始），按时间顺序，最多 24 条；text 每条 160 字以内，把看到的和听到的写在一起。text 用白描写。
+_SEGMENT_RULES = """at 是这一段里的第几秒（数字，从 0 开始），按时间顺序；text 把这一刻看到的和听到的写在一起，用白描写。这一段所有 text 加起来写 """ + str(SEGMENT_TEXT_HINT) + """ 字以内就够。
 
 这份记录之后要拿来聊这个视频、回答别人问的细节，所以记具体的东西：出现了什么人、什么东西，说了哪句话（尽量记原话），提到的名字、数字、结论，发生了什么意外或转折。「UP主开始讲解」「画面切换」「背景音乐响起」这种放在哪个视频里都成立的话，之后什么也回答不了，不用记；没有新内容的时刻就跳过，不用凑满条数。只写这段里确实看到、听到的，没听清的就不写，编出来的细节会被当真拿去说。"""
 
@@ -75,6 +79,18 @@ def _thin(items: list, limit: int) -> list:
     return [items[round(i * step)] for i in range(limit)]
 
 
+def fit_segment_text(entries: list, limit: int = SEGMENT_TEXT_LIMIT) -> list:
+    """一段的 text 加起来超过 ``limit``：先均匀少留几条（开头结尾都在），只剩两条还超就每条截断。"""
+    def total(items):
+        return sum(len(text) for _, text in items)
+    while len(entries) > 2 and total(entries) > limit:
+        entries = _thin(entries, max(2, len(entries) * 3 // 4))
+    if total(entries) > limit:
+        each = max(1, limit // len(entries))
+        entries = [(at, _clip(text, each)) for at, text in entries]
+    return entries
+
+
 def clock(seconds: float) -> str:
     seconds = max(0, int(seconds))
     hours, rest = divmod(seconds, 3600)
@@ -85,7 +101,7 @@ def clock(seconds: float) -> str:
 def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = None, *,
                         with_comment: bool = False) -> dict[str, Any]:
     """校验一段的输出；秒数换成原视频里的秒数。超出这段长度的条目算模型编的，整段作废；
-    字数、条数超过建议只截断，不作废。
+    字数超过建议照收，超过 ``SEGMENT_TEXT_LIMIT`` 才抽条目或截断，不作废。
 
     ``with_comment``：这段还要顺便写评论。评论格式不对只丢评论（``comment`` 为 None），记录照收；
     想评论是正文，选了 skip 是空字符串。
@@ -119,9 +135,9 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
             raise VideoTimelineError("timeline_at_outside_segment")
         if not isinstance(text, str) or not text.strip():
             raise VideoTimelineError("timeline_text_invalid")
-        entries.append((float(at) + float(offset or 0), _clip(text, ENTRY_HARD_LIMIT)))
+        entries.append((float(at) + float(offset or 0), text.strip()))
     entries.sort(key=lambda entry: entry[0])
-    entries = _thin(entries, MAX_ENTRIES_HARD)
+    entries = fit_segment_text(entries)
     impression = value["impression"]
     if not isinstance(impression, str) or not impression.strip():
         raise VideoTimelineError("impression_invalid")
