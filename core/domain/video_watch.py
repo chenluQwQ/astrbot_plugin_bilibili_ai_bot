@@ -111,6 +111,8 @@ class VideoWatch(HostView):
             else:
                 for old in reversed(getattr(getattr(self, "memories", None), "records", [])):
                     if isinstance(old, dict) and old.get("bvid") == bvid and old.get("memory_type") == "video" and old.get("content_analyzed") is not False:
+                        # 记忆里带着向量（float32 数组）和 sqlite 行号，视频缓存是 JSON，不能带过去。
+                        old = {k: v for k, v in old.items() if k not in {"embedding", "embedding_model", "_sqlite_id"}}
                         item = {**old, "summary": old.get("video_summary") or old.get("text", ""),
                                 "title": old.get("video_title", ""), "source": "semantic_memory"}
                         break
