@@ -23,6 +23,10 @@ class DynamicLog:
     def recent_texts(self, count: int) -> list[str]:
         return [item.get("text", "") for item in self._log.recent()[-count:] if item.get("text")]
 
+    def recent_posts(self, count: int) -> list:
+        """最近几条算数的动态（不含周报、日报、评论同步），旧的在前。"""
+        return [item for item in self._log.recent() if not _not_counted(item)][-count:]
+
     def posts_today(self) -> int:
         today = datetime.now().strftime("%Y-%m-%d")
         return sum(1 for item in self._log.on_day(today) if not _not_counted(item))

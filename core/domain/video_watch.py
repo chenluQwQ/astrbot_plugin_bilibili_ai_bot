@@ -397,6 +397,7 @@ class VideoWatch(HostView):
         video_info.pop("_media_diagnostics", None)
         video_info.pop("_subtitle_lines", None)
         video_info.pop("_comment_draft", None)
+        video_info.pop("_media_basis", None)
         video_info["_sensitive"] = sensitive_partition(video_info.get("tname"))
         joint = None
         if str(self.settings.get("VIDEO_VISUAL_ANALYSIS_POLICY")) != "always":
@@ -404,7 +405,7 @@ class VideoWatch(HostView):
         if joint is None or not joint.get("subtitle"):
             media_result = await self._analyze_video_media(video_info)
             if media_result:
-                video_info["analysis_basis"] = "video_media"
+                video_info["analysis_basis"] = video_info.pop("_media_basis", "video_media")
                 return media_result
         if joint is None:
             joint = await self._build_joint_context(video_info)
@@ -518,6 +519,11 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
                 return None
 
             direct = [item for item in watched if item["mode"] == "direct"]
+            # 直读失败退回截图的段听不到声音，记录里要分清楚
+            if len(direct) == len(watched):
+                video_info["_media_basis"] = "video_media"
+            else:
+                video_info["_media_basis"] = "video_frames" if not direct else "video_mixed"
             if self.settings.get("VIDEO_VISION_AUDIO") and direct and all(heard_nothing(item["audio"]) for item in direct):
                 media_failure(video_info, "audio", "视频模型说听不到声音：这个模型或接口可能不收音轨", self.config)
                 logger.warning(f"[BiliBot] 📹 视频模型好像没听到声音({bvid})：{direct[0]['audio'][:40]}")

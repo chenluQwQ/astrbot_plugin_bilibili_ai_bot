@@ -26,7 +26,7 @@ from ..content_protocol import (
     ContentProtocolError, DYNAMIC_IDEA_SCHEMA_PROMPT, DYNAMIC_SCHEMA_PROMPT, parse_dynamic_content,
 )
 from ..domain._memory_tags import POSTED_DYNAMIC, VIDEO, tag
-from ..domain.dynamic_ideas import DYNAMIC_KEY_PREFIX, EXTERNAL_SOURCES, FOLLOWED_DYNAMIC, REPOST, DynamicIdeas
+from ..domain.dynamic_ideas import DYNAMIC_KEY_PREFIX, EXTERNAL_SOURCES, FOLLOWED_DYNAMIC, KINDS, REPOST, DynamicIdeas
 from ..infra.host_view import HostView
 from ..infra.image_gen import ImageGen
 from ..runtime import ActionRequest, EventPriority
@@ -178,16 +178,48 @@ class DynamicPost(HostView):
         return self._pool_call("add", **idea)
 
     def _offered_ideas(self, fresh=()):
-        """交给模型挑的想法：刚看完的在前，其余按新到旧；已经发过动态的顺手作废。"""
+        """交给模型挑的想法：刚看完的在前，其余按新到旧；已经发过动态的、设置改了以后不该再发的顺手作废。"""
         offered = []
         for item in self._pool_call("pending") or []:
             if self.dynamic_log.has_key(item["key"]):
                 self._pool_call("drop", item["id"], "已经为它发过动态")
                 continue
+            unwanted = self._idea_unwanted(item)
+            if unwanted:
+                self._pool_call("drop", item["id"], unwanted)
+                continue
             offered.append(item)
         fresh = set(fresh)
         offered.sort(key=lambda item: item["id"] not in fresh)
         return offered[:self.MAX_OFFERED_IDEAS]
+
+    def tidy_ideas(self):
+        """把设置改过以后不该再发的想法作废（「今天」页打开时调，不用等到下次发动态才清）。"""
+        for item in self._pool_call("pending") or []:
+            unwanted = self._idea_unwanted(item)
+            if unwanted:
+                self._pool_call("drop", item["id"], unwanted)
+
+    def _idea_unwanted(self, item):
+        """设置改过以后不该再拿出来的想法，返回作废原因；还能用返回空串。
+
+        关了「看完视频想发时可以发动态」：看视频、番剧、关注动态攒下的不再发（站外来的不归它管）；
+        自定义的动态类型里去掉了某一类：这一类的不再发。"""
+        if item["source"] not in EXTERNAL_SOURCES and not self.settings.get("DYNAMIC_FROM_VIDEO"):
+            return "关了「看完视频想发时可以发动态」"
+        kinds = self._topic_kinds()
+        if kinds is not None and item["kind"] not in kinds:
+            return f"动态类型里没有「{item['kind']}」了"
+        return ""
+
+    def _topic_kinds(self):
+        """自定义动态类型里写到的池子类型（按行首认，如「吐槽：……」）；没自定义、或一行都认不出时返回 None，不按类型筛。"""
+        custom = self.settings.get("DYNAMIC_TOPICS")
+        if not custom or not isinstance(custom, list):
+            return None
+        lines = [str(line).strip() for line in custom]
+        kinds = {kind for kind in KINDS for line in lines if line.startswith(kind)}
+        return kinds or None
 
     def idea_pool(self):
         """动态池子；``initialize`` 里换成 sqlite 上的那份，没打开时（测试、打开失败）用内存里的。"""
@@ -434,6 +466,25 @@ class DynamicPost(HostView):
             "不照抄原文，也不要说成是你自己经历的。看完的感觉变淡、写不自然时仍可skip，没发的会继续留着几天。\n"
         )
 
+    @staticmethod
+    def _about_media(entry):
+        """这条动态是不是在说看过的视频、番剧：池子来的看来源，其余看正文里有没有书名号或「视频」。"""
+        if entry.get("bvid") or entry.get("source") in ("video", "bangumi"):
+            return True
+        if entry.get("source") in ("external", "followed_dynamic"):
+            return False
+        text = str(entry.get("text") or "")
+        return "《" in text or "视频" in text
+
+    def _media_heavy_note(self):
+        """最近发的大半在说视频、番剧时，提一句可以写别的。素材里视频多，不提的话模型总挑视频写。"""
+        recent = self.dynamic_log.recent_posts(5)
+        about = sum(1 for entry in recent if self._about_media(entry))
+        if len(recent) < 3 or about * 2 <= len(recent):
+            return ""
+        return (f"\n最近 {len(recent)} 条动态里有 {about} 条在说看过的视频或番剧。"
+                "这次可以先想想【可以写什么】里别的类型，池子里的想法不用也行。")
+
     async def _write(self, human_initiated=False, after_round=False, ideas=(), fresh=()):
         # 动态是公开的：按主动行为的读者过滤，私信里记的不进来
         perm = format_numbered(self.states.permanent_memory.read([]), "proactive")
@@ -444,6 +495,7 @@ class DynamicPost(HostView):
         recent_dynamics = self.dynamic_log.recent_texts(10)
         if recent_dynamics:
             history_section = "\n【最近发过的动态】\n" + "\n".join([f"- {d[:50]}..." if len(d) > 50 else f"- {d}" for d in recent_dynamics])
+        history_section += self._media_heavy_note()
         now = datetime.now()
         hour = now.hour
         if hour < 6:

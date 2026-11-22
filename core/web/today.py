@@ -1,6 +1,7 @@
-"""「今天」页：某一天看过的视频、发过的评论、发的动态、看的番剧，和动态池子；唯一的写操作是删自己的评论。
+"""「今天」页：某一天看过的视频、发过的评论、发的动态、看的番剧，和动态池子；写操作只有删自己的评论、作废不该再发的动态想法。
 
-动态池子（``domain/dynamic_ideas.py``）只读：那天进池或状态变了的想法，看今天时再带上所有还在等的。
+动态池子（``domain/dynamic_ideas.py``）：那天进池或状态变了的想法，看今天时再带上所有还在等的；
+看今天时先把设置改过以后不该再发的作废（``DynamicPost.tidy_ideas``）。
 
 都从活动日志按日期查（数据库里留 30 天）。评论另外查运行库的动作表：
 QQ 工具发的评论只记在那里，发出去不知道成没成的也只在那里。
@@ -191,6 +192,11 @@ def _ideas(plugin: Any, day: str, is_today: bool) -> list[dict[str, Any]]:
     post = getattr(app_of(plugin), "dynamic_post", None)
     if post is None:
         return []
+    if is_today:
+        try:
+            post.tidy_ideas()
+        except Exception as exc:
+            logger.warning(f"[BiliBot WebUI] 清理动态池子出错（照常列出）: {exc}")
     try:
         start = datetime.strptime(day, "%Y-%m-%d").timestamp()
         rows = post.idea_pool().touched(start, start + 86400, with_pending=is_today)

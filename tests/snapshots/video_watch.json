@@ -810,7 +810,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "帧的印象\n\n【时间线】\n[00:01] 帧",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -845,7 +845,7 @@
    ],
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -1691,7 +1691,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "帧一的印象 帧二的印象\n\n【时间线】\n[00:01] 帧一\n[05:01] 帧二",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -1726,7 +1726,7 @@
    ],
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -1808,7 +1808,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "帧的印象\n\n【时间线】\n[00:01] 帧",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -1831,7 +1831,7 @@
    ],
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -2098,7 +2098,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -2120,7 +2120,7 @@
    },
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -2608,7 +2608,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "客户端看到的的印象\n\n【时间线】\n[00:01] 客户端看到的",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -2625,7 +2625,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -2695,7 +2695,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -2712,7 +2712,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -3004,7 +3004,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -3021,7 +3021,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -4517,7 +4517,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -4534,7 +4534,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -4928,7 +4928,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -4945,7 +4945,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -5258,7 +5258,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "一段的印象 二段的印象\n\n【时间线】\n[00:01] 一段\n[05:01] 二段",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -5275,7 +5275,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -5374,7 +5374,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "一段的印象 二段的印象\n\n【时间线】\n[00:01] 一段\n[05:01] 二段",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -5391,7 +5391,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -5461,7 +5461,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "【仅分析部分视频片段，不能确认全部内容】画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -5478,7 +5478,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -5572,7 +5572,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "【仅分析部分视频片段，不能确认全部内容】二段的印象\n\n【时间线】\n[05:01] 二段",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -5595,7 +5595,7 @@
    ],
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -5665,7 +5665,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "【仅分析部分视频片段，不能确认全部内容】画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -5682,7 +5682,7 @@
   "info": {
    "_sensitive": false,
    "_subtitle_lines": [],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
@@ -6220,7 +6220,7 @@
    "video_memory.json": {
     "BV1234567890": {
      "analysis": "画面的印象\n\n【时间线】\n[00:01] 画面",
-     "analysis_basis": "video_media",
+     "analysis_basis": "video_frames",
      "bvid": "BV1234567890",
      "content_analyzed": true,
      "desc": "简介",
@@ -6248,7 +6248,7 @@
      "to": 72.0
     }
    ],
-   "analysis_basis": "video_media",
+   "analysis_basis": "video_frames",
    "bvid": "BV1234567890",
    "cid": 22,
    "desc": "简介",
