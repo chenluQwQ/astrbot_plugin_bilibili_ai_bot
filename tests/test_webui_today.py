@@ -48,7 +48,7 @@ def _plugin(layered=None):
 
 def _pool_plugin(pool):
     plugin = _plugin()
-    plugin.app.dynamic_post = types.SimpleNamespace(idea_pool=lambda: pool)
+    plugin.app.dynamic_post = types.SimpleNamespace(idea_pool=lambda: pool, tidy_ideas=lambda: None)
     return plugin
 
 

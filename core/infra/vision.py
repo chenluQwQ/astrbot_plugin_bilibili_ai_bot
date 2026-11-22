@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
+import logging
 import math
 
 import aiohttp
@@ -46,6 +48,65 @@ _UNAVAILABLE_HINTS = (
     "no such model", "model_not_found", "insufficient", "quota", "余额",
 )
 _TOO_LARGE_HINTS = ("too large", "payload", "413", "exceeds", "limit exceeded", "过长", "过大")
+
+
+# AstrBot 的通用接口收到「附件不对 / 模型不是多模态 / 图片被审核拦了」这类报错时，会把图片和
+# image_url 形状的视频删掉，只用文字重试，日志里只有一条：
+#   检测到图片请求失败（invalid_attachment），已移除图片并重试（保留文本内容）。
+# 返回值看不出来，模型拿到的只剩文字，会照着标题和简介编。插件只能靠这条日志知道，
+# 所以调用时在当前任务上挂一个标记，AstrBot 记这条日志时把标记打上。
+_MEDIA_DROP_MARKERS = ("已移除图片并重试",)
+_media_drop_watch: contextvars.ContextVar = contextvars.ContextVar("bilibot_media_drop_watch", default=None)
+_MEDIA_DROP_HANDLER_NAME = "bilibot_media_drop"
+
+
+class _MediaDropHandler(logging.Handler):
+    def emit(self, record):
+        watch = _media_drop_watch.get()
+        if watch is None:
+            return
+        try:
+            message = record.getMessage()
+        except Exception:
+            return
+        if any(marker in message for marker in _MEDIA_DROP_MARKERS):
+            watch["dropped"] = True
+            args = record.args if isinstance(record.args, tuple) else ()
+            watch["why"] = str(args[0]) if args else ""
+
+
+def _watch_media_drops():
+    """在 AstrBot 的日志上挂一次；插件重载时先摘掉旧的那个。"""
+    root = logging.getLogger("astrbot")
+    for handler in list(root.handlers):
+        if getattr(handler, "name", "") == _MEDIA_DROP_HANDLER_NAME:
+            if isinstance(handler, _MediaDropHandler):
+                return
+            root.removeHandler(handler)
+    handler = _MediaDropHandler(level=logging.WARNING)
+    handler.name = _MEDIA_DROP_HANDLER_NAME
+    root.addHandler(handler)
+
+
+def _image_mime(b64):
+    """按文件头认图片格式；评论图常有 png、webp、gif，一律写 jpeg 会被严格的接口拒掉。"""
+    try:
+        head = base64.b64decode(str(b64 or "")[:32])
+    except Exception:
+        return "image/jpeg"
+    if head.startswith(b"\x89PNG"):
+        return "image/png"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[:4] == b"GIF8":
+        return "image/gif"
+    return "image/jpeg"
+
+
+def _has_media(content_parts):
+    return isinstance(content_parts, list) and any(
+        isinstance(part, dict) and part.get("type") not in (None, "text") for part in content_parts
+    )
 
 
 def classify_vision_rejection(exc):
@@ -242,10 +303,10 @@ class Vision:
             return ""
         try:
             content = []
-            for url in image_urls[:3]:
+            for url in image_urls[:4]:
                 b64 = await self._fetch_image_base64(url)
                 if b64:
-                    content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+                    content.append({"type": "image_url", "image_url": {"url": f"data:{_image_mime(b64)};base64,{b64}"}})
             if not content:
                 return ""
             content.append({"type": "text", "text": "请用50字以内描述这些图片的内容。"})
@@ -265,11 +326,25 @@ class Vision:
         set_call_diagnostic(reason="视觉提供商未配置" if not provider_id else "视觉模型返回空内容", provider=safe_detail(provider_id, self.config, 100))
         if not provider_id:
             return None
+        watch = None
+        token = None
+        if _has_media(content_parts):
+            _watch_media_drops()
+            watch = {}
+            token = _media_drop_watch.set(watch)
         try:
             kwargs = {"chat_provider_id": provider_id, "prompt": content_parts, "max_tokens": max_tokens}
             if system_prompt:
                 kwargs["system_prompt"] = system_prompt
             resp = await self.context.llm_generate(**kwargs)
+            if watch and watch.get("dropped"):
+                why = watch.get("why") or "附件被拒"
+                reason = f"AstrBot 把图片/视频删了、只用文字重试（{why}），模型没看到画面，这次的回答不用"
+                # 被审核拦是这一段内容的事，换一段可能就过；其余是这个模型或报文形状收不了。
+                reject = "other" if "moderat" in why else "unsupported"
+                set_call_diagnostic(reason=reason, provider=safe_detail(provider_id, self.config, 100), rejection=reject)
+                logger.warning(f"[BiliBot] {reason}")
+                return None
             if resp and resp.completion_text:
                 return resp.completion_text.strip()
         except Exception as e:
@@ -277,4 +352,7 @@ class Vision:
             reason = exception_detail(e, self.config)
             set_call_diagnostic(reason=reason, provider=safe_detail(provider_id, self.config, 100), rejection=reject)
             logger.warning(f"[BiliBot] AstrBot 多模态 provider 调用失败：{reason}")
+        finally:
+            if token is not None:
+                _media_drop_watch.reset(token)
         return None

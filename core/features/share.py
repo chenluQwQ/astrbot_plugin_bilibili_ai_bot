@@ -7,6 +7,8 @@ import re
 
 from ..infra.host_view import HostView
 
+_COMMAND_WORD = re.compile(r"^bili(?:umo|[\u4e00-\u9fff]{2,6})(?:\s|$)", re.IGNORECASE)
+
 
 class ShareHandler(HostView):
     """群聊、私聊的每条消息都会进来；自动、手动命令、LLM 工具三种触发。"""
@@ -34,9 +36,9 @@ class ShareHandler(HostView):
         }
         trigger_key, trigger_label = trigger_keys.get(trigger_mode, trigger_keys["auto"])
         msg = (event.message_str or "").strip()
-        if text_override is None and (
-            msg.startswith("/") or re.match(r"^bili解析(?:\s|$)", msg, re.IGNORECASE)
-        ):
+        # AstrBot 先把唤醒前缀「/」去掉再交给插件，「/bili测试查询 BV…」到这里是「bili测试查询 BV…」。
+        # 命令都是 bili 加几个汉字（还有 biliUMO），第一个词长这样就当命令，不抢着解析。
+        if text_override is None and (msg.startswith("/") or _COMMAND_WORD.match(msg)):
             return
         text = str(text_override) if text_override is not None else self.share_links._collect_share_text(event)
         if not text.strip() and trigger_mode in ("manual", "llm"):
