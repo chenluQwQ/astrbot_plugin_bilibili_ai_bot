@@ -336,7 +336,7 @@ class LLMGateway:
                 kwargs["system_prompt"] = system_prompt
             return self._context().llm_generate(**kwargs)
 
-        return await self._astrbot_call(generate, provider_id, circuit, timeout)
+        return await self._astrbot_call(generate, provider_id, circuit, timeout, allow_fallback=True)
 
     async def tool_loop(self, prompt, system_prompt="", *, event, tools, max_steps,
                         tool_call_timeout=120, provider_id=None, circuit=None, timeout=None, max_tokens=900):
@@ -360,8 +360,11 @@ class LLMGateway:
 
         return await self._astrbot_call(generate, provider_id, circuit, timeout)
 
-    async def _astrbot_call(self, generate, provider_id, circuit, timeout=None):
-        """熔断、选 provider（默认路由支持 AstrBot 备用模型回退）、空回复和异常的处理。"""
+    async def _astrbot_call(self, generate, provider_id, circuit, timeout=None, *, allow_fallback=False):
+        """熔断、选 provider、空回复和异常的处理，普通调用和工具循环共用。
+
+        ``allow_fallback``：主模型临时出错时换 AstrBot 配的备用模型再试，只给普通调用用。
+        工具循环出错时可能已经执行过工具（发了评论、点了赞），整轮重来会做两遍。"""
         config = self._config()
         self.last_error = ""
         set_call_diagnostic()
@@ -383,7 +386,7 @@ class LLMGateway:
                 await circuit.failure(mode, reason)
                 return None
 
-            candidates = [pid, *self.resolve_fallback_providers(pid, provider_id)]
+            candidates = [pid, *(self.resolve_fallback_providers(pid, provider_id) if allow_fallback else ())]
             deadline = (time.monotonic() + float(timeout)) if timeout else None
 
             for idx, candidate_pid in enumerate(candidates):

@@ -230,7 +230,7 @@ class VideoFiles:
                 code, _, stderr = await self._run_process(
                     "yt-dlp", "-o", output_template,
                     "--format", fmt,
-                    "--no-playlist", "--merge-output-format", "mp4",
+                    "--no-playlist", "--merge-output-format", "mp4", "--remux-video", "mp4",
                     "--cookies", cookie_file,
                     "--add-header", "Referer: https://www.bilibili.com",
                     "--limit-rate", "2M",
@@ -351,7 +351,7 @@ class VideoFiles:
                     "yt-dlp", "--load-info-json", info_file,
                     "-o", output_template,
                     "--format", fmt,
-                    "--no-playlist", "--merge-output-format", "mp4",
+                    "--no-playlist", "--merge-output-format", "mp4", "--remux-video", "mp4",
                     "--limit-rate", "2M",
                     timeout=timeout,
                 )

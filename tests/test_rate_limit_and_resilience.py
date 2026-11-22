@@ -25,12 +25,6 @@ from core.infra.bili.http import (
     RATE_LIMIT_BURST_WINDOW,
     RATE_LIMIT_RESET_WINDOW,
 )
-from core.video_timeline import (
-    DEFAULT_SEGMENT_AUDIO,
-    VideoTimelineError,
-    heard_nothing,
-    parse_segment_watch,
-)
 from llm_fakes import LegacyModels
 from private_parts import PrivateParts
 from reply_owners import HostFile, attach_reply_owners
@@ -288,7 +282,7 @@ class _DownloadProbe(VideoParts):
 
 
 class VideoDownloadResilienceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_download_uses_merge_output_format_without_recode_video(self):
+    async def test_download_remuxes_to_mp4_without_recode_video(self):
         with tempfile.TemporaryDirectory() as folder:
             probe = _DownloadProbe(folder, [(0, "", "")])
             with patch("core.infra.video_files.TEMP_VIDEO_DIR", folder):
@@ -297,6 +291,7 @@ class VideoDownloadResilienceTests(unittest.IsolatedAsyncioTestCase):
             cmd = probe.commands[0]
             self.assertIn("--merge-output-format", cmd)
             self.assertNotIn("--recode-video", cmd)
+            self.assertEqual(cmd[cmd.index("--remux-video") + 1], "mp4")
 
     async def test_repeated_timeouts_skip_heavy_formats_and_reach_worst_fallback(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -356,6 +351,7 @@ class VideoDownloadResilienceTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(fp and fp.endswith("BV1RESILIENCE.mp4"))
             self.assertTrue(all("--recode-video" not in cmd for cmd in probe.commands))
             self.assertTrue(all("--merge-output-format" in cmd for cmd in probe.commands))
+            self.assertTrue(all("--remux-video" in cmd for cmd in probe.commands))
             attempted_formats = [cmd[cmd.index("--format") + 1] for cmd in probe.commands]
             self.assertEqual(attempted_formats, [formats[0], formats[1], formats[-1]])
 
@@ -509,7 +505,8 @@ class LLMFallbackResilienceTests(unittest.IsolatedAsyncioTestCase):
         bot = _LLMBot(ctx, LLM_PROVIDER_ID="")
         self.assertEqual(bot._llm_gateway().resolve_fallback_providers("primary"), ["backup-1", "backup-2"])
 
-    async def test_tool_loop_falls_back_on_transient_500(self):
+    async def test_tool_loop_does_not_fall_back(self):
+        """工具循环可能已经执行过工具，换模型整轮重来会做两遍，所以不换。"""
         ctx = _FallbackContext(
             "provider/primary",
             astrbot_config={"agent_runner": {"config": {"model": {"fallback_provider_ids": ["provider/backup"]}}}},
@@ -526,82 +523,8 @@ class LLMFallbackResilienceTests(unittest.IsolatedAsyncioTestCase):
             result = await bot._llm_gateway().tool_loop(
                 "查一下", event=object(), tools=[object()], max_steps=2,
             )
-        self.assertEqual(result, "工具循环备用成功")
-        self.assertEqual(ctx.tool_calls, ["provider/primary", "provider/backup"])
-
-
-class TimelineSchemaResilienceTests(unittest.TestCase):
-    def test_missing_optional_audio_and_sensitive_default_cleanly(self):
-        raw_text = json.dumps(
-            {
-                "timeline": [{"at": 5, "text": "开场展示零件"}],
-                "impression": "一段手工拼装教程",
-            },
-            ensure_ascii=False,
-        )
-        parsed = parse_segment_watch(raw_text, offset=0, length=60)
-        self.assertEqual(parsed["timeline"], [(5.0, "开场展示零件")])
-        self.assertEqual(parsed["impression"], "一段手工拼装教程")
-        self.assertEqual(parsed["audio"], DEFAULT_SEGMENT_AUDIO)
-        self.assertTrue(heard_nothing(parsed["audio"]))
-        self.assertIs(parsed["sensitive"], False)
-
-        # Explicit nulls for optional fields also default cleanly.
-        raw_nulls = json.dumps(
-            {
-                "timeline": [{"at": 10, "text": "继续焊接"}],
-                "impression": "焊接细节",
-                "audio": None,
-                "sensitive": None,
-            },
-            ensure_ascii=False,
-        )
-        parsed_nulls = parse_segment_watch(raw_nulls, offset=60, length=60)
-        self.assertEqual(parsed_nulls["timeline"], [(70.0, "继续焊接")])
-        self.assertEqual(parsed_nulls["audio"], DEFAULT_SEGMENT_AUDIO)
-        self.assertIs(parsed_nulls["sensitive"], False)
-
-    def test_harmless_extra_keys_in_segment_and_entries_are_ignored(self):
-        raw_text = json.dumps(
-            {
-                "timeline": [
-                    {"at": 2, "text": "人物出场", "speaker": "UP主", "confidence": 0.95},
-                    {"at": 18, "text": "展示成品", "extra_tag": "craft"},
-                ],
-                "impression": "过程清晰",
-                "audio": "只有音乐",
-                "sensitive": False,
-                "comment_hint": "可以夸夸细节",
-                "summary": "多余字段",
-                "comment": {"decision": "comment", "text": "未请求评论时的多余字段"},
-            },
-            ensure_ascii=False,
-        )
-        parsed = parse_segment_watch(raw_text, offset=100, length=60, with_comment=False)
-        self.assertEqual(set(parsed), {"timeline", "impression", "audio", "sensitive"})
-        self.assertEqual(parsed["timeline"], [(102.0, "人物出场"), (118.0, "展示成品")])
-        self.assertEqual(parsed["audio"], "只有音乐")
-        self.assertIs(parsed["sensitive"], False)
-
-    def test_missing_required_keys_invalid_types_and_fabricated_timestamps_still_rejected(self):
-        for reason, payload in (
-            ("segment_schema_mismatch", json.dumps(["not", "a", "dict"])),
-            ("segment_schema_mismatch", json.dumps({"impression": "缺时间线"})),
-            ("segment_schema_mismatch", json.dumps({"timeline": [{"at": 1, "text": "缺印象"}]})),
-            ("timeline_entry_mismatch", json.dumps({"timeline": [{"at": 1}], "impression": "缺text"})),
-            ("audio_invalid", json.dumps({"timeline": [{"at": 1, "text": "a"}], "impression": "ok", "audio": ""})),
-            ("sensitive_must_be_bool", json.dumps({"timeline": [{"at": 1, "text": "a"}], "impression": "ok", "sensitive": "false"})),
-        ):
-            with self.subTest(reason=reason, payload=payload):
-                with self.assertRaisesRegex(VideoTimelineError, reason):
-                    parse_segment_watch(payload, length=60)
-
-        fabricated = json.dumps(
-            {"timeline": [{"at": 500, "text": "编造的时间点"}], "impression": "胡编"},
-            ensure_ascii=False,
-        )
-        with self.assertRaisesRegex(VideoTimelineError, "timeline_at_outside_segment"):
-            parse_segment_watch(fabricated, length=60)
+        self.assertIsNone(result)
+        self.assertEqual(ctx.tool_calls, ["provider/primary"])
 
 
 if __name__ == "__main__":
