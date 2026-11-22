@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import re
 import time
 
 from astrbot.api import logger
@@ -21,6 +22,57 @@ from .text import normalize_openai_base_url
 MODE_DISABLED = "disabled"
 MODE_CLOSED = "closed"
 MODE_PROBE = "probe"
+
+_MAX_FALLBACK_PROVIDERS = 3
+_TRANSIENT_STATUS_RE = re.compile(r"\b(?:50[0-4]|52[0-9]|429|408)\b")
+_TRANSIENT_CLASS_HINTS = (
+    "InternalServer", "BadGateway", "ServiceUnavailable", "GatewayTimeout",
+    "APIConnection", "APITimeout", "RateLimit", "ConnectError", "ReadTimeout",
+    "WriteTimeout", "PoolTimeout", "RemoteProtocol", "ServerDisconnected",
+    "ClientConnection", "ClientConnector", "ClientOSError",
+)
+_TRANSIENT_MESSAGE_HINTS = (
+    "internal server error", "bad gateway", "service unavailable", "gateway timeout",
+    "temporarily unavailable", "overloaded", "rate limit", "too many requests",
+    "connection error", "connection reset", "connection refused", "connection aborted",
+    "server disconnected", "timed out", "timeout", "network is unreachable",
+    "remote protocol",
+)
+
+
+def _exception_status_code(exc):
+    for target in (exc, getattr(exc, "response", None)):
+        if target is None:
+            continue
+        for attr in ("status_code", "status", "code"):
+            value = getattr(target, attr, None)
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+    return None
+
+
+def _is_transient_provider_error(exc, _depth=0):
+    """判断 provider 异常是否属于可切换备用模型的临时故障（5xx / 429 / 408 / 连接或超时错误）。"""
+    if exc is None or _depth > 3:
+        return False
+    status = _exception_status_code(exc)
+    if status is not None:
+        return status >= 500 or status in (408, 429)
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError)):
+        return True
+    name = type(exc).__name__
+    if any(hint in name for hint in _TRANSIENT_CLASS_HINTS):
+        return True
+    message = str(exc or "").lower()
+    if _TRANSIENT_STATUS_RE.search(message) or any(hint in message for hint in _TRANSIENT_MESSAGE_HINTS):
+        return True
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None and cause is not exc and _is_transient_provider_error(cause, _depth + 1):
+        return True
+    context = getattr(exc, "__context__", None)
+    if context is not None and context is not exc and context is not cause:
+        return _is_transient_provider_error(context, _depth + 1)
+    return False
 
 
 class CircuitState(enum.Enum):
@@ -198,6 +250,83 @@ class LLMGateway:
                 logger.debug(f"[BiliBot] 读取可用聊天模型列表失败：{exc}")
         return ""
 
+    def resolve_fallback_providers(self, primary_id, provider_id=None):
+        """继承 AstrBot 默认聊天模型时，读取其公开配置里的备用模型列表（按优先级去重）。
+
+        插件显式指定了 ``provider_id`` 或配置了非默认 ``LLM_PROVIDER_ID`` 时，严格保持原契约不切换。
+        """
+        if provider_id is not None and str(provider_id).strip():
+            return []
+        configured = self._settings().get("LLM_PROVIDER_ID")
+        if configured and str(configured).strip() and str(configured).strip().lower() != "default":
+            return []
+
+        context = self._context()
+        get_config = getattr(context, "get_config", None)
+        if not callable(get_config):
+            return []
+        try:
+            cfg = get_config()
+        except Exception as exc:
+            logger.debug(f"[BiliBot] 读取 AstrBot 备用模型配置失败：{exc}")
+            return []
+        if not cfg or not callable(getattr(cfg, "get", None)):
+            return []
+
+        raw_ids = None
+        agent_runner = cfg.get("agent_runner")
+        if callable(getattr(agent_runner, "get", None)):
+            runner_cfg = agent_runner.get("config")
+            if callable(getattr(runner_cfg, "get", None)):
+                model_cfg = runner_cfg.get("model")
+                if callable(getattr(model_cfg, "get", None)):
+                    raw_ids = model_cfg.get("fallback_provider_ids")
+        if not raw_ids:
+            provider_settings = cfg.get("provider_settings")
+            if callable(getattr(provider_settings, "get", None)):
+                raw_ids = provider_settings.get("fallback_chat_models")
+        if not isinstance(raw_ids, (list, tuple)):
+            return []
+
+        known_chat_ids = None
+        providers_getter = getattr(context, "get_all_providers", None)
+        if callable(providers_getter):
+            try:
+                providers = providers_getter() or []
+                collected = set()
+                for prov in providers:
+                    meta = prov.meta() if callable(getattr(prov, "meta", None)) else None
+                    pid = getattr(meta, "id", None) if meta is not None else None
+                    if pid:
+                        collected.add(str(pid))
+                if collected:
+                    known_chat_ids = collected
+            except Exception as exc:
+                logger.debug(f"[BiliBot] 读取可用聊天模型列表用于校验备用模型失败：{exc}")
+
+        provider_by_id = getattr(context, "get_provider_by_id", None) if known_chat_ids is None else None
+        seen = {str(primary_id).strip()} if primary_id else set()
+        fallbacks = []
+        for item in raw_ids:
+            if not isinstance(item, str):
+                continue
+            fid = item.strip()
+            if not fid or fid in seen:
+                continue
+            if known_chat_ids is not None and fid not in known_chat_ids:
+                continue
+            if callable(provider_by_id):
+                try:
+                    if provider_by_id(fid) is None:
+                        continue
+                except Exception:
+                    continue
+            seen.add(fid)
+            fallbacks.append(fid)
+            if len(fallbacks) >= _MAX_FALLBACK_PROVIDERS:
+                break
+        return fallbacks
+
     async def call(self, prompt, system_prompt="", max_tokens=300, provider_id=None, *, circuit=None, timeout=None):
         """走 AstrBot 的 provider 调一次。"""
         def generate(pid):
@@ -207,7 +336,7 @@ class LLMGateway:
                 kwargs["system_prompt"] = system_prompt
             return self._context().llm_generate(**kwargs)
 
-        return await self._astrbot_call(generate, provider_id, circuit, timeout)
+        return await self._astrbot_call(generate, provider_id, circuit, timeout, allow_fallback=True)
 
     async def tool_loop(self, prompt, system_prompt="", *, event, tools, max_steps,
                         tool_call_timeout=120, provider_id=None, circuit=None, timeout=None, max_tokens=900):
@@ -231,8 +360,11 @@ class LLMGateway:
 
         return await self._astrbot_call(generate, provider_id, circuit, timeout)
 
-    async def _astrbot_call(self, generate, provider_id, circuit, timeout=None):
-        """熔断、选 provider、空回复和异常的处理，普通调用和工具循环共用。"""
+    async def _astrbot_call(self, generate, provider_id, circuit, timeout=None, *, allow_fallback=False):
+        """熔断、选 provider、空回复和异常的处理，普通调用和工具循环共用。
+
+        ``allow_fallback``：主模型临时出错时换 AstrBot 配的备用模型再试，只给普通调用用。
+        工具循环出错时可能已经执行过工具（发了评论、点了赞），整轮重来会做两遍。"""
         config = self._config()
         self.last_error = ""
         set_call_diagnostic()
@@ -253,17 +385,55 @@ class LLMGateway:
                 logger.error(f"[BiliBot] LLM 调用失败：{reason}，请检查 AstrBot 的默认聊天模型配置")
                 await circuit.failure(mode, reason)
                 return None
-            resp = await _within(generate(pid), timeout)
-            text = resp.completion_text.strip() if resp and resp.completion_text else ""
-            if not text:
-                reason = "模型返回空内容"
-                self.last_error = reason
-                set_call_diagnostic(reason=reason, route="astrbot_provider", provider=safe_detail(pid, config, 100))
-                logger.error(f"[BiliBot] LLM 调用失败：{reason}")
-                await circuit.failure(mode, reason)
-                return None
-            await circuit.success(mode)
-            return text
+
+            candidates = [pid, *(self.resolve_fallback_providers(pid, provider_id) if allow_fallback else ())]
+            deadline = (time.monotonic() + float(timeout)) if timeout else None
+
+            for idx, candidate_pid in enumerate(candidates):
+                pid = candidate_pid
+                set_call_diagnostic(route="astrbot_provider", provider=safe_detail(pid, config, 100))
+                attempt_timeout = None
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise _CallTimeout()
+                    attempt_timeout = remaining
+                try:
+                    resp = await _within(generate(pid), attempt_timeout)
+                except asyncio.CancelledError:
+                    raise
+                except _CallTimeout:
+                    raise
+                except Exception as e:
+                    detail = exception_detail(e, config)
+                    has_next = idx + 1 < len(candidates)
+                    if (
+                        has_next
+                        and _is_transient_provider_error(e)
+                        and (deadline is None or time.monotonic() < deadline)
+                    ):
+                        next_pid = candidates[idx + 1]
+                        logger.warning(
+                            f"[BiliBot] 模型 {safe_detail(pid, config, 100)} 暂时异常（{detail}），"
+                            f"切换 AstrBot 备用模型 {safe_detail(next_pid, config, 100)} 重试"
+                        )
+                        continue
+                    self.last_error = detail
+                    set_call_diagnostic(reason=self.last_error, route="astrbot_provider", provider=safe_detail(pid, config, 100))
+                    logger.error(f"[BiliBot] LLM 调用失败: {self.last_error}")
+                    await circuit.failure(mode, self.last_error)
+                    return None
+
+                text = resp.completion_text.strip() if resp and resp.completion_text else ""
+                if not text:
+                    reason = "模型返回空内容"
+                    self.last_error = reason
+                    set_call_diagnostic(reason=reason, route="astrbot_provider", provider=safe_detail(pid, config, 100))
+                    logger.error(f"[BiliBot] LLM 调用失败：{reason}")
+                    await circuit.failure(mode, reason)
+                    return None
+                await circuit.success(mode)
+                return text
         except asyncio.CancelledError:
             await circuit.abandon(mode)
             raise

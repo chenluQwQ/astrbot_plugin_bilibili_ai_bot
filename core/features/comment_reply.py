@@ -13,6 +13,12 @@ from ..runtime import EventState, InboundEvent
 from ..infra.host_view import HostView
 from ..security.inbound import has_block_keyword
 
+# 评论/@ 通知每次轮询会打 2 个 msgfeed 接口；与主循环 POLL_INTERVAL 解耦，避免每 20 秒高频触发 -509。
+COMMENT_POLL_MIN_INTERVAL = 60
+COMMENT_POLL_IDLE_INTERVAL = 120
+COMMENT_POLL_ACTIVE_WINDOW = 600
+RATE_LIMIT_CODE = -509
+
 
 @dataclass
 class CommentTurn:
@@ -67,6 +73,28 @@ class CommentReply(HostView):
         super().__init__(host)
         self._first_poll = True
         self._reply_cooldown_until = 0.0
+        self._comment_next_poll_at = 0.0
+        self._comment_last_activity_at = 0.0
+        self._comment_last_rate_limit_seq = 0
+
+    def _comment_poll_interval(self, now):
+        """评论通知拉取间隔：空闲至少 120 秒、刚收到评论至少 60 秒，避免跟随 20 秒主循环高频触发 -509。"""
+        try:
+            configured = int(self.settings.get("POLL_INTERVAL") or 0)
+        except (TypeError, ValueError):
+            configured = 0
+        active_interval = max(COMMENT_POLL_MIN_INTERVAL, configured)
+        idle_interval = max(COMMENT_POLL_IDLE_INTERVAL, active_interval)
+        if (
+            self._comment_last_activity_at > 0
+            and now - self._comment_last_activity_at <= COMMENT_POLL_ACTIVE_WINDOW
+        ):
+            return active_interval
+        return idle_interval
+
+    @staticmethod
+    def _poll_jitter(delay):
+        return random.uniform(0, min(15.0, float(delay) * 0.2))
 
     def _comment_runtime_event(self, item):
         """把评论/@通知转换为统一事件，并计算跨入口优先级。"""
@@ -122,12 +150,35 @@ class CommentReply(HostView):
     async def _poll_unified(self):
         if time.time() < self._reply_cooldown_until:
             return
+        now = time.monotonic()
+        shared_until = float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0)
+        shared_seq = int(getattr(self.bili_http, "rate_limit_seq", 0) or 0)
+        if now < shared_until:
+            if shared_seq > self._comment_last_rate_limit_seq:
+                self._comment_last_rate_limit_seq = shared_seq
+                wait_secs = max(1, int(shared_until - now))
+                logger.info(
+                    f"[BiliBot] 账号处于 B站 -509 频控冷却，评论轮询同步暂停约 {wait_secs} 秒"
+                )
+            if shared_until > self._comment_next_poll_at:
+                self._comment_next_poll_at = shared_until + self._poll_jitter(COMMENT_POLL_MIN_INTERVAL)
+            return
+        if now < self._comment_next_poll_at:
+            return
+        # 请求发出前先占住下一次时间，异常时也不会跟随主循环每 20 秒连续重试。
+        self._comment_next_poll_at = now + self._comment_poll_interval(now)
         try:
             replied = self.replied_comments.load()
             pending = await self._fetch_comment_notifications(replied)
+            if time.monotonic() < float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0):
+                shared_seq = int(getattr(self.bili_http, "rate_limit_seq", 0) or 0)
+                self._comment_last_rate_limit_seq = max(self._comment_last_rate_limit_seq, shared_seq)
+                return
             if self._first_poll:
                 self._mark_pending_read_on_first_poll(pending, replied)
                 return
+            if pending:
+                self._comment_last_activity_at = time.monotonic()
             turn = self._pick_next_comment(pending, replied)
             if turn is None:
                 return
@@ -138,6 +189,17 @@ class CommentReply(HostView):
                     logger.info(f"[BiliBot] 🧭 评论 {turn.rpid}：{' → '.join(turn.path)}")
         except Exception as e:
             logger.error(f"[BiliBot] 轮询出错: {e}\n{traceback.format_exc()}")
+        finally:
+            completed_at = time.monotonic()
+            shared_until = float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0)
+            if completed_at < shared_until:
+                self._comment_next_poll_at = max(
+                    self._comment_next_poll_at,
+                    shared_until + self._poll_jitter(COMMENT_POLL_MIN_INTERVAL),
+                )
+            else:
+                next_interval = self._comment_poll_interval(completed_at)
+                self._comment_next_poll_at = completed_at + next_interval + self._poll_jitter(next_interval)
 
     async def _run_comment_turn(self, turn, replied):
         if not await self._claim_comment(turn, replied):
@@ -195,9 +257,15 @@ class CommentReply(HostView):
     async def _fetch_comment_notifications(self, replied):
         """阶段 1：拉「回复我的」和「@我的」两种通知，去掉已经处理过的。"""
         pending = []
+        note_rl = getattr(self.bili_http, "note_rate_limit", None)
         try:
             d, _ = await self.bili_http._http_get(BILI_NOTIFY_URL, params={"ps": 10, "pn": 1})
-            if d["code"] == 0:
+            code = d.get("code") if isinstance(d, dict) else None
+            if code == RATE_LIMIT_CODE:
+                if callable(note_rl):
+                    note_rl(BILI_NOTIFY_URL)
+                return pending
+            if code == 0:
                 for item in d.get("data", {}).get("items", []):
                     r = item.get("item", {})
                     rpid = str(r.get("source_id", ""))
@@ -217,7 +285,12 @@ class CommentReply(HostView):
             logger.warning(f"[BiliBot] 回复通知拉取失败: {e}")
         try:
             d, _ = await self.bili_http._http_get(BILI_AT_NOTIFY_URL, params={"ps": 10, "pn": 1})
-            if d["code"] == 0:
+            code = d.get("code") if isinstance(d, dict) else None
+            if code == RATE_LIMIT_CODE:
+                if callable(note_rl):
+                    note_rl(BILI_AT_NOTIFY_URL)
+                return pending
+            if code == 0:
                 for item in d.get("data", {}).get("items", []):
                     at_id = str(item.get("id", ""))
                     if not at_id or self.replied_comments.at_seen(at_id):

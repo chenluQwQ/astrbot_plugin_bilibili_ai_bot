@@ -142,6 +142,7 @@ class VideoFiles:
     _AUDIO_FILE_EXTS = {".m4a", ".mp3", ".aac", ".opus", ".flac", ".wav"}
     _VIDEO_DOWNLOAD_FORMAT_TIMEOUT = 120
     _VIDEO_DOWNLOAD_MAX_TIMEOUT = 3600
+    _VIDEO_DOWNLOAD_MAX_TIMEOUTS = 2
 
     def _video_download_timeout(self, duration):
         """单个格式的下载等待秒数：至少 120 秒，长视频按时长的一半放宽。"""
@@ -215,7 +216,11 @@ class VideoFiles:
                     return fp
             formats = self._format_fallbacks(max_height)
             total_formats = len(formats)
-            for format_index, fmt in enumerate(formats, start=1):
+            timeout_count = 0
+            idx = 0
+            while idx < total_formats:
+                format_index = idx + 1
+                fmt = formats[idx]
                 # 清理上一轮可能残留的部分文件
                 self._cleanup_partial_downloads(bvid, output_dir=output_dir) if output_dir else self._cleanup_partial_downloads(bvid)
                 logger.info(
@@ -225,8 +230,7 @@ class VideoFiles:
                 code, _, stderr = await self._run_process(
                     "yt-dlp", "-o", output_template,
                     "--format", fmt,
-                    "--no-playlist", "--merge-output-format", "mp4",
-                    "--recode-video", "mp4",
+                    "--no-playlist", "--merge-output-format", "mp4", "--remux-video", "mp4",
                     "--cookies", cookie_file,
                     "--add-header", "Referer: https://www.bilibili.com",
                     "--limit-rate", "2M",
@@ -242,13 +246,26 @@ class VideoFiles:
                     last_err = "yt-dlp 成功退出，但没有产出可发送的视频文件（可能只下载到音频）"
                     next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
                     logger.info(f"[BiliBot] {last_err}({bvid})，{next_step}")
+                    idx += 1
                     continue
                 if code == 124:
                     last_err = f"下载超时（等了 {timeout} 秒）"
+                    timeout_count += 1
                     if timeout > self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT:
                         # 长视频已经等够久了，换格式只会从头再下一遍。
                         logger.info(f"[BiliBot] {last_err}({bvid})，不再尝试其他格式")
                         break
+                    if timeout_count >= self._VIDEO_DOWNLOAD_MAX_TIMEOUTS:
+                        if idx < total_formats - 1:
+                            logger.info(
+                                f"[BiliBot] {last_err}({bvid})，累计超时 {timeout_count} 次，"
+                                "跳过其余高码率格式，直接尝试最低画质兜底"
+                            )
+                            idx = total_formats - 1
+                            continue
+                        logger.info(f"[BiliBot] {last_err}({bvid})，兜底格式也已超时，停止重试")
+                        break
+                    idx += 1
                     continue
                 last_err = _yt_dlp_error(redact_proxy_error(stderr, self.config))[:200] if stderr else "unknown error"
                 next_step = "尝试下一个格式" if format_index < total_formats else "已无后续格式"
@@ -256,6 +273,7 @@ class VideoFiles:
                     f"[BiliBot] 格式 {format_index}/{total_formats} 下载失败({bvid})，"
                     f"{next_step}: {last_err[:80]}"
                 )
+                idx += 1
             if try_mirror:
                 fp = await self._download_from_mirror(bvid, max_height, cookie_file, output_dir, duration)
                 if fp:
@@ -322,14 +340,18 @@ class VideoFiles:
             logger.info(f"[BiliBot] 视频线路连不上({bvid})，改走 {mirror}")
             output_template = os.path.join(download_dir, f"{bvid}.%(ext)s")
             timeout = self._video_download_timeout(duration)
-            for fmt in self._format_fallbacks(max_height):
+            formats = self._format_fallbacks(max_height)
+            total_formats = len(formats)
+            timeout_count = 0
+            idx = 0
+            while idx < total_formats:
+                fmt = formats[idx]
                 self._cleanup_partial_downloads(bvid, output_dir=output_dir)
                 code, _, _ = await self._run_process(
                     "yt-dlp", "--load-info-json", info_file,
                     "-o", output_template,
                     "--format", fmt,
-                    "--no-playlist", "--merge-output-format", "mp4",
-                    "--recode-video", "mp4",
+                    "--no-playlist", "--merge-output-format", "mp4", "--remux-video", "mp4",
                     "--limit-rate", "2M",
                     timeout=timeout,
                 )
@@ -338,8 +360,16 @@ class VideoFiles:
                     if fp:
                         logger.info(f"[BiliBot] 视频下载成功({bvid})，线路 {mirror}，格式: {fmt}")
                         return fp
-                elif code == 124 and timeout > self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT:
-                    break
+                elif code == 124:
+                    timeout_count += 1
+                    if timeout > self._VIDEO_DOWNLOAD_FORMAT_TIMEOUT:
+                        break
+                    if timeout_count >= self._VIDEO_DOWNLOAD_MAX_TIMEOUTS:
+                        if idx < total_formats - 1:
+                            idx = total_formats - 1
+                            continue
+                        break
+                idx += 1
             return None
         finally:
             try:
