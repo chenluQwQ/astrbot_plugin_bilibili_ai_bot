@@ -28,6 +28,7 @@ from astrbot.api import logger
 from ..infra.host_view import HostView
 from ..network import plugin_http_session
 from ..security.redact import wrap_untrusted
+from ..infra.search import web_search_ready
 
 REFRESHES_PER_DAY = 2
 MIN_GAP_HOURS = 4
@@ -265,7 +266,7 @@ class DynamicSources(HostView):
         candidates = []
         for url in feeds:
             candidates.extend(await self._feed_candidates(url, seen))
-        if keywords and self.settings.get("ENABLE_WEB_SEARCH") and self.settings.get("WEB_SEARCH_API_KEY"):
+        if keywords and web_search_ready(self.settings):
             for keyword in keywords:
                 if searched.get(keyword) == day:
                     continue

@@ -4,6 +4,7 @@ from __future__ import annotations
 from astrbot.api import logger
 
 from .host_view import HostView
+from .search import web_search_ready
 
 
 class Environment(HostView):
@@ -45,7 +46,7 @@ class Environment(HostView):
                 "image_gen_backend": "novelai" if image_gen_backend in ("novelai", "nai") else (
                     "openai_images" if image_gen_backend == "openai_images" else "openai"
                 ),
-                "web_search": bool(self.settings.get("ENABLE_WEB_SEARCH") and self.settings.get("WEB_SEARCH_API_KEY")),
+                "web_search": web_search_ready(self.settings),
                 "web_search_backend": (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip() if self.settings.get("ENABLE_WEB_SEARCH") else "",
                 "web_search_judge": bool(self.settings.get("WEB_SEARCH_JUDGE_PROVIDER_ID")),
             },
@@ -67,8 +68,7 @@ class Environment(HostView):
             logger.warning("[BiliBot] 未配置图片识别模型。评论图片识别功能将不可用。")
         if self.settings.get("ENABLE_WEB_SEARCH"):
             ws_backend = (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower()
-            ws_key = self.settings.get("WEB_SEARCH_API_KEY")
-            if not ws_key:
+            if not web_search_ready(self.settings):
                 logger.warning("[BiliBot] 联网搜索已启用但未配置 WEB_SEARCH_API_KEY。")
             else:
                 logger.info(f"[BiliBot] 🔍 联网搜索已启用，后端: {ws_backend}")

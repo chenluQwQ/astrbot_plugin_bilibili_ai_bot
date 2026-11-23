@@ -21,6 +21,7 @@ from ._bili_lookups import (
 from ..security.redact import wrap_untrusted
 from ..video_diagnostics import exception_detail
 from ..infra.host_view import HostView
+from ..infra.search import web_search_ready
 
 
 _NO_ARGS = {"type": "object", "properties": {}}
@@ -106,7 +107,7 @@ class CommentContext(HostView):
             tools.append("bili_memo")
         if self.self_memory_tool.enabled(uid):
             tools.append("bili_self_memory")
-        if self.settings.get("ENABLE_WEB_SEARCH") and self.settings.get("WEB_SEARCH_API_KEY"):
+        if web_search_ready(self.settings):
             tools.append("web_search")
         return tools
 

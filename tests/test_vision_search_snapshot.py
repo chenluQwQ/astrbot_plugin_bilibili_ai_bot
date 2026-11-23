@@ -182,6 +182,11 @@ GROK = {"output_text": "回答", "output": [{"type": "message", "content": [{
     "type": "output_text", "text": "回答二", "annotations": [{"url_citation": {"url": "https://a", "title": "来源"}}],
 }]}], "citations": ["https://b"]}
 BOCHA = {"data": {"summary": "总结", "webPages": {"value": [{"name": "n1", "summary": "s1"}, {"name": "n2", "snippet": "s2"}]}}}
+KEENABLE = {"query": "问题", "mode": "pro", "results": [
+    {"title": "k1", "url": "https://k.example/1", "description": "", "snippet": "摘录  一", "published_at": "2026-10-30T00:00:00Z"},
+    {"title": "k2", "url": "https://k.example/2", "description": "", "snippet": ""},
+    {"title": "k3", "url": "https://k.example/3", "snippet": "多出来的"},
+]}
 EXA = {"results": [
     {"title": "t1", "url": "https://a", "highlights": ["  h  1 ", "h2"]}, {"title": "t2", "url": "https://b", "text": "正文"}, {"url": "https://c"},
 ]}
@@ -252,6 +257,11 @@ SCENES = {
     "deepseek/base_model": ("_web_search", ("问题",), {"config": search("deepseek", WEB_SEARCH_API_BASE="https://d.example/v1", WEB_SEARCH_MODEL="m"), "http": (200, {"choices": [{"message": {"content": "只有回答"}}]})}),
     "deepseek/no_choices": ("_web_search", ("问题",), {"config": search("deepseek"), "http": (200, {"choices": []})}),
     "deepseek/http_error": ("_web_search", ("问题",), {"config": search("deepseek"), "http": (500, {})}),
+    "keenable/ok": ("_web_search", ("问题",), {"config": search("keenable"), "http": (200, KEENABLE)}),
+    "keenable/no_key": ("_web_search", ("问题",), {"config": {"ENABLE_WEB_SEARCH": True, "WEB_SEARCH_BACKEND": "keenable"}, "http": (200, KEENABLE)}),
+    "keenable/base_search": ("_web_search", ("问题",), {"config": search("keenable", WEB_SEARCH_API_BASE="https://k.example/v1/search/"), "http": (200, KEENABLE)}),
+    "keenable/http_error": ("_web_search", ("问题",), {"config": {"ENABLE_WEB_SEARCH": True, "WEB_SEARCH_BACKEND": "keenable"}, "http": (429, {"code": "public_rate_limit_hourly"})}),
+    "judge_reply/keenable_no_key": ("_should_search_for_reply", ("这是什么东西呀",), {"config": {"ENABLE_WEB_SEARCH": True, "WEB_SEARCH_BACKEND": "keenable"}, "llm": JUDGE_YES}),
     "bocha/ok": ("_web_search", ("问题",), {"config": search("bocha"), "http": (200, BOCHA)}),
     "bocha/results": ("_web_search", ("问题",), {"config": search("bocha"), "http": (200, {"results": [{"title": "t", "content": "c"}]})}),
     "bocha/http_error": ("_web_search", ("问题",), {"config": search("bocha"), "http": (500, {})}),

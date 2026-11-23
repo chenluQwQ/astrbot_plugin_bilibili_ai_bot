@@ -21,6 +21,21 @@ from ..storage.json_file import JsonFile
 from .text import normalize_openai_base_url
 
 
+# 不填 Key 也能搜的后端（走公开接口，对方会记录搜索词和服务器 IP，有频率上限）。
+KEYLESS_BACKENDS = frozenset({"keenable"})
+
+
+def web_search_backend(settings) -> str:
+    return (settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip()
+
+
+def web_search_ready(settings) -> bool:
+    """打开了联网搜索，并且填了 Key 或选的是免 Key 后端。"""
+    if not settings.get("ENABLE_WEB_SEARCH"):
+        return False
+    return bool(settings.get("WEB_SEARCH_API_KEY")) or web_search_backend(settings) in KEYLESS_BACKENDS
+
+
 class WebSearch:
     def __init__(self, host, cache: JsonFile):
         self._host = host
@@ -43,7 +58,7 @@ class WebSearch:
         self._host._web_search_client = value
 
     def _get_web_search_client(self):
-        backend = (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip()
+        backend = web_search_backend(self.settings)
         api_key = self.settings.get("WEB_SEARCH_API_KEY")
         if backend == "perplexity":
             base_url = "https://api.perplexity.ai"
@@ -61,12 +76,10 @@ class WebSearch:
         return cached_client(self._host, "_web_search_client", fingerprint, build)
 
     async def _web_search(self, query: str) -> str:
-        if not self.settings.get("ENABLE_WEB_SEARCH"):
+        if not web_search_ready(self.settings):
             return ""
-        api_key = self.settings.get("WEB_SEARCH_API_KEY")
-        if not api_key:
-            return ""
-        backend = (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip()
+        api_key = self.settings.get("WEB_SEARCH_API_KEY") or ""
+        backend = web_search_backend(self.settings)
         try:
             max_results = max(1, min(10, int(self.settings.get("WEB_SEARCH_MAX_RESULTS") or 5)))
         except (TypeError, ValueError):
@@ -104,6 +117,8 @@ class WebSearch:
                 result = await self._search_exa(query, api_key, max_results)
             elif backend == "deepseek":
                 result = await self._search_deepseek(query, api_key, max_results)
+            elif backend == "keenable":
+                result = await self._search_keenable(query, api_key, max_results)
             else:
                 logger.warning(f"[BiliBot] 未知搜索后端: {backend}")
                 return ""
@@ -390,6 +405,49 @@ class WebSearch:
                     return ""
                 data = await r.json(content_type=None)
         return self._format_exa_results(data, max_results)
+
+    @staticmethod
+    def _format_keenable_results(data: dict, max_results: int) -> str:
+        """每条标题、链接、摘录；有发布时间的带上日期。"""
+        results = data.get("results", []) if isinstance(data, dict) else []
+        snippets = []
+        for item in (results if isinstance(results, list) else [])[:max_results]:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "网页结果").strip()
+            url = str(item.get("url") or "").strip()
+            description = str(item.get("snippet") or item.get("description") or "")
+            description = re.sub(r"\s+", " ", description).strip()[:500]
+            published = str(item.get("published_at") or "")[:10]
+            label = f"[{title}]({url})" if url else title
+            if published:
+                label += f"（{published}）"
+            snippets.append(f"- {label}: {description}" if description else f"- {label}")
+        return "\n".join(snippets)
+
+    async def _search_keenable(self, query: str, api_key: str, max_results: int) -> str:
+        base_url = str(self.settings.get("WEB_SEARCH_API_BASE") or "https://api.keenable.ai").strip().rstrip("/")
+        if base_url.lower().endswith(("/search", "/search/public")):
+            base_url = base_url.rsplit("/search", 1)[0]
+        if not base_url.lower().endswith("/v1"):
+            base_url += "/v1"
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            url = f"{base_url}/search"
+            headers["X-API-Key"] = api_key
+        else:
+            # 免 Key 的公开接口要求带应用名
+            url = f"{base_url}/search/public"
+            headers["X-Keenable-Title"] = "astrbot_plugin_bilibili_ai_bot"
+        payload = {"query": query, "max_results": max_results, "snippet_max_length": 500}
+        async with plugin_http_session(self.config) as s:
+            async with s.post(url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.warning(f"[BiliBot] Keenable HTTP {r.status}: {redact_proxy_error(body[:200], self.config)}")
+                    return ""
+                data = await r.json(content_type=None)
+        return self._format_keenable_results(data, max_results)
 
     @staticmethod
     def _format_deepseek_response(data: dict, max_results: int) -> str:
