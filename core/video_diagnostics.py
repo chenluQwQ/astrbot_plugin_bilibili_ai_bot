@@ -27,8 +27,18 @@ def get_call_diagnostic():
     return dict(_call.get() or {})
 
 
+def exception_status_code(exc):
+    """HTTP 状态码：各家 SDK 放的地方不一样（status_code / status / code / response.status_code）。"""
+    for owner in (exc, getattr(exc, "response", None)):
+        for attr in ("status_code", "status", "code"):
+            value = getattr(owner, attr, None)
+            if isinstance(value, int) and not isinstance(value, bool) and 100 <= value <= 599:
+                return value
+    return None
+
+
 def exception_detail(exc, config):
-    status = getattr(exc, "status_code", None)
+    status = exception_status_code(exc)
     prefix = type(exc).__name__ + (f" HTTP {status}" if isinstance(status, int) else "")
     return safe_detail(f"{prefix}: {exc}", config)
 

@@ -27,6 +27,7 @@ from ..infra.text import repair_llm_json
 from ..security.redact import wrap_untrusted
 from ..video_diagnostics import exception_detail, get_call_diagnostic, media_failure, set_call_diagnostic
 from ..infra.text import normalize_openai_base_url
+from ..network import client_fingerprint, configured_proxy
 from ..video_timeline import (
     SEGMENT_SCHEMA_PROMPT, SEGMENT_WITH_COMMENT_SCHEMA_PROMPT, WATCH_TEXT_MAX, WATCH_TEXT_PER_SEGMENT,
     VideoTimelineError, clock, format_subtitle_lines,
@@ -586,6 +587,16 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         if key in skip:
             logger.info(f"[BiliBot] 📹 视频直读此前已判定不可用，直接跳过{label}")
             return None
+        try:
+            seg_size = os.path.getsize(seg_path)
+        except OSError:
+            seg_size = 0
+        too_large_at = self._video_too_large_map().get(key)
+        if too_large_at and seg_size >= too_large_at:
+            # 不比上次被拒的那段小，传了也是超限，省一次上传。
+            media_failure(video_info, "video_model", "视频片段不小于之前超限的片段，直接改用截帧", self.config)
+            logger.info(f"[BiliBot] 📹 片段 {seg_size // 1024}KB 不小于此前超限大小，跳过直读改用截帧{label}")
+            return None
         if key in cache:
             candidates = [cache[key]]
         elif fmt == "auto":
@@ -623,8 +634,11 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
                 media_failure(video_info, "vision_config", last_reason, self.config)
                 return None
             if rejection == "too_large":
-                # 已经切过片还是超限，换报文形状救不回来，保留截帧即可。
-                skip.add(key)
+                # 已经切过片还是超限，换报文形状救不回来，这段改用截帧。
+                # 只记下这个大小：更小的片段、之后的短视频照样直读，不拉黑整个模型。
+                if seg_size:
+                    sizes = self._video_too_large_map()
+                    sizes[key] = min(seg_size, sizes.get(key) or seg_size)
                 media_failure(video_info, "video_model", f"视频片段超出接口体积上限: {last_reason}", self.config)
                 logger.warning(f"[BiliBot] 📹 视频片段体积超限，跳过直读改用截帧{label}")
                 return None
@@ -810,6 +824,8 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             str(model or ""),
             str(self.settings.get("VIDEO_VISION_API_BASE") or ""),
             str(fmt or ""),
+            # 配置页改 Key / 代理不重载插件：之前「Key 无效」的判定要跟着失效。
+            client_fingerprint(self.settings.get("VIDEO_VISION_API_KEY") or "", configured_proxy(self.config)),
         )
 
     def _video_format_probe_cache(self):
@@ -817,6 +833,10 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         if cache is None:
             cache = self._video_format_probe = {}
         return cache
+
+    def _video_too_large_map(self):
+        """能力探测键 → 被拒过的最小片段字节数。"""
+        return self.__dict__.setdefault("_video_too_large", {})
 
     def _video_direct_skip_set(self):
         skip = getattr(self, "_video_direct_skip", None)

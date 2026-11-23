@@ -14,8 +14,11 @@ import math
 import aiohttp
 from astrbot.api import logger
 
-from ..network import openai_proxy_kwargs, plugin_http_session, redact_proxy_error
-from ..video_diagnostics import exception_detail, safe_detail, set_call_diagnostic
+from ..network import (
+    cached_client, client_fingerprint, configured_proxy, openai_proxy_kwargs,
+    plugin_http_session, redact_proxy_error,
+)
+from ..video_diagnostics import exception_detail, exception_status_code, safe_detail, set_call_diagnostic
 from .text import normalize_openai_base_url
 
 
@@ -114,7 +117,7 @@ def classify_vision_rejection(exc):
 
     只做字符串与状态码判断，不发探针请求；目的是让调用方决定「跳过阶段」还是「换个格式再试」。
     """
-    status = getattr(exc, "status_code", None)
+    status = exception_status_code(exc)
     text = str(exc or "").lower()
     if isinstance(status, int):
         if status in (401, 403, 404):
@@ -168,20 +171,22 @@ class Vision:
         return self._host.context
 
     def _get_embed_client(self):
-        if self._embed_client is None:
-            api_key = self.settings.get("EMBED_API_KEY")
-            if not api_key:
-                return None
+        api_key = self.settings.get("EMBED_API_KEY")
+        base_url = normalize_openai_base_url(self.settings.get("EMBED_API_BASE"))
+        timeout = self._embed_timeout()
+
+        def build():
             from openai import AsyncOpenAI
-            base_url = normalize_openai_base_url(self.settings.get("EMBED_API_BASE"))
-            self._embed_client = AsyncOpenAI(
+            return AsyncOpenAI(
                 api_key=api_key,
                 base_url=base_url,
-                timeout=self._embed_timeout(),
+                timeout=timeout,
                 max_retries=0,
                 **openai_proxy_kwargs(self.config),
             )
-        return self._embed_client
+
+        fingerprint = client_fingerprint(api_key, base_url, timeout, configured_proxy(self.config)) if api_key else None
+        return cached_client(self._host, "_embed_client", fingerprint, build)
 
     def _embed_timeout(self):
         try:
@@ -235,25 +240,22 @@ class Vision:
         nb = math.sqrt(sum(x * x for x in b))
         return dot / (na * nb) if na and nb else 0
 
-    def _get_video_vision_client(self):
-        if self._video_vision_client is None:
-            api_key = self.settings.get("VIDEO_VISION_API_KEY")
-            if not api_key:
-                return None
+    def _openai_vision_client(self, name, key_name, base_name):
+        api_key = self.settings.get(key_name)
+        base_url = normalize_openai_base_url(self.settings.get(base_name))
+
+        def build():
             from openai import AsyncOpenAI
-            base_url = normalize_openai_base_url(self.settings.get("VIDEO_VISION_API_BASE"))
-            self._video_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
-        return self._video_vision_client
+            return AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
+
+        fingerprint = client_fingerprint(api_key, base_url, configured_proxy(self.config)) if api_key else None
+        return cached_client(self._host, name, fingerprint, build)
+
+    def _get_video_vision_client(self):
+        return self._openai_vision_client("_video_vision_client", "VIDEO_VISION_API_KEY", "VIDEO_VISION_API_BASE")
 
     def _get_image_vision_client(self):
-        if self._image_vision_client is None:
-            api_key = self.settings.get("IMAGE_VISION_API_KEY")
-            if not api_key:
-                return None
-            from openai import AsyncOpenAI
-            base_url = normalize_openai_base_url(self.settings.get("IMAGE_VISION_API_BASE"))
-            self._image_vision_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
-        return self._image_vision_client
+        return self._openai_vision_client("_image_vision_client", "IMAGE_VISION_API_KEY", "IMAGE_VISION_API_BASE")
 
     async def _vision_call(self, client, model, content_parts, max_tokens=250, system_prompt=""):
         """通用视觉模型调用。``system_prompt``：看完直接写评论时带上人设。"""
@@ -266,7 +268,9 @@ class Vision:
                 messages=messages,
                 max_tokens=max_tokens,
             )
-            return resp.choices[0].message.content.strip() if resp.choices else None
+            # 推理模型和一些中转会给 content=None，当成空回复而不是调用出错。
+            text = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+            return text or None
         except Exception as e:
             reject = classify_vision_rejection(e)
             reason = exception_detail(e, self.config)

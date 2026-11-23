@@ -13,7 +13,10 @@ from collections import OrderedDict
 import aiohttp
 from astrbot.api import logger
 
-from ..network import openai_proxy_kwargs, plugin_http_session, redact_proxy_error
+from ..network import (
+    cached_client, client_fingerprint, configured_proxy, openai_proxy_kwargs,
+    plugin_http_session, redact_proxy_error,
+)
 from ..storage.json_file import JsonFile
 from .text import normalize_openai_base_url
 
@@ -40,21 +43,22 @@ class WebSearch:
         self._host._web_search_client = value
 
     def _get_web_search_client(self):
-        if self._web_search_client is None:
-            backend = (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip()
-            api_key = self.settings.get("WEB_SEARCH_API_KEY")
-            if not api_key:
-                return None
-            if backend == "perplexity":
-                from openai import AsyncOpenAI
-                self._web_search_client = AsyncOpenAI(api_key=api_key, base_url="https://api.perplexity.ai", **openai_proxy_kwargs(self.config))
-            elif backend == "custom":
-                base_url = normalize_openai_base_url(self.settings.get("WEB_SEARCH_API_BASE"))
-                if not base_url:
-                    return None
-                from openai import AsyncOpenAI
-                self._web_search_client = AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
-        return self._web_search_client
+        backend = (self.settings.get("WEB_SEARCH_BACKEND") or "tavily").lower().strip()
+        api_key = self.settings.get("WEB_SEARCH_API_KEY")
+        if backend == "perplexity":
+            base_url = "https://api.perplexity.ai"
+        elif backend == "custom":
+            base_url = normalize_openai_base_url(self.settings.get("WEB_SEARCH_API_BASE"))
+        else:
+            base_url = ""
+
+        def build():
+            from openai import AsyncOpenAI
+            return AsyncOpenAI(api_key=api_key, base_url=base_url, **openai_proxy_kwargs(self.config))
+
+        ready = api_key and base_url
+        fingerprint = client_fingerprint(backend, api_key, base_url, configured_proxy(self.config)) if ready else None
+        return cached_client(self._host, "_web_search_client", fingerprint, build)
 
     async def _web_search(self, query: str) -> str:
         if not self.settings.get("ENABLE_WEB_SEARCH"):
