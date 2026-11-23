@@ -18,6 +18,7 @@ from ..security.redact import wrap_untrusted
 from ..video_diagnostics import evaluation_failure, get_call_diagnostic, set_call_diagnostic, exception_detail
 from ..voice_prompt import NATURAL_VOICE_RULES
 from ..video_evaluation import VIDEO_EVALUATION_SCHEMA_PROMPT, VideoEvaluationError, parse_video_evaluation
+from ..infra.search import web_search_ready
 
 
 HOT_COMMENTS_SHOWN = 5
@@ -265,7 +266,7 @@ class VideoEvaluate(HostView):
             names.append("video_inspect")
         if video_info.get("cid"):
             names.append("video_subtitles")
-        if self.settings.get("ENABLE_WEB_SEARCH") and self.settings.get("WEB_SEARCH_API_KEY"):
+        if web_search_ready(self.settings):
             names.append("web_search")
         return names
 

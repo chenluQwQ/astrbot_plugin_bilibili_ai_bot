@@ -31,6 +31,7 @@ from ..infra.host_view import HostView
 from ..infra.image_gen import ImageGen
 from ..runtime import ActionRequest, EventPriority
 from ..security import redact_outbound, wrap_untrusted
+from ..infra.search import web_search_ready
 
 
 class DynamicPost(HostView):
@@ -416,7 +417,7 @@ class DynamicPost(HostView):
         return [redact_outbound(re.sub(r"\s+", " ", item), internal=False)[0] for item in reasons[:6]]
 
     def _search_rounds(self):
-        if not (self.settings.get("ENABLE_WEB_SEARCH") and self.settings.get("WEB_SEARCH_API_KEY")):
+        if not web_search_ready(self.settings):
             return 0
         try:
             return max(0, min(3, int(self.settings.get("DYNAMIC_WEB_SEARCH_MAX"))))

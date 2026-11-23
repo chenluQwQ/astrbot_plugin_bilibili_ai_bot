@@ -3,6 +3,7 @@ import re
 import json
 from astrbot.api import logger
 from ..infra.host_view import HostView
+from ..infra.search import web_search_ready
 
 
 class SearchJudge(HostView):
@@ -42,9 +43,7 @@ UP主：{owner}
             return ""
 
     async def _should_search_for_reply(self, user_comment: str, context: str = "") -> str:
-        if not self.settings.get("ENABLE_WEB_SEARCH"):
-            return ""
-        if not self.settings.get("WEB_SEARCH_API_KEY"):
+        if not web_search_ready(self.settings):
             return ""
         stripped = re.sub(r'\[.*?\]', '', user_comment).strip()
         if len(stripped) < 4:

@@ -22,6 +22,7 @@ from ..infra.host_view import HostView
 from ..security.redact import wrap_untrusted
 from ..voice_prompt import NATURAL_VOICE_RULES
 from ..video_diagnostics import exception_detail, get_call_diagnostic, safe_detail
+from ..infra.search import web_search_ready
 
 
 HOT_COMMENTS_SHOWN = 5
@@ -174,8 +175,7 @@ class Bangumi(HostView):
             except Exception as exc:
                 logger.debug(f"[BiliBot] 番剧热评取不到，跳过: {exc}")
         # 有字幕时内容分析已经知道剧情；只在只靠标题、简介、评论分析时才搜（分析提示词要求这种情况用这句开头）
-        if (NO_SUBTITLE_MARK in str(analysis or "") and self.settings.get("ENABLE_WEB_SEARCH")
-                and self.settings.get("WEB_SEARCH_API_KEY")):
+        if NO_SUBTITLE_MARK in str(analysis or "") and web_search_ready(self.settings):
             ep_title = ep_info.get("long_title", "") or ep_info.get("title", "")
             query = f"{season_info.get('title', '')} 第{ep_info.get('ep_index', '?')}话 {ep_title} 剧情".strip()
             try:

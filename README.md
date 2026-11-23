@@ -190,7 +190,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 - 视频视觉模型：`VIDEO_VISION_PROVIDER_ID` 或 `VIDEO_VISION_API_KEY + VIDEO_VISION_MODEL`
 - 图片识别模型：`IMAGE_VISION_PROVIDER_ID` 或 `IMAGE_VISION_API_KEY + IMAGE_VISION_MODEL`
 - 动态配图模型：`IMAGE_GEN_BACKEND + IMAGE_GEN_API_KEY`；NovelAI 留空模型名时用它自己的默认模型，OpenAI 兼容后端必须填写模型名，否则跳过配图
-- 联网查询后端：`WEB_SEARCH_API_KEY`（按 `WEB_SEARCH_BACKEND` 选择 Tavily / Firecrawl / Grok / Perplexity / 博查 / Exa / DeepSeek / 自定义）
+- 联网查询后端：`WEB_SEARCH_API_KEY`（按 `WEB_SEARCH_BACKEND` 选择 Tavily / Firecrawl / Grok / Perplexity / 博查 / Exa / DeepSeek / Keenable / 自定义；Keenable 可以不填 Key）
 
 ### 5. 缺失依赖时的退化行为
 
@@ -236,7 +236,7 @@ git clone https://github.com/chenluQwQ/astrbot_plugin_bilibili_ai_bot
 |`IMAGE_GEN_API_BASE`         |可选|留空使用后端官方默认地址；也可填写兼容代理地址                                          |
 |`IMAGE_GEN_MODEL`            |可选|OpenAI 后端默认 `black-forest-labs/flux-schnell`；NovelAI 默认 `nai-diffusion-4-5-full`|
 |`ENABLE_WEB_SEARCH`          |可选|启用联网查询（回复时按需搜索最新信息）                                                  |
-|`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `firecrawl` / `grok` / `perplexity` / `bocha` / `exa` / `deepseek` / `custom`|
+|`WEB_SEARCH_BACKEND`         |可选|搜索后端：`tavily` / `firecrawl` / `grok` / `perplexity` / `bocha` / `exa` / `deepseek` / `keenable` / `custom`|
 |`WEB_SEARCH_API_KEY`         |可选|搜索后端 API Key                                                         |
 |`WEB_SEARCH_API_BASE`        |可选|Firecrawl / Grok / Exa / DeepSeek / custom 可填写自建服务或兼容代理；留空使用官方地址                       |
 |`WEB_SEARCH_MODEL`           |可选|Grok 默认 `grok-4.6`，DeepSeek 默认 `deepseek-flash`，Perplexity 默认 `sonar`；custom 按接口填写                    |

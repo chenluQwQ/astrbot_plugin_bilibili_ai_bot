@@ -2158,7 +2158,7 @@
     "description": "【联网搜索】搜索后端",
     "type": "string",
     "default": "tavily",
-    "hint": "Firecrawl、Exa 返回网页摘要；Grok、DeepSeek 由模型联网搜索后回答，附带来源。",
+    "hint": "Firecrawl、Exa、Keenable 返回网页摘要；Grok、DeepSeek 由模型联网搜索后回答，附带来源。Keenable 不填 Key 也能搜，但对方会记录搜索词和服务器 IP，每个 IP 每小时最多 1000 次。",
     "options": [
       "tavily",
       "firecrawl",
@@ -2167,6 +2167,7 @@
       "bocha",
       "exa",
       "deepseek",
+      "keenable",
       "custom"
     ],
     "condition": {
@@ -2180,13 +2181,13 @@
     "condition": {
       "ENABLE_WEB_SEARCH": true
     },
-    "hint": "按后端填：tavily 是 tvly- 开头，firecrawl 是 fc- 开头。"
+    "hint": "按后端填：tavily 是 tvly- 开头，firecrawl 是 fc- 开头。keenable 可以不填。"
   },
   "WEB_SEARCH_API_BASE": {
     "description": "【联网搜索】搜索 API Base URL（可选）",
     "type": "string",
     "default": "",
-    "hint": "留空使用后端官方地址；Firecrawl/Grok/Exa/DeepSeek/custom 可填写兼容代理或自建地址。",
+    "hint": "留空使用后端官方地址；Firecrawl/Grok/Exa/DeepSeek/Keenable/custom 可填写兼容代理或自建地址。",
     "condition": {
       "ENABLE_WEB_SEARCH": true
     }

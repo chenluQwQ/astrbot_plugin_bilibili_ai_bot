@@ -936,6 +936,20 @@
   },
   "result": ""
  },
+ "judge_reply/keenable_no_key": {
+  "cache": null,
+  "calls": [
+   {
+    "llm": "判断以下B站用户评论是否需要联网搜索才能准确回复。\n\n用户最新评论：「这是什么东西呀」\n\n需要搜索的情况：用户提问了某个事实性问题、问了近期新闻/事件、提到了你可能不了解的专业知识/人物/产品/梗、要求你查某些信息。\n不需要搜索的情况：日常聊天、打招呼、表情、吐槽、纯情感表达、闲聊、你能凭自身知识回答的内容。\n\n请用JSON回复：{\"need_search\": true或false, \"query\": \"搜索关键词(不需要搜索则留空)\"}\n直接输出JSON，不要加任何其他内容。",
+    "max_tokens": 80,
+    "provider_id": null
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "查这个"
+ },
  "judge_reply/no": {
   "cache": null,
   "calls": [
@@ -1074,6 +1088,113 @@
    "reason": ""
   },
   "result": "标题"
+ },
+ "keenable/base_search": {
+  "cache": {
+   "keenable:问题": {
+    "result": "- [k1](https://k.example/1)（2026-10-30）: 摘录 一\n- [k2](https://k.example/2)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "X-API-Key": "key"
+    },
+    "http": "POST",
+    "json": {
+     "max_results": 2,
+     "query": "问题",
+     "snippet_max_length": 500
+    },
+    "timeout": 30,
+    "url": "https://k.example/v1/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [k1](https://k.example/1)（2026-10-30）: 摘录 一\n- [k2](https://k.example/2)"
+ },
+ "keenable/http_error": {
+  "cache": null,
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "X-Keenable-Title": "astrbot_plugin_bilibili_ai_bot"
+    },
+    "http": "POST",
+    "json": {
+     "max_results": 5,
+     "query": "问题",
+     "snippet_max_length": 500
+    },
+    "timeout": 30,
+    "url": "https://api.keenable.ai/v1/search/public"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": ""
+ },
+ "keenable/no_key": {
+  "cache": {
+   "keenable:问题": {
+    "result": "- [k1](https://k.example/1)（2026-10-30）: 摘录 一\n- [k2](https://k.example/2)\n- [k3](https://k.example/3): 多出来的",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "X-Keenable-Title": "astrbot_plugin_bilibili_ai_bot"
+    },
+    "http": "POST",
+    "json": {
+     "max_results": 5,
+     "query": "问题",
+     "snippet_max_length": 500
+    },
+    "timeout": 30,
+    "url": "https://api.keenable.ai/v1/search/public"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [k1](https://k.example/1)（2026-10-30）: 摘录 一\n- [k2](https://k.example/2)\n- [k3](https://k.example/3): 多出来的"
+ },
+ "keenable/ok": {
+  "cache": {
+   "keenable:问题": {
+    "result": "- [k1](https://k.example/1)（2026-10-30）: 摘录 一\n- [k2](https://k.example/2)",
+    "ts": 1700000000.0
+   }
+  },
+  "calls": [
+   {
+    "headers": {
+     "Content-Type": "application/json",
+     "X-API-Key": "key"
+    },
+    "http": "POST",
+    "json": {
+     "max_results": 2,
+     "query": "问题",
+     "snippet_max_length": 500
+    },
+    "timeout": 30,
+    "url": "https://api.keenable.ai/v1/search"
+   }
+  ],
+  "diagnostic": {
+   "reason": ""
+  },
+  "result": "- [k1](https://k.example/1)（2026-10-30）: 摘录 一\n- [k2](https://k.example/2)"
  },
  "multimodal/empty": {
   "cache": null,
