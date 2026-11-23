@@ -1,5 +1,7 @@
 """Plugin-local proxy settings; never modify process-wide proxy variables."""
+import asyncio
 from contextlib import asynccontextmanager
+import hashlib
 import re
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -105,8 +107,67 @@ def download_proxy_args(config):
     return ["--proxy", proxy] if proxy else []
 
 
+_retired_closes = set()
+_RETIRE_DELAY = 120  # 正在用旧连接的请求有时间跑完再关
+
+
+async def _close_after(client, delay):
+    try:
+        await asyncio.sleep(delay)
+        await client.close()
+    except Exception:
+        pass
+
+
+def _retire(client):
+    try:
+        task = asyncio.get_running_loop().create_task(_close_after(client, _RETIRE_DELAY))
+    except RuntimeError:
+        return
+    _retired_closes.add(task)
+    task.add_done_callback(_retired_closes.discard)
+
+
+def client_fingerprint(*parts):
+    """Key、地址、代理这些拼成指纹；只存摘要，不在内存里多留一份密钥。"""
+    return hashlib.sha256(repr(parts).encode()).hexdigest()
+
+
+def cached_client(owner, name, fingerprint, build):
+    """取缓存在 ``owner.<name>`` 上的 SDK 客户端，配置变了就换新的。
+
+    插件自己的配置页保存时不重载插件，所以不能只在为空时建一次：
+    Key / 地址 / 代理一改，指纹不同，旧连接稍后关掉，按新配置重建。
+    ``fingerprint`` 为 None 表示没配齐，返回 None。
+    """
+    prints = getattr(owner, "_client_fingerprints", None)
+    if prints is None:
+        prints = {}
+        setattr(owner, "_client_fingerprints", prints)
+    client = getattr(owner, name, None)
+    if client is not None:
+        if name not in prints:
+            # 外面直接放进来的（测试、旧代码），按当前配置认下。
+            prints[name] = fingerprint
+        if prints.get(name) == fingerprint:
+            return client
+        _retire(client)
+        setattr(owner, name, None)
+    prints.pop(name, None)
+    if fingerprint is None:
+        return None
+    client = build()
+    if client is not None:
+        setattr(owner, name, client)
+        prints[name] = fingerprint
+    return client
+
+
 async def close_plugin_clients(plugin):
     """Close only SDK clients owned by this plugin, never AstrBot providers."""
+    prints = getattr(plugin, "_client_fingerprints", None)
+    if isinstance(prints, dict):
+        prints.clear()
     for name in ("_embed_client", "_video_vision_client", "_image_vision_client", "_web_search_client"):
         client = getattr(plugin, name, None)
         setattr(plugin, name, None)
