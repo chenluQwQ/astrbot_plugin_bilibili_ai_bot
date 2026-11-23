@@ -836,7 +836,10 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
 
     def _video_too_large_map(self):
         """能力探测键 → 被拒过的最小片段字节数。"""
-        return self.__dict__.setdefault("_video_too_large", {})
+        sizes = getattr(self, "_video_too_large", None)
+        if sizes is None:
+            sizes = self._video_too_large = {}
+        return sizes
 
     def _video_direct_skip_set(self):
         skip = getattr(self, "_video_direct_skip", None)
