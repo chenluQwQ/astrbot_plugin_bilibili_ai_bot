@@ -132,6 +132,8 @@ class ProactiveBrowse(HostView):
             source_note = {"follow": "关注", "search": "搜索", "pool": "视频池", "memo": "备忘"}.get(video.get("_source", ""), "候选")
             logger.info(f"[BiliBot] 🎬 [{watch_round.watch_count + 1}/{daily_watch}] [{source_note}] {video['title']} by {video.get('up_name', '')}")
             if not await self.watch_video._watch_one_video(watch_round, video):
+                if video.get("_rewatch_retry") and video.get("_memo_id") is not None:
+                    self.memo_watch.finish(video["_memo_id"], "补看了一次，还是没看成")
                 continue
             if video.get("_memo_id") is not None:
                 self.memo_watch.finish(video["_memo_id"], f"看了《{str(video.get('title', ''))[:40]}》")

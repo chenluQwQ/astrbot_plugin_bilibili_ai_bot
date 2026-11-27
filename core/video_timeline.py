@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from typing import Any
 
 
@@ -54,7 +55,10 @@ SEGMENT_WITH_COMMENT_SCHEMA_PROMPT = (
 
 
 class VideoTimelineError(ValueError):
-    pass
+    def __init__(self, code: str, detail: str = ""):
+        self.code = code
+        self.detail = detail
+        super().__init__(f"{code} ({detail})" if detail else code)
 
 
 def _strip_fence(raw: str) -> str:
@@ -64,6 +68,32 @@ def _strip_fence(raw: str) -> str:
     if text.startswith("```") and text.endswith("```"):
         return text[3:-3].strip()
     return text
+
+
+def _load_segment_json(raw: str) -> Any:
+    """严格解析：只认整段就是一个 JSON 对象（可以带 ``` 围栏）。前后多了说明文字也算不合格——
+    「我看不到视频，以下根据标题推测：{…}」这种要挡掉，不能把猜的当成看过的。"""
+    try:
+        return json.loads(_strip_fence(raw))
+    except (TypeError, ValueError) as exc:
+        raise VideoTimelineError("invalid_json") from exc
+
+
+def _schema_mismatch_detail(value: Any, required: set[str], allowed: set[str]) -> str:
+    """生成不含模型正文内容的字段差异说明，便于日志排查。"""
+    if not isinstance(value, dict):
+        return f"type={type(value).__name__}"
+    present = {str(key) for key in value}
+    missing = sorted(required - present)
+    extra = sorted(present - allowed)
+    parts = []
+    if missing:
+        parts.append("missing=" + ",".join(missing))
+    if extra:
+        safe_extra = [re.sub(r"[^A-Za-z0-9_.-]", "_", key)[:32] for key in extra[:6]]
+        suffix = f",+{len(extra) - 6}" if len(extra) > 6 else ""
+        parts.append("extra=" + ",".join(safe_extra) + suffix)
+    return "; ".join(parts)
 
 
 def _clip(text: str, limit: int) -> str:
@@ -106,13 +136,13 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     ``with_comment``：这段还要顺便写评论。评论格式不对只丢评论（``comment`` 为 None），记录照收；
     想评论是正文，选了 skip 是空字符串。
     """
-    try:
-        value = json.loads(_strip_fence(raw))
-    except (TypeError, ValueError) as exc:
-        raise VideoTimelineError("invalid_json") from exc
+    value = _load_segment_json(raw)
     keys = SEGMENT_KEYS | ({"comment"} if with_comment else set())
     if not isinstance(value, dict) or not SEGMENT_KEYS <= set(value) <= keys:
-        raise VideoTimelineError("segment_schema_mismatch")
+        raise VideoTimelineError(
+            "segment_schema_mismatch",
+            _schema_mismatch_detail(value, SEGMENT_KEYS, keys),
+        )
     comment = None
     if with_comment and isinstance(value.get("comment"), dict):
         from .content_protocol import ContentProtocolError, parse_proactive_comment
@@ -126,7 +156,10 @@ def parse_segment_watch(raw: str, offset: float = 0.0, length: float | None = No
     entries = []
     for item in timeline:
         if not isinstance(item, dict) or set(item) != {"at", "text"}:
-            raise VideoTimelineError("timeline_entry_mismatch")
+            raise VideoTimelineError(
+                "timeline_entry_mismatch",
+                _schema_mismatch_detail(item, {"at", "text"}, {"at", "text"}),
+            )
         at, text = item["at"], item["text"]
         if isinstance(at, bool) or not isinstance(at, (int, float)) or not math.isfinite(at) or at < 0:
             raise VideoTimelineError("timeline_at_invalid")

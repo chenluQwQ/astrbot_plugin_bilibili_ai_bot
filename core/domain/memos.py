@@ -22,6 +22,8 @@ from datetime import datetime, timedelta
 KINDS = ("video", "bangumi", "up", "other")
 WHENS = ("today", "tomorrow", "someday")
 SOURCES = ("comment", "private", "self", "owner")
+# 视频没看成（直读、截图都失败，也没字幕）时 Bot 自己记的备忘：第二天再看一次，只看这一次。
+REWATCH_NOTE = "上次没看成，晚点再看一次"
 MAX_PENDING = 20
 PER_PERSON_PER_DAY = 2
 EXPIRE_SECONDS = 3 * 24 * 3600

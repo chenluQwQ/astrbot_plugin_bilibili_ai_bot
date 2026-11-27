@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 
 from astrbot.api import logger
-from ..domain.memos import memo_key
+from ..domain.memos import REWATCH_NOTE, memo_key
 from ..infra.host_view import HostView
 from ..infra.tool_loop import ToolMiss
 
@@ -31,9 +31,10 @@ class MemoWatch(HostView):
         memo = self._memo(memo_id)
         if memo is None or memo["kind"] not in ("video", "up"):
             return []
+        rewatch = memo["kind"] == "video" and memo.get("note") == REWATCH_NOTE
         if memo["kind"] == "video":
             bvid = memo_key("video", memo["target"])
-            if bvid in watched_bvids:
+            if bvid in watched_bvids and not rewatch:
                 self.finish(memo_id, "之前已经看过了")
                 return []
             oid = await self.bili_videos._get_video_oid(bvid)
@@ -60,6 +61,9 @@ class MemoWatch(HostView):
         for video in videos:
             video = self.video_discovery._tag_video_source(video, "memo", f"#{memo_id}")
             video["_memo_id"] = memo_id
+            if rewatch:  # 上次没看成的补看：不用旧的「没看成」缓存，看完（成不成）都算这条做完
+                video["_force_rewatch"] = True
+                video["_rewatch_retry"] = True
             tagged.append(video)
         return tagged
 

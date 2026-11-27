@@ -9,12 +9,13 @@ from datetime import datetime
 
 from astrbot.api import logger
 
+from ..domain.memos import REWATCH_NOTE
 from ..infra.host_view import HostView
 from ..video_timeline import watch_digest
 
 
 class WatchVideo(HostView):
-    HOST_API = frozenset({"memory_docs", "activity_logs", "_owner_last_recommended_at", "_owner_recommended_bvids", "bili_auth", "bili_comments", "bili_users", "bili_videos", "dynamic_post", "json_store", "memory_writer", "outward_actions", "owner_recommend", "processed_keys", "seen_videos", "settings", "video_evaluate", "video_watch"})
+    HOST_API = frozenset({"memory_docs", "activity_logs", "_owner_last_recommended_at", "_owner_recommended_bvids", "bili_auth", "bili_comments", "bili_users", "bili_videos", "dynamic_post", "json_store", "memo_tool", "memory_writer", "outward_actions", "owner_recommend", "processed_keys", "seen_videos", "settings", "video_evaluate", "video_watch"})
 
     async def _reserve_proactive_watch(self, bvid, source="proactive"):
         return await self.outward_actions._execute_proactive_action(
@@ -82,6 +83,8 @@ class WatchVideo(HostView):
         # 超过 200 条后被再次当成新视频下载分析。
         if analysis_info.get("analysis_basis") != "metadata":
             await self.seen_videos.mark(bvid, analysis_info, source=watch_round.seen_source(video))
+        elif not analysis_info.get("_analysis_from_cache"):
+            self._schedule_rewatch(video, analysis_info)
         evaluation = await self.video_evaluate._evaluate_video(analysis_info, video_description)
         if not evaluation:
             logger.warning(f"[BiliBot] {watch_round.warn_prefix}评价失败，跳过互动")
@@ -113,6 +116,23 @@ class WatchVideo(HostView):
         path.append("跳过互动:Cookie失效" if interaction_failed else f"互动:{action_str}")
         self._log_watch_path(watch_round, bvid, path)
         return True
+
+    def _schedule_rewatch(self, video, analysis_info):
+        """这次没看成（直读、截图都失败，也没字幕）：记一条备忘，第二天再看一次。
+        已经是重看的那次就不再记，所以一个视频最多补看一次。备忘录关着就不记。"""
+        memo_tool = getattr(self, "memo_tool", None)
+        if video.get("_rewatch_retry") or memo_tool is None or not memo_tool.enabled():
+            return
+        bvid = str(analysis_info.get("bvid") or video.get("bvid") or "")
+        try:
+            memo_id, created = memo_tool._memos().add(
+                kind="video", target=bvid, note=REWATCH_NOTE, when="tomorrow", source="self", unlimited=True,
+            )
+        except Exception as exc:
+            logger.warning(f"[BiliBot] 没看成的视频记备忘失败 {bvid}: {exc}")
+            return
+        if created:
+            logger.info(f"[BiliBot] 📝 {bvid} 这次没看成，记了备忘 #{memo_id}，明天再看一次")
 
     @staticmethod
     def _log_watch_path(watch_round, bvid, path):
