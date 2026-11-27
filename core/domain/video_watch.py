@@ -657,19 +657,6 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         media_failure(video_info, "video_model", last_reason or "视频直读返回空内容", self.config)
         return None
 
-    @staticmethod
-    def _schema_retry_prompt(base_prompt: str, exc: VideoTimelineError, *, with_comment: bool) -> str:
-        """为字段失配的视觉分段输出构造一次定向格式纠偏提示（不含模型原文）。"""
-        required = "timeline、impression、audio、sensitive"
-        optional = "（以及可选的 comment）" if with_comment else ""
-        detail = f"（{exc}）" if str(exc) else ""
-        return (
-            f"{base_prompt}\n\n"
-            f"【格式纠偏】上一次输出的 JSON 字段未通过校验{detail}。"
-            f"请重新输出一个严格的 JSON 对象，顶层必须且仅包含 {required}{optional}，"
-            f"timeline 每项必须且仅包含 at（数字秒数）和 text（非空字符串），不要多余字段或额外解释。"
-        )
-
     async def _analyze_single_segment(self, seg_path, video_info, fmt, provider_id, client, model, label="", *, offset=0.0, length=None, comment=None):
         """看一段，返回 ``{"timeline": [(原视频秒数, 内容)], "impression", "audio", "mode"}``；没看成返回 None。
 
@@ -678,7 +665,6 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
         这一段顺便把评论写了，结果多一个 ``comment``（见 ``parse_segment_watch``）。
         """
         frames = []
-        retryable_schema_codes = {"segment_schema_mismatch", "timeline_entry_mismatch"}
         try:
             span = f"原视频的 {clock(offset)}–{clock(offset + length)}" if length else ""
             where = f"这是切片后的{label}（{span}）。" if label else "这是完整视频。"
@@ -712,23 +698,6 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
                     try:
                         return {**parse_segment_watch(direct, offset, length, with_comment=bool(comment)), "mode": "direct"}
                     except VideoTimelineError as exc:
-                        if exc.code in retryable_schema_codes:
-                            logger.info(
-                                f"[BiliBot] 📹 视频模型记录字段失配{label}: {exc}（回复 {len(direct)} 字），尝试纠偏重试一次"
-                            )
-                            retry_prompt = self._schema_retry_prompt(
-                                text_prompt, exc, with_comment=bool(comment),
-                            )
-                            retried = await self._try_video_direct(
-                                seg_path, retry_prompt, fmt, provider_id, client, model, video_info, label,
-                                system_prompt=system_prompt,
-                            )
-                            if retried:
-                                try:
-                                    return {**parse_segment_watch(retried, offset, length, with_comment=bool(comment)), "mode": "direct"}
-                                except VideoTimelineError as retry_exc:
-                                    exc = retry_exc
-                                    direct = retried
                         media_failure(video_info, "video_model", f"视频模型的记录格式不对: {exc}", self.config)
                         logger.warning(f"[BiliBot] 📹 视频模型记录格式校验不过{label}: {exc}（回复 {len(direct)} 字）")
                         return None
@@ -757,8 +726,7 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             subtitle = format_subtitle_lines(lines, offset, offset + seg_len if length else None, limit=1500)
             subtitle = subtitle and "\n这段的字幕（B站的，时间是原视频的；可能不准，跟画面明显对不上就别用）：\n" + wrap_untrusted(subtitle, "subtitles")
             frame_prompt = text_prompt.replace(hears, "这次只有几张截图，听不到声音，audio 写「听不到」。")
-            frame_text = f"{frame_prompt}\n\n截图：{'；'.join(notes)}。{subtitle}"
-            frame_content.append({"type": "text", "text": frame_text})
+            frame_content.append({"type": "text", "text": f"{frame_prompt}\n\n截图：{'；'.join(notes)}。{subtitle}"})
             extra = {"system_prompt": system_prompt} if system_prompt else {}
             result = await self.vision._astrbot_multimodal_generate(provider_id, frame_content, max_tokens=self._SEGMENT_MAX_TOKENS, **extra)
             if not result and client and model:
@@ -776,29 +744,8 @@ UP主：{video_info.get('up_name') or video_info.get('owner_name', '未知')}
             try:
                 return {**parse_segment_watch(result, offset, length, with_comment=bool(comment)), "mode": "frames"}
             except VideoTimelineError as exc:
-                if exc.code in retryable_schema_codes:
-                    logger.info(
-                        f"[BiliBot] 📹 截图记录字段失配{label}: {exc}（回复 {len(result)} 字），尝试纠偏重试一次"
-                    )
-                    retry_content = [
-                        *frame_content[:-1],
-                        {"type": "text", "text": self._schema_retry_prompt(frame_text, exc, with_comment=bool(comment))},
-                    ]
-                    retried = await self.vision._astrbot_multimodal_generate(
-                        provider_id, retry_content, max_tokens=self._SEGMENT_MAX_TOKENS, **extra
-                    )
-                    if not retried and client and model:
-                        retried = await self.vision._vision_call(
-                            client, model, retry_content, max_tokens=self._SEGMENT_MAX_TOKENS, **extra
-                        )
-                    if retried:
-                        try:
-                            return {**parse_segment_watch(retried, offset, length, with_comment=bool(comment)), "mode": "frames"}
-                        except VideoTimelineError as retry_exc:
-                            exc = retry_exc
-                            result = retried
                 media_failure(video_info, "frame_model", f"截图记录格式不对: {exc}", self.config)
-                logger.warning(f"[BiliBot] 📹 截图记录格式校验不过{label}: {exc}（回复 {len(result)} 字）")
+                logger.warning(f"[BiliBot] 📹 截图记录格式校验不过{label}: {exc}")
                 return None
         except Exception as e:
             media_failure(video_info, "segment", exception_detail(e, self.config), self.config)

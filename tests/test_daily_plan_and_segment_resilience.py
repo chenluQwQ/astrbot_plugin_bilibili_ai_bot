@@ -1,4 +1,4 @@
-"""Tests for DailyPlan async grounding_context awaiting, segment schema diagnostics/retry,
+"""Tests for DailyPlan async grounding_context awaiting, segment schema diagnostics (strict, no immediate retry),
 and PrivatePoll shared -509 cooldown enforcement.
 """
 from __future__ import annotations
@@ -125,15 +125,17 @@ class DailyPlanAsyncGroundingTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SegmentSchemaDiagnosticsAndRetryTests(unittest.IsolatedAsyncioTestCase):
-    def test_parse_segment_watch_accepts_prose_wrapped_strict_json(self):
-        wrapped = "好的，这是本段记录：\n```json\n" + _valid_segment_json("开场画面") + "\n```\n以上。"
-        out = parse_segment_watch(wrapped, offset=60, length=120)
+    def test_parse_segment_watch_stays_strict_about_surrounding_prose(self):
+        fenced = "```json\n" + _valid_segment_json("开场画面") + "\n```"
+        out = parse_segment_watch(fenced, offset=60, length=120)
         self.assertEqual(out["timeline"], [(62.0, "开场画面")])
-        self.assertEqual(out["audio"], "有人讲话")
-
-        bare_wrapped = "记录如下：" + _valid_segment_json("无围栏") + " 完毕"
-        out2 = parse_segment_watch(bare_wrapped, offset=0, length=120)
-        self.assertEqual(out2["timeline"], [(2.0, "无围栏")])
+        # 「看不到视频，以下根据标题推测：{…}」这种要挡掉，不能把猜的当成看过的
+        for wrapped in ("我看不到视频，以下根据标题推测：" + _valid_segment_json("猜的"),
+                        "好的，这是本段记录：\n```json\n" + _valid_segment_json() + "\n```\n以上。"):
+            with self.subTest(wrapped=wrapped[:20]):
+                with self.assertRaises(VideoTimelineError) as ctx:
+                    parse_segment_watch(wrapped, offset=0, length=120)
+                self.assertEqual(ctx.exception.code, "invalid_json")
 
     def test_parse_segment_watch_reports_missing_and_extra_keys_without_prose(self):
         raw = json.dumps(
@@ -167,43 +169,7 @@ class SegmentSchemaDiagnosticsAndRetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("missing=at", str(entry_ctx.exception))
         self.assertIn("extra=time", str(entry_ctx.exception))
 
-    async def test_direct_mode_retries_once_on_segment_schema_mismatch_and_recovers(self):
-        with tempfile.TemporaryDirectory() as folder:
-            seg_path = Path(folder) / "seg0.mp4"
-            seg_path.write_bytes(b"video")
-            replies = [
-                json.dumps({"timeline": [{"at": 1, "text": "x"}], "impression": "少字段"}),
-                _valid_segment_json("重试成功"),
-            ]
-            prompts: list[str] = []
-
-            class _WatchBot(VideoParts):
-                def __init__(self):
-                    self.config = {"VIDEO_VISION_FORMAT": "openai", "VIDEO_VISION_AUDIO": True}
-                    self.settings = Settings(self.config)
-                    self.vision = types.SimpleNamespace(
-                        _astrbot_multimodal_generate=self._gen,
-                        _vision_call=None,
-                    )
-
-                async def _gen(self, _provider_id, content, **_kwargs):
-                    for part in content:
-                        if part.get("type") == "text":
-                            prompts.append(part["text"])
-                    return replies.pop(0)
-
-            bot = _WatchBot()
-            info = {"bvid": "BV1TEST12345", "title": "测试", "tname": "生活", "desc": ""}
-            result = await bot.video_watch._analyze_single_segment(
-                str(seg_path), info, "openai", "vp", None, "vm", "第1/2段", offset=0.0, length=60.0
-            )
-            self.assertIsNotNone(result)
-            self.assertEqual(result["mode"], "direct")
-            self.assertEqual(result["timeline"], [(2.0, "重试成功")])
-            self.assertEqual(len(prompts), 2)
-            self.assertIn("missing=audio,sensitive", prompts[1])
-
-    async def test_frames_mode_retries_once_and_records_clear_detail_on_persistent_mismatch(self):
+    async def test_frames_mode_does_not_retry_and_records_clear_detail(self):
         with tempfile.TemporaryDirectory() as folder:
             seg_path = Path(folder) / "seg0.mp4"
             seg_path.write_bytes(b"video")
@@ -244,9 +210,8 @@ class SegmentSchemaDiagnosticsAndRetryTests(unittest.IsolatedAsyncioTestCase):
                 str(seg_path), info, "none", "vp", None, "vm", offset=0.0, length=60.0
             )
             self.assertIsNone(result)
-            # Initial attempt + 1 targeted schema-correction retry, then stop.
-            self.assertEqual(len(calls), 2)
-            self.assertIn("missing=audio,sensitive", calls[1])
+            # 不当场重试（多一次视频模型调用）；没看成的视频第二天补看一次，见 test_rewatch_memo
+            self.assertEqual(len(calls), 1)
             self.assertIn("missing=audio,sensitive", info["_media_diagnostics"][-1]["reason"])
 
 

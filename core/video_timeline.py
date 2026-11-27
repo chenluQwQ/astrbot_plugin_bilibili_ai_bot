@@ -61,9 +61,6 @@ class VideoTimelineError(ValueError):
         super().__init__(f"{code} ({detail})" if detail else code)
 
 
-_FENCED_JSON_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.IGNORECASE | re.DOTALL)
-
-
 def _strip_fence(raw: str) -> str:
     text = str(raw or "").strip()
     if text.startswith("```json") and text.endswith("```"):
@@ -74,29 +71,12 @@ def _strip_fence(raw: str) -> str:
 
 
 def _load_segment_json(raw: str) -> Any:
-    """解析视频分段 JSON；容忍少量前后说明文字或围栏包裹，但不修补残缺 JSON。"""
-    cleaned = _strip_fence(raw)
+    """严格解析：只认整段就是一个 JSON 对象（可以带 ``` 围栏）。前后多了说明文字也算不合格——
+    「我看不到视频，以下根据标题推测：{…}」这种要挡掉，不能把猜的当成看过的。"""
     try:
-        return json.loads(cleaned)
-    except (TypeError, ValueError):
-        pass
-    fenced = _FENCED_JSON_RE.search(str(raw or ""))
-    if fenced:
-        try:
-            return json.loads(fenced.group(1))
-        except (TypeError, ValueError):
-            pass
-    decoder = json.JSONDecoder()
-    for idx, ch in enumerate(cleaned):
-        if ch != "{":
-            continue
-        try:
-            obj, _ = decoder.raw_decode(cleaned[idx:])
-        except ValueError:
-            continue
-        if isinstance(obj, dict):
-            return obj
-    raise VideoTimelineError("invalid_json")
+        return json.loads(_strip_fence(raw))
+    except (TypeError, ValueError) as exc:
+        raise VideoTimelineError("invalid_json") from exc
 
 
 def _schema_mismatch_detail(value: Any, required: set[str], allowed: set[str]) -> str:
