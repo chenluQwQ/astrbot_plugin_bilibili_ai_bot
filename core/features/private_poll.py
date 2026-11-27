@@ -37,6 +37,7 @@ class PrivatePoll(HostView):
         self._private_message_last_activity_at = 0.0
         self._private_message_last_warned_backoff = 0
         self._private_message_seen_rate_limit_seq = 0
+        self._private_message_seen_rate_limit_until = 0.0
 
     @staticmethod
     def _private_json_text(raw):
@@ -333,15 +334,19 @@ class PrivatePoll(HostView):
         now = time.monotonic()
         shared_until = float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0)
         shared_seq = int(getattr(self.bili_http, "rate_limit_seq", 0) or 0)
-        if shared_seq > self._private_message_seen_rate_limit_seq and now < shared_until:
-            self._private_message_seen_rate_limit_seq = shared_seq
+        seen_seq = int(getattr(self, "_private_message_seen_rate_limit_seq", 0) or 0)
+        seen_until = float(getattr(self, "_private_message_seen_rate_limit_until", 0.0) or 0.0)
+        if now < shared_until and (shared_seq > seen_seq or shared_until > seen_until):
+            self._private_message_seen_rate_limit_until = shared_until
             delay_until = shared_until + random.uniform(0, 15.0)
             if delay_until > self._private_message_next_poll_at:
                 self._private_message_next_poll_at = delay_until
-            wait_secs = max(1, int(self._private_message_next_poll_at - now))
-            logger.info(
-                f"[BiliBot] 账号处于 B站 -509 频控冷却，私信轮询同步延后约 {wait_secs} 秒"
-            )
+            if shared_seq > seen_seq:
+                self._private_message_seen_rate_limit_seq = shared_seq
+                wait_secs = max(1, int(self._private_message_next_poll_at - now))
+                logger.info(
+                    f"[BiliBot] 账号处于 B站 -509 频控冷却，私信轮询同步延后约 {wait_secs} 秒"
+                )
             return
         if now < getattr(self, "_private_message_next_poll_at", 0.0):
             return
@@ -380,6 +385,9 @@ class PrivatePoll(HostView):
                     note_rl("private_messages", min_seconds=backoff)
                     self._private_message_seen_rate_limit_seq = int(
                         getattr(self.bili_http, "rate_limit_seq", 0) or 0
+                    )
+                    self._private_message_seen_rate_limit_until = float(
+                        getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0
                     )
                 if backoff != int(
                     getattr(self, "_private_message_last_warned_backoff", 0) or 0
@@ -465,7 +473,8 @@ class PrivatePoll(HostView):
             except Exception as e:
                 outcome, value = self._finish_private_message(message, error=e)
                 if outcome == "retry":
-                    retry_at = time.monotonic() + value
+                    shared_until = float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0)
+                    retry_at = max(time.monotonic() + value, shared_until)
                     self._private_message_next_poll_at = min(
                         float(getattr(self, "_private_message_next_poll_at", retry_at)),
                         retry_at,
