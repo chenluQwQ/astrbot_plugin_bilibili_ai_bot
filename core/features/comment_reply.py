@@ -8,6 +8,7 @@ import traceback
 from dataclasses import dataclass, field
 
 from astrbot.api import logger
+from ..voice_prompt import BILI_INTRO
 from ..config import LEVEL_NAMES, BILI_AT_NOTIFY_URL, BILI_NOTIFY_URL
 from ..runtime import EventState, InboundEvent
 from ..infra.host_view import HostView
@@ -125,7 +126,7 @@ class CommentReply(HostView):
 
     async def _generate_comment_reply(self, ctx, oid, comment_type, thread_id, *, defer=None, resume=None):
         """评论：评论区场景提示词，交给查资料循环（模型可以先要资料再回）。"""
-        scene_prompt = (
+        scene_prompt = BILI_INTRO + "\n\n" + (
             "【在哪】B站评论区。这是公开的，楼里的人和路过的人都看得到你的回复。\n"
             "【怎么回】回对方这条里最具体的那一点。只是附和，或者把对方的话换个说法再说一遍，对方会觉得你没在看。"
             "一般一句，最多两句，评论区里回一大段很少见。\n"

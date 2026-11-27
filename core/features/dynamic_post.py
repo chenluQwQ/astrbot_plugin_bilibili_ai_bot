@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 
 from astrbot.api import logger
 
+from ..voice_prompt import BILI_INTRO
 from ..domain.self_memory import format_numbered
 from ..config import (
     DEFAULT_DYNAMIC_PROMPT, DEFAULT_DYNAMIC_TOPICS)
@@ -535,7 +536,7 @@ class DynamicPost(HostView):
             "资料只用来核实和补充，照抄过来就不是你的话了。\n" if search_rounds else ""
         )
         # 照缓存排：固定的（写什么、风格、规矩、配图、补充提示词）在前，每次变的（时间心情、发过的、素材、池子、触发方式）在后。
-        prompt = f"""你在想现在要不要发一条B站动态。有想说的具体事、或者想到一个段子，就可以发；实在没什么想说的，可以不发。
+        prompt = BILI_INTRO + "\n\n" + f"""你在想现在要不要发一条B站动态。有想说的具体事、或者想到一个段子，就可以发；实在没什么想说的，可以不发。
 
 【可以写什么】挑一个和手上素材最合的，不用每种都写：
 {topic_text}
