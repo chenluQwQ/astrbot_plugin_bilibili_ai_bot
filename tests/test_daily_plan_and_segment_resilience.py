@@ -18,7 +18,6 @@ _install_astrbot_stub()
 import core.features.private_poll as private_poll_module
 from base_parts import BaseParts
 from core.domain.private_inbox import PrivateInbox
-from core.domain.video_watch import VideoWatch
 from core.infra.bili.http import RATE_LIMIT_BURST_WINDOW
 from core.settings import Settings
 from core.video_timeline import VideoTimelineError, parse_segment_watch
@@ -319,6 +318,66 @@ class PrivatePollRateLimitCooldownTests(unittest.IsolatedAsyncioTestCase):
                 clock.now = bot.bili_http.rate_limit_until + 1.0
                 await bot.private_poll._poll_private_messages()
                 self.assertEqual(inbox_hits, 1)
+
+    async def test_single_message_retry_never_undercuts_extended_shared_cooldown(self):
+        class _Clock:
+            def __init__(self, start=5000.0):
+                self.now = float(start)
+
+            def __call__(self):
+                return self.now
+
+        class _PollBot(ReplyParts, PrivateParts):
+            def __init__(self, state_file):
+                self.config = {
+                    "DEDE_USER_ID": "999",
+                    "ENABLE_PRIVATE_MESSAGES": True,
+                    "PRIVATE_MESSAGE_POLL_INTERVAL": 120,
+                    "PRIVATE_MESSAGE_IDLE_POLL_INTERVAL": 180,
+                    "PRIVATE_MESSAGE_ACTIVE_WINDOW": 600,
+                }
+                self.files = {}
+                self.private_inbox = PrivateInbox(HostFile(self, state_file))
+                attach_reply_owners(self)
+
+            def _load_json(self, path, default=None):
+                return self.files.get(path, [] if default is None else default)
+
+            def _save_json(self, path, data):
+                self.files[path] = data
+
+        clock = _Clock(5000.0)
+        with tempfile.TemporaryDirectory() as folder:
+            bot = _PollBot(str(Path(folder) / "private_state.json"))
+            msg = {
+                "msg_key": 778899,
+                "sender_uid": 10001,
+                "receiver_id": 999,
+                "msg_type": 1,
+                "content": json.dumps({"content": "hello"}),
+                "timestamp": 1700000000,
+            }
+
+            async def fake_inbox():
+                return [msg]
+
+            async def fail_with_rate_limit(_message, _trusted_domains):
+                # Trigger -509 cooldown longer than the initial normal_delay (180s)
+                # set before the message loop began.
+                bot.bili_http.note_rate_limit("/web_im/v1/web_im/send_msg", min_seconds=600)
+                raise RuntimeError("http -509 rate limit")
+
+            bot.private_poll._poll_private_inbox = fake_inbox
+            bot.private_reply._handle_private_message = fail_with_rate_limit
+
+            with patch("core.infra.bili.http.time.monotonic", clock), \
+                    patch.object(private_poll_module.time, "monotonic", clock), \
+                    patch.object(private_poll_module.random, "uniform", return_value=0.0):
+                await bot.private_poll._poll_private_messages()
+                self.assertGreaterEqual(
+                    bot.private_poll._private_message_next_poll_at,
+                    bot.bili_http.rate_limit_until,
+                )
 
 
 if __name__ == "__main__":

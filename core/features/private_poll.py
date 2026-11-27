@@ -475,9 +475,12 @@ class PrivatePoll(HostView):
                 if outcome == "retry":
                     shared_until = float(getattr(self.bili_http, "rate_limit_until", 0.0) or 0.0)
                     retry_at = max(time.monotonic() + value, shared_until)
-                    self._private_message_next_poll_at = min(
-                        float(getattr(self, "_private_message_next_poll_at", retry_at)),
-                        retry_at,
+                    self._private_message_next_poll_at = max(
+                        min(
+                            float(getattr(self, "_private_message_next_poll_at", retry_at)),
+                            retry_at,
+                        ),
+                        shared_until,
                     )
                     logger.warning(
                         f"[BiliBot] 处理单条私信失败，将在约 {value} 秒后重试"
