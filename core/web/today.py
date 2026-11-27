@@ -218,6 +218,8 @@ def _bangumi(item: dict[str, Any]) -> dict[str, Any]:
         "mood": "" if failed else str(item.get("mood") or ""),
         "review": str(item.get("review") or ""),
         "comment": "" if failed else str(item.get("comment") or ""),
+        # 旧记录没有这个字段，是 None：不知道发没发，页面就不标
+        "comment_posted": None if failed else item.get("comment_posted"),
         "failed": failed,
         "fail_reason": str(item.get("fail_reason") or "") if failed else "",
     }

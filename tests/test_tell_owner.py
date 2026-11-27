@@ -19,8 +19,7 @@ NOW = datetime(2026, 11, 7, 12, 0).timestamp()
 
 def envelope(**extra):
     value = {"decision": "ignore", "reply": "", "score_delta": 0, "impression": "", "user_facts": [],
-             "signals": {"interaction_type": "normal", "feedback_type": "none", "attack_level": 0,
-                         "feedback_topic": None, "reflection_candidate": None, "confidence": 0.9},
+             "feedback": None,
              "tool_request": {"name": "none", "query": ""}, **extra}
     return json.dumps(value, ensure_ascii=False)
 

@@ -2328,7 +2328,9 @@ function renderTodayBangumi(item) {
     ${item.failed ? `<p class="tl-meta">没看成，下次从这集接着看：${esc(item.fail_reason || "旧记录没存原因")}</p>` : ""}
     ${item.mood ? `<p class="tl-meta">心情：${esc(item.mood)}</p>` : ""}
     ${item.review ? `<p class="tl-text">${esc(item.review)}</p>` : ""}
-    ${item.comment ? `<blockquote class="tl-quote">${esc(item.comment)}</blockquote>` : ""}`);
+    ${item.comment ? `<blockquote class="tl-quote">${esc(item.comment)}</blockquote>` : ""}
+    ${item.comment && item.comment_posted === false ? `<p class="tl-meta">这条评论只是写了，没有发出去（分数不够、评论开关没开或到了上限）</p>` : ""}
+    ${item.comment && item.comment_posted === true ? `<p class="tl-meta">已发到番剧下面，要删去下面「在番剧下面评论」那条</p>` : ""}`);
 }
 
 function renderToday() {

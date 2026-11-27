@@ -11,14 +11,7 @@ def valid_payload(**overrides):
         "score_delta": 1,
         "impression": "",
         "user_facts": [],
-        "signals": {
-            "interaction_type": "normal",
-            "feedback_type": "none",
-            "attack_level": 0,
-            "feedback_topic": None,
-            "reflection_candidate": None,
-            "confidence": 0.9,
-        },
+        "feedback": None,
         "tool_request": {"name": "none", "query": ""},
     }
     payload.update(overrides)
@@ -46,7 +39,7 @@ class ReplyOutputProtocolTests(unittest.TestCase):
     def test_duplicate_fields_are_rejected_not_resolved(self):
         raw = json.dumps(valid_payload(), ensure_ascii=False)
         for duplicated in (raw[:-1] + ', "reply": "第二句"}',
-                           raw.replace('"confidence"', '"attack_level": 0, "confidence"')):
+                           raw.replace('"feedback"', '"decision": "reply", "feedback"')):
             with self.subTest(raw=duplicated[-40:]):
                 with self.assertRaises(ReplyProtocolError) as caught:
                     self.parse(duplicated)
@@ -86,43 +79,28 @@ class ReplyOutputProtocolTests(unittest.TestCase):
         )
         self.assertEqual(result["tool_request"]["name"], "watch_video")
 
-    def test_reflection_candidate_must_be_short_structured_conclusion(self):
-        payload = valid_payload()
-        payload["signals"] = {
-            **payload["signals"],
-            "interaction_type": "correction",
-            "feedback_type": "correction",
-            "feedback_topic": "回复事实错误",
-            "reflection_candidate": {
-                "event": "用户指出视频日期说错了",
-                "possible_mistake": "没有核对查询结果中的日期",
-                "next_time": "涉及最新投稿时先核对发布日期",
-            },
-        }
-        result = self.parse(payload)
-        self.assertEqual(
-            result["signals"]["reflection_candidate"]["next_time"],
-            "涉及最新投稿时先核对发布日期",
-        )
+    def test_feedback_becomes_reflection_candidate(self):
+        payload = valid_payload(feedback={
+            "kind": "纠正", "about": "视频日期说错了", "next_time": "涉及最新投稿时先核对发布日期",
+        })
+        signals = self.parse(payload)["signals"]
+        self.assertEqual(signals["feedback_type"], "correction")
+        self.assertEqual(signals["feedback_topic"], "视频日期说错了")
+        self.assertEqual(signals["reflection_candidate"]["next_time"], "涉及最新投稿时先核对发布日期")
 
-    def test_teasing_is_not_allowed_to_smuggle_in_a_reflection(self):
-        payload = valid_payload()
-        payload["signals"] = {
-            **payload["signals"],
-            "interaction_type": "teasing",
-            "feedback_type": "teasing",
-            "reflection_candidate": None,
-        }
-        self.assertEqual(
-            self.parse(payload)["signals"]["interaction_type"], "teasing"
-        )
-        payload["signals"]["reflection_candidate"] = {
-            "event": "熟人开玩笑", "possible_mistake": "被调侃",
-            "next_time": "立刻改人格",
-        }
-        with self.assertRaises(ReplyProtocolError):
-            self.parse(payload)
+    def test_feedback_kind_and_shape_are_strict(self):
+        for bad in ({"kind": "开玩笑", "about": "调侃", "next_time": "改人格"},
+                    {"kind": "建议", "about": "多聊游戏"},
+                    "建议多聊游戏"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ReplyProtocolError):
+                    self.parse(valid_payload(feedback=bad))
 
+    def test_attack_level_is_derived_from_score(self):
+        signals = self.parse(valid_payload(score_delta=-5))["signals"]
+        self.assertEqual(signals["attack_level"], 3)
+        self.assertEqual(signals["feedback_type"], "none")
+        self.assertEqual(self.parse(valid_payload())["signals"]["attack_level"], 0)
 
 if __name__ == "__main__":
     unittest.main()
