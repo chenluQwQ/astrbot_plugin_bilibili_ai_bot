@@ -357,6 +357,7 @@ class Bangumi(HostView):
             except (TypeError, ValueError):
                 score = 5
             comment = evaluation.get("comment", "")
+            evaluation["comment_posted"] = False  # 今天页的番剧卡片按它标「发了 / 没发」
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
             logger.info(f"[BiliBot] ⭐ 评分：{score}/10 | 心情：{mood} | 短评：{comment[:30]}")
@@ -475,6 +476,7 @@ class Bangumi(HostView):
                                     self.dynamic_post.comment_synced(
                                         f"ep:{ep_info.get('ep_id', '')}" if ep_info.get("ep_id") else episode_key, comment,
                                         f"《{season_info['title']}》第{ep_index}话")
+                                evaluation["comment_posted"] = True
                                 actions.append("💬评论")
                                 logger.info(f"[BiliBot] 💬 番剧评论：{comment}")
                                 entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "type": "bangumi", "title": f"《{season_info['title']}》第{ep_index}话", "comment": comment}
@@ -597,6 +599,8 @@ class Bangumi(HostView):
                 "review": (evaluation or {}).get("review", ""),
                 "comment": (evaluation or {}).get("comment", ""),
             }
+            if evaluation and "comment_posted" in evaluation:
+                entry["comment_posted"] = bool(evaluation["comment_posted"])
             if status != "watched":
                 entry.update(comment="评价失败" if status == "evaluation_failed" else "看番出错",
                              evaluation_status="failed", fail_reason=reason, mood="")

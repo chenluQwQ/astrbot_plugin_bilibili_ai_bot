@@ -239,6 +239,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -503,6 +504,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -821,6 +823,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -1039,6 +1042,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -1223,6 +1227,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -1399,6 +1404,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -1612,6 +1618,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -1788,6 +1795,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -2141,6 +2149,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -2152,6 +2161,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -2366,6 +2376,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -2591,6 +2602,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "6",
      "ep_title": "第6个故事",
      "mood": "开心",
@@ -2927,6 +2939,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -2938,6 +2951,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "3",
      "ep_title": "第3个故事",
      "mood": "开心",
@@ -3106,6 +3120,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -3302,6 +3317,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -3507,6 +3523,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -3721,6 +3738,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -3903,6 +3921,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -4072,6 +4091,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -4233,6 +4253,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -4387,6 +4408,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -4628,6 +4650,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -4639,6 +4662,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -4835,6 +4859,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -5193,6 +5218,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "51",
      "ep_title": "第51个故事",
      "mood": "开心",
@@ -5452,6 +5478,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -5855,6 +5882,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -5866,6 +5894,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -6253,6 +6282,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "PV",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -6264,6 +6294,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -6690,6 +6721,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -6701,6 +6733,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "3",
      "ep_title": "第3个故事",
      "mood": "开心",
@@ -7048,6 +7081,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -7059,6 +7093,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -7293,6 +7328,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -7492,6 +7528,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -7696,6 +7733,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -8029,6 +8067,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -8040,6 +8079,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "3",
      "ep_title": "第3个故事",
      "mood": "开心",
@@ -8379,6 +8419,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -8390,6 +8431,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -8601,6 +8643,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -8934,6 +8977,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -8945,6 +8989,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -9178,6 +9223,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "7",
      "ep_title": "第7个故事",
      "mood": "开心",
@@ -9516,6 +9562,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -9527,6 +9574,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -9759,6 +9807,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -10096,6 +10145,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -10107,6 +10157,7 @@
     },
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -10310,6 +10361,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "",
+     "comment_posted": false,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "好笑",
@@ -10506,6 +10558,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -10875,6 +10928,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "2",
      "ep_title": "第2个故事",
      "mood": "开心",
@@ -11083,6 +11137,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
@@ -11314,6 +11369,7 @@
    "bangumi_watch_log.json": [
     {
      "comment": "这集不错",
+     "comment_posted": true,
      "ep_index": "1",
      "ep_title": "第1个故事",
      "mood": "开心",
