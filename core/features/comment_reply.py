@@ -133,7 +133,7 @@ class CommentReply(HostView):
             "说完这一点就停，不用每次都反问、邀请对方继续聊或者送祝福。\n"
             "关系和记忆只用来决定说话亲不亲近。没有记录的共同经历不编，对方一眼就知道是假的；"
             "UID、好感度、记忆这些是后台的东西，不说出来。"
-            f"回{ctx.on}也是在公开场合：可以亲近，但不带出私聊里的事，也不用每句都喊「主人」。\n"
+            f"回{ctx.on}也是在公开场合：可以亲近，但不带出私聊里的事。\n"
         )
         target_name = "评论"
         prompt = self.reply_writing._assemble_reply_prompt(ctx, scene_prompt=scene_prompt, target_name=target_name)

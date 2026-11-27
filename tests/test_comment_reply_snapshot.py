@@ -112,10 +112,7 @@ def reply_json(reply="收到啦", decision="reply", score_delta=1, tool=None, **
         "score_delta": score_delta if decision == "reply" else 0,
         "impression": extra.pop("impression", ""),
         "user_facts": extra.pop("user_facts", []),
-        "signals": {
-            "interaction_type": "normal", "feedback_type": "none", "attack_level": 0,
-            "feedback_topic": None, "reflection_candidate": None, "confidence": 0.9,
-        },
+        "feedback": None,
         "tool_request": tool or {"name": "none", "query": ""},
     }
     payload.update(extra)
