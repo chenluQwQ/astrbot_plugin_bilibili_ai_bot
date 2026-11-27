@@ -185,6 +185,7 @@ class Summaries(HostView):
 - 不泄露 UID、账号凭据、私信原文或第三方隐私；不要频繁称呼主人
 - 正文总字数160-320字（不含标题和顶部统计行），宁可少而具体，不要为了够字数灌水
 - 直接输出，不要加额外的标题或前缀
+- 用白描写
 
 {NATURAL_VOICE_RULES}"""
 
@@ -313,6 +314,7 @@ class Summaries(HostView):
 - 可以提到看过的视频、动态、评论区或直播里的有趣片段，但不要泄露UID、私信原文、账号凭据或其他隐私。
 - 像角色睡前随手记，80-180字，不要写成运营报表。
 - 直接输出正文。
+- 用白描写。
 
 {NATURAL_VOICE_RULES}"""
         custom = str(self.settings.get("CUSTOM_DAILY_INSTRUCTION") or "").strip()

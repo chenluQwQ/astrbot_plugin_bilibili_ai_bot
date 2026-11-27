@@ -16,7 +16,7 @@ from ..infra.tool_loop import ToolMiss, ToolRun
 from ..video_timeline import format_subtitle_lines
 from ..security.redact import wrap_untrusted
 from ..video_diagnostics import evaluation_failure, get_call_diagnostic, set_call_diagnostic, exception_detail
-from ..voice_prompt import NATURAL_VOICE_RULES
+from ..voice_prompt import BILI_INTRO, NATURAL_VOICE_RULES
 from ..video_evaluation import VIDEO_EVALUATION_SCHEMA_PROMPT, VideoEvaluationError, parse_video_evaluation
 from ..infra.search import web_search_ready
 
@@ -56,7 +56,7 @@ def evaluation_instructions(on: str) -> str:
 这些都是记给你自己的，不是写给谁看的测评。
 
 【先写感受】
-- review：看完想说的话。从【时间线】里挑一处，一个画面、一句原话或者一个数字，写你看到它时怎么想的。只写这一处；视频讲了什么不用写，简介里有；视频好不好也不用在这里评，分数写在 score 里
+- review：看完想说的话。从【时间线】里挑一处，一个画面、一句原话或者一个数字，写你看到它时怎么想的。只写这一处；视频讲了什么不用写，简介里有；视频好不好也不用在这里评，分数写在 score 里。用白描写
 - mood：看完的心情
 - impression：很久以后这个视频只剩下这一句记忆，写它是讲什么的、你当时喜不喜欢
 
@@ -326,7 +326,7 @@ class VideoEvaluate(HostView):
         生成模型走 AstrBot 时可以先查：问视频模型某一段、拉字幕、联网；配的是独立 API 就直接写。
         """
         sp = await self.models._get_system_prompt()
-        prompt = PROACTIVE_COMMENT_INSTRUCTIONS + self._custom_comment_instruction()
+        prompt = BILI_INTRO + "\n\n" + PROACTIVE_COMMENT_INSTRUCTIONS + self._custom_comment_instruction()
         tool_loop = getattr(self.models, "generation_tool_loop", None)
         route_of = getattr(self.models, "generation_route", None)
         route = route_of() if callable(route_of) else None

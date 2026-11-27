@@ -33,7 +33,7 @@ BANGUMI_EVALUATION_INSTRUCTIONS = f"""你刚看完一集番剧，要给自己记
 这些主要是记给你自己的，不是写给谁看的测评。
 
 【先写感受】
-- review：看完这集想说的话。挑一处，一个情节、一句台词或者一个角色，写你看到它时怎么想的。只写这一处；剧情不用复述，这集好不好也不用在这里评，分数写在 score 里
+- review：看完这集想说的话。挑一处，一个情节、一句台词或者一个角色，写你看到它时怎么想的。只写这一处；剧情不用复述，这集好不好也不用在这里评，分数写在 score 里。用白描写
 - mood：看完的心情，从 开心/平静/无聊/感动/好笑/震撼/困惑/燃/虐 里选一个
 
 【再打分】
@@ -357,6 +357,7 @@ class Bangumi(HostView):
             except (TypeError, ValueError):
                 score = 5
             comment = evaluation.get("comment", "")
+            evaluation["comment_posted"] = False  # 今天页的番剧卡片按它标「发了 / 没发」
             mood = evaluation.get("mood", "平静")
             review = evaluation.get("review", "")
             logger.info(f"[BiliBot] ⭐ 评分：{score}/10 | 心情：{mood} | 短评：{comment[:30]}")
@@ -475,6 +476,7 @@ class Bangumi(HostView):
                                     self.dynamic_post.comment_synced(
                                         f"ep:{ep_info.get('ep_id', '')}" if ep_info.get("ep_id") else episode_key, comment,
                                         f"《{season_info['title']}》第{ep_index}话")
+                                evaluation["comment_posted"] = True
                                 actions.append("💬评论")
                                 logger.info(f"[BiliBot] 💬 番剧评论：{comment}")
                                 entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M"), "type": "bangumi", "title": f"《{season_info['title']}》第{ep_index}话", "comment": comment}
@@ -597,6 +599,8 @@ class Bangumi(HostView):
                 "review": (evaluation or {}).get("review", ""),
                 "comment": (evaluation or {}).get("comment", ""),
             }
+            if evaluation and "comment_posted" in evaluation:
+                entry["comment_posted"] = bool(evaluation["comment_posted"])
             if status != "watched":
                 entry.update(comment="评价失败" if status == "evaluation_failed" else "看番出错",
                              evaluation_status="failed", fail_reason=reason, mood="")

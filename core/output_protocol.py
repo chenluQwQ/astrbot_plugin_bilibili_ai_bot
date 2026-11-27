@@ -11,23 +11,15 @@ from typing import Any
 
 
 DECISIONS = {"reply", "ignore", "observe"}
-INTERACTION_TYPES = {
-    "normal", "advice", "correction", "criticism", "teasing", "attack",
-    "threat", "other",
-}
-FEEDBACK_TYPES = {
-    "none", "suggestion", "correction", "criticism", "teasing", "attack",
-    "threat", "other",
-}
 TOP_LEVEL_KEYS = {
     "decision", "reply", "score_delta", "impression", "user_facts",
-    "signals", "tool_request",
+    "feedback", "tool_request",
 }
-SIGNAL_KEYS = {
-    "interaction_type", "feedback_type", "attack_level", "feedback_topic",
-    "reflection_candidate", "confidence",
-}
-REFLECTION_KEYS = {"event", "possible_mistake", "next_time"}
+# 2026-11-27：模型不再填 signals 那 6 格（互动类型、攻击程度、把握……），每条都要先判断「算不算攻击」，
+# 回复读着像审核员。现在只填一个可选的 feedback，signals 由程序推出来，后面记反馈候选的代码不用改。
+FEEDBACK_KEYS = {"kind", "about", "next_time"}
+FEEDBACK_KINDS = {"建议": "suggestion", "纠正": "correction", "批评": "criticism"}
+FEEDBACK_CONFIDENCE = 0.8
 TOOL_REQUEST_KEYS = {"name", "query"}
 # 可选：特别有感觉时想跟主人说一句（找主人说）。不回复时也能填。
 TELL_OWNER_KEYS = {"mood", "text"}
@@ -84,46 +76,28 @@ def checked_side_reply(text: Any, channel: str, limit: int = 200) -> str:
     return text
 
 
-def _validate_signals(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != SIGNAL_KEYS:
-        raise ReplyProtocolError("signals_schema_mismatch")
-    interaction = str(value.get("interaction_type") or "").strip().lower()
-    feedback = str(value.get("feedback_type") or "").strip().lower()
-    if interaction not in INTERACTION_TYPES:
-        raise ReplyProtocolError("invalid_interaction_type")
-    if feedback not in FEEDBACK_TYPES:
-        raise ReplyProtocolError("invalid_feedback_type")
-    attack_level = value.get("attack_level")
-    if isinstance(attack_level, bool) or not isinstance(attack_level, int):
-        raise ReplyProtocolError("attack_level_must_be_integer")
-    if not 0 <= attack_level <= 3:
-        raise ReplyProtocolError("attack_level_out_of_range")
-    confidence = value.get("confidence")
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
-        raise ReplyProtocolError("confidence_must_be_number")
-    confidence = float(confidence)
-    if not 0.0 <= confidence <= 1.0:
-        raise ReplyProtocolError("confidence_out_of_range")
-    topic = value.get("feedback_topic")
-    if topic is not None:
-        topic = _short_text(topic, "feedback_topic", 80, allow_empty=False)
-    reflection = value.get("reflection_candidate")
-    if reflection is not None:
-        if feedback not in {"suggestion", "correction", "criticism"}:
-            raise ReplyProtocolError("reflection_not_supported_for_feedback_type")
-        if not isinstance(reflection, dict) or set(reflection) != REFLECTION_KEYS:
-            raise ReplyProtocolError("reflection_candidate_schema_mismatch")
-        reflection = {
-            key: _short_text(reflection[key], f"reflection_{key}", 160, allow_empty=False)
-            for key in ("event", "possible_mistake", "next_time")
+def _derive_signals(feedback: Any, delta: int) -> dict[str, Any]:
+    """``feedback`` 是 ``null`` 或 ``{"kind":"建议|纠正|批评","about":"…","next_time":"…"}``；
+    换成原来的 signals 结构给记反馈候选用。攻击程度、互动类型按好感分推。"""
+    attack_level = 3 if delta <= -5 else 1 if delta <= -2 else 0
+    if feedback is None:
+        return {
+            "interaction_type": "attack" if attack_level >= 3 else "normal",
+            "feedback_type": "none", "attack_level": attack_level,
+            "feedback_topic": None, "reflection_candidate": None, "confidence": FEEDBACK_CONFIDENCE,
         }
+    if not isinstance(feedback, dict) or set(feedback) != FEEDBACK_KEYS:
+        raise ReplyProtocolError("feedback_schema_mismatch")
+    kind = FEEDBACK_KINDS.get(str(feedback.get("kind") or "").strip())
+    if kind is None:
+        raise ReplyProtocolError("invalid_feedback_kind")
+    about = _short_text(feedback.get("about"), "feedback_about", 80, allow_empty=False)
+    next_time = _short_text(feedback.get("next_time"), "feedback_next_time", 160, allow_empty=False)
     return {
-        "interaction_type": interaction,
-        "feedback_type": feedback,
-        "attack_level": attack_level,
-        "feedback_topic": topic,
-        "reflection_candidate": reflection,
-        "confidence": confidence,
+        "interaction_type": kind, "feedback_type": kind, "attack_level": attack_level,
+        "feedback_topic": about,
+        "reflection_candidate": {"event": about, "possible_mistake": "", "next_time": next_time},
+        "confidence": FEEDBACK_CONFIDENCE,
     }
 
 
@@ -176,7 +150,7 @@ def parse_reply_envelope(
     user_facts = [
         _short_text(item, "user_fact", 120, allow_empty=False) for item in facts
     ]
-    signals = _validate_signals(value.get("signals"))
+    signals = _derive_signals(value.get("feedback"), delta)
 
     tool_request = value.get("tool_request")
     if not isinstance(tool_request, dict) or set(tool_request) != TOOL_REQUEST_KEYS:
@@ -238,18 +212,14 @@ def reply_schema_instruction(*, tools: list[str] | None = None, tell_owner: bool
     instruction = (
         "只输出一个完整JSON对象，不要Markdown、解释或额外字段。格式必须严格为：\n"
         '{"decision":"reply|ignore|observe","reply":"你要说的话",'
-        '"score_delta":0,"impression":"","user_facts":[],'
-        '"signals":{"interaction_type":"normal|advice|correction|criticism|teasing|attack|threat|other",'
-        '"feedback_type":"none|suggestion|correction|criticism|teasing|attack|threat|other",'
-        '"attack_level":0,"feedback_topic":null,"reflection_candidate":null,"confidence":0.9},'
+        '"score_delta":0,"impression":"","user_facts":[],"feedback":null,'
         f'"tool_request":{{"name":"{tool_union}","query":""}}'
         + (',"tell_owner":null' if tell_owner else "") + "}\n"
-        "reply 里的字会原样发出去，所以只放你要说的话；分数、分析、工具这些写在别的字段。"
+        "reply 里的字会原样发出去，所以只放你要说的话；分数、工具这些写在别的字段。"
         "不想回就用 ignore；想记住但不回就用 observe。这两种不发东西，reply、impression、user_facts 留空，"
         "score_delta 为 0，tool_request 为 none。"
-        "signals 是给后台看的：这条是什么类型的互动、算不算批评或攻击。熟人开玩笑要按关系看，别只凭某个词就当成攻击。"
-        "reflection_candidate 平时为 null；只有对方明确提建议、纠正你、或者反复提同一件事时，才填"
-        '{"event":"发生了什么","possible_mistake":"哪里可能做错了","next_time":"以后怎么做"}，'
-        "这样以后能改。"
+        "feedback 平时填 null；对方给你提建议、指出你说错了、或者批评你的时候，才填"
+        '{"kind":"建议|纠正|批评","about":"对方说的是哪件事","next_time":"以后怎么做"}，'
+        "这样以后回复时能记得改。"
     )
     return instruction + (TELL_OWNER_INSTRUCTION if tell_owner else "")
