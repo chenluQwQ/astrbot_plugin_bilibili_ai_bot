@@ -455,8 +455,9 @@ class DynamicPost(HostView):
             cover = "（有封面）" if item.get("pic") else ""
             lines.append(
                 f"#{item['id']}（{when}，想发成：{item['kind']}）{what}{cover}\n"
+                # 不放当时的观后感原文：放了模型会照着扩写一遍，动态和观后感几乎一样（2026-11-27）
                 f"标题：{item['title'][:80]}{up}{score}\n想说的角度：{item['angle'][:80]}\n"
-                f"你的感想：{item['review'][:180]}\n内容概要：{item['summary'][:360]}"
+                f"内容概要：{item['summary'][:360]}"
             )
         material = wrap_untrusted("\n\n".join(lines), "dynamic_ideas")
         return (
